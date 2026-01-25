@@ -1,0 +1,286 @@
+---
+title: 技能
+description: 了解如何使用技能扩展你的 deep agent 的能力
+---
+
+你可以使用 [Agent Skills](https://agentskills.io/) 为你的 deep agent 提供新的能力和专业知识。
+
+## 什么是技能
+
+技能是文件夹的目录，每个文件夹包含一个或多个文件，其中包含 agent 可以使用的上下文：
+
+- 包含技能指令和元数据的 `SKILL.md` 文件
+- 额外的脚本（可选）
+- 额外的参考信息，如文档（可选）
+- 额外的资源，如模板和其他资源（可选）
+
+## 技能如何工作
+
+当你创建一个 deep agent 时，你可以传入包含技能的目录列表。
+当 agent 启动时，它会读取每个 `SKILL.md` 文件的前置元数据。
+
+当 agent 收到提示时，它会检查是否可以在完成提示时使用任何技能。
+如果找到匹配的提示，它会审查其余的技能文件。
+这种仅在需要时审查技能信息的模式称为渐进式披露。
+
+## 示例
+
+你可能有一个技能文件夹，其中包含一个以特定方式使用文档站点的技能，以及另一个搜索 arXiv 研究论文预印本库的技能：
+
+```plaintext
+    skills/
+    ├── langgraph-docs
+    │   └── SKILL.md
+    └── arxiv_search
+        ├── SKILL.md
+        └── arxiv_search.ts # code for searchign arXiv
+```
+
+`SKILL.md` 文件始终遵循相同的模式，以前置元数据中的元数据开始，然后是技能的指令。
+以下示例展示了一个技能，它提供了如何在收到提示时提供相关 langgraph 文档的指令：
+
+```md
+---
+name: langgraph-docs
+description: Use this skill for requests related to LangGraph in order to fetch relevant documentation to provide accurate, up-to-date guidance.
+---
+
+# langgraph-docs
+
+## Overview
+
+This skill explains how to access LangGraph Python documentation to help answer questions and guide implementation.
+
+## Instructions
+
+### 1. Fetch the Documentation Index
+
+Use the fetch_url tool to read the following URL:
+https://docs.langchain.com/llms.txt
+
+This provides a structured list of all available documentation with descriptions.
+
+### 2. Select Relevant Documentation
+
+Based on the question, identify 2-4 most relevant documentation URLs from the index. Prioritize:
+
+- Specific how-to guides for implementation questions
+- Core concept pages for understanding questions
+- Tutorials for end-to-end examples
+- Reference docs for API details
+
+### 3. Fetch Selected Documentation
+
+Use the fetch_url tool to read the selected documentation URLs.
+
+### 4. Provide Accurate Guidance
+
+After reading the documentation, complete the user's request.
+```
+
+有关更多示例技能，请参阅 [Deep Agent 示例技能](https://github.com/langchain-ai/deepagentsjs/tree/main/examples/skills)。
+
+## 用法
+
+在创建 deep agent 时传递技能目录：
+
+
+
+<Tabs>
+  <Tab title="StateBackend">
+
+    ```typescript
+    import { createDeepAgent, type FileData } from "deepagents";
+    import { MemorySaver, Command } from "@langchain/langgraph";
+    import { createInterface } from "node:readline/promises";
+    import { stdin as input, stdout as output } from "node:process";
+
+    const checkpointer = new MemorySaver();
+
+    function createFileData(content: string): FileData {
+    const now = new Date().toISOString();
+    return {
+        content: content.split("\n"),
+        created_at: now,
+        modified_at: now,
+    };
+    }
+
+    const skillsFiles: Record<string, FileData> = {};
+
+    const skillUrl =
+    "https://raw.githubusercontent.com/langchain-ai/deepagentsjs/refs/heads/main/examples/skills/langgraph-docs/SKILL.md";
+    const response = await fetch(skillUrl);
+    const skillContent = await response.text();
+
+    skillsFiles["/skills/langgraph-docs/SKILL.md"] = createFileData(skillContent);
+
+    const agent = await createDeepAgent({
+    checkpointer,
+    // IMPORTANT: deepagents skill source paths are virtual (POSIX) paths relative to the backend root.
+    skills: ["/skills/"],
+    });
+
+    const config = {
+    configurable: {
+        thread_id: `thread-${Date.now()}`,
+    },
+    };
+
+    let result = await agent.invoke(
+    {
+        messages: [
+        {
+            role: "user",
+            content: "what is langraph? Use the langgraph-docs skill if available.",
+        },
+        ],
+        files: skillsFiles,
+    } as any,
+    config
+    );
+    ```
+
+  </Tab>
+  <Tab title="StoreBackend">
+
+    ```typescript
+    import { createDeepAgent, StoreBackend, type FileData } from "deepagents";
+    import {
+    InMemoryStore,
+    MemorySaver,
+    type BaseStore,
+    } from "@langchain/langgraph";
+
+    const checkpointer = new MemorySaver();
+    const store = new InMemoryStore();
+
+    function createFileData(content: string): FileData {
+    const now = new Date().toISOString();
+    return {
+        content: content.split("\n"),
+        created_at: now,
+        modified_at: now,
+    };
+    }
+
+    const skillUrl =
+    "https://raw.githubusercontent.com/langchain-ai/deepagentsjs/refs/heads/main/examples/skills/langgraph-docs/SKILL.md";
+
+    const response = await fetch(skillUrl);
+    const skillContent = await response.text();
+    const fileData = createFileData(skillContent);
+
+    await store.put(["filesystem"], "/skills/langgraph-docs/SKILL.md", fileData);
+
+    const backendFactory = (config: { state: unknown; store?: BaseStore }) => {
+    return new StoreBackend({
+        state: config.state,
+        store: config.store ?? store,
+    });
+    };
+
+    const agent = await createDeepAgent({
+    backend: backendFactory,
+    store: store,
+    checkpointer,
+    // IMPORTANT: deepagents skill source paths are virtual (POSIX) paths relative to the backend root.
+    skills: ["/skills/"],
+    });
+
+    const config = {
+    configurable: {
+        thread_id: `thread-${Date.now()}`,
+    },
+    };
+
+    let result = await agent.invoke(
+    {
+        messages: [
+        {
+            role: "user",
+            content: "what is langraph? Use the langgraph-docs skill if available.",
+        },
+        ],
+    },
+    config
+    );
+    ```
+
+  </Tab>
+  <Tab title="FilesystemBackend">
+
+    ```typescript
+    import {
+    createDeepAgent,
+    createSkillsMiddleware,
+    createSettings,
+    FilesystemBackend,
+    } from "deepagents";
+    import { MemorySaver } from "@langchain/langgraph";
+
+    const settings = createSettings({
+    });
+
+    const agent = await createDeepAgent({
+    backend: (config) =>
+        new FilesystemBackend({ rootDir: "/Users/user/{project}" }),
+    skills: [path.join(process.cwd(), ".deepagents/skills")],
+    interruptOn: {
+        read_file: true,
+        write_file: true,
+        delete_file: true,
+    },
+    checkpointer, // Required!
+    });
+
+    const config = {
+    configurable: {
+        thread_id: `thread-${Date.now()}`,
+    },
+    };
+
+    let result = await agent.invoke(
+    {
+        messages: [
+        {
+            role: "user",
+            content: "what is langraph? Use the langgraph-docs skill if available.",
+        },
+        ]
+    } as any,
+    config
+    );
+    ```
+
+  </Tab>
+</Tabs>
+
+<ParamField body="skills" type="list[str]" optional>
+    技能源路径列表。
+    路径必须使用正斜杠指定，并且相对于后端的根目录。
+    - 使用 StateBackend（默认）时，使用 `invoke(files={...})` 提供技能文件。
+    - 使用 FilesystemBackend 时，技能从相对于后端 root_dir 的磁盘加载。
+
+    对于同名技能，后面的源会覆盖前面的（最后一个获胜）。
+</ParamField>
+
+
+
+## 何时使用技能和工具
+
+以下是使用工具和技能的一些一般性指南：
+
+- 当有大量上下文时使用技能，以减少系统提示中的 token 数量。
+- 使用技能将能力捆绑成更大的操作，并提供超出单个工具描述的额外上下文。
+- 如果 agent 无法访问文件系统，则使用工具。
+
+---
+
+<Callout icon="pen-to-square" iconType="regular">
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/deepagents/skills.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+</Callout>
+<Tip icon="terminal" iconType="regular">
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+</Tip>
+<div class='fixed right-2 bg-white bottom-2'><img src='https://kunfanyang.site/site-file/wx_code.jpg' class='border' alt='微信扫码赞赏' width='200' /></div>

@@ -1,0 +1,157 @@
+在本地使用 LangChain 构建 agents 时，可视化 agent 内部发生的事情、实时与其交互以及在问题发生时进行调试非常有帮助。**LangSmith Studio** 是一个免费的可视化界面，用于从本地机器开发和测试你的 LangChain agents。
+
+Studio 连接到你本地运行的 agent，显示 agent 执行的每一步：发送给模型的提示、工具调用及其结果以及最终输出。你可以测试不同的输入、检查中间状态，并在不需要额外代码或部署的情况下迭代 agent 的行为。
+
+本页面描述如何使用本地 LangChain agent 设置 Studio。
+
+## 前提条件
+
+在开始之前，请确保你具备以下条件：
+
+- **LangSmith 账户**：在 [smith.langchain.com](https://smith.langchain.com) 免费注册或登录。
+- **LangSmith API 密钥**：按照[创建 API 密钥](/langsmith/create-account-api-key#create-an-api-key)指南操作。
+- 如果你不希望数据被[追踪](/langsmith/observability-concepts#traces)到 LangSmith，请在应用程序的 `.env` 文件中设置 `LANGSMITH_TRACING=false`。禁用追踪后，数据不会离开你的本地服务器。
+
+## 设置本地 Agent 服务器
+
+### 1. 安装 LangGraph CLI
+
+[LangGraph CLI](/langsmith/cli) 提供了一个本地开发服务器（也称为 [Agent Server](/langsmith/agent-server)），将你的 agent 连接到 Studio。
+
+```shell
+# Python >= 3.11 is required.
+pip install --upgrade "langgraph-cli[inmem]"
+```
+
+
+
+
+### 2. 准备你的 agent
+
+如果你已经有一个 LangChain agent，可以直接使用它。这个示例使用一个简单的邮件 agent：
+
+```python title="agent.py"
+from langchain.agents import create_agent
+
+def send_email(to: str, subject: str, body: str):
+    """Send an email"""
+    email = {
+        "to": to,
+        "subject": subject,
+        "body": body
+    }
+    # ... email sending logic
+
+    return f"Email sent to {to}"
+
+agent = create_agent(
+    "gpt-4o",
+    tools=[send_email],
+    system_prompt="You are an email assistant. Always use the send_email tool.",
+)
+```
+
+### 3. 环境变量
+
+Studio 需要 LangSmith API 密钥来连接你的本地 agent。在项目根目录创建一个 `.env` 文件，并添加来自 [LangSmith](https://smith.langchain.com/settings) 的 API 密钥。
+
+<Warning>
+    确保你的 `.env` 文件不会被提交到版本控制系统，如 Git。
+</Warning>
+
+```bash .env
+LANGSMITH_API_KEY=lsv2...
+```
+
+### 4. 创建 LangGraph 配置文件
+
+LangGraph CLI 使用配置文件来定位你的 agent 并管理依赖项。在你的应用目录中创建一个 `langgraph.json` 文件：
+
+```json title="langgraph.json"
+{
+  "dependencies": ["."],
+  "graphs": {
+    "agent": "./src/agent.py:agent"
+  },
+  "env": ".env"
+}
+```
+
+[`create_agent`](https://reference.langchain.com/python/langchain/agents/#langchain.agents.create_agent) 函数会自动返回一个编译好的 LangGraph 图，这正是配置文件中 `graphs` 键所期望的。
+
+<Info>
+有关配置文件中 JSON 对象每个键的详细说明，请参阅 [LangGraph 配置文件参考](/langsmith/cli#configuration-file)。
+</Info>
+
+此时，项目结构将如下所示：
+
+```bash
+my-app/
+├── src
+│   └── agent.py
+├── .env
+└── langgraph.json
+```
+
+### 5. 安装依赖项
+
+从根目录安装项目依赖项：
+
+<CodeGroup>
+```shell pip
+pip install langchain langchain-openai 
+```
+```shell uv
+uv add langchain langchain-openai
+```
+</CodeGroup>
+
+
+
+
+### 6. 在 Studio 中查看你的 agent
+
+启动开发服务器以将你的 agent 连接到 Studio：
+
+```shell
+langgraph dev
+```
+
+
+
+
+<Warning>
+Safari 会阻止 `localhost` 连接到 Studio。要解决此问题，请使用 `--tunnel` 参数运行上述命令，通过安全隧道访问 Studio。
+</Warning>
+
+服务器运行后，你的 agent 可以通过 API 访问（地址为 `http://127.0.0.1:2024`），也可以通过 Studio UI 访问（地址为 `https://smith.langchain.com/studio/?baseUrl=http://127.0.0.1:2024`）：
+
+<Frame>
+![Studio UI 中的 Agent 视图](/oss/images/studio_create-agent.png)
+</Frame>
+
+将 Studio 连接到本地 agent 后，你可以快速迭代 agent 的行为。运行测试输入，检查完整的执行追踪，包括提示、工具参数、返回值以及 token/延迟指标。当出现问题时，Studio 会捕获异常及其周围状态，帮助你理解发生了什么。
+
+开发服务器支持热重载——在代码中更改提示或工具签名，Studio 会立即反映这些更改。从任何步骤重新运行对话线程来测试你的更改，无需从头开始。这个工作流适用于从简单的单工具 agents 到复杂的多节点图。
+
+有关如何运行 Studio 的更多信息，请参阅 [LangSmith 文档](/langsmith/home)中的以下指南：
+
+- [运行应用程序](/langsmith/use-studio#run-application)
+- [管理助手](/langsmith/use-studio#manage-assistants)
+- [管理线程](/langsmith/use-studio#manage-threads)
+- [迭代提示](/langsmith/observability-studio)
+- [调试 LangSmith 追踪](/langsmith/observability-studio#debug-langsmith-traces)
+- [将节点添加到数据集](/langsmith/observability-studio#add-node-to-dataset)
+
+## 视频指南
+
+<Frame>
+<iframe
+  className="w-full aspect-video rounded-xl"
+  src="https://www.youtube.com/embed/Mi1gSlHwZLM?si=zA47TNuTC5aH0ahd"
+  title="Studio"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+</Frame>

@@ -1,0 +1,55 @@
+---
+title: INVALID_TOOL_RESULTS
+---
+
+<Note>
+    目前仅在 `langchainjs` (JavaScript/TypeScript) 中使用。
+</Note>
+
+当在工具调用操作期间向模型传递不匹配、不足或过多的 [`ToolMessage`](https://reference.langchain.com/javascript/classes/_langchain_core.messages.ToolMessage.html) 对象时，会发生此错误。
+
+此错误源于一个基本要求：带有 `tool_calls` 的 assistant 消息必须后跟响应每个 `tool_call_id` 的工具消息。
+
+当模型返回带有工具调用的 [`AIMessage`](https://reference.langchain.com/javascript/classes/_langchain_core.messages.AIMessage.html) 时，你必须为每个工具调用提供恰好一个对应的 [`ToolMessage`](https://reference.langchain.com/javascript/classes/_langchain_core.messages.ToolMessage.html)，并具有匹配的 `tool_call_id` 值。
+
+## Common causes
+
+* **Insufficient responses**: If a model requests two tool executions but you only provide one response message, the model rejects the incomplete message chain
+* **Duplicate responses**: Providing multiple [`ToolMessage`](https://reference.langchain.com/javascript/classes/_langchain_core.messages.ToolMessage.html) objects for the same tool call ID results in rejection, as does having unmatched IDs
+* **Orphaned tool messages**: Sending a [`ToolMessage`](https://reference.langchain.com/javascript/classes/_langchain_core.messages.ToolMessage.html) without a preceding [`AIMessage`](https://reference.langchain.com/javascript/classes/_langchain_core.messages.AIMessage.html) containing tool calls violates protocol requirements
+
+
+
+这是一个有问题的模式示例：
+
+```javascript
+// Model requests two tool calls
+responseMessage.tool_calls // Returns 2 calls
+
+// But only one ToolMessage provided
+chatHistory.push({
+  role: "tool",
+  content: toolResponse,
+  tool_call_id: responseMessage.tool_calls[0].id
+});
+
+await modelWithTools.invoke(chatHistory); // Fails with INVALID_TOOL_RESULTS
+```
+
+
+## 故障排除
+
+要解决此错误：
+
+* **计算匹配对**：确保前置 [`AIMessage`](https://reference.langchain.com/javascript/classes/_langchain_core.messages.AIMessage.html) 中的每个工具调用都有一个 [`ToolMessage`](https://reference.langchain.com/javascript/classes/_langchain_core.messages.ToolMessage.html)
+* **验证 ID**：确认每个 `ToolMessage.tool_call_id` 匹配实际的工具调用标识符
+
+---
+
+<Callout icon="pen-to-square" iconType="regular">
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/errors/INVALID_TOOL_RESULTS.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+</Callout>
+<Tip icon="terminal" iconType="regular">
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+</Tip>
+<div class='fixed right-2 bg-white bottom-2'><img src='https://kunfanyang.site/site-file/wx_code.jpg' class='border' alt='微信扫码赞赏' width='200' /></div>

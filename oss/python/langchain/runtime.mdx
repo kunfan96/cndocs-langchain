@@ -1,0 +1,149 @@
+---
+title: 运行时
+---
+
+## 概述
+
+LangChain 的 [`create_agent`](https://reference.langchain.com/python/langchain/agents/#langchain.agents.create_agent) 在底层运行于 LangGraph 的运行时之上。
+
+
+LangGraph 暴露了一个 [`Runtime`](https://reference.langchain.com/python/langgraph/runtime/#langgraph.runtime.Runtime) 对象，包含以下信息：
+
+1. **Context**：静态信息，如用户 ID、数据库连接或 agent 调用的其他依赖项
+2. **Store**：用于[长期记忆](/oss/python/langchain/long-term-memory)的 [BaseStore](https://reference.langchain.com/python/langgraph/store/#langgraph.store.base.BaseStore) 实例
+3. **Stream writer**：用于通过 `"custom"` 流模式传输信息的对象
+
+<Tip>
+运行时上下文为你的 tools 和 middleware 提供**依赖注入**。你可以在调用 agent 时注入运行时依赖项（如数据库连接、用户 ID 或配置），而不是硬编码值或使用全局状态。这使你的 tools 更易于测试、可重用且灵活。
+</Tip>
+
+
+
+
+你可以在 [tools](#inside-tools) 和 [middleware](#inside-middleware) 中访问运行时信息。
+
+## 访问
+
+使用 [`create_agent`](https://reference.langchain.com/python/langchain/agents/#langchain.agents.create_agent) 创建 agent 时，你可以指定 `context_schema` 来定义存储在 agent [`Runtime`](https://reference.langchain.com/python/langgraph/runtime/#langgraph.runtime.Runtime) 中的 `context` 的结构。
+
+
+
+调用 agent 时，传递带有运行相关配置的 `context` 参数：
+
+```python
+from dataclasses import dataclass
+
+from langchain.agents import create_agent
+
+
+@dataclass
+class Context:
+    user_name: str
+
+agent = create_agent(
+    model="gpt-5-nano",
+    tools=[...],
+    context_schema=Context  # [!code highlight]
+)
+
+agent.invoke(
+    {"messages": [{"role": "user", "content": "What's my name?"}]},
+    context=Context(user_name="John Smith")  # [!code highlight]
+)
+```
+
+
+
+### 在 tools 内部
+
+你可以在 tools 内部访问运行时信息以：
+
+* 访问上下文
+* 读取或写入长期记忆
+* 写入[自定义流](/oss/python/langchain/streaming#custom-updates)（例如，工具进度/更新）
+
+使用 `ToolRuntime` 参数在 tool 内部访问 [`Runtime`](https://reference.langchain.com/python/langgraph/runtime/#langgraph.runtime.Runtime) 对象。
+
+```python
+from dataclasses import dataclass
+from langchain.tools import tool, ToolRuntime  # [!code highlight]
+
+@dataclass
+class Context:
+    user_id: str
+
+@tool
+def fetch_user_email_preferences(runtime: ToolRuntime[Context]) -> str:  # [!code highlight]
+    """Fetch the user's email preferences from the store."""
+    user_id = runtime.context.user_id  # [!code highlight]
+
+    preferences: str = "The user prefers you to write a brief and polite email."
+    if runtime.store:  # [!code highlight]
+        if memory := runtime.store.get(("users",), user_id):  # [!code highlight]
+            preferences = memory.value["preferences"]
+
+    return preferences
+```
+
+
+
+### 在 middleware 内部
+
+你可以在 middleware 中访问运行时信息以创建动态 prompts、修改消息或根据用户上下文控制 agent 行为。
+
+使用 `Runtime` 参数在 [node-style hooks](/oss/python/langchain/middleware/custom#node-style-hooks) 内部访问 [`Runtime`](https://reference.langchain.com/python/langgraph/runtime/#langgraph.runtime.Runtime) 对象。对于 [wrap-style hooks](/oss/python/langchain/middleware/custom#wrap-style-hooks)，`Runtime` 对象在 [`ModelRequest`](https://reference.langchain.com/python/langchain/middleware/#langchain.agents.middleware.ModelRequest) 参数内可用。
+
+```python
+from dataclasses import dataclass
+
+from langchain.messages import AnyMessage
+from langchain.agents import create_agent, AgentState
+from langchain.agents.middleware import dynamic_prompt, ModelRequest, before_model, after_model
+from langgraph.runtime import Runtime
+
+
+@dataclass
+class Context:
+    user_name: str
+
+# Dynamic prompts
+@dynamic_prompt
+def dynamic_system_prompt(request: ModelRequest) -> str:
+    user_name = request.runtime.context.user_name  # [!code highlight]
+    system_prompt = f"You are a helpful assistant. Address the user as {user_name}."
+    return system_prompt
+
+# Before model hook
+@before_model
+def log_before_model(state: AgentState, runtime: Runtime[Context]) -> dict | None:  # [!code highlight]
+    print(f"Processing request for user: {runtime.context.user_name}")  # [!code highlight]
+    return None
+
+# After model hook
+@after_model
+def log_after_model(state: AgentState, runtime: Runtime[Context]) -> dict | None:  # [!code highlight]
+    print(f"Completed request for user: {runtime.context.user_name}")  # [!code highlight]
+    return None
+
+agent = create_agent(
+    model="gpt-5-nano",
+    tools=[...],
+    middleware=[dynamic_system_prompt, log_before_model, log_after_model],  # [!code highlight]
+    context_schema=Context
+)
+
+agent.invoke(
+    {"messages": [{"role": "user", "content": "What's my name?"}]},
+    context=Context(user_name="John Smith")
+)
+```
+
+---
+
+<Callout icon="pen-to-square" iconType="regular">
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/runtime.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+</Callout>
+<Tip icon="terminal" iconType="regular">
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+</Tip>
+<div class='fixed right-2 bg-white bottom-2'><img src='https://kunfanyang.site/site-file/wx_code.jpg' class='border' alt='微信扫码赞赏' width='200' /></div>

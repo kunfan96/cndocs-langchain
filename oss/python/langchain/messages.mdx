@@ -1,0 +1,1034 @@
+---
+title: 消息
+---
+
+{/* TODO: section on metadata types (response and usage) */}
+
+消息是 LangChain 中模型上下文的基本单位。它们表示模型的输入和输出，承载与 LLM 交互时表示对话状态所需的内容和元数据。
+
+消息是包含以下内容的对象：
+
+* <Icon icon="user" size={16} /> [**角色**](#message-types) - 标识消息类型（例如 `system`、`user`）
+* <Icon icon="folder-closed" size={16} /> [**内容**](#message-content) - 表示消息的实际内容（如文本、图像、音频、文档等）
+* <Icon icon="tag" size={16} /> [**元数据**](#message-metadata) - 可选字段，如响应信息、消息 ID 和 token 使用量
+
+LangChain 提供了一种标准消息类型，可跨所有模型服务商使用，确保无论调用哪个模型都具有一致的行为。
+
+## 基本用法
+
+使用消息最简单的方式是创建消息对象并在[调用](/oss/python/langchain/models#invocation)时将它们传递给模型。
+
+```python
+from langchain.chat_models import init_chat_model
+from langchain.messages import HumanMessage, AIMessage, SystemMessage
+
+model = init_chat_model("gpt-5-nano")
+
+system_msg = SystemMessage("You are a helpful assistant.")
+human_msg = HumanMessage("Hello, how are you?")
+
+# Use with chat models
+messages = [system_msg, human_msg]
+response = model.invoke(messages)  # Returns AIMessage
+```
+
+
+
+
+### 文本提示词
+
+文本提示词是字符串——适合不需要保留对话历史的简单生成任务。
+
+```python
+response = model.invoke("Write a haiku about spring")
+```
+
+
+
+
+**何时使用文本提示词：**
+* 你有单个独立的请求
+* 你不需要对话历史
+* 你想要最小的代码复杂性
+
+### 消息提示词
+
+或者，你可以通过提供消息对象列表来向模型传递消息列表。
+
+```python
+from langchain.messages import SystemMessage, HumanMessage, AIMessage
+
+messages = [
+    SystemMessage("You are a poetry expert"),
+    HumanMessage("Write a haiku about spring"),
+    AIMessage("Cherry blossoms bloom...")
+]
+response = model.invoke(messages)
+```
+
+
+
+
+**何时使用消息提示词：**
+* 管理多轮对话
+* 处理多模态内容（图像、音频、文件）
+* 包含系统指令
+
+### 字典格式
+
+你也可以直接以 OpenAI chat completions 格式指定消息。
+
+```python
+messages = [
+    {"role": "system", "content": "You are a poetry expert"},
+    {"role": "user", "content": "Write a haiku about spring"},
+    {"role": "assistant", "content": "Cherry blossoms bloom..."}
+]
+response = model.invoke(messages)
+```
+
+
+
+
+## 消息类型
+
+- <Icon icon="gear" size={16} /> [系统消息](#system-message) - 告诉模型如何行为并为交互提供上下文
+- <Icon icon="user" size={16} /> [人类消息](#human-message) - 表示用户输入和与模型的交互
+- <Icon icon="robot" size={16} /> [AI 消息](#ai-message) - 模型生成的响应，包括文本内容、工具调用和元数据
+- <Icon icon="wrench" size={16} /> [工具消息](#tool-message) - 表示[工具调用](/oss/python/langchain/models#tool-calling)的输出
+
+### 系统消息
+
+[`SystemMessage`](https://reference.langchain.com/python/langchain/messages/#langchain.messages.SystemMessage) 表示一组初始指令，用于预设模型的行为。你可以使用系统消息来设定语气、定义模型的角色并建立响应指南。
+
+```python Basic instructions
+system_msg = SystemMessage("You are a helpful coding assistant.")
+
+messages = [
+    system_msg,
+    HumanMessage("How do I create a REST API?")
+]
+response = model.invoke(messages)
+```
+
+
+
+
+```python Detailed persona
+from langchain.messages import SystemMessage, HumanMessage
+
+system_msg = SystemMessage("""
+You are a senior Python developer with expertise in web frameworks.
+Always provide code examples and explain your reasoning.
+Be concise but thorough in your explanations.
+""")
+
+messages = [
+    system_msg,
+    HumanMessage("How do I create a REST API?")
+]
+response = model.invoke(messages)
+```
+
+
+
+
+---
+
+### 人类消息
+
+[`HumanMessage`](https://reference.langchain.com/python/langchain/messages/#langchain.messages.HumanMessage) 表示用户输入和交互。它们可以包含文本、图像、音频、文件和任何其他数量的多模态[内容](#message-content)。
+
+#### 文本内容
+
+<CodeGroup>
+    ```python Message object
+    response = model.invoke([
+      HumanMessage("What is machine learning?")
+    ])
+    ```
+
+    ```python String shortcut
+    # Using a string is a shortcut for a single HumanMessage
+    response = model.invoke("What is machine learning?")
+    ```
+</CodeGroup>
+
+
+
+
+#### 消息元数据
+
+```python Add metadata
+human_msg = HumanMessage(
+    content="Hello!",
+    name="alice",  # Optional: identify different users
+    id="msg_123",  # Optional: unique identifier for tracing
+)
+```
+
+
+
+
+<Note>
+    `name` 字段的行为因服务商而异——有些用于用户识别，有些则忽略它。要检查，请参考模型服务商的[参考文档](https://reference.langchain.com/python/integrations/)。
+</Note>
+
+---
+
+### AI 消息
+
+[`AIMessage`](https://reference.langchain.com/python/langchain/messages/#langchain.messages.AIMessage) 表示模型调用的输出。它们可以包含多模态数据、工具调用和你稍后可以访问的服务商特定元数据。
+
+```python
+response = model.invoke("Explain AI")
+print(type(response))  # <class 'langchain.messages.AIMessage'>
+```
+
+
+
+
+调用模型时会返回 [`AIMessage`](https://reference.langchain.com/python/langchain/messages/#langchain.messages.AIMessage) 对象，其中包含响应中的所有相关元数据。
+
+服务商对消息类型的权重/上下文化方式不同，这意味着有时手动创建一个新的 [`AIMessage`](https://reference.langchain.com/python/langchain/messages/#langchain.messages.AIMessage) 对象并将其插入消息历史中（就像它来自模型一样）是有帮助的。
+
+```python
+from langchain.messages import AIMessage, SystemMessage, HumanMessage
+
+# Create an AI message manually (e.g., for conversation history)
+ai_msg = AIMessage("I'd be happy to help you with that question!")
+
+# Add to conversation history
+messages = [
+    SystemMessage("You are a helpful assistant"),
+    HumanMessage("Can you help me?"),
+    ai_msg,  # Insert as if it came from the model
+    HumanMessage("Great! What's 2+2?")
+]
+
+response = model.invoke(messages)
+```
+
+
+
+
+<Accordion title="Attributes">
+    <ParamField path="text" type="string">
+        The text content of the message.
+    </ParamField>
+    <ParamField path="content" type="string | dict[]">
+        The raw content of the message.
+    </ParamField>
+    <ParamField path="content_blocks" type="ContentBlock[]">
+        The standardized [content blocks](#message-content) of the message.
+    </ParamField>
+    <ParamField path="tool_calls" type="dict[] | None">
+        The tool calls made by the model.
+
+        Empty if no tools are called.
+    </ParamField>
+    <ParamField path="id" type="string">
+        A unique identifier for the message (either automatically generated by LangChain or returned in the provider response)
+    </ParamField>
+    <ParamField path="usage_metadata" type="dict | None">
+        The usage metadata of the message, which can contain token counts when available.
+    </ParamField>
+    <ParamField path="response_metadata" type="ResponseMetadata | None">
+        The response metadata of the message.
+    </ParamField>
+
+
+
+</Accordion>
+
+#### 工具调用
+
+当模型进行[工具调用](/oss/python/langchain/models#tool-calling)时，它们包含在 [`AIMessage`](https://reference.langchain.com/python/langchain/messages/#langchain.messages.AIMessage) 中：
+
+```python
+from langchain.chat_models import init_chat_model
+
+model = init_chat_model("gpt-5-nano")
+
+def get_weather(location: str) -> str:
+    """Get the weather at a location."""
+    ...
+
+model_with_tools = model.bind_tools([get_weather])
+response = model_with_tools.invoke("What's the weather in Paris?")
+
+for tool_call in response.tool_calls:
+    print(f"Tool: {tool_call['name']}")
+    print(f"Args: {tool_call['args']}")
+    print(f"ID: {tool_call['id']}")
+```
+
+
+
+
+其他结构化数据，如推理或引用，也可以出现在消息[内容](/oss/python/langchain/messages#message-content)中。
+
+#### Token 使用量
+
+[`AIMessage`](https://reference.langchain.com/python/langchain/messages/#langchain.messages.AIMessage) 可以在其 [`usage_metadata`](https://reference.langchain.com/python/langchain/messages/#langchain.messages.UsageMetadata) 字段中保存 token 计数和其他使用元数据：
+
+```python
+from langchain.chat_models import init_chat_model
+
+model = init_chat_model("gpt-5-nano")
+
+response = model.invoke("Hello!")
+response.usage_metadata
+```
+
+```
+{'input_tokens': 8,
+ 'output_tokens': 304,
+ 'total_tokens': 312,
+ 'input_token_details': {'audio': 0, 'cache_read': 0},
+ 'output_token_details': {'audio': 0, 'reasoning': 256}}
+```
+
+
+
+有关详细信息，请参阅 [`UsageMetadata`](https://reference.langchain.com/python/langchain/messages/#langchain.messages.UsageMetadata)。
+
+#### 流式传输和块
+
+在流式传输期间，你将收到可以组合成完整消息对象的 [`AIMessageChunk`](https://reference.langchain.com/python/langchain/messages/#langchain.messages.AIMessageChunk) 对象：
+
+```python
+chunks = []
+full_message = None
+for chunk in model.stream("Hi"):
+    chunks.append(chunk)
+    print(chunk.text)
+    full_message = chunk if full_message is None else full_message + chunk
+```
+
+
+
+
+<Note>
+了解更多：
+- [从聊天模型流式传输 token](/oss/python/langchain/models#stream)
+- [从 Agent 流式传输 token 和/或步骤](/oss/python/langchain/streaming)
+</Note>
+
+---
+
+### 工具消息
+
+对于支持[工具调用](/oss/python/langchain/models#tool-calling)的模型，AI 消息可以包含工具调用。工具消息用于将单个工具执行的结果传回模型。
+
+[工具](/oss/python/langchain/tools)可以直接生成 [`ToolMessage`](https://reference.langchain.com/python/langchain/messages/#langchain.messages.ToolMessage) 对象。下面，我们展示一个简单的示例。在[工具指南](/oss/python/langchain/tools)中阅读更多内容。
+
+```python
+from langchain.messages import AIMessage
+from langchain.messages import ToolMessage
+
+# After a model makes a tool call
+# (Here, we demonstrate manually creating the messages for brevity)
+ai_message = AIMessage(
+    content=[],
+    tool_calls=[{
+        "name": "get_weather",
+        "args": {"location": "San Francisco"},
+        "id": "call_123"
+    }]
+)
+
+# Execute tool and create result message
+weather_result = "Sunny, 72°F"
+tool_message = ToolMessage(
+    content=weather_result,
+    tool_call_id="call_123"  # Must match the call ID
+)
+
+# Continue conversation
+messages = [
+    HumanMessage("What's the weather in San Francisco?"),
+    ai_message,  # Model's tool call
+    tool_message,  # Tool execution result
+]
+response = model.invoke(messages)  # Model processes the result
+```
+
+
+
+
+<Accordion title="Attributes">
+    <ParamField path="content" type="string" required>
+        The stringified output of the tool call.
+    </ParamField>
+    <ParamField path="tool_call_id" type="string" required>
+        The ID of the tool call that this message is responding to. Must match the ID of the tool call in the [`AIMessage`](https://reference.langchain.com/python/langchain/messages/#langchain.messages.AIMessage).
+    </ParamField>
+    <ParamField path="name" type="string" required>
+        The name of the tool that was called.
+    </ParamField>
+    <ParamField path="artifact" type="dict">
+        Additional data not sent to the model but can be accessed programmatically.
+    </ParamField>
+</Accordion>
+
+<Note>
+    The `artifact` field stores supplementary data that won't be sent to the model but can be accessed programmatically. This is useful for storing raw results, debugging information, or data for downstream processing without cluttering the model's context.
+
+    <Accordion title="Example: Using artifact for retrieval metadata">
+        For example, a [retrieval](/oss/python/langchain/retrieval) tool could retrieve a passage from a document for reference by a model. Where message `content` contains text that the model will reference, an `artifact` can contain document identifiers or other metadata that an application can use (e.g., to render a page). See example below:
+
+        ```python
+        from langchain.messages import ToolMessage
+
+        # Sent to model
+        message_content = "It was the best of times, it was the worst of times."
+
+        # Artifact available downstream
+        artifact = {"document_id": "doc_123", "page": 0}
+
+        tool_message = ToolMessage(
+            content=message_content,
+            tool_call_id="call_123",
+            name="search_books",
+            artifact=artifact,
+        )
+        ```
+
+
+
+        See the [RAG tutorial](/oss/python/langchain/rag) for an end-to-end example of building retrieval [agents](/oss/python/langchain/agents) with LangChain.
+    </Accordion>
+</Note>
+
+---
+
+## 消息内容
+
+你可以将消息的内容视为发送到模型的数据载荷。消息有一个 `content` 属性，它是松散类型的，支持字符串和无类型对象列表（例如字典）。这允许在 LangChain 聊天模型中直接支持服务商原生结构，如[多模态](#multimodal)内容和其他数据。
+
+另外，LangChain 为文本、推理、引用、多模态数据、服务器端工具调用和其他消息内容提供了专用的内容类型。请参阅下面的[内容块](#standard-content-blocks)。
+
+LangChain 聊天模型在 `content` 属性中接受消息内容。
+
+这可能包含：
+
+1. 字符串
+2. 服务商原生格式的内容块列表
+3. [LangChain 标准内容块](#standard-content-blocks)列表
+
+以下是使用[多模态](#multimodal)输入的示例：
+
+```python
+from langchain.messages import HumanMessage
+
+# String content
+human_message = HumanMessage("Hello, how are you?")
+
+# Provider-native format (e.g., OpenAI)
+human_message = HumanMessage(content=[
+    {"type": "text", "text": "Hello, how are you?"},
+    {"type": "image_url", "image_url": {"url": "https://example.com/image.jpg"}}
+])
+
+# List of standard content blocks
+human_message = HumanMessage(content_blocks=[
+    {"type": "text", "text": "Hello, how are you?"},
+    {"type": "image", "url": "https://example.com/image.jpg"},
+])
+```
+
+<Tip>
+    Specifying `content_blocks` when initializing a message will still populate message
+    `content`, but provides a type-safe interface for doing so.
+</Tip>
+
+
+
+
+### 标准内容块
+
+LangChain 提供了跨服务商使用的消息内容的标准表示。
+
+Message objects implement a `content_blocks` property that will lazily parse the `content` attribute into a standard, type-safe representation. For example, messages generated from [`ChatAnthropic`](/oss/python/integrations/chat/anthropic) or [`ChatOpenAI`](/oss/python/integrations/chat/openai) will include `thinking` or `reasoning` blocks in the format of the respective provider, but can be lazily parsed into a consistent [`ReasoningContentBlock`](#content-block-reference) representation:
+
+<Tabs>
+<Tab title="Anthropic">
+```python
+from langchain.messages import AIMessage
+
+message = AIMessage(
+    content=[
+        {"type": "thinking", "thinking": "...", "signature": "WaUjzkyp..."},
+        {"type": "text", "text": "..."},
+    ],
+    response_metadata={"model_provider": "anthropic"}
+)
+message.content_blocks
+```
+```
+[{'type': 'reasoning',
+  'reasoning': '...',
+  'extras': {'signature': 'WaUjzkyp...'}},
+ {'type': 'text', 'text': '...'}]
+```
+</Tab>
+
+<Tab title="OpenAI">
+```python
+from langchain.messages import AIMessage
+
+message = AIMessage(
+    content=[
+        {
+            "type": "reasoning",
+            "id": "rs_abc123",
+            "summary": [
+                {"type": "summary_text", "text": "summary 1"},
+                {"type": "summary_text", "text": "summary 2"},
+            ],
+        },
+        {"type": "text", "text": "...", "id": "msg_abc123"},
+    ],
+    response_metadata={"model_provider": "openai"}
+)
+message.content_blocks
+```
+```
+[{'type': 'reasoning', 'id': 'rs_abc123', 'reasoning': 'summary 1'},
+ {'type': 'reasoning', 'id': 'rs_abc123', 'reasoning': 'summary 2'},
+ {'type': 'text', 'text': '...', 'id': 'msg_abc123'}]
+```
+</Tab>
+</Tabs>
+
+
+
+
+See the [integrations guides](/oss/python/integrations/providers/overview) to get started with the
+inference provider of your choice.
+
+<Note>
+    **Serializing standard content**
+
+    If an application outside of LangChain needs access to the standard content block
+    representation, you can opt-in to storing content blocks in message content.
+
+    To do this, you can set the `LC_OUTPUT_VERSION` environment variable to `v1`. Or,
+    initialize any chat model with `output_version="v1"`:
+
+    ```python
+    from langchain.chat_models import init_chat_model
+
+    model = init_chat_model("gpt-5-nano", output_version="v1")
+    ```
+
+
+</Note>
+
+### 多模态
+
+**多模态**是指处理不同形式数据的能力，如文本、音频、图像和视频。LangChain 为这些数据包含了可跨服务商使用的标准类型。
+
+[聊天模型](/oss/python/langchain/models)可以接受多模态数据作为输入并生成它作为输出。下面我们展示了包含多模态数据的输入消息的简短示例。
+
+<Note>
+额外的键可以包含在内容块的顶层或嵌套在 `"extras": {"key": value}` 中。
+
+例如，[OpenAI](/oss/python/integrations/chat/openai#pdfs) 和 [AWS Bedrock Converse](/oss/python/integrations/chat/bedrock) 需要 PDF 的文件名。有关具体信息，请参阅你选择的模型的[服务商页面](/oss/python/integrations/providers/overview)。
+</Note>
+
+<CodeGroup>
+    ```python Image input
+    # From URL
+    message = {
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "Describe the content of this image."},
+            {"type": "image", "url": "https://example.com/path/to/image.jpg"},
+        ]
+    }
+
+    # From base64 data
+    message = {
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "Describe the content of this image."},
+            {
+                "type": "image",
+                "base64": "AAAAIGZ0eXBtcDQyAAAAAGlzb21tcDQyAAACAGlzb2...",
+                "mime_type": "image/jpeg",
+            },
+        ]
+    }
+
+    # From provider-managed File ID
+    message = {
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "Describe the content of this image."},
+            {"type": "image", "file_id": "file-abc123"},
+        ]
+    }
+    ```
+
+    ```python PDF document input
+    # From URL
+    message = {
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "Describe the content of this document."},
+            {"type": "file", "url": "https://example.com/path/to/document.pdf"},
+        ]
+    }
+
+    # From base64 data
+    message = {
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "Describe the content of this document."},
+            {
+                "type": "file",
+                "base64": "AAAAIGZ0eXBtcDQyAAAAAGlzb21tcDQyAAACAGlzb2...",
+                "mime_type": "application/pdf",
+            },
+        ]
+    }
+
+    # From provider-managed File ID
+    message = {
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "Describe the content of this document."},
+            {"type": "file", "file_id": "file-abc123"},
+        ]
+    }
+    ```
+
+    ```python Audio input
+    # From base64 data
+    message = {
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "Describe the content of this audio."},
+            {
+                "type": "audio",
+                "base64": "AAAAIGZ0eXBtcDQyAAAAAGlzb21tcDQyAAACAGlzb2...",
+                "mime_type": "audio/wav",
+            },
+        ]
+    }
+
+    # From provider-managed File ID
+    message = {
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "Describe the content of this audio."},
+            {"type": "audio", "file_id": "file-abc123"},
+        ]
+    }
+    ```
+
+    ```python Video input
+    # From base64 data
+    message = {
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "Describe the content of this video."},
+            {
+                "type": "video",
+                "base64": "AAAAIGZ0eXBtcDQyAAAAAGlzb21tcDQyAAACAGlzb2...",
+                "mime_type": "video/mp4",
+            },
+        ]
+    }
+
+    # From provider-managed File ID
+    message = {
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "Describe the content of this video."},
+            {"type": "video", "file_id": "file-abc123"},
+        ]
+    }
+    ```
+</CodeGroup>
+
+
+
+
+
+<Warning>
+    并非所有模型都支持所有文件类型。检查模型服务商的[参考文档](https://reference.langchain.com/python/integrations/)了解支持的格式和大小限制。
+</Warning>
+
+### 内容块参考
+
+内容块表示为类型化字典的列表（无论是在创建消息时还是访问 `content_blocks` 属性时）。列表中的每个项目必须符合以下块类型之一：
+
+<AccordionGroup>
+    <Accordion title="Core" icon="cube">
+        <AccordionGroup>
+            <Accordion title="TextContentBlock" icon="text">
+                **Purpose:** Standard text output
+
+                <ParamField body="type" type="string" required>
+                    Always `"text"`
+                </ParamField>
+
+                <ParamField body="text" type="string" required>
+                    The text content
+                </ParamField>
+
+                <ParamField body="annotations" type="object[]">
+                    List of annotations for the text
+                </ParamField>
+
+                <ParamField body="extras" type="object">
+                    Additional provider-specific data
+                </ParamField>
+
+                **Example:**
+                ```python
+                {
+                    "type": "text",
+                    "text": "Hello world",
+                    "annotations": []
+                }
+                ```
+            </Accordion>
+            <Accordion title="ReasoningContentBlock" icon="brain">
+                **Purpose:** Model reasoning steps
+
+                <ParamField body="type" type="string" required>
+                    Always `"reasoning"`
+                </ParamField>
+
+                <ParamField body="reasoning" type="string">
+                    The reasoning content
+                </ParamField>
+
+                <ParamField body="extras" type="object">
+                    Additional provider-specific data
+                </ParamField>
+
+                **Example:**
+                ```python
+                {
+                    "type": "reasoning",
+                    "reasoning": "The user is asking about...",
+                    "extras": {"signature": "abc123"},
+                }
+                ```
+            </Accordion>
+        </AccordionGroup>
+    </Accordion>
+
+    <Accordion title="Multimodal" icon="images">
+        <AccordionGroup>
+            <Accordion title="ImageContentBlock" icon="image">
+                **Purpose:** Image data
+
+                <ParamField body="type" type="string" required>
+                    Always `"image"`
+                </ParamField>
+
+                <ParamField body="url" type="string">
+                    URL pointing to the image location.
+                </ParamField>
+
+                <ParamField body="base64" type="string">
+                    Base64-encoded image data.
+                </ParamField>
+
+                <ParamField body="id" type="string">
+                    Unique identifier for this content block (either generated by the provider or by LangChain).
+                </ParamField>
+
+                <ParamField body="mime_type" type="string">
+                    Image [MIME type](https://www.iana.org/assignments/media-types/media-types.xhtml#image) (e.g., `image/jpeg`, `image/png`). Required for base64 data.
+                </ParamField>
+            </Accordion>
+            <Accordion title="AudioContentBlock" icon="volume-high">
+                **Purpose:** Audio data
+
+                <ParamField body="type" type="string" required>
+                    Always `"audio"`
+                </ParamField>
+
+                <ParamField body="url" type="string">
+                    URL pointing to the audio location.
+                </ParamField>
+
+                <ParamField body="base64" type="string">
+                    Base64-encoded audio data.
+                </ParamField>
+
+                <ParamField body="id" type="string">
+                    Unique identifier for this content block (either generated by the provider or by LangChain).
+                </ParamField>
+
+                <ParamField body="mime_type" type="string">
+                    Audio [MIME type](https://www.iana.org/assignments/media-types/media-types.xhtml#audio) (e.g., `audio/mpeg`, `audio/wav`). Required for base64 data.
+                </ParamField>
+            </Accordion>
+            <Accordion title="VideoContentBlock" icon="video">
+                **Purpose:** Video data
+
+                <ParamField body="type" type="string" required>
+                    Always `"video"`
+                </ParamField>
+
+                <ParamField body="url" type="string">
+                    URL pointing to the video location.
+                </ParamField>
+
+                <ParamField body="base64" type="string">
+                    Base64-encoded video data.
+                </ParamField>
+
+                <ParamField body="id" type="string">
+                    Unique identifier for this content block (either generated by the provider or by LangChain).
+                </ParamField>
+
+                <ParamField body="mime_type" type="string">
+                    Video [MIME type](https://www.iana.org/assignments/media-types/media-types.xhtml#video) (e.g., `video/mp4`, `video/webm`). Required for base64 data.
+                </ParamField>
+            </Accordion>
+            <Accordion title="FileContentBlock" icon="file">
+                **Purpose:** Generic files (PDF, etc)
+
+                <ParamField body="type" type="string" required>
+                    Always `"file"`
+                </ParamField>
+
+                <ParamField body="url" type="string">
+                    URL pointing to the file location.
+                </ParamField>
+
+                <ParamField body="base64" type="string">
+                    Base64-encoded file data.
+                </ParamField>
+
+                <ParamField body="id" type="string">
+                    Unique identifier for this content block (either generated by the provider or by LangChain).
+                </ParamField>
+
+                <ParamField body="mime_type" type="string">
+                    File [MIME type](https://www.iana.org/assignments/media-types/media-types.xhtml) (e.g., `application/pdf`). Required for base64 data.
+                </ParamField>
+            </Accordion>
+            <Accordion title="PlainTextContentBlock" icon="align-left">
+                **Purpose:** Document text (`.txt`, `.md`)
+
+                <ParamField body="type" type="string" required>
+                    Always `"text-plain"`
+                </ParamField>
+
+                <ParamField body="text" type="string">
+                    The text content
+                </ParamField>
+
+                <ParamField body="mime_type" type="string">
+                    [MIME type](https://www.iana.org/assignments/media-types/media-types.xhtml) of the text (e.g., `text/plain`, `text/markdown`)
+                </ParamField>
+            </Accordion>
+        </AccordionGroup>
+    </Accordion>
+
+    <Accordion title="Tool Calling" icon="wrench">
+        <AccordionGroup>
+            <Accordion title="ToolCall" icon="function">
+                **Purpose:** Function calls
+
+                <ParamField body="type" type="string" required>
+                    Always `"tool_call"`
+                </ParamField>
+
+                <ParamField body="name" type="string" required>
+                    Name of the tool to call
+                </ParamField>
+
+                <ParamField body="args" type="object" required>
+                    Arguments to pass to the tool
+                </ParamField>
+
+                <ParamField body="id" type="string" required>
+                    Unique identifier for this tool call
+                </ParamField>
+
+                **Example:**
+                ```python
+                {
+                    "type": "tool_call",
+                    "name": "search",
+                    "args": {"query": "weather"},
+                    "id": "call_123"
+                }
+                ```
+            </Accordion>
+            <Accordion title="ToolCallChunk" icon="puzzle-piece">
+                **Purpose:** Streaming tool call fragments
+
+                <ParamField body="type" type="string" required>
+                    Always `"tool_call_chunk"`
+                </ParamField>
+
+                <ParamField body="name" type="string">
+                    Name of the tool being called
+                </ParamField>
+
+                <ParamField body="args" type="string">
+                    Partial tool arguments (may be incomplete JSON)
+                </ParamField>
+
+                <ParamField body="id" type="string">
+                    Tool call identifier
+                </ParamField>
+
+                <ParamField body="index" type="number | string">
+                    Position of this chunk in the stream
+                </ParamField>
+            </Accordion>
+            <Accordion title="InvalidToolCall" icon="triangle-exclamation">
+                **Purpose:** Malformed calls, intended to catch JSON parsing errors.
+
+                <ParamField body="type" type="string" required>
+                    Always `"invalid_tool_call"`
+                </ParamField>
+
+                <ParamField body="name" type="string">
+                    Name of the tool that failed to be called
+                </ParamField>
+
+                <ParamField body="args" type="object">
+                    Arguments to pass to the tool
+                </ParamField>
+
+                <ParamField body="error" type="string">
+                    Description of what went wrong
+                </ParamField>
+            </Accordion>
+        </AccordionGroup>
+    </Accordion>
+
+    <Accordion title="Server-Side Tool Execution" icon="server">
+        <AccordionGroup>
+            <Accordion title="ServerToolCall" icon="wrench">
+                **Purpose:** Tool call that is executed server-side.
+
+                <ParamField body="type" type="string" required>
+                    Always `"server_tool_call"`
+                </ParamField>
+
+                <ParamField body="id" type="string" required>
+                    An identifier associated with the tool call.
+                </ParamField>
+
+                <ParamField body="name" type="string" required>
+                    The name of the tool to be called.
+                </ParamField>
+
+                <ParamField body="args" type="string" required>
+                    Partial tool arguments (may be incomplete JSON)
+                </ParamField>
+            </Accordion>
+            <Accordion title="ServerToolCallChunk" icon="puzzle-piece">
+                **Purpose:** Streaming server-side tool call fragments
+
+                <ParamField body="type" type="string" required>
+                    Always `"server_tool_call_chunk"`
+                </ParamField>
+
+                <ParamField body="id" type="string">
+                    An identifier associated with the tool call.
+                </ParamField>
+
+                <ParamField body="name" type="string">
+                    Name of the tool being called
+                </ParamField>
+
+                <ParamField body="args" type="string">
+                    Partial tool arguments (may be incomplete JSON)
+                </ParamField>
+
+                <ParamField body="index" type="number | string">
+                    Position of this chunk in the stream
+                </ParamField>
+            </Accordion>
+            <Accordion title="ServerToolResult" icon="box-open">
+                **Purpose:** Search results
+
+                <ParamField body="type" type="string" required>
+                    Always `"server_tool_result"`
+                </ParamField>
+
+                <ParamField body="tool_call_id" type="string" required>
+                    Identifier of the corresponding server tool call.
+                </ParamField>
+
+                <ParamField body="id" type="string">
+                    Identifier associated with the server tool result.
+                </ParamField>
+
+                <ParamField body="status" type="string" required>
+                    Execution status of the server-side tool. `"success"` or `"error"`.
+                </ParamField>
+
+                <ParamField body="output">
+                    Output of the executed tool.
+                </ParamField>
+            </Accordion>
+        </AccordionGroup>
+    </Accordion>
+
+    <Accordion title="Provider-Specific Blocks" icon="plug">
+        <Accordion title="NonStandardContentBlock" icon="asterisk">
+            **Purpose:** Provider-specific escape hatch
+
+            <ParamField body="type" type="string" required>
+                Always `"non_standard"`
+            </ParamField>
+
+            <ParamField body="value" type="object" required>
+                Provider-specific data structure
+            </ParamField>
+
+            **Usage:** For experimental or provider-unique features
+        </Accordion>
+
+        Additional provider-specific content types may be found within the [reference documentation](/oss/python/integrations/providers/overview) of each model provider.
+    </Accordion>
+</AccordionGroup>
+
+
+
+
+<Tip>
+    View the canonical type definitions in the [API reference](https://reference.langchain.com/python/langchain/messages).
+</Tip>
+
+<Info>
+    Content blocks were introduced as a new property on messages in LangChain v1 to standardize content formats across providers while maintaining backward compatibility with existing code.
+
+    Content blocks are not a replacement for the [`content`](https://reference.langchain.com/python/langchain_core/language_models/#langchain_core.messages.BaseMessage.content) property, but rather a new property that can be used to access the content of a message in a standardized format.
+</Info>
+
+## 与聊天模型一起使用
+
+[聊天模型](/oss/python/langchain/models)接受消息对象序列作为输入并返回 [`AIMessage`](https://reference.langchain.com/python/langchain/messages/#langchain.messages.AIMessage) 作为输出。交互通常是无状态的，因此简单的对话循环涉及使用不断增长的消息列表调用模型。
+
+请参阅以下指南了解更多信息：
+
+- 用于[持久化和管理对话历史](/oss/python/langchain/short-term-memory)的内置功能
+- 管理上下文窗口的策略，包括[裁剪和总结消息](/oss/python/langchain/short-term-memory#common-patterns)
+
+---
+
+<Callout icon="pen-to-square" iconType="regular">
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/messages.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+</Callout>
+<Tip icon="terminal" iconType="regular">
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+</Tip>
+<div class='fixed right-2 bg-white bottom-2'><img src='https://kunfanyang.site/site-file/wx_code.jpg' class='border' alt='微信扫码赞赏' width='200' /></div>

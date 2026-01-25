@@ -1,0 +1,146 @@
+---
+title: 评估代理性能
+---
+
+要评估你的代理性能，你可以使用 `LangSmith` [evaluations](https://docs.langchain.com/langsmith/evaluation)。你需要首先定义一个评估器函数来判断代理的结果，例如最终输出或轨迹。根据你的评估技术，这可能涉及也可能不涉及参考输出：
+
+```python
+def evaluator(*, outputs: dict, reference_outputs: dict):
+    # compare agent outputs against reference outputs
+    output_messages = outputs["messages"]
+    reference_messages = reference_outputs["messages"]
+    score = compare_messages(output_messages, reference_messages)
+    return {"key": "evaluator_score", "score": score}
+```
+
+
+
+
+要开始，你可以使用 `AgentEvals` 包中的预构建评估器：
+
+<CodeGroup>
+```bash pip
+pip install -U agentevals
+```
+
+```bash uv
+uv add agentevals
+```
+</CodeGroup>
+
+
+
+
+## 创建评估器
+
+评估代理性能的常见方法是将其轨迹（调用工具的顺序）与参考轨迹进行比较：
+
+```python
+import json
+from agentevals.trajectory.match import create_trajectory_match_evaluator  # [!code highlight]
+
+outputs = [
+    {
+        "role": "assistant",
+        "tool_calls": [
+            {
+                "function": {
+                    "name": "get_weather",
+                    "arguments": json.dumps({"city": "san francisco"}),
+                }
+            },
+            {
+                "function": {
+                    "name": "get_directions",
+                    "arguments": json.dumps({"destination": "presidio"}),
+                }
+            }
+        ],
+    }
+]
+reference_outputs = [
+    {
+        "role": "assistant",
+        "tool_calls": [
+            {
+                "function": {
+                    "name": "get_weather",
+                    "arguments": json.dumps({"city": "san francisco"}),
+                }
+            },
+        ],
+    }
+]
+
+# Create the evaluator
+evaluator = create_trajectory_match_evaluator(
+    trajectory_match_mode="superset",    # [!code highlight]
+)
+
+# Run the evaluator
+result = evaluator(
+    outputs=outputs, reference_outputs=reference_outputs
+)
+```
+
+
+
+
+1. 指定如何比较轨迹。`superset` 将接受输出轨迹为有效，如果它是参考轨迹的超集。其他选项包括：[strict](https://github.com/langchain-ai/agentevals?tab=readme-ov-file#strict-match)、[unordered](https://github.com/langchain-ai/agentevals?tab=readme-ov-file#unordered-match) 和 [subset](https://github.com/langchain-ai/agentevals?tab=readme-ov-file#subset-and-superset-match)
+
+作为下一步，了解更多关于如何 [自定义轨迹匹配评估器](https://github.com/langchain-ai/agentevals?tab=readme-ov-file#agent-trajectory-match)。
+
+### LLM-as-a-judge
+
+你可以使用 LLM-as-a-judge 评估器，它使用 LLM 将轨迹与参考输出进行比较并输出分数：
+
+```python
+import json
+from agentevals.trajectory.llm import (
+    create_trajectory_llm_as_judge,  # [!code highlight]
+    TRAJECTORY_ACCURACY_PROMPT_WITH_REFERENCE
+)
+
+evaluator = create_trajectory_llm_as_judge(
+    prompt=TRAJECTORY_ACCURACY_PROMPT_WITH_REFERENCE,
+    model="openai:o3-mini"
+)
+```
+
+
+
+
+## 运行评估器
+
+要运行评估器，你首先需要创建一个 [LangSmith dataset](https://docs.langchain.com/langsmith/evaluation#datasets)。要使用预构建的 AgentEvals 评估器，你需要一个具有以下 schema 的数据集：
+
+* **input**：`{"messages": [...]}` 用于调用代理的输入消息。
+* **output**：`{"messages": [...]}` 代理输出中预期的消息历史。对于轨迹评估，你可以选择只保留 assistant 消息。
+
+```python
+from langsmith import Client
+from langchain.agents import create_agent
+from agentevals.trajectory.match import create_trajectory_match_evaluator
+
+
+client = Client()
+agent = create_agent(...)
+evaluator = create_trajectory_match_evaluator(...)
+
+experiment_results = client.evaluate(
+    lambda inputs: agent.invoke(inputs),
+    # replace with your dataset name
+    data="<Name of your dataset>",
+    evaluators=[evaluator]
+)
+```
+
+---
+
+<Callout icon="pen-to-square" iconType="regular">
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/evals.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+</Callout>
+<Tip icon="terminal" iconType="regular">
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+</Tip>
+<div class='fixed right-2 bg-white bottom-2'><img src='https://kunfanyang.site/site-file/wx_code.jpg' class='border' alt='微信扫码赞赏' width='200' /></div>

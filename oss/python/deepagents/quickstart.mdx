@@ -1,0 +1,137 @@
+---
+title: 快速入门
+description: 在几分钟内构建你的第一个 deep agent
+---
+
+本指南将引导你创建第一个具有规划、文件系统工具和子 agent 能力的 deep agent。你将构建一个能够进行研究并撰写报告的研究 agent。
+
+## 前提条件
+
+在开始之前，确保你有来自模型提供商（例如 Anthropic、OpenAI）的 API 密钥。
+
+<Note>
+    Deep agents 需要支持 [tool calling](/oss/python/concepts/tool-calling) 的模型。有关如何配置模型，请参阅[自定义](/oss/python/deepagents/customization#model)。
+</Note>
+
+### 步骤 1：安装依赖
+
+<CodeGroup>
+    ```bash pip
+    pip install deepagents tavily-python
+    ```
+
+    ```bash uv
+    uv init
+    uv add deepagents tavily-python
+    uv sync
+    ```
+
+    ```bash poetry
+    poetry add deepagents tavily-python
+    ```
+</CodeGroup>
+
+
+
+
+<Note>
+    本指南使用 [Tavily](https://tavily.com/) 作为示例搜索提供商，但你可以替换为任何搜索 API（例如 DuckDuckGo、SerpAPI、Brave Search）。
+</Note>
+
+### 步骤 2：设置你的 API 密钥
+
+```bash
+export ANTHROPIC_API_KEY="your-api-key"
+export TAVILY_API_KEY="your-tavily-api-key"
+```
+
+### 步骤 3：创建搜索工具
+
+```python
+import os
+from typing import Literal
+from tavily import TavilyClient
+from deepagents import create_deep_agent
+
+tavily_client = TavilyClient(api_key=os.environ["TAVILY_API_KEY"])
+
+def internet_search(
+    query: str,
+    max_results: int = 5,
+    topic: Literal["general", "news", "finance"] = "general",
+    include_raw_content: bool = False,
+):
+    """Run a web search"""
+    return tavily_client.search(
+        query,
+        max_results=max_results,
+        include_raw_content=include_raw_content,
+        topic=topic,
+    )
+```
+
+
+
+
+### 步骤 4：创建 deep agent
+
+```python
+# System prompt to steer the agent to be an expert researcher
+research_instructions = """You are an expert researcher. Your job is to conduct thorough research and then write a polished report.
+
+You have access to an internet search tool as your primary means of gathering information.
+
+## `internet_search`
+
+Use this to run an internet search for a given query. You can specify the max number of results to return, the topic, and whether raw content should be included.
+"""
+
+agent = create_deep_agent(
+    tools=[internet_search],
+    system_prompt=research_instructions
+)
+```
+
+
+
+
+### 步骤 5：运行 agent
+
+```python
+result = agent.invoke({"messages": [{"role": "user", "content": "What is langgraph?"}]})
+
+# Print the agent's response
+print(result["messages"][-1].content)
+```
+
+
+
+
+## 发生了什么？
+
+你的 deep agent 自动完成了：
+
+1. **规划方法**：使用内置的 `write_todos` 工具分解研究任务
+2. **进行研究**：调用 `internet_search` 工具收集信息
+3. **管理上下文**：使用文件系统工具（`write_file`、`read_file`）卸载大型搜索结果
+4. **生成子 agent**（如需要）：将复杂子任务委托给专门的子 agent
+5. **综合报告**：将发现编译成连贯的响应
+
+## 后续步骤
+
+现在你已经构建了第一个 deep agent：
+
+- **自定义你的 agent**：了解[自定义选项](/oss/python/deepagents/customization)，包括自定义系统提示、工具和子 agent。
+- **了解中间件**：深入了解支持 deep agents 的[中间件架构](/oss/python/deepagents/middleware)。
+- **添加长期记忆**：启用跨对话的[持久记忆](/oss/python/deepagents/long-term-memory)。
+- **部署到生产环境**：了解 LangGraph 应用程序的[部署选项](/oss/python/langgraph/deploy)。
+
+---
+
+<Callout icon="pen-to-square" iconType="regular">
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/deepagents/quickstart.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+</Callout>
+<Tip icon="terminal" iconType="regular">
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+</Tip>
+<div class='fixed right-2 bg-white bottom-2'><img src='https://kunfanyang.site/site-file/wx_code.jpg' class='border' alt='微信扫码赞赏' width='200' /></div>

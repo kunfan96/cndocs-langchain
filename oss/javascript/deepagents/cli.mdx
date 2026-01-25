@@ -1,0 +1,356 @@
+---
+title: Deep Agents CLI
+sidebarTitle: 使用 CLI
+description: 用于构建 Deep Agents 的交互式命令行界面
+---
+
+Deep Agents CLI 是一个开源的编码助手，在你的终端中运行并保留持久记忆。
+你的 CLI agent 在会话之间保持上下文，学习项目规范，并通过审批控制执行代码。
+
+![Deep Agents CLI](/oss/images/deepagents/deepagents-cli.png)
+
+Deep Agents CLI 具有以下内置功能：
+
+* <Icon icon="file" size={16} /> **文件操作** - 使用工具在项目中读取、写入和编辑文件，使 agent 能够管理和修改代码和文档。
+* <Icon icon="terminal" size={16} /> **Shell 命令执行** - 执行 shell 命令来运行测试、构建项目、管理依赖项以及与版本控制系统交互。
+* <Icon icon="magnifying-glass" size={16} /> **网络搜索** - 在网上搜索最新信息和文档（需要 Tavily API 密钥）。
+* <Icon icon="globe" size={16} /> **HTTP 请求** - 向 API 和外部服务发出 HTTP 请求，用于数据获取和集成任务。
+* <Icon icon="list-check" size={16} /> **任务规划和跟踪** - 将复杂任务分解为离散步骤，并通过内置的待办系统跟踪进度。
+* <Icon icon="brain" size={16} /> **记忆存储和检索** - 跨会话存储和检索信息，使 agent 能够记住项目规范和学习的模式。
+* <Icon icon="head-side" size={16} /> **人机协作** - 对敏感工具操作要求人工批准。
+* <Icon icon="puzzle-piece" size={16} /> **技能** - 通过存储在技能目录中的自定义专业知识和指令扩展 agent 能力。
+
+<Tip>
+[观看演示视频](https://youtu.be/IrnacLa9PJc?si=3yUnPbxnm2yaqVQb) 了解 Deep Agents CLI 的工作原理。
+</Tip>
+
+## 快速开始
+
+<Steps>
+    <Step title="设置你的 API 密钥" icon="key">
+        导出为环境变量：
+
+        ```bash
+        export ANTHROPIC_API_KEY="your-api-key"
+        ```
+
+        或在项目根目录创建 `.env` 文件：
+
+        ```bash
+        ANTHROPIC_API_KEY=your-api-key
+        ```
+    </Step>
+
+    <Step title="运行 CLI" icon="terminal">
+        <CodeGroup>
+            ```bash Install globally
+            uv tool install deepagents-cli
+            deepagents
+            ```
+
+            ```bash Run (without global install)
+            uvx deepagents-cli
+            ```
+        </CodeGroup>
+    </Step>
+
+    <Step title="给 agent 一个任务" icon="message">
+        ```txt
+        > Create a Python script that prints "Hello, World!"
+        ```
+
+        Agent 会在修改文件之前提出带有差异对比的更改供你批准。
+    </Step>
+</Steps>
+
+
+<Accordion title="配置追踪（可选）">
+
+    启用 LangSmith 追踪：
+
+    ```bash
+    export LANGCHAIN_TRACING_V2=true
+    export LANGCHAIN_API_KEY="your-api-key"
+    ```
+
+    为工具调用和 agent 决策配置 agent 追踪：
+
+    ```bash
+    export DEEPAGENTS_LANGSMITH_PROJECT="my-agent-project"
+    ```
+
+    为通过 shell 命令执行的代码配置用户代码追踪：
+
+    ```bash
+    export LANGSMITH_PROJECT="my-user-code-project"
+    ```
+</Accordion>
+
+<Accordion title="其他安装和配置选项">
+如需要可本地安装：
+
+<CodeGroup>
+```bash pip
+pip install deepagents-cli
+```
+
+```bash uv
+uv add deepagents-cli
+```
+</CodeGroup>
+
+CLI 根据可用的 API 密钥自动选择提供商。如果设置了多个密钥，它将按以下顺序使用第一个匹配的：
+
+| 优先级 | API 密钥 | 默认模型 |
+|----------|---------|---------------|
+| 第 1 | `OPENAI_API_KEY` | `gpt-5.2` |
+| 第 2 | `ANTHROPIC_API_KEY` | `claude-sonnet-4-5-20250929` |
+| 第 3 | `GOOGLE_API_KEY` | `gemini-3-pro-preview` |
+
+要使用不同的模型，请显式传递 `--model` 标志。例如，要使用 Claude Opus 4.5：
+
+```bash
+deepagents --model claude-opus-4-5-20251101
+```
+
+启用网络搜索（可选）：
+
+```bash
+export TAVILY_API_KEY="your-key"
+```
+
+API 密钥可以设置为环境变量或在 `.env` 文件中设置。
+</Accordion>
+
+## 配置
+
+<AccordionGroup>
+    <Accordion title="命令行选项" icon="flag">
+        | 选项                 | 描述                                                 |
+        |------------------------|-------------------------------------------------------------|
+        | `--agent NAME`         | 使用具有独立记忆的命名 agent                        |
+        | `--auto-approve`       | 跳过工具确认提示（使用 `Ctrl+T` 切换）       |
+        | `--resume`, `-r`       | 恢复最近的会话 |
+        | `--sandbox TYPE`       | 在[远程沙箱](#use-remote-sandboxes)中执行：`modal`、`daytona` 或 `runloop` |
+        | `--sandbox-id ID`      | 重用现有沙箱                                      |
+        | `--sandbox-setup PATH` | 在沙箱中运行设置脚本                                 |
+        | `--version`            | 显示版本 |
+    </Accordion>
+
+    <Accordion title="CLI 命令" icon="terminal">
+        | 命令                              | 描述                            |
+        |--------------------------------------|----------------------------------------|
+        | `deepagents list`                    | 列出所有 agent                        |
+        | `deepagents skills`                  | 管理 agent 技能 - 创建、列出和查看技能信息 |
+        | `deepagents help`                    | 显示帮助                              |
+        | `deepagents reset --agent NAME`      | 清除 agent 记忆并重置为默认|
+        | `deepagents reset --agent NAME --target SOURCE` | 从另一个 agent 复制记忆 |
+        | `deepagents threads list`            | 列出所有会话                      |
+        | `deepagents threads delete ID`       | 删除会话                       |
+    </Accordion>
+</AccordionGroup>
+
+## 交互模式
+
+<AccordionGroup>
+    <Accordion title="斜杠命令" icon="slash">
+        在 CLI 会话中使用这些命令：
+
+        - `/remember` - 回顾对话并更新记忆和技能
+        - `/tokens` - 显示 token 使用量
+        - `/clear` - 清除对话历史
+        - `/exit` 或 `/quit` - 退出 CLI
+        - `/help` - 显示帮助
+        - `/threads` - 显示会话信息
+        - `/version` - 显示版本
+    </Accordion>
+
+    <Accordion title="Bash 命令" icon="terminal">
+        通过添加 `!` 前缀直接执行 shell 命令：
+
+        ```bash
+        !git status
+        !npm test
+        !ls -la
+        ```
+    </Accordion>
+
+    <Accordion title="键盘快捷键" icon="keyboard">
+        | 快捷键 | 操作 |
+        |-|-|
+        | `Enter` | 提交 |
+        | `Option+Enter` (Mac) 或 `Alt+Enter` (Windows) | 换行 |
+        | `Ctrl+E` | 外部编辑器 |
+        | `Shift+Tab` | 切换自动批准 |
+        | `@filename` | 自动补全文件并注入内容 |
+        | `Ctrl+C` | 中断 |
+        | `Ctrl+D` | 退出 |
+    </Accordion>
+</AccordionGroup>
+
+## 通过记忆设置项目规范
+
+Agent 使用记忆优先协议将信息以 markdown 文件形式存储在 `~/.deepagents/AGENT_NAME/memories/` 中：
+
+1. **研究**：在开始任务之前搜索记忆以获取相关上下文
+2. **响应**：在执行过程中不确定时检查记忆
+3. **学习**：自动保存新信息以供将来的会话使用
+
+Agent 按主题使用描述性文件名组织其记忆：
+
+```
+~/.deepagents/backend-dev/memories/
+├── api-conventions.md
+├── database-schema.md
+└── deployment-process.md
+```
+
+当你教 agent 规范时：
+
+```bash
+uvx deepagents-cli --agent backend-dev
+> Our API uses snake_case and includes created_at/updated_at timestamps
+```
+
+它会为将来的会话记住：
+
+```bash
+> Create a /users endpoint
+# 无需提示即应用规范
+```
+
+## 提供项目或用户上下文
+
+[`AGENTS.md` 文件](https://agents.md/)提供在会话开始时始终加载的持久记忆。
+
+你可以在 `~/.deepagents/agent/AGENTS.md` 中为 agent 提供全局用户记忆。
+当你启动 Deep Agents CLI 时，此文件始终会被加载。
+
+对于项目特定的记忆，只要项目使用 git，你可以在任何项目的根文件夹中的 `.deepagents/AGENTS.md` 添加上下文。
+当你从项目文件夹内的任何位置启动 CLI 时，CLI 将通过检查包含的 `.git` 文件夹来找到项目的根文件夹。
+
+全局和项目级的 `AGENTS.md` 文件会一起加载，并在启动时附加到系统提示中。
+当你使用 agent 并向其提供额外信息时，agent 会更新它们。
+如果你想明确提示你的 deep agent 根据线程中的当前上下文更新技能和记忆，请使用 `/remember` 命令，该命令会加载自定义指令来审查上下文并执行更新。
+
+要在额外的记忆文件中添加更多结构化的项目知识，你可以将它们添加到 `.deepagents/` 中并在 `AGENTS.md` 文件中引用它们。
+你必须在 `AGENTS.md` 文件中引用额外的文件，agent 才能知道这些文件。
+额外的文件不会在启动时读取，但 agent 可以在需要时引用和更新它们。
+
+## 使用远程沙箱
+
+在隔离的远程环境中执行代码，以确保安全性和灵活性。远程沙箱提供以下好处：
+
+  - **安全性**：保护你的本地机器免受潜在有害代码执行的影响
+  - **干净的环境**：无需本地设置即可使用特定的依赖项或操作系统配置
+  - **并行执行**：在隔离的环境中同时运行多个 agent
+  - **长时间运行的任务**：执行耗时的操作而不阻塞你的机器
+  - **可重复性**：确保团队之间的执行环境一致
+
+要使用远程沙箱，请按照以下步骤操作：
+
+1. 配置你的沙箱提供商（[Runloop](https://www.runloop.ai/)、[Daytona](https://www.daytona.io/) 或 [Modal](https://modal.com/)）：
+
+    ```bash
+    # Runloop
+    export RUNLOOP_API_KEY="your-key"
+
+    # Daytona
+    export DAYTONA_API_KEY="your-key"
+
+    # Modal
+    modal setup
+    ```
+
+1. 使用沙箱运行 CLI：
+
+    ```bash
+    uvx deepagents-cli --sandbox runloop --sandbox-setup ./setup.sh
+    ```
+
+    Agent 在本地运行，但在远程沙箱中执行所有代码操作。可选的设置脚本可以配置环境变量、克隆仓库和准备依赖项。
+
+1. （可选）创建 `setup.sh` 文件来配置你的沙箱环境：
+
+    ```bash
+    #!/bin/bash
+    set -e
+
+    # Clone repository using GitHub token
+    git clone https://x-access-token:${GITHUB_TOKEN}@github.com/username/repo.git $HOME/workspace
+    cd $HOME/workspace
+
+    # Make environment variables persistent
+    cat >> ~/.bashrc <<'EOF'
+    export GITHUB_TOKEN="${GITHUB_TOKEN}"
+    export OPENAI_API_KEY="${OPENAI_API_KEY}"
+    cd $HOME/workspace
+    EOF
+
+    source ~/.bashrc
+    ```
+
+    将秘密存储在本地 `.env` 文件中供设置脚本访问。
+
+<Warning>
+    沙箱隔离代码执行，但 agent 仍然容易受到不受信任输入的提示注入攻击。仅使用人机协作审批、短期秘密和受信任的设置脚本。
+
+    请注意，沙箱 API 正在快速发展，我们预计会有更多提供商支持代理，以帮助缓解提示注入和秘密管理问题。
+</Warning>
+
+## 使用技能
+
+你可以使用[技能](/oss/javascript/deepagents/skills)为你的 deep agent 提供新的能力和专业知识。
+一旦添加了技能，你的 deep agent 将自动使用它们，并在你使用 agent 并向其提供额外信息时更新它们。
+如果你想明确提示你的 deep agent 根据线程中的当前上下文更新技能和记忆，请使用 `/remember` 命令，该命令会加载自定义指令来审查上下文并执行更新。
+
+### 添加技能
+
+1. 首先创建一个技能：
+
+   <CodeGroup>
+   ```bash User skill
+   deepagents skills create test-skill
+   ```
+   ```bash Project skill
+   deepagents skills create test-skill --project
+   ```
+
+   </CodeGroup>
+
+   这将在你的 `~/.deepagents/agent` 文件夹或 `~/{project}/.deepagents/skills` 文件夹中生成以下文件：
+
+   ```plaintext
+   skills/
+   └── test-skill
+       └── SKILL.md
+   ```
+
+1. 打开生成的 `SKILL.md` 并编辑文件以包含你的指令。
+
+1. 可选地向 `test-skill` 文件夹添加额外的脚本或其他资源。
+   有关更多信息，请参阅[示例](/oss/javascript/deepagents/skills#examples)。
+
+### 列出技能
+
+要查看已安装的技能列表，运行：
+
+```bash
+deepagents skills list
+```
+
+要获取特定技能的更多信息，运行：
+
+```bash
+deepagents skills info test-skill
+```
+
+---
+
+<Callout icon="pen-to-square" iconType="regular">
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/deepagents/cli.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+</Callout>
+<Tip icon="terminal" iconType="regular">
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+</Tip>
+<div class='fixed right-2 bg-white bottom-2'><img src='https://kunfanyang.site/site-file/wx_code.jpg' class='border' alt='微信扫码赞赏' width='200' /></div>

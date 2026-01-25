@@ -1,0 +1,505 @@
+---
+title: 测试
+---
+
+Agentic 应用让 LLM 自行决定下一步来解决问题。这种灵活性很强大，但模型的黑盒特性使得很难预测你对 agent 某个部分的调整会如何影响其他部分。要构建生产就绪的 agents，彻底的测试是必不可少的。
+
+有几种测试 agents 的方法：
+
+- 单元测试使用内存中的 fakes 单独测试 agent 中小的、确定性的部分，以便你可以快速且确定性地断言确切行为。
+
+- [集成测试](#integration-testing) 使用真实的网络调用测试 agent，以确认组件协同工作、凭据和模式对齐，以及延迟可接受。
+
+Agentic 应用往往更依赖于集成测试，因为它们将多个组件链接在一起，并且必须处理由于 LLMs 的非确定性特性而导致的不稳定性。
+
+
+
+## 集成测试
+
+许多 agent 行为只有在使用真实 LLM 时才会出现，例如 agent 决定调用哪个工具、如何格式化响应，或者 prompt 修改是否影响整个执行轨迹。LangChain 的 [`agentevals`](https://github.com/langchain-ai/agentevals) 包提供了专门为使用实时模型测试 agent 轨迹而设计的评估器。
+
+AgentEvals 让你可以通过执行**轨迹匹配**或使用 **LLM judge** 轻松评估 agent 的轨迹（消息的确切序列，包括工具调用）：
+
+<Card title="轨迹匹配" icon="equals" arrow="true" href="#trajectory-match-evaluator">
+为给定输入硬编码参考轨迹，并通过逐步比较验证运行。
+
+非常适合测试你知道预期行为的明确定义的工作流。当你对应该调用哪些工具以及以什么顺序有特定期望时使用。这种方法是确定性的、快速且成本效益高的，因为它不需要额外的 LLM 调用。
+</Card>
+
+<Card title="LLM-as-judge" icon="gavel" arrow="true" href="#llm-as-judge-evaluator">
+使用 LLM 定性验证 agent 的执行轨迹。"judge" LLM 根据 prompt 规则（可以包括参考轨迹）审查 agent 的决策。
+
+更灵活，可以评估效率和适当性等细微方面，但需要 LLM 调用且确定性较低。当你想要评估 agent 轨迹的整体质量和合理性而不需要严格的工具调用或排序要求时使用。
+</Card>
+
+### 安装 AgentEvals
+
+
+
+```bash
+npm install agentevals @langchain/core
+```
+
+
+或者，直接克隆 [AgentEvals 仓库](https://github.com/langchain-ai/agentevals)。
+
+### 轨迹匹配评估器
+
+
+AgentEvals 提供 `createTrajectoryMatchEvaluator` 函数来将你的 agent 轨迹与参考轨迹进行匹配。有四种模式可供选择：
+
+
+| 模式 | 描述 | 用例 |
+|------|-------------|----------|
+| `strict` | 消息和工具调用以相同顺序完全匹配 | 测试特定序列（例如，授权前的策略查找） |
+| `unordered` | 允许相同的工具调用以任意顺序 | 当顺序无关紧要时验证信息检索 |
+| `subset` | Agent 只调用参考中的工具（无额外） | 确保 agent 不超出预期范围 |
+| `superset` | Agent 至少调用参考工具（允许额外） | 验证采取了最低要求的操作 |
+
+<Accordion title="严格匹配">
+
+`strict` 模式确保轨迹包含相同顺序的相同消息和相同工具调用，尽管它允许消息内容的差异。当你需要强制执行特定的操作序列时（例如，在授权操作之前要求策略查找），这很有用。
+
+
+
+```ts
+import { createAgent, tool, HumanMessage, AIMessage, ToolMessage } from "langchain"
+import { createTrajectoryMatchEvaluator } from "agentevals";
+import * as z from "zod";
+
+const getWeather = tool(
+  async ({ city }: { city: string }) => {
+    return `It's 75 degrees and sunny in ${city}.`;
+  },
+  {
+    name: "get_weather",
+    description: "Get weather information for a city.",
+    schema: z.object({
+      city: z.string(),
+    }),
+  }
+);
+
+const agent = createAgent({
+  model: "gpt-4o",
+  tools: [getWeather]
+});
+
+const evaluator = createTrajectoryMatchEvaluator({  // [!code highlight]
+  trajectoryMatchMode: "strict",  // [!code highlight]
+});  // [!code highlight]
+
+async function testWeatherToolCalledStrict() {
+  const result = await agent.invoke({
+    messages: [new HumanMessage("What's the weather in San Francisco?")]
+  });
+
+  const referenceTrajectory = [
+    new HumanMessage("What's the weather in San Francisco?"),
+    new AIMessage({
+      content: "",
+      tool_calls: [
+        { id: "call_1", name: "get_weather", args: { city: "San Francisco" } }
+      ]
+    }),
+    new ToolMessage({
+      content: "It's 75 degrees and sunny in San Francisco.",
+      tool_call_id: "call_1"
+    }),
+    new AIMessage("The weather in San Francisco is 75 degrees and sunny."),
+  ];
+
+  const evaluation = await evaluator({
+    outputs: result.messages,
+    referenceOutputs: referenceTrajectory
+  });
+  // {
+  //     'key': 'trajectory_strict_match',
+  //     'score': true,
+  //     'comment': null,
+  // }
+  expect(evaluation.score).toBe(true);
+}
+```
+
+
+</Accordion>
+
+<Accordion title="无序匹配">
+
+`unordered` 模式允许相同的工具调用以任意顺序，当你想验证检索了特定信息但不关心顺序时很有用。例如，agent 可能需要检查城市的天气和事件，但顺序无关紧要。
+
+
+
+```ts
+import { createAgent, tool, HumanMessage, AIMessage, ToolMessage } from "langchain"
+import { createTrajectoryMatchEvaluator } from "agentevals";
+import * as z from "zod";
+
+const getWeather = tool(
+  async ({ city }: { city: string }) => {
+    return `It's 75 degrees and sunny in ${city}.`;
+  },
+  {
+    name: "get_weather",
+    description: "Get weather information for a city.",
+    schema: z.object({ city: z.string() }),
+  }
+);
+
+const getEvents = tool(
+  async ({ city }: { city: string }) => {
+    return `Concert at the park in ${city} tonight.`;
+  },
+  {
+    name: "get_events",
+    description: "Get events happening in a city.",
+    schema: z.object({ city: z.string() }),
+  }
+);
+
+const agent = createAgent({
+  model: "gpt-4o",
+  tools: [getWeather, getEvents]
+});
+
+const evaluator = createTrajectoryMatchEvaluator({  // [!code highlight]
+  trajectoryMatchMode: "unordered",  // [!code highlight]
+});  // [!code highlight]
+
+async function testMultipleToolsAnyOrder() {
+  const result = await agent.invoke({
+    messages: [new HumanMessage("What's happening in SF today?")]
+  });
+
+  // Reference shows tools called in different order than actual execution
+  const referenceTrajectory = [
+    new HumanMessage("What's happening in SF today?"),
+    new AIMessage({
+      content: "",
+      tool_calls: [
+        { id: "call_1", name: "get_events", args: { city: "SF" } },
+        { id: "call_2", name: "get_weather", args: { city: "SF" } },
+      ]
+    }),
+    new ToolMessage({
+      content: "Concert at the park in SF tonight.",
+      tool_call_id: "call_1"
+    }),
+    new ToolMessage({
+      content: "It's 75 degrees and sunny in SF.",
+      tool_call_id: "call_2"
+    }),
+    new AIMessage("Today in SF: 75 degrees and sunny with a concert at the park tonight."),
+  ];
+
+  const evaluation = await evaluator({
+    outputs: result.messages,
+    referenceOutputs: referenceTrajectory,
+  });
+  // {
+  //     'key': 'trajectory_unordered_match',
+  //     'score': true,
+  // }
+  expect(evaluation.score).toBe(true);
+}
+```
+
+
+</Accordion>
+
+<Accordion title="子集和超集匹配">
+
+`superset` 和 `subset` 模式匹配部分轨迹。`superset` 模式验证 agent 至少调用了参考轨迹中的工具，允许额外的工具调用。`subset` 模式确保 agent 没有调用参考中工具之外的任何工具。
+
+
+
+```ts
+import { createAgent } from "langchain"
+import { tool } from "@langchain/core/tools";
+import { HumanMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
+import { createTrajectoryMatchEvaluator } from "agentevals";
+import * as z from "zod";
+
+const getWeather = tool(
+  async ({ city }: { city: string }) => {
+    return `It's 75 degrees and sunny in ${city}.`;
+  },
+  {
+    name: "get_weather",
+    description: "Get weather information for a city.",
+    schema: z.object({ city: z.string() }),
+  }
+);
+
+const getDetailedForecast = tool(
+  async ({ city }: { city: string }) => {
+    return `Detailed forecast for ${city}: sunny all week.`;
+  },
+  {
+    name: "get_detailed_forecast",
+    description: "Get detailed weather forecast for a city.",
+    schema: z.object({ city: z.string() }),
+  }
+);
+
+const agent = createAgent({
+  model: "gpt-4o",
+  tools: [getWeather, getDetailedForecast]
+});
+
+const evaluator = createTrajectoryMatchEvaluator({  // [!code highlight]
+  trajectoryMatchMode: "superset",  // [!code highlight]
+});  // [!code highlight]
+
+async function testAgentCallsRequiredToolsPlusExtra() {
+  const result = await agent.invoke({
+    messages: [new HumanMessage("What's the weather in Boston?")]
+  });
+
+  // Reference only requires getWeather, but agent may call additional tools
+  const referenceTrajectory = [
+    new HumanMessage("What's the weather in Boston?"),
+    new AIMessage({
+      content: "",
+      tool_calls: [
+        { id: "call_1", name: "get_weather", args: { city: "Boston" } },
+      ]
+    }),
+    new ToolMessage({
+      content: "It's 75 degrees and sunny in Boston.",
+      tool_call_id: "call_1"
+    }),
+    new AIMessage("The weather in Boston is 75 degrees and sunny."),
+  ];
+
+  const evaluation = await evaluator({
+    outputs: result.messages,
+    referenceOutputs: referenceTrajectory,
+  });
+  // {
+  //     'key': 'trajectory_superset_match',
+  //     'score': true,
+  //     'comment': null,
+  // }
+  expect(evaluation.score).toBe(true);
+}
+```
+
+
+</Accordion>
+
+<Info>
+
+你还可以设置 `toolArgsMatchMode` 属性和/或 `toolArgsMatchOverrides` 来自定义评估器如何考虑实际轨迹与参考中工具调用之间的相等性。默认情况下，只有对同一工具具有相同参数的工具调用才被视为相等。访问[仓库](https://github.com/langchain-ai/agentevals?tab=readme-ov-file#tool-args-match-modes)了解更多详情。
+
+</Info>
+
+### LLM-as-Judge 评估器
+
+
+你还可以使用 LLM 通过 `createTrajectoryLLMAsJudge` 函数评估 agent 的执行路径。与轨迹匹配评估器不同，它不需要参考轨迹，但如果可用可以提供一个。
+
+
+<Accordion title="无参考轨迹">
+
+```ts
+import { createAgent } from "langchain"
+import { tool } from "@langchain/core/tools";
+import { HumanMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
+import { createTrajectoryLLMAsJudge, TRAJECTORY_ACCURACY_PROMPT } from "agentevals";
+import * as z from "zod";
+
+const getWeather = tool(
+  async ({ city }: { city: string }) => {
+    return `It's 75 degrees and sunny in ${city}.`;
+  },
+  {
+    name: "get_weather",
+    description: "Get weather information for a city.",
+    schema: z.object({ city: z.string() }),
+  }
+);
+
+const agent = createAgent({
+  model: "gpt-4o",
+  tools: [getWeather]
+});
+
+const evaluator = createTrajectoryLLMAsJudge({  // [!code highlight]
+  model: "openai:o3-mini",  // [!code highlight]
+  prompt: TRAJECTORY_ACCURACY_PROMPT,  // [!code highlight]
+});  // [!code highlight]
+
+async function testTrajectoryQuality() {
+  const result = await agent.invoke({
+    messages: [new HumanMessage("What's the weather in Seattle?")]
+  });
+
+  const evaluation = await evaluator({
+    outputs: result.messages,
+  });
+  // {
+  //     'key': 'trajectory_accuracy',
+  //     'score': true,
+  //     'comment': 'The provided agent trajectory is reasonable...'
+  // }
+  expect(evaluation.score).toBe(true);
+}
+```
+
+</Accordion>
+
+<Accordion title="有参考轨迹">
+
+如果你有参考轨迹，可以向 prompt 添加额外变量并传入参考轨迹。下面，我们使用预构建的 `TRAJECTORY_ACCURACY_PROMPT_WITH_REFERENCE` prompt 并配置 `reference_outputs` 变量：
+
+
+
+```ts
+import { TRAJECTORY_ACCURACY_PROMPT_WITH_REFERENCE } from "agentevals";
+
+const evaluator = createTrajectoryLLMAsJudge({
+  model: "openai:o3-mini",
+  prompt: TRAJECTORY_ACCURACY_PROMPT_WITH_REFERENCE,
+});
+
+const evaluation = await evaluator({
+  outputs: result.messages,
+  referenceOutputs: referenceTrajectory,
+});
+```
+
+
+</Accordion>
+
+<Info>
+有关 LLM 如何评估轨迹的更多配置性，请访问[仓库](https://github.com/langchain-ai/agentevals?tab=readme-ov-file#trajectory-llm-as-judge)。
+</Info>
+
+
+
+## LangSmith 集成
+
+为了随时间跟踪实验，你可以将评估器结果记录到 [LangSmith](https://smith.langchain.com/)，这是一个用于构建生产级 LLM 应用的平台，包括追踪、评估和实验工具。
+
+首先，通过设置所需的环境变量来设置 LangSmith：
+
+```bash
+export LANGSMITH_API_KEY="your_langsmith_api_key"
+export LANGSMITH_TRACING="true"
+```
+
+
+
+LangSmith 提供两种运行评估的主要方法：[Vitest/Jest](/langsmith/vitest-jest) 集成和 `evaluate` 函数。
+
+<Accordion title="使用 vitest/jest 集成">
+
+```ts
+import * as ls from "langsmith/vitest";
+// import * as ls from "langsmith/jest";
+
+import { createTrajectoryLLMAsJudge, TRAJECTORY_ACCURACY_PROMPT } from "agentevals";
+
+const trajectoryEvaluator = createTrajectoryLLMAsJudge({
+  model: "openai:o3-mini",
+  prompt: TRAJECTORY_ACCURACY_PROMPT,
+});
+
+ls.describe("trajectory accuracy", () => {
+  ls.test("accurate trajectory", {
+    inputs: {
+      messages: [
+        {
+          role: "user",
+          content: "What is the weather in SF?"
+        }
+      ]
+    },
+    referenceOutputs: {
+      messages: [
+        new HumanMessage("What is the weather in SF?"),
+        new AIMessage({
+          content: "",
+          tool_calls: [
+            { id: "call_1", name: "get_weather", args: { city: "SF" } }
+          ]
+        }),
+        new ToolMessage({
+          content: "It's 75 degrees and sunny in SF.",
+          tool_call_id: "call_1"
+        }),
+        new AIMessage("The weather in SF is 75 degrees and sunny."),
+      ],
+    },
+  }, async ({ inputs, referenceOutputs }) => {
+    const result = await agent.invoke({
+      messages: [new HumanMessage("What is the weather in SF?")]
+    });
+
+    ls.logOutputs({ messages: result.messages });
+
+    await trajectoryEvaluator({
+      inputs,
+      outputs: result.messages,
+      referenceOutputs,
+    });
+  });
+});
+```
+
+使用你的测试运行器运行评估：
+
+```bash
+vitest run test_trajectory.eval.ts
+# or
+jest test_trajectory.eval.ts
+```
+
+</Accordion>
+
+<Accordion title="使用 evaluate 函数">
+
+或者，你可以在 LangSmith 中创建数据集并使用 `evaluate` 函数：
+
+```ts
+import { evaluate } from "langsmith/evaluation";
+import { createTrajectoryLLMAsJudge, TRAJECTORY_ACCURACY_PROMPT } from "agentevals";
+
+const trajectoryEvaluator = createTrajectoryLLMAsJudge({
+  model: "openai:o3-mini",
+  prompt: TRAJECTORY_ACCURACY_PROMPT,
+});
+
+async function runAgent(inputs: any) {
+  const result = await agent.invoke(inputs);
+  return result.messages;
+}
+
+await evaluate(
+  runAgent,
+  {
+    data: "your_dataset_name",
+    evaluators: [trajectoryEvaluator],
+  }
+);
+```
+
+结果将自动记录到 LangSmith。
+
+</Accordion>
+
+<Tip>
+要了解有关评估 agent 的更多信息，请参阅 [LangSmith 文档](/langsmith/vitest-jest)。
+</Tip>
+
+---
+
+<Callout icon="pen-to-square" iconType="regular">
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/test.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+</Callout>
+<Tip icon="terminal" iconType="regular">
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+</Tip>
+<div class='fixed right-2 bg-white bottom-2'><img src='https://kunfanyang.site/site-file/wx_code.jpg' class='border' alt='微信扫码赞赏' width='200' /></div>

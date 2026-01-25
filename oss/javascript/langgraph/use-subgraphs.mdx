@@ -1,0 +1,534 @@
+---
+title: Subgraphs
+sidebarTitle: Subgraphs
+---
+
+
+
+本指南介绍了使用 subgraphs 的机制。subgraph 是在另一个 [graph](/oss/javascript/langgraph/graph-api#graphs) 中作为 [node](/oss/javascript/langgraph/graph-api#nodes) 使用的图。
+
+Subgraphs 适用于：
+
+- 构建 [multi-agent systems](/oss/javascript/langchain/multi-agent)
+- 在多个图中复用一组节点
+- 分布式开发：当您希望不同团队独立开发图的不同部分时，可以将每个部分定义为 subgraph，只要 subgraph 接口（输入和输出 schemas）得到遵守，就可以在不了解 subgraph 任何细节的情况下构建父图
+
+添加 subgraphs 时，您需要定义父图和 subgraph 如何通信：
+
+- [从节点内调用图](#invoke-a-graph-from-a-node) — subgraphs 从父图中的节点内部被调用
+- [将图添加为节点](#add-a-graph-as-a-node) — subgraph 直接作为父图中的节点添加，并与父图**共享 [state keys](/oss/javascript/langgraph/graph-api#state)**
+
+## Setup
+
+
+
+```bash
+npm install @langchain/langgraph
+```
+
+
+
+<Tip>
+**设置 LangSmith 用于 LangGraph 开发**
+注册 [LangSmith](https://smith.langchain.com) 以快速发现问题并提升 LangGraph 项目的性能。LangSmith 让您可以使用追踪数据来调试、测试和监控使用 LangGraph 构建的 LLM 应用 — 在[文档](https://docs.smith.langchain.com)中阅读更多入门信息。
+</Tip>
+
+## 从节点内调用图
+
+实现 subgraph 的一个简单方法是在另一个图的节点内部调用图。在这种情况下，subgraphs 可以与父图有**完全不同的 schemas**（没有共享的 keys）。例如，您可能希望在 [multi-agent](/oss/javascript/langchain/multi-agent) 系统中为每个 agent 保留私有消息历史记录。
+
+如果您的应用程序属于这种情况，您需要定义一个**调用 subgraph 的节点函数**。此函数需要在调用 subgraph 之前将输入（父）状态转换为 subgraph 状态，并在从节点返回状态更新之前将结果转换回父状态。
+
+
+
+```typescript
+import { StateGraph, StateSchema, START } from "@langchain/langgraph";
+import * as z from "zod";
+
+const SubgraphState = new StateSchema({
+  bar: z.string(),
+});
+
+// Subgraph
+const subgraphBuilder = new StateGraph(SubgraphState)
+  .addNode("subgraphNode1", (state) => {
+    return { bar: "hi! " + state.bar };
+  })
+  .addEdge(START, "subgraphNode1");
+
+const subgraph = subgraphBuilder.compile();
+
+// Parent graph
+const State = new StateSchema({
+  foo: z.string(),
+});
+
+// Transform the state to the subgraph state and back
+const builder = new StateGraph(State)
+  .addNode("node1", async (state) => {
+    const subgraphOutput = await subgraph.invoke({ bar: state.foo });
+    return { foo: subgraphOutput.bar };
+  })
+  .addEdge(START, "node1");
+
+const graph = builder.compile();
+```
+
+
+
+<Accordion title="完整示例：不同的状态 schemas">
+
+
+  ```typescript
+  import { StateGraph, StateSchema, START } from "@langchain/langgraph";
+  import * as z from "zod";
+
+  // Define subgraph
+  const SubgraphState = new StateSchema({
+    // note that none of these keys are shared with the parent graph state
+    bar: z.string(),
+    baz: z.string(),
+  });
+
+  const subgraphBuilder = new StateGraph(SubgraphState)
+    .addNode("subgraphNode1", (state) => {
+      return { baz: "baz" };
+    })
+    .addNode("subgraphNode2", (state) => {
+      return { bar: state.bar + state.baz };
+    })
+    .addEdge(START, "subgraphNode1")
+    .addEdge("subgraphNode1", "subgraphNode2");
+
+  const subgraph = subgraphBuilder.compile();
+
+  // Define parent graph
+  const ParentState = new StateSchema({
+    foo: z.string(),
+  });
+
+  const builder = new StateGraph(ParentState)
+    .addNode("node1", (state) => {
+      return { foo: "hi! " + state.foo };
+    })
+    .addNode("node2", async (state) => {
+      const response = await subgraph.invoke({ bar: state.foo });   // [!code highlight]
+      return { foo: response.bar };   // [!code highlight]
+    })
+    .addEdge(START, "node1")
+    .addEdge("node1", "node2");
+
+  const graph = builder.compile();
+
+  for await (const chunk of await graph.stream(
+    { foo: "foo" },
+    { subgraphs: true }
+  )) {
+    console.log(chunk);
+  }
+  ```
+
+  1. 将状态转换为 subgraph 状态
+  2. 将响应转换回父状态
+
+  ```
+  [[], { node1: { foo: 'hi! foo' } }]
+  [['node2:9c36dd0f-151a-cb42-cbad-fa2f851f9ab7'], { subgraphNode1: { baz: 'baz' } }]
+  [['node2:9c36dd0f-151a-cb42-cbad-fa2f851f9ab7'], { subgraphNode2: { bar: 'hi! foobaz' } }]
+  [[], { node2: { foo: 'hi! foobaz' } }]
+  ```
+
+
+</Accordion>
+
+<Accordion title="完整示例：不同的状态 schemas（两级 subgraphs）">
+  这是一个包含两级 subgraphs 的示例：parent -> child -> grandchild。
+
+
+
+  ```typescript
+  import { StateGraph, StateSchema, START, END } from "@langchain/langgraph";
+  import * as z from "zod";
+
+  // Grandchild graph
+  const GrandChildState = new StateSchema({
+    myGrandchildKey: z.string(),
+  });
+
+  const grandchild = new StateGraph(GrandChildState)
+    .addNode("grandchild1", (state) => {
+      // NOTE: child or parent keys will not be accessible here
+      return { myGrandchildKey: state.myGrandchildKey + ", how are you" };
+    })
+    .addEdge(START, "grandchild1")
+    .addEdge("grandchild1", END);
+
+  const grandchildGraph = grandchild.compile();
+
+  // Child graph
+  const ChildState = new StateSchema({
+    myChildKey: z.string(),
+  });
+
+  const child = new StateGraph(ChildState)
+    .addNode("child1", async (state) => {
+      // NOTE: parent or grandchild keys won't be accessible here
+      const grandchildGraphInput = { myGrandchildKey: state.myChildKey };   // [!code highlight]
+      const grandchildGraphOutput = await grandchildGraph.invoke(grandchildGraphInput);
+      return { myChildKey: grandchildGraphOutput.myGrandchildKey + " today?" };   // [!code highlight]
+    })   // [!code highlight]
+    .addEdge(START, "child1")
+    .addEdge("child1", END);
+
+  const childGraph = child.compile();
+
+  // Parent graph
+  const ParentState = new StateSchema({
+    myKey: z.string(),
+  });
+
+  const parent = new StateGraph(ParentState)
+    .addNode("parent1", (state) => {
+      // NOTE: child or grandchild keys won't be accessible here
+      return { myKey: "hi " + state.myKey };
+    })
+    .addNode("child", async (state) => {
+      const childGraphInput = { myChildKey: state.myKey };   // [!code highlight]
+      const childGraphOutput = await childGraph.invoke(childGraphInput);
+      return { myKey: childGraphOutput.myChildKey };   // [!code highlight]
+    })   // [!code highlight]
+    .addNode("parent2", (state) => {
+      return { myKey: state.myKey + " bye!" };
+    })
+    .addEdge(START, "parent1")
+    .addEdge("parent1", "child")
+    .addEdge("child", "parent2")
+    .addEdge("parent2", END);
+
+  const parentGraph = parent.compile();
+
+  for await (const chunk of await parentGraph.stream(
+    { myKey: "Bob" },
+    { subgraphs: true }
+  )) {
+    console.log(chunk);
+  }
+  ```
+
+  1. 我们正在将状态从 child 状态 channels (`myChildKey`) 转换为 grandchild 状态 channels (`myGrandchildKey`)
+  2. 我们正在将状态从 grandchild 状态 channels (`myGrandchildKey`) 转换回 child 状态 channels (`myChildKey`)
+  3. 我们在这里传递的是函数而不是编译后的图 (`grandchildGraph`)
+  4. 我们正在将状态从 parent 状态 channels (`myKey`) 转换为 child 状态 channels (`myChildKey`)
+  5. 我们正在将状态从 child 状态 channels (`myChildKey`) 转换回 parent 状态 channels (`myKey`)
+  6. 我们在这里传递的是函数而不是编译后的图 (`childGraph`)
+
+  ```
+  [[], { parent1: { myKey: 'hi Bob' } }]
+  [['child:2e26e9ce-602f-862c-aa66-1ea5a4655e3b', 'child1:781bb3b1-3971-84ce-810b-acf819a03f9c'], { grandchild1: { myGrandchildKey: 'hi Bob, how are you' } }]
+  [['child:2e26e9ce-602f-862c-aa66-1ea5a4655e3b'], { child1: { myChildKey: 'hi Bob, how are you today?' } }]
+  [[], { child: { myKey: 'hi Bob, how are you today?' } }]
+  [[], { parent2: { myKey: 'hi Bob, how are you today? bye!' } }]
+  ```
+
+
+</Accordion>
+
+## 将图添加为节点
+
+当父图和 subgraph 可以通过 [schema](/oss/javascript/langgraph/graph-api#state) 中共享的 state key (channel) 进行通信时，您可以将图作为 [node](/oss/javascript/langgraph/graph-api#nodes) 添加到另一个图中。例如，在 [multi-agent](/oss/javascript/langchain/multi-agent) 系统中，agents 通常通过共享的 [messages](/oss/javascript/langgraph/graph-api#why-use-messages) key 进行通信。
+
+<img
+  src="/oss/images/subgraph.png"
+  alt="SQL agent graph"
+  style={{ height: "450px" }}
+/>
+
+如果您的 subgraph 与父图共享 state keys，您可以按照以下步骤将其添加到图中：
+
+
+
+1. 定义 subgraph 工作流（下例中的 `subgraphBuilder`）并编译它
+2. 在定义父图工作流时，将编译后的 subgraph 传递给 `.addNode` 方法
+
+```typescript
+import { StateGraph, StateSchema, START } from "@langchain/langgraph";
+import * as z from "zod";
+
+const State = new StateSchema({
+  foo: z.string(),
+});
+
+// Subgraph
+const subgraphBuilder = new StateGraph(State)
+  .addNode("subgraphNode1", (state) => {
+    return { foo: "hi! " + state.foo };
+  })
+  .addEdge(START, "subgraphNode1");
+
+const subgraph = subgraphBuilder.compile();
+
+// Parent graph
+const builder = new StateGraph(State)
+  .addNode("node1", subgraph)
+  .addEdge(START, "node1");
+
+const graph = builder.compile();
+```
+
+
+
+<Accordion title="完整示例：共享状态 schemas">
+
+
+  ```typescript
+  import { StateGraph, StateSchema, START } from "@langchain/langgraph";
+  import * as z from "zod";
+
+  // Define subgraph
+  const SubgraphState = new StateSchema({
+    foo: z.string(),    // [!code highlight]
+    bar: z.string(),    // [!code highlight]
+  });
+
+  const subgraphBuilder = new StateGraph(SubgraphState)
+    .addNode("subgraphNode1", (state) => {
+      return { bar: "bar" };
+    })
+    .addNode("subgraphNode2", (state) => {
+      // note that this node is using a state key ('bar') that is only available in the subgraph
+      // and is sending update on the shared state key ('foo')
+      return { foo: state.foo + state.bar };
+    })
+    .addEdge(START, "subgraphNode1")
+    .addEdge("subgraphNode1", "subgraphNode2");
+
+  const subgraph = subgraphBuilder.compile();
+
+  // Define parent graph
+  const ParentState = new StateSchema({
+    foo: z.string(),
+  });
+
+  const builder = new StateGraph(ParentState)
+    .addNode("node1", (state) => {
+      return { foo: "hi! " + state.foo };
+    })
+    .addNode("node2", subgraph)
+    .addEdge(START, "node1")
+    .addEdge("node1", "node2");
+
+  const graph = builder.compile();
+
+  for await (const chunk of await graph.stream({ foo: "foo" })) {
+    console.log(chunk);
+  }
+  ```
+
+  1. 此 key 与父图状态共享
+  2. 此 key 对 `SubgraphState` 是私有的，对父图不可见
+
+  ```
+  { node1: { foo: 'hi! foo' } }
+  { node2: { foo: 'hi! foobar' } }
+  ```
+
+
+</Accordion>
+
+## 添加持久化
+
+您只需在**编译父图时提供 checkpointer**。LangGraph 会自动将 checkpointer 传播到子 subgraphs。
+
+
+
+```typescript
+import { StateGraph, StateSchema, START, MemorySaver } from "@langchain/langgraph";
+import * as z from "zod";
+
+const State = new StateSchema({
+  foo: z.string(),
+});
+
+// Subgraph
+const subgraphBuilder = new StateGraph(State)
+  .addNode("subgraphNode1", (state) => {
+    return { foo: state.foo + "bar" };
+  })
+  .addEdge(START, "subgraphNode1");
+
+const subgraph = subgraphBuilder.compile();
+
+// Parent graph
+const builder = new StateGraph(State)
+  .addNode("node1", subgraph)
+  .addEdge(START, "node1");
+
+const checkpointer = new MemorySaver();
+const graph = builder.compile({ checkpointer });
+```
+
+
+
+如果您希望 subgraph **拥有自己的内存**，可以在编译时使用适当的 checkpointer 选项。这在 [multi-agent](/oss/javascript/langchain/multi-agent) 系统中很有用，如果您希望 agents 跟踪其内部消息历史记录：
+
+
+
+```typescript
+const subgraphBuilder = new StateGraph(...)
+const subgraph = subgraphBuilder.compile({ checkpointer: true });
+```
+
+
+
+## 查看 subgraph 状态
+
+当您启用 [persistence](/oss/javascript/langgraph/persistence) 时，可以通过适当的方法[检查图状态](/oss/javascript/langgraph/persistence#checkpoints)（checkpoint）。要查看 subgraph 状态，可以使用 subgraphs 选项。
+
+
+
+您可以通过 `graph.getState(config)` 检查图状态。要查看 subgraph 状态，可以使用 `graph.getState(config, { subgraphs: true })`。
+
+
+<Warning>
+**仅在中断时可用**
+subgraph 状态只能在 **subgraph 被中断时** 查看。一旦您恢复图，您将无法访问 subgraph 状态。
+</Warning>
+
+<Accordion title="查看中断的 subgraph 状态">
+
+
+  ```typescript
+  import { StateGraph, StateSchema, START, MemorySaver, interrupt, Command } from "@langchain/langgraph";
+  import * as z from "zod";
+
+  const State = new StateSchema({
+    foo: z.string(),
+  });
+
+  // Subgraph
+  const subgraphBuilder = new StateGraph(State)
+    .addNode("subgraphNode1", (state) => {
+      const value = interrupt("Provide value:");
+      return { foo: state.foo + value };
+    })
+    .addEdge(START, "subgraphNode1");
+
+  const subgraph = subgraphBuilder.compile();
+
+  // Parent graph
+  const builder = new StateGraph(State)
+    .addNode("node1", subgraph)
+    .addEdge(START, "node1");
+
+  const checkpointer = new MemorySaver();
+  const graph = builder.compile({ checkpointer });
+
+  const config = { configurable: { thread_id: "1" } };
+
+  await graph.invoke({ foo: "" }, config);
+  const parentState = await graph.getState(config);
+  const subgraphState = (await graph.getState(config, { subgraphs: true })).tasks[0].state;   // [!code highlight]
+
+  // resume the subgraph
+  await graph.invoke(new Command({ resume: "bar" }), config);
+  ```
+
+
+</Accordion>
+
+## 流式输出 subgraph 输出
+
+要在流式输出中包含 subgraphs 的输出，您可以在父图的 stream 方法中设置 subgraphs 选项。这将流式输出父图和任何 subgraphs 的输出。
+
+
+
+```typescript
+for await (const chunk of await graph.stream(
+  { foo: "foo" },
+  {
+    subgraphs: true,   // [!code highlight]
+    streamMode: "updates",
+  }
+)) {
+  console.log(chunk);
+}
+```
+
+1. 设置 `subgraphs: true` 以流式输出 subgraphs 的输出。
+
+
+
+<Accordion title="从 subgraphs 流式输出">
+
+
+  ```typescript
+  import { StateGraph, StateSchema, START } from "@langchain/langgraph";
+  import * as z from "zod";
+
+  // Define subgraph
+  const SubgraphState = new StateSchema({
+    foo: z.string(),
+    bar: z.string(),
+  });
+
+  const subgraphBuilder = new StateGraph(SubgraphState)
+    .addNode("subgraphNode1", (state) => {
+      return { bar: "bar" };
+    })
+    .addNode("subgraphNode2", (state) => {
+      // note that this node is using a state key ('bar') that is only available in the subgraph
+      // and is sending update on the shared state key ('foo')
+      return { foo: state.foo + state.bar };
+    })
+    .addEdge(START, "subgraphNode1")
+    .addEdge("subgraphNode1", "subgraphNode2");
+
+  const subgraph = subgraphBuilder.compile();
+
+  // Define parent graph
+  const ParentState = new StateSchema({
+    foo: z.string(),
+  });
+
+  const builder = new StateGraph(ParentState)
+    .addNode("node1", (state) => {
+      return { foo: "hi! " + state.foo };
+    })
+    .addNode("node2", subgraph)
+    .addEdge(START, "node1")
+    .addEdge("node1", "node2");
+
+  const graph = builder.compile();
+
+  for await (const chunk of await graph.stream(
+    { foo: "foo" },
+    {
+      streamMode: "updates",
+      subgraphs: true,   // [!code highlight]
+    }
+  )) {
+    console.log(chunk);
+  }
+  ```
+
+  1. 设置 `subgraphs: true` 以流式输出 subgraphs 的输出。
+
+  ```
+  [[], { node1: { foo: 'hi! foo' } }]
+  [['node2:e58e5673-a661-ebb0-70d4-e298a7fc28b7'], { subgraphNode1: { bar: 'bar' } }]
+  [['node2:e58e5673-a661-ebb0-70d4-e298a7fc28b7'], { subgraphNode2: { foo: 'hi! foobar' } }]
+  [[], { node2: { foo: 'hi! foobar' } }]
+  ```
+
+
+</Accordion>
+
+---
+
+<Callout icon="pen-to-square" iconType="regular">
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/use-subgraphs.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+</Callout>
+<Tip icon="terminal" iconType="regular">
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+</Tip>
+<div class='fixed right-2 bg-white bottom-2'><img src='https://kunfanyang.site/site-file/wx_code.jpg' class='border' alt='微信扫码赞赏' width='200' /></div>

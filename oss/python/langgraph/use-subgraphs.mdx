@@ -1,0 +1,541 @@
+---
+title: Subgraphs
+sidebarTitle: Subgraphs
+---
+
+
+
+本指南介绍了使用 subgraphs 的机制。subgraph 是在另一个 [graph](/oss/python/langgraph/graph-api#graphs) 中作为 [node](/oss/python/langgraph/graph-api#nodes) 使用的图。
+
+Subgraphs 适用于：
+
+- 构建 [multi-agent systems](/oss/python/langchain/multi-agent)
+- 在多个图中复用一组节点
+- 分布式开发：当您希望不同团队独立开发图的不同部分时，可以将每个部分定义为 subgraph，只要 subgraph 接口（输入和输出 schemas）得到遵守，就可以在不了解 subgraph 任何细节的情况下构建父图
+
+添加 subgraphs 时，您需要定义父图和 subgraph 如何通信：
+
+- [从节点内调用图](#invoke-a-graph-from-a-node) — subgraphs 从父图中的节点内部被调用
+- [将图添加为节点](#add-a-graph-as-a-node) — subgraph 直接作为父图中的节点添加，并与父图**共享 [state keys](/oss/python/langgraph/graph-api#state)**
+
+## Setup
+
+<CodeGroup>
+```bash pip
+pip install -U langgraph
+```
+
+```bash uv
+uv add langgraph
+```
+
+</CodeGroup>
+
+
+
+
+<Tip>
+**设置 LangSmith 用于 LangGraph 开发**
+注册 [LangSmith](https://smith.langchain.com) 以快速发现问题并提升 LangGraph 项目的性能。LangSmith 让您可以使用追踪数据来调试、测试和监控使用 LangGraph 构建的 LLM 应用 — 在[文档](https://docs.smith.langchain.com)中阅读更多入门信息。
+</Tip>
+
+## 从节点内调用图
+
+实现 subgraph 的一个简单方法是在另一个图的节点内部调用图。在这种情况下，subgraphs 可以与父图有**完全不同的 schemas**（没有共享的 keys）。例如，您可能希望在 [multi-agent](/oss/python/langchain/multi-agent) 系统中为每个 agent 保留私有消息历史记录。
+
+如果您的应用程序属于这种情况，您需要定义一个**调用 subgraph 的节点函数**。此函数需要在调用 subgraph 之前将输入（父）状态转换为 subgraph 状态，并在从节点返回状态更新之前将结果转换回父状态。
+
+```python
+from typing_extensions import TypedDict
+from langgraph.graph.state import StateGraph, START
+
+class SubgraphState(TypedDict):
+    bar: str
+
+# Subgraph
+
+def subgraph_node_1(state: SubgraphState):
+    return {"bar": "hi! " + state["bar"]}
+
+subgraph_builder = StateGraph(SubgraphState)
+subgraph_builder.add_node(subgraph_node_1)
+subgraph_builder.add_edge(START, "subgraph_node_1")
+subgraph = subgraph_builder.compile()
+
+# Parent graph
+
+class State(TypedDict):
+    foo: str
+
+def call_subgraph(state: State):
+    # Transform the state to the subgraph state
+    subgraph_output = subgraph.invoke({"bar": state["foo"]})  # [!code highlight]
+    # Transform response back to the parent state
+    return {"foo": subgraph_output["bar"]}
+
+builder = StateGraph(State)
+builder.add_node("node_1", call_subgraph)
+builder.add_edge(START, "node_1")
+graph = builder.compile()
+```
+
+
+
+
+
+<Accordion title="完整示例：不同的状态 schemas">
+  ```python
+  from typing_extensions import TypedDict
+  from langgraph.graph.state import StateGraph, START
+
+# Define subgraph
+
+  class SubgraphState(TypedDict):
+      # note that none of these keys are shared with the parent graph state
+      bar: str
+      baz: str
+
+  def subgraph_node_1(state: SubgraphState):
+      return {"baz": "baz"}
+
+  def subgraph_node_2(state: SubgraphState):
+      return {"bar": state["bar"] + state["baz"]}
+
+  subgraph_builder = StateGraph(SubgraphState)
+  subgraph_builder.add_node(subgraph_node_1)
+  subgraph_builder.add_node(subgraph_node_2)
+  subgraph_builder.add_edge(START, "subgraph_node_1")
+  subgraph_builder.add_edge("subgraph_node_1", "subgraph_node_2")
+  subgraph = subgraph_builder.compile()
+
+# Define parent graph
+
+  class ParentState(TypedDict):
+      foo: str
+
+  def node_1(state: ParentState):
+      return {"foo": "hi! " + state["foo"]}
+
+  def node_2(state: ParentState):
+      # Transform the state to the subgraph state
+      response = subgraph.invoke({"bar": state["foo"]})
+      # Transform response back to the parent state
+      return {"foo": response["bar"]}
+
+  builder = StateGraph(ParentState)
+  builder.add_node("node_1", node_1)
+  builder.add_node("node_2", node_2)
+  builder.add_edge(START, "node_1")
+  builder.add_edge("node_1", "node_2")
+  graph = builder.compile()
+
+  for chunk in graph.stream({"foo": "foo"}, subgraphs=True):
+      print(chunk)
+
+  ```
+
+  ```
+
+  ((), {'node_1': {'foo': 'hi! foo'}})
+  (('node_2:577b710b-64ae-31fb-9455-6a4d4cc2b0b9',), {'subgraph_node_1': {'baz': 'baz'}})
+  (('node_2:577b710b-64ae-31fb-9455-6a4d4cc2b0b9',), {'subgraph_node_2': {'bar': 'hi! foobaz'}})
+  ((), {'node_2': {'foo': 'hi! foobaz'}})
+
+  ```
+
+
+
+</Accordion>
+
+<Accordion title="完整示例：不同的状态 schemas（两级 subgraphs）">
+  这是一个包含两级 subgraphs 的示例：parent -> child -> grandchild。
+
+  ```python
+  # Grandchild graph
+  from typing_extensions import TypedDict
+  from langgraph.graph.state import StateGraph, START, END
+
+  class GrandChildState(TypedDict):
+      my_grandchild_key: str
+
+  def grandchild_1(state: GrandChildState) -> GrandChildState:
+      # NOTE: child or parent keys will not be accessible here
+      return {"my_grandchild_key": state["my_grandchild_key"] + ", how are you"}
+
+
+  grandchild = StateGraph(GrandChildState)
+  grandchild.add_node("grandchild_1", grandchild_1)
+
+  grandchild.add_edge(START, "grandchild_1")
+  grandchild.add_edge("grandchild_1", END)
+
+  grandchild_graph = grandchild.compile()
+
+  # Child graph
+  class ChildState(TypedDict):
+      my_child_key: str
+
+  def call_grandchild_graph(state: ChildState) -> ChildState:
+      # NOTE: parent or grandchild keys won't be accessible here
+      grandchild_graph_input = {"my_grandchild_key": state["my_child_key"]}
+      grandchild_graph_output = grandchild_graph.invoke(grandchild_graph_input)
+      return {"my_child_key": grandchild_graph_output["my_grandchild_key"] + " today?"}
+
+  child = StateGraph(ChildState)
+  # We're passing a function here instead of just compiled graph (`grandchild_graph`)
+  child.add_node("child_1", call_grandchild_graph)
+  child.add_edge(START, "child_1")
+  child.add_edge("child_1", END)
+  child_graph = child.compile()
+
+  # Parent graph
+  class ParentState(TypedDict):
+      my_key: str
+
+  def parent_1(state: ParentState) -> ParentState:
+      # NOTE: child or grandchild keys won't be accessible here
+      return {"my_key": "hi " + state["my_key"]}
+
+  def parent_2(state: ParentState) -> ParentState:
+      return {"my_key": state["my_key"] + " bye!"}
+
+  def call_child_graph(state: ParentState) -> ParentState:
+      child_graph_input = {"my_child_key": state["my_key"]}
+      child_graph_output = child_graph.invoke(child_graph_input)
+      return {"my_key": child_graph_output["my_child_key"]}
+
+  parent = StateGraph(ParentState)
+  parent.add_node("parent_1", parent_1)
+  # We're passing a function here instead of just a compiled graph (`child_graph`)
+  parent.add_node("child", call_child_graph)
+  parent.add_node("parent_2", parent_2)
+
+  parent.add_edge(START, "parent_1")
+  parent.add_edge("parent_1", "child")
+  parent.add_edge("child", "parent_2")
+  parent.add_edge("parent_2", END)
+
+  parent_graph = parent.compile()
+
+  for chunk in parent_graph.stream({"my_key": "Bob"}, subgraphs=True):
+      print(chunk)
+  ```
+
+  ```
+  ((), {'parent_1': {'my_key': 'hi Bob'}})
+  (('child:2e26e9ce-602f-862c-aa66-1ea5a4655e3b', 'child_1:781bb3b1-3971-84ce-810b-acf819a03f9c'), {'grandchild_1': {'my_grandchild_key': 'hi Bob, how are you'}})
+  (('child:2e26e9ce-602f-862c-aa66-1ea5a4655e3b',), {'child_1': {'my_child_key': 'hi Bob, how are you today?'}})
+  ((), {'child': {'my_key': 'hi Bob, how are you today?'}})
+  ((), {'parent_2': {'my_key': 'hi Bob, how are you today? bye!'}})
+  ```
+
+
+
+
+</Accordion>
+
+## 将图添加为节点
+
+当父图和 subgraph 可以通过 [schema](/oss/python/langgraph/graph-api#state) 中共享的 state key (channel) 进行通信时，您可以将图作为 [node](/oss/python/langgraph/graph-api#nodes) 添加到另一个图中。例如，在 [multi-agent](/oss/python/langchain/multi-agent) 系统中，agents 通常通过共享的 [messages](/oss/python/langgraph/graph-api#why-use-messages) key 进行通信。
+
+<img
+  src="/oss/images/subgraph.png"
+  alt="SQL agent graph"
+  style={{ height: "450px" }}
+/>
+
+如果您的 subgraph 与父图共享 state keys，您可以按照以下步骤将其添加到图中：
+
+1. 定义 subgraph 工作流（下例中的 `subgraph_builder`）并编译它
+2. 在定义父图工作流时，将编译后的 subgraph 传递给 [`add_node`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.StateGraph.add_node) 方法
+
+```python
+from typing_extensions import TypedDict
+from langgraph.graph.state import StateGraph, START
+
+class State(TypedDict):
+    foo: str
+
+# Subgraph
+
+def subgraph_node_1(state: State):
+    return {"foo": "hi! " + state["foo"]}
+
+subgraph_builder = StateGraph(State)
+subgraph_builder.add_node(subgraph_node_1)
+subgraph_builder.add_edge(START, "subgraph_node_1")
+subgraph = subgraph_builder.compile()
+
+# Parent graph
+
+builder = StateGraph(State)
+builder.add_node("node_1", subgraph)  # [!code highlight]
+builder.add_edge(START, "node_1")
+graph = builder.compile()
+```
+
+
+
+
+
+<Accordion title="完整示例：共享状态 schemas">
+  ```python
+  from typing_extensions import TypedDict
+  from langgraph.graph.state import StateGraph, START
+
+# Define subgraph
+
+  class SubgraphState(TypedDict):
+      foo: str  # shared with parent graph state
+      bar: str  # private to SubgraphState
+
+  def subgraph_node_1(state: SubgraphState):
+      return {"bar": "bar"}
+
+  def subgraph_node_2(state: SubgraphState):
+      # note that this node is using a state key ('bar') that is only available in the subgraph
+      # and is sending update on the shared state key ('foo')
+      return {"foo": state["foo"] + state["bar"]}
+
+  subgraph_builder = StateGraph(SubgraphState)
+  subgraph_builder.add_node(subgraph_node_1)
+  subgraph_builder.add_node(subgraph_node_2)
+  subgraph_builder.add_edge(START, "subgraph_node_1")
+  subgraph_builder.add_edge("subgraph_node_1", "subgraph_node_2")
+  subgraph = subgraph_builder.compile()
+
+# Define parent graph
+
+  class ParentState(TypedDict):
+      foo: str
+
+  def node_1(state: ParentState):
+      return {"foo": "hi! " + state["foo"]}
+
+  builder = StateGraph(ParentState)
+  builder.add_node("node_1", node_1)
+  builder.add_node("node_2", subgraph)
+  builder.add_edge(START, "node_1")
+  builder.add_edge("node_1", "node_2")
+  graph = builder.compile()
+
+  for chunk in graph.stream({"foo": "foo"}):
+      print(chunk)
+
+  ```
+
+  ```
+
+  {'node_1': {'foo': 'hi! foo'}}
+  {'node_2': {'foo': 'hi! foobar'}}
+
+  ```
+
+
+
+</Accordion>
+
+## 添加持久化
+
+您只需在**编译父图时提供 checkpointer**。LangGraph 会自动将 checkpointer 传播到子 subgraphs。
+
+```python
+from langgraph.graph import START, StateGraph
+from langgraph.checkpoint.memory import MemorySaver
+from typing_extensions import TypedDict
+
+class State(TypedDict):
+    foo: str
+
+# Subgraph
+
+def subgraph_node_1(state: State):
+    return {"foo": state["foo"] + "bar"}
+
+subgraph_builder = StateGraph(State)
+subgraph_builder.add_node(subgraph_node_1)
+subgraph_builder.add_edge(START, "subgraph_node_1")
+subgraph = subgraph_builder.compile()
+
+# Parent graph
+
+builder = StateGraph(State)
+builder.add_node("node_1", subgraph)
+builder.add_edge(START, "node_1")
+
+checkpointer = MemorySaver()
+graph = builder.compile(checkpointer=checkpointer)
+```
+
+
+
+
+
+如果您希望 subgraph **拥有自己的内存**，可以在编译时使用适当的 checkpointer 选项。这在 [multi-agent](/oss/python/langchain/multi-agent) 系统中很有用，如果您希望 agents 跟踪其内部消息历史记录：
+
+```python
+subgraph_builder = StateGraph(...)
+subgraph = subgraph_builder.compile(checkpointer=True)
+```
+
+
+
+
+
+## 查看 subgraph 状态
+
+当您启用 [persistence](/oss/python/langgraph/persistence) 时，可以通过适当的方法[检查图状态](/oss/python/langgraph/persistence#checkpoints)（checkpoint）。要查看 subgraph 状态，可以使用 subgraphs 选项。
+
+您可以通过 `graph.get_state(config)` 检查图状态。要查看 subgraph 状态，可以使用 `graph.get_state(config, subgraphs=True)`。
+
+
+
+
+<Warning>
+**仅在中断时可用**
+subgraph 状态只能在 **subgraph 被中断时** 查看。一旦您恢复图，您将无法访问 subgraph 状态。
+</Warning>
+
+<Accordion title="查看中断的 subgraph 状态">
+  ```python
+  from langgraph.graph import START, StateGraph
+  from langgraph.checkpoint.memory import MemorySaver
+  from langgraph.types import interrupt, Command
+  from typing_extensions import TypedDict
+
+  class State(TypedDict):
+      foo: str
+
+# Subgraph
+
+  def subgraph_node_1(state: State):
+      value = interrupt("Provide value:")
+      return {"foo": state["foo"] + value}
+
+  subgraph_builder = StateGraph(State)
+  subgraph_builder.add_node(subgraph_node_1)
+  subgraph_builder.add_edge(START, "subgraph_node_1")
+
+  subgraph = subgraph_builder.compile()
+
+# Parent graph
+
+  builder = StateGraph(State)
+  builder.add_node("node_1", subgraph)
+  builder.add_edge(START, "node_1")
+
+  checkpointer = MemorySaver()
+  graph = builder.compile(checkpointer=checkpointer)
+
+  config = {"configurable": {"thread_id": "1"}}
+
+  graph.invoke({"foo": ""}, config)
+  parent_state = graph.get_state(config)
+
+# This will be available only when the subgraph is interrupted
+
+# Once you resume the graph, you won't be able to access the subgraph state
+
+  subgraph_state = graph.get_state(config, subgraphs=True).tasks[0].state
+
+# resume the subgraph
+
+  graph.invoke(Command(resume="bar"), config)
+
+  ```
+
+  1. 这仅在 subgraph 被中断时可用。一旦您恢复图，您将无法访问 subgraph 状态。
+
+
+
+</Accordion>
+
+## 流式输出 subgraph 输出
+
+要在流式输出中包含 subgraphs 的输出，您可以在父图的 stream 方法中设置 subgraphs 选项。这将流式输出父图和任何 subgraphs 的输出。
+
+```python
+for chunk in graph.stream(
+    {"foo": "foo"},
+    subgraphs=True, # [!code highlight]
+    stream_mode="updates",
+):
+    print(chunk)
+```
+
+
+
+
+
+<Accordion title="从 subgraphs 流式输出">
+  ```python
+  from typing_extensions import TypedDict
+  from langgraph.graph.state import StateGraph, START
+
+# Define subgraph
+
+  class SubgraphState(TypedDict):
+      foo: str
+      bar: str
+
+  def subgraph_node_1(state: SubgraphState):
+      return {"bar": "bar"}
+
+  def subgraph_node_2(state: SubgraphState):
+      # note that this node is using a state key ('bar') that is only available in the subgraph
+      # and is sending update on the shared state key ('foo')
+      return {"foo": state["foo"] + state["bar"]}
+
+  subgraph_builder = StateGraph(SubgraphState)
+  subgraph_builder.add_node(subgraph_node_1)
+  subgraph_builder.add_node(subgraph_node_2)
+  subgraph_builder.add_edge(START, "subgraph_node_1")
+  subgraph_builder.add_edge("subgraph_node_1", "subgraph_node_2")
+  subgraph = subgraph_builder.compile()
+
+# Define parent graph
+
+  class ParentState(TypedDict):
+      foo: str
+
+  def node_1(state: ParentState):
+      return {"foo": "hi! " + state["foo"]}
+
+  builder = StateGraph(ParentState)
+  builder.add_node("node_1", node_1)
+  builder.add_node("node_2", subgraph)
+  builder.add_edge(START, "node_1")
+  builder.add_edge("node_1", "node_2")
+  graph = builder.compile()
+
+  for chunk in graph.stream(
+      {"foo": "foo"},
+      stream_mode="updates",
+      subgraphs=True, # [!code highlight]
+  ):
+      print(chunk)
+
+  ```
+
+  ```
+
+  ((), {'node_1': {'foo': 'hi! foo'}})
+  (('node_2:e58e5673-a661-ebb0-70d4-e298a7fc28b7',), {'subgraph_node_1': {'bar': 'bar'}})
+  (('node_2:e58e5673-a661-ebb0-70d4-e298a7fc28b7',), {'subgraph_node_2': {'foo': 'hi! foobar'}})
+  ((), {'node_2': {'foo': 'hi! foobar'}})
+
+  ```
+
+
+
+</Accordion>
+
+---
+
+<Callout icon="pen-to-square" iconType="regular">
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/use-subgraphs.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+</Callout>
+<Tip icon="terminal" iconType="regular">
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+</Tip>
+<div class='fixed right-2 bg-white bottom-2'><img src='https://kunfanyang.site/site-file/wx_code.jpg' class='border' alt='微信扫码赞赏' width='200' /></div>

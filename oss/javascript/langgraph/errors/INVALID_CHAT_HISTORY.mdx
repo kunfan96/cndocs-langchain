@@ -1,0 +1,49 @@
+---
+title: INVALID_CHAT_HISTORY
+---
+
+
+
+当预构建的 [`createAgent`](https://reference.langchain.com/javascript/functions/langchain.index.createAgent.html) 中的 `callModel` 图节点接收到格式错误的消息列表时会引发此错误。具体来说，当存在带有 `tool_calls`（LLM 请求调用工具）的 `AIMessage` 但没有对应的 [`ToolMessage`](https://reference.langchain.com/javascript/classes/_langchain_core.messages.ToolMessage.html)（返回给 LLM 的工具调用结果）时，格式是错误的。
+
+
+你看到此错误可能有以下几个原因：
+
+
+
+1. 你在调用图时手动传递了格式错误的消息列表，例如 `graph.invoke({messages: [new AIMessage({..., tool_calls: [...]})]})`
+2. 图在从 `tools` 节点接收更新（即 [`ToolMessage`](https://reference.langchain.com/javascript/classes/_langchain_core.messages.ToolMessage.html) 列表）之前被中断
+    并且你使用非 null 或 ToolMessage 的输入调用了它，
+    例如 `graph.invoke({messages: [new HumanMessage(...)]}, config)`。
+    此中断可能通过以下方式之一触发：
+    * 你在 `createAgent` 中手动设置了 `interruptBefore: ['tools']`
+    * 其中一个工具引发了未被 [`ToolNode`](https://reference.langchain.com/javascript/classes/_langchain_langgraph.prebuilt.ToolNode.html)（`"tools"`）处理的错误
+
+
+
+## 故障排除
+
+要解决此问题，你可以执行以下操作之一：
+
+1. 不要使用格式错误的消息列表调用图
+2. 在中断（手动或由于错误）的情况下，你可以：
+
+
+
+* 提供与现有工具调用匹配的 `ToolMessage` 对象并调用 `graph.invoke({messages: [new ToolMessage(...)]})`。
+  **注意**：这将把消息追加到历史记录中并从 START 节点运行图。
+  * 手动更新状态并从中断处恢复图：
+    1. 使用 `graph.getState(config)` 从图状态获取最近的消息列表
+    2. 修改消息列表，从 AIMessages 中删除未回答的工具调用
+
+或添加 `toolCallId` 与未回答的工具调用匹配的 `ToolMessage` 对象 3. 使用修改后的消息列表调用 `graph.updateState(config, {messages: ...})` 4. 恢复图，例如调用 `graph.invoke(null, config)`
+
+---
+
+<Callout icon="pen-to-square" iconType="regular">
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/errors/INVALID_CHAT_HISTORY.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+</Callout>
+<Tip icon="terminal" iconType="regular">
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+</Tip>
+<div class='fixed right-2 bg-white bottom-2'><img src='https://kunfanyang.site/site-file/wx_code.jpg' class='border' alt='微信扫码赞赏' width='200' /></div>

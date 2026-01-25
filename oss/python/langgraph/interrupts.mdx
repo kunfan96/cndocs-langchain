@@ -1,0 +1,879 @@
+---
+title: 中断
+---
+
+
+
+中断允许您在特定点暂停图执行，并在继续之前等待外部输入。这支持需要外部输入才能继续的人机协作模式。当触发中断时，LangGraph 使用其[持久化](/oss/python/langgraph/persistence)层保存图状态，并无限期等待直到您恢复执行。
+
+中断通过在图节点中的任何位置调用 `interrupt()` 函数来工作。该函数接受任何 JSON 可序列化值，该值会呈现给调用者。当您准备好继续时，通过使用 `Command` 重新调用图来恢复执行，然后它成为节点内部 `interrupt()` 调用的返回值。
+
+与静态断点（在特定节点之前或之后暂停）不同，中断是**动态的** — 它们可以放置在代码中的任何位置，并且可以根据您的应用程序逻辑进行条件判断。
+
+- **检查点保持您的位置：** 检查点写入器写入精确的图状态，以便您以后可以恢复，即使处于错误状态。
+- **`thread_id` 是您的指针：** 设置 `config={"configurable": {"thread_id": ...}}` 告诉检查点写入器加载哪个状态。
+- **中断有效负载显示为 `__interrupt__`：** 您传递给 `interrupt()` 的值在 `__interrupt__` 字段中返回给调用者，以便您知道图正在等待什么。
+
+
+
+
+您选择的 `thread_id` 实际上是您的持久游标。重用它会恢复相同的检查点；使用新值会启动一个具有空状态的全新线程。
+
+## 使用 `interrupt` 暂停
+
+[`interrupt`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.interrupt) 函数暂停图执行并向调用者返回一个值。当您在节点内调用 [`interrupt`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.interrupt) 时，LangGraph 保存当前图状态并等待您用输入恢复执行。
+
+要使用 [`interrupt`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.interrupt)，您需要：
+
+1. 一个**检查点写入器**来持久化图状态（在生产中使用持久检查点写入器）
+2. 配置中的**线程 ID**，以便运行时知道从哪个状态恢复
+3. 在您想要暂停的地方调用 `interrupt()`（有效负载必须是 JSON 可序列化的）
+
+```python
+from langgraph.types import interrupt
+
+def approval_node(state: State):
+    # Pause and ask for approval
+    approved = interrupt("Do you approve this action?")
+
+    # When you resume, Command(resume=...) returns that value here
+    return {"approved": approved}
+```
+
+
+
+
+
+当您调用 [`interrupt`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.interrupt) 时，会发生以下情况：
+
+1. **图执行被暂停**在调用 [`interrupt`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.interrupt) 的确切位置
+2. **状态被保存**使用检查点写入器，以便稍后可以恢复执行。在生产中，这应该是一个持久检查点写入器（例如由数据库支持）
+3. **值被返回**给调用者在 `__interrupt__` 下；它可以是任何 JSON 可序列化值（字符串、对象、数组等）
+4. **图无限期等待**直到您用响应恢复执行
+5. **响应被传回**节点当您恢复时，成为 `interrupt()` 调用的返回值
+
+## 恢复中断
+
+在中断暂停执行后，您通过使用包含恢复值的 `Command` 再次调用图来恢复图。恢复值被传回 `interrupt` 调用，允许节点继续使用外部输入执行。
+
+```python
+from langgraph.types import Command
+
+# Initial run - hits the interrupt and pauses
+# thread_id is the persistent pointer (stores a stable ID in production)
+config = {"configurable": {"thread_id": "thread-1"}}
+result = graph.invoke({"input": "data"}, config=config)
+
+# Check what was interrupted
+# __interrupt__ contains the payload that was passed to interrupt()
+print(result["__interrupt__"])
+# > [Interrupt(value='Do you approve this action?')]
+
+# Resume with the human's response
+# The resume payload becomes the return value of interrupt() inside the node
+graph.invoke(Command(resume=True), config=config)
+```
+
+**关于恢复的关键点：**
+
+- 恢复时必须使用与中断发生时相同的**线程 ID**
+- 传递给 `Command(resume=...)` 的值成为 [`interrupt`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.interrupt) 调用的返回值
+- 恢复时，节点从调用 [`interrupt`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.interrupt) 的节点开头重新开始，因此 [`interrupt`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.interrupt) 之前的任何代码都会再次运行
+- 您可以将任何 JSON 可序列化值作为恢复值传递
+
+
+
+
+
+## 常见模式
+
+中断解锁的关键功能是暂停执行并等待外部输入的能力。这对于各种用例很有用，包括：
+
+- <Icon icon="check-circle" /> [批准工作流](#approve-or-reject)：在执行关键操作（API 调用、数据库更改、金融交易）之前暂停
+- <Icon icon="pencil" /> [审核和编辑](#review-and-edit-state)：让人类在继续之前审核和修改 LLM 输出或工具调用
+- <Icon icon="wrench" /> [中断工具调用](#interrupts-in-tools)：在执行工具调用之前暂停，以便在执行前审核和编辑工具调用
+- <Icon icon="shield-check" /> [验证人类输入](#validating-human-input)：在继续下一步之前暂停以验证人类输入
+
+### 批准或拒绝
+
+中断最常见的用途之一是在关键操作之前暂停并请求批准。例如，您可能想要请求人类批准 API 调用、数据库更改或任何其他重要决定。
+
+```python
+from typing import Literal
+from langgraph.types import interrupt, Command
+
+def approval_node(state: State) -> Command[Literal["proceed", "cancel"]]:
+    # Pause execution; payload shows up under result["__interrupt__"]
+    is_approved = interrupt({
+        "question": "Do you want to proceed with this action?",
+        "details": state["action_details"]
+    })
+
+    # Route based on the response
+    if is_approved:
+        return Command(goto="proceed")  # Runs after the resume payload is provided
+    else:
+        return Command(goto="cancel")
+```
+
+
+
+
+
+当您恢复图时，传递 `true` 表示批准或 `false` 表示拒绝：
+
+```python
+# To approve
+graph.invoke(Command(resume=True), config=config)
+
+# To reject
+graph.invoke(Command(resume=False), config=config)
+```
+
+
+
+
+
+<Accordion title="Full example">
+    ```python
+    from typing import Literal, Optional, TypedDict
+
+    from langgraph.checkpoint.memory import MemorySaver
+    from langgraph.graph import StateGraph, START, END
+    from langgraph.types import Command, interrupt
+
+
+    class ApprovalState(TypedDict):
+        action_details: str
+        status: Optional[Literal["pending", "approved", "rejected"]]
+
+
+    def approval_node(state: ApprovalState) -> Command[Literal["proceed", "cancel"]]:
+        # Expose details so the caller can render them in a UI
+        decision = interrupt({
+            "question": "Approve this action?",
+            "details": state["action_details"],
+        })
+
+        # Route to the appropriate node after resume
+        return Command(goto="proceed" if decision else "cancel")
+
+
+    def proceed_node(state: ApprovalState):
+        return {"status": "approved"}
+
+
+    def cancel_node(state: ApprovalState):
+        return {"status": "rejected"}
+
+
+    builder = StateGraph(ApprovalState)
+    builder.add_node("approval", approval_node)
+    builder.add_node("proceed", proceed_node)
+    builder.add_node("cancel", cancel_node)
+    builder.add_edge(START, "approval")
+    builder.add_edge("proceed", END)
+    builder.add_edge("cancel", END)
+
+    # Use a more durable checkpointer in production
+    checkpointer = MemorySaver()
+    graph = builder.compile(checkpointer=checkpointer)
+
+    config = {"configurable": {"thread_id": "approval-123"}}
+    initial = graph.invoke(
+        {"action_details": "Transfer $500", "status": "pending"},
+        config=config,
+    )
+    print(initial["__interrupt__"])  # -> [Interrupt(value={'question': ..., 'details': ...})]
+
+    # Resume with the decision; True routes to proceed, False to cancel
+    resumed = graph.invoke(Command(resume=True), config=config)
+    print(resumed["status"])  # -> "approved"
+    ```
+
+
+
+
+</Accordion>
+
+### 审核和编辑状态
+
+有时您想让人类在继续之前审核和编辑图状态的一部分。这对于纠正 LLM、添加缺失信息或进行调整很有用。
+
+```python
+from langgraph.types import interrupt
+
+def review_node(state: State):
+    # Pause and show the current content for review (surfaces in result["__interrupt__"])
+    edited_content = interrupt({
+        "instruction": "Review and edit this content",
+        "content": state["generated_text"]
+    })
+
+    # Update the state with the edited version
+    return {"generated_text": edited_content}
+```
+
+
+
+
+
+恢复时，提供编辑后的内容：
+
+```python
+graph.invoke(
+    Command(resume="The edited and improved text"),  # Value becomes the return from interrupt()
+    config=config
+)
+```
+
+
+
+
+
+<Accordion title="Full example">
+    ```python
+    import sqlite3
+    from typing import TypedDict
+
+    from langgraph.checkpoint.memory import MemorySaver
+    from langgraph.graph import StateGraph, START, END
+    from langgraph.types import Command, interrupt
+
+
+    class ReviewState(TypedDict):
+        generated_text: str
+
+
+    def review_node(state: ReviewState):
+        # Ask a reviewer to edit the generated content
+        updated = interrupt({
+            "instruction": "Review and edit this content",
+            "content": state["generated_text"],
+        })
+        return {"generated_text": updated}
+
+
+    builder = StateGraph(ReviewState)
+    builder.add_node("review", review_node)
+    builder.add_edge(START, "review")
+    builder.add_edge("review", END)
+
+    checkpointer = MemorySaver()
+    graph = builder.compile(checkpointer=checkpointer)
+
+    config = {"configurable": {"thread_id": "review-42"}}
+    initial = graph.invoke({"generated_text": "Initial draft"}, config=config)
+    print(initial["__interrupt__"])  # -> [Interrupt(value={'instruction': ..., 'content': ...})]
+
+    # Resume with the edited text from the reviewer
+    final_state = graph.invoke(
+        Command(resume="Improved draft after review"),
+        config=config,
+    )
+    print(final_state["generated_text"])  # -> "Improved draft after review"
+    ```
+
+
+
+
+</Accordion>
+
+### 工具中的中断
+
+您也可以将中断直接放在工具函数内部。这使得工具本身在被调用时暂停以获取批准，并允许在执行之前对工具调用进行人工审核和编辑。
+
+首先，定义一个使用 [`interrupt`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.interrupt) 的工具：
+
+```python
+from langchain.tools import tool
+from langgraph.types import interrupt
+
+@tool
+def send_email(to: str, subject: str, body: str):
+    """Send an email to a recipient."""
+
+    # Pause before sending; payload surfaces in result["__interrupt__"]
+    response = interrupt({
+        "action": "send_email",
+        "to": to,
+        "subject": subject,
+        "body": body,
+        "message": "Approve sending this email?"
+    })
+
+    if response.get("action") == "approve":
+        # Resume value can override inputs before executing
+        final_to = response.get("to", to)
+        final_subject = response.get("subject", subject)
+        final_body = response.get("body", body)
+        return f"Email sent to {final_to} with subject '{final_subject}'"
+    return "Email cancelled by user"
+```
+
+
+
+
+
+当您希望批准逻辑与工具本身一起存在时，这种方法很有用，使其可以在图的不同部分重用。LLM 可以自然地调用工具，并且在调用工具时中断将暂停执行，允许您批准、编辑或取消操作。
+
+<Accordion title="Full example">
+    ```python
+    import sqlite3
+    from typing import TypedDict
+
+    from langchain.tools import tool
+    from langchain_anthropic import ChatAnthropic
+    from langgraph.checkpoint.sqlite import SqliteSaver
+    from langgraph.graph import StateGraph, START, END
+    from langgraph.types import Command, interrupt
+
+
+    class AgentState(TypedDict):
+        messages: list[dict]
+
+
+    @tool
+    def send_email(to: str, subject: str, body: str):
+        """Send an email to a recipient."""
+
+        # Pause before sending; payload surfaces in result["__interrupt__"]
+        response = interrupt({
+            "action": "send_email",
+            "to": to,
+            "subject": subject,
+            "body": body,
+            "message": "Approve sending this email?",
+        })
+
+        if response.get("action") == "approve":
+            final_to = response.get("to", to)
+            final_subject = response.get("subject", subject)
+            final_body = response.get("body", body)
+
+            # Actually send the email (your implementation here)
+            print(f"[send_email] to={final_to} subject={final_subject} body={final_body}")
+            return f"Email sent to {final_to}"
+
+        return "Email cancelled by user"
+
+
+    model = ChatAnthropic(model="claude-sonnet-4-5-20250929").bind_tools([send_email])
+
+
+    def agent_node(state: AgentState):
+        # LLM may decide to call the tool; interrupt pauses before sending
+        result = model.invoke(state["messages"])
+        return {"messages": state["messages"] + [result]}
+
+
+    builder = StateGraph(AgentState)
+    builder.add_node("agent", agent_node)
+    builder.add_edge(START, "agent")
+    builder.add_edge("agent", END)
+
+    checkpointer = SqliteSaver(sqlite3.connect("tool-approval.db"))
+    graph = builder.compile(checkpointer=checkpointer)
+
+    config = {"configurable": {"thread_id": "email-workflow"}}
+    initial = graph.invoke(
+        {
+            "messages": [
+                {"role": "user", "content": "Send an email to alice@example.com about the meeting"}
+            ]
+        },
+        config=config,
+    )
+    print(initial["__interrupt__"])  # -> [Interrupt(value={'action': 'send_email', ...})]
+
+    # Resume with approval and optionally edited arguments
+    resumed = graph.invoke(
+        Command(resume={"action": "approve", "subject": "Updated subject"}),
+        config=config,
+    )
+    print(resumed["messages"][-1])  # -> Tool result returned by send_email
+    ```
+
+
+
+
+</Accordion>
+
+### 验证人类输入
+
+有时您需要验证来自人类的输入，如果无效则再次询问。您可以在循环中使用多个 [`interrupt`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.interrupt) 调用来做到这一点。
+
+```python
+from langgraph.types import interrupt
+
+def get_age_node(state: State):
+    prompt = "What is your age?"
+
+    while True:
+        answer = interrupt(prompt)  # payload surfaces in result["__interrupt__"]
+
+        # Validate the input
+        if isinstance(answer, int) and answer > 0:
+            # Valid input - continue
+            break
+        else:
+            # Invalid input - ask again with a more specific prompt
+            prompt = f"'{answer}' is not a valid age. Please enter a positive number."
+
+    return {"age": answer}
+```
+
+
+
+
+
+每次您用无效输入恢复图时，它将用更清晰的消息再次询问。一旦提供有效输入，节点完成，图继续。
+
+<Accordion title="Full example">
+    ```python
+    import sqlite3
+    from typing import TypedDict
+
+    from langgraph.checkpoint.sqlite import SqliteSaver
+    from langgraph.graph import StateGraph, START, END
+    from langgraph.types import Command, interrupt
+
+
+    class FormState(TypedDict):
+        age: int | None
+
+
+    def get_age_node(state: FormState):
+        prompt = "What is your age?"
+
+        while True:
+            answer = interrupt(prompt)  # payload surfaces in result["__interrupt__"]
+
+            if isinstance(answer, int) and answer > 0:
+                return {"age": answer}
+
+            prompt = f"'{answer}' is not a valid age. Please enter a positive number."
+
+
+    builder = StateGraph(FormState)
+    builder.add_node("collect_age", get_age_node)
+    builder.add_edge(START, "collect_age")
+    builder.add_edge("collect_age", END)
+
+    checkpointer = SqliteSaver(sqlite3.connect("forms.db"))
+    graph = builder.compile(checkpointer=checkpointer)
+
+    config = {"configurable": {"thread_id": "form-1"}}
+    first = graph.invoke({"age": None}, config=config)
+    print(first["__interrupt__"])  # -> [Interrupt(value='What is your age?', ...)]
+
+    # Provide invalid data; the node re-prompts
+    retry = graph.invoke(Command(resume="thirty"), config=config)
+    print(retry["__interrupt__"])  # -> [Interrupt(value="'thirty' is not a valid age...", ...)]
+
+    # Provide valid data; loop exits and state updates
+    final = graph.invoke(Command(resume=30), config=config)
+    print(final["age"])  # -> 30
+    ```
+
+
+
+
+</Accordion>
+
+## 中断规则
+
+当您在节点内调用 [`interrupt`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.interrupt) 时，LangGraph 通过引发一个通知运行时暂停的异常来暂停执行。此异常通过调用堆栈向上传播，并被运行时捕获，运行时通知图保存当前状态并等待外部输入。
+
+当执行恢复时（在您提供请求的输入之后），运行时从开头重新启动整个节点 — 它不会从调用 [`interrupt`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.interrupt) 的确切行恢复。这意味着在 [`interrupt`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.interrupt) 之前运行的任何代码都将再次执行。因此，在使用中断时有一些重要的规则要遵循，以确保它们按预期行为。
+
+### Do not wrap `interrupt` calls in try/except
+
+The way that [`interrupt`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.interrupt) pauses execution at the point of the call is by throwing a special exception. If you wrap the [`interrupt`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.interrupt) call in a try/except block, you will catch this exception and the interrupt will not be passed back to the graph.
+
+- ✅ Separate [`interrupt`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.interrupt) calls from error-prone code
+- ✅ Use specific exception types in try/except blocks
+
+<CodeGroup>
+```python Separating logic
+def node_a(state: State):
+    # ✅ Good: interrupting first, then handling
+    # error conditions separately
+    interrupt("What's your name?")
+    try:
+        fetch_data()  # This can fail
+    except Exception as e:
+        print(e)
+    return state
+```
+```python Explicit exception handling
+def node_a(state: State):
+    # ✅ Good: catching specific exception types
+    # will not catch the interrupt exception
+    try:
+        name = interrupt("What's your name?")
+        fetch_data()  # This can fail
+    except NetworkException as e:
+        print(e)
+    return state
+```
+</CodeGroup>
+
+- 🔴 Do not wrap [`interrupt`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.interrupt) calls in bare try/except blocks
+
+```python
+def node_a(state: State):
+    # ❌ Bad: wrapping interrupt in bare try/except
+    # will catch the interrupt exception
+    try:
+        interrupt("What's your name?")
+    except Exception as e:
+        print(e)
+    return state
+```
+
+
+
+
+
+### 不要在节点内重新排序 `interrupt` 调用
+
+在单个节点中使用多个中断很常见，但是如果不小心处理，这可能会导致意外行为。
+
+当节点包含多个中断调用时，LangGraph 为执行节点的任务保留一个恢复值列表。每当执行恢复时，它从节点开头开始。对于遇到的每个中断，LangGraph 检查任务的恢复列表中是否存在匹配值。匹配是**严格基于索引的**，因此节点内中断调用的顺序很重要。
+
+- ✅ 在节点执行之间保持 [`interrupt`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.interrupt) 调用一致
+
+```python
+def node_a(state: State):
+    # ✅ Good: interrupt calls happen in the same order every time
+    name = interrupt("What's your name?")
+    age = interrupt("What's your age?")
+    city = interrupt("What's your city?")
+
+    return {
+        "name": name,
+        "age": age,
+        "city": city
+    }
+```
+
+
+
+
+- 🔴 不要在节点内有条件地跳过 [`interrupt`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.interrupt) 调用
+- 🔴 不要使用跨执行不确定的逻辑循环 [`interrupt`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.interrupt) 调用
+
+<CodeGroup>
+```python Skipping interrupts
+def node_a(state: State):
+    # ❌ Bad: conditionally skipping interrupts changes the order
+    name = interrupt("What's your name?")
+
+    # On first run, this might skip the interrupt
+    # On resume, it might not skip it - causing index mismatch
+    if state.get("needs_age"):
+        age = interrupt("What's your age?")
+
+    city = interrupt("What's your city?")
+
+    return {"name": name, "city": city}
+
+```
+```python Looping interrupts
+def node_a(state: State):
+    # ❌ Bad: looping based on non-deterministic data
+    # The number of interrupts changes between executions
+    results = []
+    for item in state.get("dynamic_list", []):  # List might change between runs
+        result = interrupt(f"Approve {item}?")
+        results.append(result)
+
+    return {"results": results}
+```
+
+</CodeGroup>
+
+
+
+### 不要在 `interrupt` 调用中返回复杂值
+
+根据使用的检查点写入器，复杂值可能无法序列化（例如您无法序列化函数）。为了使您的图适应任何部署，最佳实践是仅使用可以合理序列化的值。
+
+- ✅ 向 [`interrupt`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.interrupt) 传递简单的、JSON 可序列化的类型
+- ✅ 传递具有简单值的字典/对象
+
+<CodeGroup>
+```python Simple values
+def node_a(state: State):
+    # ✅ Good: passing simple types that are serializable
+    name = interrupt("What's your name?")
+    count = interrupt(42)
+    approved = interrupt(True)
+
+    return {"name": name, "count": count, "approved": approved}
+
+```
+```python Structured data
+def node_a(state: State):
+    # ✅ Good: passing dictionaries with simple values
+    response = interrupt({
+        "question": "Enter user details",
+        "fields": ["name", "email", "age"],
+        "current_values": state.get("user", {})
+    })
+
+    return {"user": response}
+```
+
+</CodeGroup>
+
+
+
+
+- 🔴 不要向 [`interrupt`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.interrupt) 传递函数、类实例或其他复杂对象
+
+<CodeGroup>
+```python Functions
+def validate_input(value):
+    return len(value) > 0
+
+def node_a(state: State):
+    # ❌ Bad: passing a function to interrupt
+    # The function cannot be serialized
+    response = interrupt({
+        "question": "What's your name?",
+        "validator": validate_input  # This will fail
+    })
+    return {"name": response}
+
+```
+```python Class instances
+class DataProcessor:
+    def __init__(self, config):
+        self.config = config
+
+def node_a(state: State):
+    processor = DataProcessor({"mode": "strict"})
+
+    # ❌ Bad: passing a class instance to interrupt
+    # The instance cannot be serialized
+    response = interrupt({
+        "question": "Enter data to process",
+        "processor": processor  # This will fail
+    })
+    return {"result": response}
+```
+
+</CodeGroup>
+
+
+
+
+### 在 `interrupt` 之前调用的副作用必须是幂等的
+
+因为中断通过重新运行它们被调用的节点来工作，所以在 [`interrupt`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.interrupt) 之前调用的副作用（理想情况下）应该是幂等的。为了提供背景，幂等性意味着相同的操作可以多次应用而不会改变初始执行之后的结果。
+
+例如，您可能在节点内有一个更新记录的 API 调用。如果在该调用之后调用 [`interrupt`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.interrupt)，当节点恢复时它将被多次重新运行，可能会覆盖初始更新或创建重复记录。
+
+- ✅ 在 [`interrupt`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.interrupt) 之前使用幂等操作
+- ✅ 将副作用放在 [`interrupt`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.interrupt) 调用之后
+- ✅ 尽可能将副作用分离到单独的节点中
+
+<CodeGroup>
+```python Idempotent operations
+def node_a(state: State):
+    # ✅ Good: using upsert operation which is idempotent
+    # Running this multiple times will have the same result
+    db.upsert_user(
+        user_id=state["user_id"],
+        status="pending_approval"
+    )
+
+    approved = interrupt("Approve this change?")
+
+    return {"approved": approved}
+
+```
+```python Side effects after interrupt
+def node_a(state: State):
+    # ✅ Good: placing side effect after the interrupt
+    # This ensures it only runs once after approval is received
+    approved = interrupt("Approve this change?")
+
+    if approved:
+        db.create_audit_log(
+            user_id=state["user_id"],
+            action="approved"
+        )
+
+    return {"approved": approved}
+```
+
+```python Separating into different nodes
+def approval_node(state: State):
+    # ✅ Good: only handling the interrupt in this node
+    approved = interrupt("Approve this change?")
+
+    return {"approved": approved}
+
+def notification_node(state: State):
+    # ✅ Good: side effect happens in a separate node
+    # This runs after approval, so it only executes once
+    if (state.approved):
+        send_notification(
+            user_id=state["user_id"],
+            status="approved"
+        )
+
+    return state
+```
+
+</CodeGroup>
+
+
+
+
+- 🔴 不要在 [`interrupt`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.interrupt) 之前执行非幂等操作
+- 🔴 不要在不检查记录是否存在的情况下创建新记录
+
+<CodeGroup>
+```python Creating records
+def node_a(state: State):
+    # ❌ Bad: creating a new record before interrupt
+    # This will create duplicate records on each resume
+    audit_id = db.create_audit_log({
+        "user_id": state["user_id"],
+        "action": "pending_approval",
+        "timestamp": datetime.now()
+    })
+
+    approved = interrupt("Approve this change?")
+
+    return {"approved": approved, "audit_id": audit_id}
+
+```
+```python Appending to lists
+def node_a(state: State):
+    # ❌ Bad: appending to a list before interrupt
+    # This will add duplicate entries on each resume
+    db.append_to_history(state["user_id"], "approval_requested")
+
+    approved = interrupt("Approve this change?")
+
+    return {"approved": approved}
+```
+
+</CodeGroup>
+
+
+
+
+## 与作为函数调用的子图一起使用
+
+在节点内调用子图时，父图将从调用子图和触发 [`interrupt`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.interrupt) 的**节点开头**恢复执行。同样，**子图**也将从调用 [`interrupt`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.interrupt) 的节点开头恢复。
+
+```python
+def node_in_parent_graph(state: State):
+    some_code()  # <-- This will re-execute when resumed
+    # Invoke a subgraph as a function.
+    # The subgraph contains an `interrupt` call.
+    subgraph_result = subgraph.invoke(some_input)
+    # ...
+
+def node_in_subgraph(state: State):
+    some_other_code()  # <-- This will also re-execute when resumed
+    result = interrupt("What's your name?")
+    # ...
+```
+
+
+
+
+## 使用中断进行调试
+
+要调试和测试图，您可以使用静态中断作为断点来逐节点步进图执行。静态中断在节点执行之前或之后的定义点触发。您可以在编译图时通过指定 `interrupt_before` 和 `interrupt_after` 来设置这些。
+
+
+
+<Note>
+    静态中断**不**推荐用于人机协作工作流。请改用 [`interrupt`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.interrupt) 函数。
+</Note>
+
+<Tabs>
+    <Tab title="At compile time">
+        ```python
+        graph = builder.compile(
+            interrupt_before=["node_a"],  # [!code highlight]
+            interrupt_after=["node_b", "node_c"],  # [!code highlight]
+            checkpointer=checkpointer,
+        )
+
+        # Pass a thread ID to the graph
+        config = {
+            "configurable": {
+                "thread_id": "some_thread"
+            }
+        }
+
+        # Run the graph until the breakpoint
+        graph.invoke(inputs, config=config)  # [!code highlight]
+
+        # Resume the graph
+        graph.invoke(None, config=config)  # [!code highlight]
+        ```
+
+        1. The breakpoints are set during `compile` time.
+        2. `interrupt_before` specifies the nodes where execution should pause before the node is executed.
+        3. `interrupt_after` specifies the nodes where execution should pause after the node is executed.
+        4. A checkpointer is required to enable breakpoints.
+        5. The graph is run until the first breakpoint is hit.
+        6. The graph is resumed by passing in `None` for the input. This will run the graph until the next breakpoint is hit.
+
+
+    </Tab>
+    <Tab title="At run time">
+        ```python
+        config = {
+            "configurable": {
+                "thread_id": "some_thread"
+            }
+        }
+
+        # Run the graph until the breakpoint
+        graph.invoke(
+            inputs,
+            interrupt_before=["node_a"],  # [!code highlight]
+            interrupt_after=["node_b", "node_c"],  # [!code highlight]
+            config=config,
+        )
+
+        # Resume the graph
+        graph.invoke(None, config=config)  # [!code highlight]
+        ```
+
+        1. `graph.invoke` is called with the `interrupt_before` and `interrupt_after` parameters. This is a run-time configuration and can be changed for every invocation.
+        2. `interrupt_before` specifies the nodes where execution should pause before the node is executed.
+        3. `interrupt_after` specifies the nodes where execution should pause after the node is executed.
+        4. The graph is run until the first breakpoint is hit.
+        5. The graph is resumed by passing in `None` for the input. This will run the graph until the next breakpoint is hit.
+
+
+    </Tab>
+</Tabs>
+
+### 使用 LangSmith Studio
+
+您可以使用 [LangSmith Studio](/langsmith/studio) 在运行图之前在 UI 中设置图中的静态中断。您还可以使用 UI 在执行的任何时间点检查图状态。
+
+![image](/oss/images/static-interrupt.png)
+
+---
+
+<Callout icon="pen-to-square" iconType="regular">
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/interrupts.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+</Callout>
+<Tip icon="terminal" iconType="regular">
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+</Tip>
+<div class='fixed right-2 bg-white bottom-2'><img src='https://kunfanyang.site/site-file/wx_code.jpg' class='border' alt='微信扫码赞赏' width='200' /></div>

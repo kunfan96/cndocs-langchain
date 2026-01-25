@@ -1,0 +1,166 @@
+---
+title: 快速入门
+description: 在几分钟内构建你的第一个 deep agent
+---
+
+本指南将引导你创建第一个具有规划、文件系统工具和子 agent 能力的 deep agent。你将构建一个能够进行研究并撰写报告的研究 agent。
+
+## 前提条件
+
+在开始之前，确保你有来自模型提供商（例如 Anthropic、OpenAI）的 API 密钥。
+
+<Note>
+    Deep agents 需要支持 [tool calling](/oss/javascript/concepts/tool-calling) 的模型。有关如何配置模型，请参阅[自定义](/oss/javascript/deepagents/customization#model)。
+</Note>
+
+### 步骤 1：安装依赖
+
+
+
+<CodeGroup>
+    ```bash npm
+    npm install deepagents langchain @langchain/core @langchain/tavily
+    ```
+
+    ```bash yarn
+    yarn add deepagents langchain @langchain/core @langchain/tavily
+    ```
+
+    ```bash pnpm
+    pnpm add deepagents langchain @langchain/core @langchain/tavily
+    ```
+</CodeGroup>
+
+
+<Note>
+    本指南使用 [Tavily](https://tavily.com/) 作为示例搜索提供商，但你可以替换为任何搜索 API（例如 DuckDuckGo、SerpAPI、Brave Search）。
+</Note>
+
+### 步骤 2：设置你的 API 密钥
+
+```bash
+export ANTHROPIC_API_KEY="your-api-key"
+export TAVILY_API_KEY="your-tavily-api-key"
+```
+
+### 步骤 3：创建搜索工具
+
+
+
+```typescript
+import { tool } from "langchain";
+import { TavilySearch } from "@langchain/tavily";
+import { z } from "zod";
+
+const internetSearch = tool(
+  async ({
+    query,
+    maxResults = 5,
+    topic = "general",
+    includeRawContent = false,
+  }: {
+    query: string;
+    maxResults?: number;
+    topic?: "general" | "news" | "finance";
+    includeRawContent?: boolean;
+  }) => {
+    const tavilySearch = new TavilySearch({
+      maxResults,
+      tavilyApiKey: process.env.TAVILY_API_KEY,
+      includeRawContent,
+      topic,
+    });
+    return await tavilySearch._call({ query });
+  },
+  {
+    name: "internet_search",
+    description: "Run a web search",
+    schema: z.object({
+      query: z.string().describe("The search query"),
+      maxResults: z
+        .number()
+        .optional()
+        .default(5)
+        .describe("Maximum number of results to return"),
+      topic: z
+        .enum(["general", "news", "finance"])
+        .optional()
+        .default("general")
+        .describe("Search topic category"),
+      includeRawContent: z
+        .boolean()
+        .optional()
+        .default(false)
+        .describe("Whether to include raw content"),
+    }),
+  },
+);
+```
+
+
+### 步骤 4：创建 deep agent
+
+
+
+```typescript
+import { createDeepAgent } from "deepagents";
+
+// System prompt to steer the agent to be an expert researcher
+const researchInstructions = `You are an expert researcher. Your job is to conduct thorough research and then write a polished report.
+
+You have access to an internet search tool as your primary means of gathering information.
+
+## \`internet_search\`
+
+Use this to run an internet search for a given query. You can specify the max number of results to return, the topic, and whether raw content should be included.
+`;
+
+const agent = createDeepAgent({
+  tools: [internetSearch],
+  systemPrompt: researchInstructions,
+});
+```
+
+
+### 步骤 5：运行 agent
+
+
+
+```typescript
+const result = await agent.invoke({
+  messages: [{ role: "user", content: "What is langgraph?" }],
+});
+
+// Print the agent's response
+console.log(result.messages[result.messages.length - 1].content);
+```
+
+
+## 发生了什么？
+
+你的 deep agent 自动完成了：
+
+1. **规划方法**：使用内置的 `write_todos` 工具分解研究任务
+2. **进行研究**：调用 `internet_search` 工具收集信息
+3. **管理上下文**：使用文件系统工具（`write_file`、`read_file`）卸载大型搜索结果
+4. **生成子 agent**（如需要）：将复杂子任务委托给专门的子 agent
+5. **综合报告**：将发现编译成连贯的响应
+
+## 后续步骤
+
+现在你已经构建了第一个 deep agent：
+
+- **自定义你的 agent**：了解[自定义选项](/oss/javascript/deepagents/customization)，包括自定义系统提示、工具和子 agent。
+- **了解中间件**：深入了解支持 deep agents 的[中间件架构](/oss/javascript/deepagents/middleware)。
+- **添加长期记忆**：启用跨对话的[持久记忆](/oss/javascript/deepagents/long-term-memory)。
+- **部署到生产环境**：了解 LangGraph 应用程序的[部署选项](/oss/javascript/langgraph/deploy)。
+
+---
+
+<Callout icon="pen-to-square" iconType="regular">
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/deepagents/quickstart.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+</Callout>
+<Tip icon="terminal" iconType="regular">
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+</Tip>
+<div class='fixed right-2 bg-white bottom-2'><img src='https://kunfanyang.site/site-file/wx_code.jpg' class='border' alt='微信扫码赞赏' width='200' /></div>

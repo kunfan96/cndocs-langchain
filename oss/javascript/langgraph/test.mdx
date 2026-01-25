@@ -1,0 +1,195 @@
+---
+title: 测试
+---
+
+
+
+在完成 LangGraph 智能体的原型设计后，自然的下一步是添加测试。本指南涵盖了一些编写单元测试时可以使用的有用模式。
+
+
+
+请注意，本指南是 LangGraph 特定的，涵盖具有自定义结构的图的场景——如果你刚开始，请查看[这一节](/oss/javascript/langchain/test/)，它使用 LangChain 内置的 [`createAgent`](https://reference.langchain.com/javascript/functions/langchain.index.createAgent.html)。
+
+
+## 前置条件
+
+
+
+首先，确保你已安装 [`vitest`](https://vitest.dev/)：
+
+```bash
+npm install -D vitest
+```
+
+
+
+## 入门
+
+由于许多 LangGraph 智能体依赖状态，一个有用的模式是在每个使用它的测试之前创建图，然后在测试中使用新的检查点器实例编译它。
+
+下面的示例展示了如何使用一个简单的线性图来完成这项工作，该图通过 `node1` 和 `node2`。每个节点更新单个状态键 `my_key`：
+
+
+
+```ts
+import { test, expect } from 'vitest';
+import {
+  StateGraph,
+  StateSchema,
+  START,
+  END,
+  MemorySaver,
+} from '@langchain/langgraph';
+import * as z from "zod";
+
+const State = new StateSchema({
+  my_key: z.string(),
+});
+
+const createGraph = () => {
+  return new StateGraph(State)
+    .addNode('node1', (state) => ({ my_key: 'hello from node1' }))
+    .addNode('node2', (state) => ({ my_key: 'hello from node2' }))
+    .addEdge(START, 'node1')
+    .addEdge('node1', 'node2')
+    .addEdge('node2', END);
+};
+
+test('basic agent execution', async () => {
+  const uncompiledGraph = createGraph();
+  const checkpointer = new MemorySaver();
+  const compiledGraph = uncompiledGraph.compile({ checkpointer });
+  const result = await compiledGraph.invoke(
+    { my_key: 'initial_value' },
+    { configurable: { thread_id: '1' } }
+  );
+  expect(result.my_key).toBe('hello from node2');
+});
+```
+
+
+
+## 测试单个节点和边
+
+编译的 LangGraph 智能体通过 `graph.nodes` 暴露对每个单独节点的引用。你可以利用这一点在智能体中测试单个节点。请注意，这将绕过编译图时传递的任何检查点器：
+
+
+
+```ts
+import { test, expect } from 'vitest';
+import {
+  StateGraph,
+  START,
+  END,
+  MemorySaver,
+  StateSchema,
+} from '@langchain/langgraph';
+import * as z from "zod";
+
+const State = new StateSchema({
+  my_key: z.string(),
+});
+
+const createGraph = () => {
+  return new StateGraph(State)
+    .addNode('node1', (state) => ({ my_key: 'hello from node1' }))
+    .addNode('node2', (state) => ({ my_key: 'hello from node2' }))
+    .addEdge(START, 'node1')
+    .addEdge('node1', 'node2')
+    .addEdge('node2', END);
+};
+
+test('individual node execution', async () => {
+  const uncompiledGraph = createGraph();
+  // 在此示例中将被忽略
+  const checkpointer = new MemorySaver();
+  const compiledGraph = uncompiledGraph.compile({ checkpointer });
+  // 只调用 node 1
+  const result = await compiledGraph.nodes['node1'].invoke(
+    { my_key: 'initial_value' },
+  );
+  expect(result.my_key).toBe('hello from node1');
+});
+```
+
+
+
+## 部分执行
+
+对于由较大图组成的智能体，你可能希望测试智能体内的部分执行路径，而不是端到端的整个流程。在某些情况下，将这些部分[重构为子图](/oss/javascript/langgraph/use-subgraphs)可能在语义上是有意义的，你可以像正常一样单独调用它们。
+
+但是，如果你不想更改智能体图的整体结构，你可以使用 LangGraph 的持久化机制来模拟智能体在所需部分开始之前暂停的状态，并在所需部分结束时再次暂停。步骤如下：
+
+
+1. 使用检查点器编译智能体（内存检查点器 [`MemorySaver`](https://reference.langchain.com/javascript/classes/_langchain_langgraph-checkpoint.MemorySaver.html) 足以用于测试）。
+2. 使用 [`asNode`](/oss/javascript/langgraph/persistence#as-node) 参数设置为你想要开始测试的节点*之前*的节点名称，调用智能体的 [`update_state`](/oss/javascript/langgraph/use-time-travel) 方法。
+3. 使用与更新状态时相同的 `thread_id` 和设置为你想要停止的节点名称的 `interruptBefore` 参数调用智能体。
+
+
+
+以下是一个只执行线性图中第二和第三个节点的示例：
+
+
+
+```ts
+import { test, expect } from 'vitest';
+import {
+  StateGraph,
+  StateSchema,
+  START,
+  END,
+  MemorySaver,
+} from '@langchain/langgraph';
+import * as z from "zod";
+
+const State = new StateSchema({
+  my_key: z.string(),
+});
+
+const createGraph = () => {
+  return new StateGraph(State)
+    .addNode('node1', (state) => ({ my_key: 'hello from node1' }))
+    .addNode('node2', (state) => ({ my_key: 'hello from node2' }))
+    .addNode('node3', (state) => ({ my_key: 'hello from node3' }))
+    .addNode('node4', (state) => ({ my_key: 'hello from node4' }))
+    .addEdge(START, 'node1')
+    .addEdge('node1', 'node2')
+    .addEdge('node2', 'node3')
+    .addEdge('node3', 'node4')
+    .addEdge('node4', END);
+};
+
+test('partial execution from node2 to node3', async () => {
+  const uncompiledGraph = createGraph();
+  const checkpointer = new MemorySaver();
+  const compiledGraph = uncompiledGraph.compile({ checkpointer });
+  await compiledGraph.updateState(
+    { configurable: { thread_id: '1' } },
+    // 传递给 node 2 的状态 - 模拟 node 1 结束时的状态
+    { my_key: 'initial_value' },
+    // 更新保存的状态，就像它来自 node 1 一样
+    // 执行将从 node 2 恢复
+    'node1',
+  );
+  const result = await compiledGraph.invoke(
+    // 通过传递 None 恢复执行
+    null,
+    {
+      configurable: { thread_id: '1' },
+      // 在 node 3 之后停止，这样 node 4 就不会运行
+      interruptAfter: ['node3']
+    },
+  );
+  expect(result.my_key).toBe('hello from node3');
+});
+```
+
+---
+
+<Callout icon="pen-to-square" iconType="regular">
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/test.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+</Callout>
+<Tip icon="terminal" iconType="regular">
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+</Tip>
+<div class='fixed right-2 bg-white bottom-2'><img src='https://kunfanyang.site/site-file/wx_code.jpg' class='border' alt='微信扫码赞赏' width='200' /></div>
