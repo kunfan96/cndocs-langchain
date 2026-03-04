@@ -2,7 +2,7 @@
 title: Custom workflow
 ---
 
-在 **custom workflow** 架构中，你使用 [LangGraph](/oss/javascript/langgraph/overview) 定义自己的定制执行流程。你对图结构拥有完全控制——包括顺序步骤、条件分支、循环和并行执行。
+In the **custom workflow** architecture, you define your own bespoke execution flow using [LangGraph](/oss/javascript/langgraph/overview). You have complete control over the graph structure—including sequential steps, conditional branches, loops, and parallel execution.
 
 ```mermaid
 graph LR
@@ -13,47 +13,49 @@ graph LR
     D --> G([Output])
 ```
 
-## 关键特性
+## Key characteristics
 
-* 完全控制图结构
-* 将确定性逻辑与代理行为混合
-* 支持顺序步骤、条件分支、循环和并行执行
-* 将其他模式作为节点嵌入到你的工作流中
+* Complete control over graph structure
+* Mix deterministic logic with agentic behavior
+* Support for sequential steps, conditional branches, loops, and parallel execution
+* Embed other patterns as nodes in your workflow
 
-## 何时使用
+## When to use
 
-当标准模式（subagents、skills 等）不符合你的需求、你需要将确定性逻辑与代理行为混合，或者你的用例需要复杂的路由或多阶段处理时，使用自定义工作流。
+Use custom workflows when standard patterns (subagents, skills, etc.) don't fit your requirements, you need to mix deterministic logic with agentic behavior, or your use case requires complex routing or multi-stage processing.
 
-工作流中的每个节点可以是简单函数、LLM 调用，或带有 [tools](/oss/javascript/langchain/tools) 的完整 [agent](/oss/javascript/langchain/agents)。你还可以在自定义工作流中组合其他架构——例如，将多代理系统作为单个节点嵌入。
+Each node in your workflow can be a simple function, an LLM call, or an entire [agent](/oss/javascript/langchain/agents) with [tools](/oss/javascript/langchain/tools). You can also compose other architectures within a custom workflow—for example, embedding a multi-agent system as a single node.
 
-有关自定义工作流的完整示例，请参阅下面的教程。
+For a complete example of a custom workflow, see the tutorial below.
 
 <Card
-    title="教程：构建带路由的多源知识库"
+    title="Tutorial: Build a multi-source knowledge base with routing"
     icon="book"
     href="/oss/javascript/langchain/multi-agent/router-knowledge-base"
-    arrow cta="了解更多"
+    arrow cta="Learn more"
 >
-    [router 模式](/oss/javascript/langchain/multi-agent/router) 是自定义工作流的一个示例。本教程介绍了构建一个并行查询 GitHub、Notion 和 Slack 的路由器，然后合成结果。
+    The [router pattern](/oss/javascript/langchain/multi-agent/router) is an example of a custom workflow. This tutorial walks through building a router that queries GitHub, Notion, and Slack in parallel, then synthesizes results.
 >
 </Card>
 
-## 基本实现
+## Basic implementation
 
-核心洞察是你可以在任何 LangGraph 节点内直接调用 LangChain 代理，将自定义工作流的灵活性与预构建代理的便利性结合起来：
+The core insight is that you can call a LangChain agent directly inside any LangGraph node, combining the flexibility of custom workflows with the convenience of pre-built agents:
 
 
 ```typescript
 import { z } from "zod";
 import { createAgent } from "langchain";
-import { StateGraph, START, END, MessagesZodState } from "@langchain/langgraph";
+import { StateGraph, START, END, StateSchema, MessagesValue } from "@langchain/langgraph";
 
 const agent = createAgent({ model: "openai:gpt-4o", tools: [...] });
-const State = MessagesZodState.extend({
+
+const AgentState = new StateSchema({
+  messages: MessagesValue,
   query: z.string(),
 });
 
-async function agentNode(state: z.infer<typeof State>) {
+const agentNode: GraphNode<typeof AgentState> = (state) => {
   // A LangGraph node that invokes a LangChain agent
   const result = await agent.invoke({
     messages: [{ role: "user", content: state.query }]
@@ -70,17 +72,17 @@ const workflow = new StateGraph(State)
 ```
 
 
-## 示例：RAG 流水线
+## Example: RAG pipeline
 
-一个常见的用例是将 [retrieval](/oss/javascript/langchain/retrieval) 与代理结合。此示例构建一个 WNBA 统计助手，它从知识库中检索并可以获取实时新闻。
+A common use case is combining [retrieval](/oss/javascript/langchain/retrieval) with an agent. This example builds a WNBA stats assistant that retrieves from a knowledge base and can fetch live news.
 
-<Accordion title="自定义 RAG 工作流">
+<Accordion title="Custom RAG workflow">
 
-该工作流展示了三种类型的节点：
+The workflow demonstrates three types of nodes:
 
-- **模型节点**（Rewrite）：使用 [structured output](/oss/javascript/langchain/structured-output) 重写用户查询以获得更好的检索。
-- **确定性节点**（Retrieve）：执行向量相似性搜索——不涉及 LLM。
-- **代理节点**（Agent）：对检索到的上下文进行推理，并可以通过工具获取额外信息。
+- **Model node** (Rewrite): Rewrites the user query for better retrieval using [structured output](/oss/javascript/langchain/structured-output).
+- **Deterministic node** (Retrieve): Performs vector similarity search — no LLM involved.
+- **Agent node** (Agent): Reasons over retrieved context and can fetch additional information via tools.
 
 ```mermaid
 graph LR
@@ -91,7 +93,7 @@ graph LR
 ```
 
 <Tip>
-你可以使用 LangGraph 状态在工作流步骤之间传递信息。这允许工作流的每个部分读取和更新结构化字段，使跨节点共享数据和上下文变得容易。
+You can use LangGraph state to pass information between workflow steps. This allows each part of your workflow to read and update structured fields, making it easy to share data and context across nodes.
 </Tip>
 
 
@@ -144,11 +146,11 @@ const getLatestNews = tool(
 );
 
 const agent = createAgent({
-  model: "openai:gpt-4o",
+  model: "openai:gpt-4.1",
   tools: [getLatestNews],
 });
 
-const model = new ChatOpenAI({ model: "gpt-4o" });
+const model = new ChatOpenAI({ model: "gpt-4.1" });
 
 const RewrittenQuery = z.object({ query: z.string() });
 
@@ -198,10 +200,11 @@ console.log(result.answer);
 
 ---
 
-<Callout icon="pen-to-square" iconType="regular">
+<div className="source-links">
+<Callout icon="edit">
     [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/multi-agent/custom-workflow.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
-<Tip icon="terminal" iconType="regular">
+<Callout icon="terminal-2">
     [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
-</Tip>
-<div class='fixed right-2 bg-white bottom-2'><img src='https://kunfanyang.site/site-file/wx_code.jpg' class='border' alt='微信扫码赞赏' width='200' /></div>
+</Callout>
+</div>

@@ -1,39 +1,39 @@
 ---
-title: Graph API 概述
+title: Graph API overview
 sidebarTitle: Graph API
 ---
 
 
 
-## 图
+## Graphs
 
-在核心层面，LangGraph 将智能体工作流建模为图。您使用三个关键组件定义智能体的行为：
+At its core, LangGraph models agent workflows as graphs. You define the behavior of your agents using three key components:
 
-1. [`State`](#状态)：表示应用程序当前快照的共享数据结构。它可以是任何数据类型，但通常使用共享状态模式定义。
+1. [`State`](#state): A shared data structure that represents the current snapshot of your application. It can be any data type, but is typically defined using a shared state schema.
 
-2. [`Nodes`](#节点)：编码智能体逻辑的函数。它们接收当前状态作为输入，执行一些计算或副作用，并返回更新后的状态。
+2. [`Nodes`](#nodes): Functions that encode the logic of your agents. They receive the current state as input, perform some computation or side-effect, and return an updated state.
 
-3. [`Edges`](#边)：根据当前状态确定下一个要执行的 `Node` 的函数。它们可以是条件分支或固定转换。
+3. [`Edges`](#edges): Functions that determine which `Node` to execute next based on the current state. They can be conditional branches or fixed transitions.
 
-通过组合 `Nodes` 和 `Edges`，您可以创建复杂的循环工作流，随着时间的推移演化状态。然而，真正的力量来自于 LangGraph 如何管理该状态。
+By composing `Nodes` and `Edges`, you can create complex, looping workflows that evolve the state over time. The real power, though, comes from how LangGraph manages that state.
 
-需要强调的是：`Nodes` 和 `Edges` 只不过是函数——它们可以包含 LLM 或只是普通代码。
+To emphasize: `Nodes` and `Edges` are nothing more than functions – they can contain an LLM or just good ol' code.
 
-简而言之：_节点做工作，边告诉下一步做什么_。
+In short: _nodes do the work, edges tell what to do next_.
 
-LangGraph 的底层图算法使用[消息传递](https://en.wikipedia.org/wiki/Message_passing)来定义通用程序。当一个节点完成其操作时，它沿着一条或多条边向其他节点发送消息。这些接收节点然后执行它们的函数，将结果消息传递给下一组节点，过程继续。受 Google 的 [Pregel](https://research.google/pubs/pregel-a-system-for-large-scale-graph-processing/) 系统启发，程序以离散的"超级步骤"进行。
+LangGraph's underlying graph algorithm uses [message passing](https://en.wikipedia.org/wiki/Message_passing) to define a general program. When a Node completes its operation, it sends messages along one or more edges to other node(s). These recipient nodes then execute their functions, pass the resulting messages to the next set of nodes, and the process continues. Inspired by Google's [Pregel](https://research.google/pubs/pregel-a-system-for-large-scale-graph-processing/) system, the program proceeds in discrete "super-steps."
 
-超级步骤可以被视为对图节点的单次迭代。并行运行的节点是同一超级步骤的一部分，而顺序运行的节点属于不同的超级步骤。在图执行开始时，所有节点都处于 `inactive`（非活动）状态。当节点在其任何传入边（或"通道"）上收到新消息（状态）时，它变为 `active`（活动）状态。然后活动节点运行其函数并响应更新。在每个超级步骤结束时，没有传入消息的节点通过将自己标记为 `inactive` 来投票 `halt`（停止）。当所有节点都处于 `inactive` 状态且没有消息在传输中时，图执行终止。
+A super-step can be considered a single iteration over the graph nodes. Nodes that run in parallel are part of the same super-step, while nodes that run sequentially belong to separate super-steps. At the start of graph execution, all nodes begin in an `inactive` state. A node becomes `active` when it receives a new message (state) on any of its incoming edges (or "channels"). The active node then runs its function and responds with updates. At the end of each super-step, nodes with no incoming messages vote to `halt` by marking themselves as `inactive`. The graph execution terminates when all nodes are `inactive` and no messages are in transit.
 
 ### StateGraph
 
-[`StateGraph`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.StateGraph) 类是要使用的主要图类。它由用户定义的 `State` 对象参数化。
+The [`StateGraph`](https://reference.langchain.com/python/langgraph/graph/state/StateGraph) class is the main graph class to use. This is parameterized by a user defined `State` object.
 
-### 编译图
+### Compiling your graph
 
-要构建图，您首先定义[状态](#状态)，然后添加[节点](#节点)和[边](#边)，然后编译它。编译图到底是什么，为什么需要它？
+To build your graph, you first define the [state](#state), you then add [nodes](#nodes) and [edges](#edges), and then you compile it. What exactly is compiling your graph and why is it needed?
 
-编译是一个相当简单的步骤。它对图的结构提供一些基本检查（没有孤立节点等）。它也是您可以指定运行时参数（如[检查点器](/oss/python/langgraph/persistence)和断点）的地方。您只需调用 `.compile` 方法即可编译图：
+Compiling is a pretty simple step. It provides a few basic checks on the structure of your graph (no orphaned nodes, etc). It is also where you can specify runtime args like [checkpointers](/oss/python/langgraph/persistence) and breakpoints. You compile your graph by just calling the `.compile` method:
 
 ```python
 graph = graph_builder.compile(...)
@@ -44,37 +44,41 @@ graph = graph_builder.compile(...)
 
 
 <Warning>
-    您**必须**在使用图之前编译它。
+    You **MUST** compile your graph before you can use it.
 </Warning>
 
-## 状态
+## State
 
-定义图时首先要做的是定义图的 `State`。`State` 由[图的模式](#模式)以及指定如何将更新应用于状态的 [`reducer` 函数](#归约器)组成。`State` 的模式将成为图中所有 `Nodes` 和 `Edges` 的输入模式，可以是 `TypedDict` 或 `Pydantic` 模型。所有 `Nodes` 都将发出对 `State` 的更新，然后使用指定的 `reducer` 函数应用这些更新。
-
-
-
-
-### 模式
-
-指定图模式的主要文档方式是使用 [`TypedDict`](https://docs.python.org/3/library/typing.html#typing.TypedDict)。如果您想在状态中提供默认值，请使用 [`dataclass`](https://docs.python.org/3/library/dataclasses.html)。如果您想要递归数据验证，我们还支持使用 Pydantic [`BaseModel`](/oss/python/langgraph/use-graph-api#use-pydantic-models-for-graph-state) 作为图状态（但请注意 Pydantic 的性能不如 `TypedDict` 或 `dataclass`）。
-
-默认情况下，图将具有相同的输入和输出模式。如果您想更改此设置，也可以直接指定显式的输入和输出模式。当您有很多键，且其中一些明确用于输入，另一些用于输出时，这很有用。有关更多信息，请参阅[指南](/oss/python/langgraph/use-graph-api#define-input-and-output-schemas)。
+The first thing you do when you define a graph is define the `State` of the graph. The `State` consists of the [schema of the graph](#schema) as well as [`reducer` functions](#reducers) which specify how to apply updates to the state. The schema of the `State` will be the input schema to all `Nodes` and `Edges` in the graph, and can be either a `TypedDict` or a `Pydantic` model. All `Nodes` will emit updates to the `State` which are then applied using the specified `reducer` function.
 
 
 
 
-#### 多模式
+### Schema
 
-通常，所有图节点与单个模式通信。这意味着它们将读取和写入相同的状态通道。但是，在某些情况下我们需要对此有更多控制：
+The main documented way to specify the schema of a graph is by using a [`TypedDict`](https://docs.python.org/3/library/typing.html#typing.TypedDict). If you want to provide default values in your state, use a [`dataclass`](https://docs.python.org/3/library/dataclasses.html). We also support using a Pydantic [`BaseModel`](/oss/python/langgraph/use-graph-api#use-pydantic-models-for-graph-state) as your graph state if you want recursive data validation (though note that Pydantic is less performant than a `TypedDict` or `dataclass`).
 
-- 内部节点可以传递图的输入/输出中不需要的信息。
-- 我们可能还想为图使用不同的输入/输出模式。例如，输出可能只包含单个相关的输出键。
+By default, the graph will have the same input and output schemas. If you want to change this, you can also specify explicit input and output schemas directly. This is useful when you have a lot of keys, and some are explicitly for input and others for output. See the [guide](/oss/python/langgraph/use-graph-api#define-input-and-output-schemas) for more information.
 
-可以让节点写入图内部的私有状态通道以进行内部节点通信。我们可以简单地定义一个私有模式 `PrivateState`。
+<Info>
+The higher-level [`create_agent`](/oss/python/langchain/agents) factory in `langchain` does not support Pydantic state schemas.
+</Info>
 
-也可以为图定义显式的输入和输出模式。在这些情况下，我们定义一个包含与图操作相关的_所有_键的"内部"模式。但是，我们还定义 `input` 和 `output` 模式，它们是"内部"模式的子集，以约束图的输入和输出。有关更多详细信息，请参阅[此指南](/oss/python/langgraph/graph-api#define-input-and-output-schemas)。
 
-让我们看一个示例：
+
+
+#### Multiple schemas
+
+Typically, all graph nodes communicate with a single schema. This means that they will read and write to the same state channels. But, there are cases where we want more control over this:
+
+- Internal nodes can pass information that is not required in the graph's input / output.
+- We may also want to use different input / output schemas for the graph. The output might, for example, only contain a single relevant output key.
+
+It is possible to have nodes write to private state channels inside the graph for internal node communication. We can simply define a private schema, `PrivateState`.
+
+It is also possible to define explicit input and output schemas for a graph. In these cases, we define an "internal" schema that contains _all_ keys relevant to graph operations. But, we also define `input` and `output` schemas that are sub-sets of the "internal" schema to constrain the input and output of the graph. See [this guide](/oss/python/langgraph/graph-api#define-input-and-output-schemas) for more detail.
+
+Let's look at an example:
 
 ```python
 class InputState(TypedDict):
@@ -121,11 +125,11 @@ graph.invoke({"user_input":"My"})
 
 
 
-这里有两个微妙但重要的点需要注意：
+There are two subtle and important points to note here:
 
-1. 我们将 `state: InputState` 作为输入模式传递给 `node_1`。但是，我们写入 `foo`，这是 `OverallState` 中的一个通道。我们如何能写入不在输入模式中的状态通道？这是因为节点_可以写入图状态中的任何状态通道。_ 图状态是初始化时定义的状态通道的并集，包括 `OverallState` 和过滤器 `InputState` 和 `OutputState`。
+1. We pass `state: InputState` as the input schema to `node_1`. But, we write out to `foo`, a channel in `OverallState`. How can we write out to a state channel that is not included in the input schema? This is because a node _can write to any state channel in the graph state._ The graph state is the union of the state channels defined at initialization, which includes `OverallState` and the filters `InputState` and `OutputState`.
 
-2. 我们使用以下方式初始化图：
+2. We initialize the graph with:
 
     ```python
     StateGraph(
@@ -135,21 +139,20 @@ graph.invoke({"user_input":"My"})
     )
     ```
 
-    那么，我们如何能在 `node_2` 中写入 `PrivateState`？如果它没有在 `StateGraph` 初始化中传递，图如何访问这个模式？
+    So, how can we write to `PrivateState` in `node_2`? How does the graph gain access to this schema if it was not passed in the `StateGraph` initialization?
 
-    我们可以这样做是因为 `_nodes` 也可以声明额外的状态 `channels_`，只要状态模式定义存在。在这种情况下，`PrivateState` 模式已定义，所以我们可以在图中添加 `bar` 作为新的状态通道并写入它。
-
-
+    We can do this because `_nodes` can also declare additional state `channels_` as long as the state schema definition exists. In this case, the `PrivateState` schema is defined, so we can add `bar` as a new state channel in the graph and write to it.
 
 
 
-### 归约器
 
-归约器是理解如何将节点的更新应用于 `State` 的关键。`State` 中的每个键都有自己独立的归约器函数。如果没有明确指定归约器函数，则假定对该键的所有更新都应该覆盖它。有几种不同类型的归约器，从默认类型的归约器开始：
+### Reducers
 
-#### 默认归约器
+Reducers are key to understanding how updates from nodes are applied to the `State`. Each key in the `State` has its own independent reducer function. If no reducer function is explicitly specified then it is assumed that all updates to that key should override it. There are a few different types of reducers, starting with the default type of reducer:
 
-这两个示例展示了如何使用默认归约器：
+#### Default reducer
+
+These two examples show how to use the default reducer:
 
 ```python Example A
 from typing_extensions import TypedDict
@@ -163,9 +166,9 @@ class State(TypedDict):
 
 
 
-在这个示例中，没有为任何键指定归约器函数。假设图的输入是：
+In this example, no reducer functions are specified for any key. Let's assume the input to the graph is:
 
-`{"foo": 1, "bar": ["hi"]}`。然后假设第一个 `Node` 返回 `{"foo": 2}`。这被视为对状态的更新。请注意，`Node` 不需要返回整个 `State` 模式——只需返回更新。应用此更新后，`State` 将变为 `{"foo": 2, "bar": ["hi"]}`。如果第二个节点返回 `{"bar": ["bye"]}`，则 `State` 将变为 `{"foo": 2, "bar": ["bye"]}`
+`{"foo": 1, "bar": ["hi"]}`. Let's then assume the first `Node` returns `{"foo": 2}`. This is treated as an update to the state. Notice that the `Node` does not need to return the whole `State` schema - just an update. After applying this update, the `State` would then be `{"foo": 2, "bar": ["hi"]}`. If the second node returns `{"bar": ["bye"]}` then the `State` would then be `{"foo": 2, "bar": ["bye"]}`
 
 
 
@@ -180,42 +183,41 @@ class State(TypedDict):
     bar: Annotated[list[str], add]
 ```
 
-在这个示例中，我们使用 `Annotated` 类型为第二个键（`bar`）指定了归约器函数（`operator.add`）。请注意，第一个键保持不变。假设图的输入是 `{"foo": 1, "bar": ["hi"]}`。然后假设第一个 `Node` 返回 `{"foo": 2}`。这被视为对状态的更新。请注意，`Node` 不需要返回整个 `State` 模式——只需返回更新。应用此更新后，`State` 将变为 `{"foo": 2, "bar": ["hi"]}`。如果第二个节点返回 `{"bar": ["bye"]}`，则 `State` 将变为 `{"foo": 2, "bar": ["hi", "bye"]}`。请注意，这里的 `bar` 键是通过将两个列表相加来更新的。
+In this example, we've used the `Annotated` type to specify a reducer function (`operator.add`) for the second key (`bar`). Note that the first key remains unchanged. Let's assume the input to the graph is `{"foo": 1, "bar": ["hi"]}`. Let's then assume the first `Node` returns `{"foo": 2}`. This is treated as an update to the state. Notice that the `Node` does not need to return the whole `State` schema - just an update. After applying this update, the `State` would then be `{"foo": 2, "bar": ["hi"]}`. If the second node returns `{"bar": ["bye"]}` then the `State` would then be `{"foo": 2, "bar": ["hi", "bye"]}`. Notice here that the `bar` key is updated by adding the two lists together.
 
 
 
 
-#### 覆盖
-
+#### Overwrite
 <Tip>
-在某些情况下，您可能希望绕过归约器并直接覆盖状态值。LangGraph 为此目的提供了 [`Overwrite`](https://reference.langchain.com/python/langgraph/types/) 类型。[在这里了解如何使用 `Overwrite`](/oss/python/langgraph/use-graph-api#bypass-reducers-with-overwrite)。
+In some cases, you may want to bypass a reducer and directly overwrite a state value. LangGraph provides the [`Overwrite`](https://reference.langchain.com/python/langgraph/types/) type for this purpose. [Learn how to use `Overwrite` here](/oss/python/langgraph/use-graph-api#bypass-reducers-with-overwrite).
 </Tip>
 
 
 
 
-### 在图状态中使用消息
+### Working with messages in graph state
 
-#### 为什么使用消息？
+#### Why use messages?
 
-大多数现代 LLM 提供商都有一个接受消息列表作为输入的聊天模型接口。特别是 LangChain 的[聊天模型接口](/oss/python/langchain/models)接受消息对象列表作为输入。这些消息有多种形式，如 [`HumanMessage`](https://reference.langchain.com/python/langchain/messages/#langchain.messages.HumanMessage)（用户输入）或 [`AIMessage`](https://reference.langchain.com/python/langchain/messages/#langchain.messages.AIMessage)（LLM 响应）。
+Most modern LLM providers have a chat model interface that accepts a list of messages as input. LangChain's [chat model interface](/oss/python/langchain/models) in particular accepts a list of message objects as inputs. These messages come in a variety of forms such as [`HumanMessage`](https://reference.langchain.com/python/langchain-core/messages/human/HumanMessage) (user input) or [`AIMessage`](https://reference.langchain.com/python/langchain-core/messages/ai/AIMessage) (LLM response).
 
-要了解更多关于消息对象的信息，请参阅[消息概念指南](/oss/python/langchain/messages)。
+To read more about what message objects are, please refer to the [Messages conceptual guide](/oss/python/langchain/messages).
 
-#### 在图中使用消息
+#### Using messages in your graph
 
-在许多情况下，将先前的对话历史作为消息列表存储在图状态中很有帮助。为此，我们可以向图状态添加一个存储 `Message` 对象列表的键（通道），并使用归约器函数对其进行注释（参见下面示例中的 `messages` 键）。归约器函数对于告诉图如何在每次状态更新时更新状态中的 `Message` 对象列表至关重要（例如，当节点发送更新时）。如果您不指定归约器，每次状态更新都会用最近提供的值覆盖消息列表。如果您只想将消息追加到现有列表，可以使用 `operator.add` 作为归约器。
+In many cases, it is helpful to store prior conversation history as a list of messages in your graph state. To do so, we can add a key (channel) to the graph state that stores a list of `Message` objects and annotate it with a reducer function (see `messages` key in the example below). The reducer function is vital to telling the graph how to update the list of `Message` objects in the state with each state update (for example, when a node sends an update). If you don't specify a reducer, every state update will overwrite the list of messages with the most recently provided value. If you wanted to simply append messages to the existing list, you could use `operator.add` as a reducer.
 
-但是，您可能还想手动更新图状态中的消息（例如人机协作）。如果您使用 `operator.add`，您发送到图的手动状态更新将被追加到现有消息列表，而不是更新现有消息。为避免这种情况，您需要一个可以跟踪消息 ID 并在更新时覆盖现有消息的归约器。为此，您可以使用预构建的 [`add_messages`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.message.add_messages) 函数。对于全新的消息，它只会追加到现有列表，但它也会正确处理现有消息的更新。
-
-
+However, you might also want to manually update messages in your graph state (e.g. human-in-the-loop). If you were to use `operator.add`, the manual state updates you send to the graph would be appended to the existing list of messages, instead of updating existing messages. To avoid that, you need a reducer that can keep track of message IDs and overwrite existing messages, if updated. To achieve this, you can use the prebuilt [`add_messages`](https://reference.langchain.com/python/langgraph/graph/message/add_messages) function. For brand new messages, it will simply append to existing list, but it will also handle the updates for existing messages correctly.
 
 
-#### 序列化
 
-除了跟踪消息 ID 之外，[`add_messages`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.message.add_messages) 函数还会在 `messages` 通道收到状态更新时尝试将消息反序列化为 LangChain `Message` 对象。
 
-有关 LangChain 序列化/反序列化的更多信息，请参阅[此处](https://python.langchain.com/docs/how_to/serialization/)。这允许以以下格式发送图输入/状态更新：
+#### Serialization
+
+In addition to keeping track of message IDs, the [`add_messages`](https://reference.langchain.com/python/langgraph/graph/message/add_messages) function will also try to deserialize messages into LangChain `Message` objects whenever a state update is received on the `messages` channel.
+
+See more information on LangChain serialization/deserialization [here](https://python.langchain.com/docs/how_to/serialization/). This allows sending graph inputs / state updates in the following format:
 
 ```python
 # this is supported
@@ -225,9 +227,9 @@ class State(TypedDict):
 {"messages": [{"type": "human", "content": "message"}]}
 ```
 
-由于使用 [`add_messages`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.message.add_messages) 时状态更新始终被反序列化为 LangChain `Messages`，您应该使用点符号访问消息属性，如 `state["messages"][-1].content`。
+Since the state updates are always deserialized into LangChain `Messages` when using [`add_messages`](https://reference.langchain.com/python/langgraph/graph/message/add_messages), you should use dot notation to access message attributes, like `state["messages"][-1].content`.
 
-以下是使用 [`add_messages`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.message.add_messages) 作为其归约器函数的图示例。
+Below is an example of a graph that uses [`add_messages`](https://reference.langchain.com/python/langgraph/graph/message/add_messages) as its reducer function.
 
 ```python
 from langchain.messages import AnyMessage
@@ -245,7 +247,7 @@ class GraphState(TypedDict):
 
 #### MessagesState
 
-由于在状态中有消息列表非常常见，因此存在一个名为 `MessagesState` 的预构建状态，使消息的使用变得简单。`MessagesState` 定义了一个 `messages` 键，它是 `AnyMessage` 对象列表并使用 [`add_messages`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.message.add_messages) 归约器。通常，除了消息之外还有更多状态要跟踪，因此我们看到人们子类化此状态并添加更多字段，如：
+Since having a list of messages in your state is so common, there exists a prebuilt state called `MessagesState` which makes it easy to use messages. `MessagesState` is defined with a single `messages` key which is a list of `AnyMessage` objects and uses the [`add_messages`](https://reference.langchain.com/python/langgraph/graph/message/add_messages) reducer. Typically, there is more state to track than just messages, so we see people subclass this state and add more fields, like:
 
 ```python
 from langgraph.graph import MessagesState
@@ -256,15 +258,15 @@ class State(MessagesState):
 
 
 
-## 节点
+## Nodes
 
-在 LangGraph 中，节点是接受以下参数的 Python 函数（同步或异步）：
+In LangGraph, nodes are Python functions (either synchronous or asynchronous) that accept the following arguments:
 
-1. `state` – 图的[状态](#状态)
-2. `config` – 包含配置信息（如 `thread_id`）和追踪信息（如 `tags`）的 [`RunnableConfig`](https://reference.langchain.com/python/langchain_core/runnables/#langchain_core.runnables.RunnableConfig) 对象
-3. `runtime` – 包含[运行时 `context`](#运行时上下文)和其他信息（如 `store` 和 `stream_writer`）的 `Runtime` 对象
+1. `state` – The [state](#state) of the graph
+2. `config` – A [`RunnableConfig`](https://reference.langchain.com/python/langchain-core/runnables/config/RunnableConfig) object that contains configuration information like `thread_id` and tracing information like `tags`
+3. `runtime` – A `Runtime` object that contains [runtime `context`](#runtime-context) and other information like `store` and `stream_writer`
 
-类似于 `NetworkX`，您使用 [`add_node`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.StateGraph.add_node) 方法将这些节点添加到图中：
+Similar to `NetworkX`, you add these nodes to a graph using the [`add_node`](https://reference.langchain.com/python/langgraph/graph/state/StateGraph/add_node) method:
 
 ```python
 from dataclasses import dataclass
@@ -306,9 +308,9 @@ builder.add_node("node_with_config", node_with_config)
 
 
 
-在幕后，函数被转换为 [`RunnableLambda`](https://reference.langchain.com/python/langchain_core/runnables/#langchain_core.runnables.base.RunnableLambda)，它为您的函数添加批处理和异步支持，以及原生追踪和调试。
+Behind the scenes, functions are converted to [`RunnableLambda`](https://reference.langchain.com/python/langchain-core/runnables/base/RunnableLambda), which add batch and async support to your function, along with [native tracing and debugging](/langsmith/home).
 
-如果您在不指定名称的情况下向图添加节点，它将被赋予一个与函数名称等效的默认名称。
+If you add a node to a graph without specifying a name, it will be given a default name equivalent to the function name.
 
 ```python
 builder.add_node(my_node)
@@ -319,9 +321,9 @@ builder.add_node(my_node)
 
 
 
-### `START` 节点
+### `START` node
 
-[`START`](https://reference.langchain.com/python/langgraph/constants/#langgraph.constants.START) 节点是一个特殊节点，表示向图发送用户输入的节点。引用此节点的主要目的是确定应首先调用哪些节点。
+The [`START`](https://reference.langchain.com/python/langgraph/constants/START) Node is a special node that represents the node that sends user input to the graph. The main purpose for referencing this node is to determine which nodes should be called first.
 
 ```python
 from langgraph.graph import START
@@ -333,9 +335,9 @@ graph.add_edge(START, "node_a")
 
 
 
-### `END` 节点
+### `END` node
 
-`END` 节点是一个特殊节点，表示终端节点。当您想表示哪些边在完成后没有操作时，会引用此节点。
+The `END` Node is a special node that represents a terminal node. This node is referenced when you want to denote which edges have no actions after they are done.
 
 ```python
 from langgraph.graph import END
@@ -347,16 +349,16 @@ graph.add_edge("node_a", END)
 
 
 
-### 节点缓存
+### Node caching
 
-LangGraph 支持基于节点输入的任务/节点缓存。要使用缓存：
+LangGraph supports caching of tasks/nodes based on the input to the node. To use caching:
 
-- 在编译图时（或指定入口点时）指定缓存
-- 为节点指定缓存策略。每个缓存策略支持：
-  - `key_func` 用于根据节点输入生成缓存键，默认为使用 pickle 对输入进行 `hash`。
-  - `ttl`，缓存的生存时间（秒）。如果未指定，缓存将永不过期。
+- Specify a cache when compiling a graph (or specifying an entrypoint)
+- Specify a cache policy for nodes. Each cache policy supports:
+  - `key_func` used to generate a cache key based on the input to a node, which defaults to a `hash` of the input with pickle.
+  - `ttl`, the time to live for the cache in seconds. If not specified, the cache will never expire.
 
-例如：
+For example:
 
 ```python
 import time
@@ -392,27 +394,26 @@ print(graph.invoke({"x": 5}, stream_mode='updates'))    # [!code highlight]
 # [{'expensive_node': {'result': 10}, '__metadata__': {'cached': True}}]
 ```
 
-1. 第一次运行需要两秒钟（由于模拟的昂贵计算）。
-2. 第二次运行利用缓存并快速返回。
+1. First run takes two seconds to run (due to mocked expensive computation).
+2. Second run utilizes cache and returns quickly.
 
 
 
 
+## Edges
 
-## 边
+Edges define how the logic is routed and how the graph decides to stop. This is a big part of how your agents work and how different nodes communicate with each other. There are a few key types of edges:
 
-边定义了逻辑如何路由以及图如何决定停止。这是智能体工作方式以及不同节点如何相互通信的重要部分。有几种关键类型的边：
+- Normal Edges: Go directly from one node to the next.
+- Conditional Edges: Call a function to determine which node(s) to go to next.
+- Entry Point: Which node to call first when user input arrives.
+- Conditional Entry Point: Call a function to determine which node(s) to call first when user input arrives.
 
-- 普通边：直接从一个节点到下一个节点。
-- 条件边：调用函数来确定下一个要去的节点。
-- 入口点：用户输入到达时首先调用哪个节点。
-- 条件入口点：调用函数来确定用户输入到达时首先调用哪些节点。
+A node can have multiple outgoing edges. If a node has multiple outgoing edges, **all** of those destination nodes will be executed in parallel as a part of the next superstep.
 
-一个节点可以有多个出边。如果一个节点有多个出边，**所有**这些目标节点将作为下一个超级步骤的一部分并行执行。
+### Normal edges
 
-### 普通边
-
-如果您**总是**想从节点 A 到节点 B，可以直接使用 [`add_edge`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.StateGraph.add_edge) 方法。
+If you **always** want to go from node A to node B, you can use the [`add_edge`](https://reference.langchain.com/python/langgraph/pregel/_draw/add_edge) method directly.
 
 ```python
 graph.add_edge("node_a", "node_b")
@@ -422,19 +423,19 @@ graph.add_edge("node_a", "node_b")
 
 
 
-### 条件边
+### Conditional edges
 
-如果您想**可选地**路由到一条或多条边（或可选地终止），可以使用 [`add_conditional_edges`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.StateGraph.add_conditional_edges) 方法。此方法接受节点名称和在该节点执行后调用的"路由函数"：
+If you want to **optionally** route to one or more edges (or optionally terminate), you can use the [`add_conditional_edges`](https://reference.langchain.com/python/langgraph/graph/state/StateGraph/add_conditional_edges) method. This method accepts the name of a node and a "routing function" to call after that node is executed:
 
 ```python
 graph.add_conditional_edges("node_a", routing_function)
 ```
 
-与节点类似，`routing_function` 接受图的当前 `state` 并返回一个值。
+Similar to nodes, the `routing_function` accepts the current `state` of the graph and returns a value.
 
-默认情况下，`routing_function` 的返回值用作下一个要发送状态的节点（或节点列表）的名称。所有这些节点将作为下一个超级步骤的一部分并行运行。
+By default, the return value `routing_function` is used as the name of the node (or list of nodes) to send the state to next. All those nodes will be run in parallel as a part of the next superstep.
 
-您可以选择提供一个字典，将 `routing_function` 的输出映射到下一个节点的名称。
+You can optionally provide a dictionary that maps the `routing_function`'s output to the name of the next node.
 
 ```python
 graph.add_conditional_edges("node_a", routing_function, {True: "node_b", False: "node_c"})
@@ -446,13 +447,13 @@ graph.add_conditional_edges("node_a", routing_function, {True: "node_b", False: 
 
 <Tip>
 
-如果您想在单个函数中组合状态更新和路由，请使用 [`Command`](#command) 而不是条件边。
+Use [`Command`](#command) instead of conditional edges if you want to combine state updates and routing in a single function.
 
 </Tip>
 
-### 入口点
+### Entry point
 
-入口点是图启动时运行的第一个节点。您可以使用从虚拟 [`START`](https://reference.langchain.com/python/langgraph/constants/#langgraph.constants.START) 节点到第一个要执行的节点的 [`add_edge`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.StateGraph.add_edge) 方法来指定图的入口位置。
+The entry point is the first node(s) that are run when the graph starts. You can use the [`add_edge`](https://reference.langchain.com/python/langgraph/pregel/_draw/add_edge) method from the virtual [`START`](https://reference.langchain.com/python/langgraph/constants/START) node to the first node to execute to specify where to enter the graph.
 
 ```python
 from langgraph.graph import START
@@ -464,9 +465,9 @@ graph.add_edge(START, "node_a")
 
 
 
-### 条件入口点
+### Conditional entry point
 
-条件入口点允许您根据自定义逻辑从不同节点开始。您可以从虚拟 [`START`](https://reference.langchain.com/python/langgraph/constants/#langgraph.constants.START) 节点使用 [`add_conditional_edges`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.StateGraph.add_conditional_edges) 来实现这一点。
+A conditional entry point lets you start at different nodes depending on custom logic. You can use [`add_conditional_edges`](https://reference.langchain.com/python/langgraph/graph/state/StateGraph/add_conditional_edges) from the virtual [`START`](https://reference.langchain.com/python/langgraph/constants/START) node to accomplish this.
 
 ```python
 from langgraph.graph import START
@@ -474,7 +475,7 @@ from langgraph.graph import START
 graph.add_conditional_edges(START, routing_function)
 ```
 
-您可以选择提供一个字典，将 `routing_function` 的输出映射到下一个节点的名称。
+You can optionally provide a dictionary that maps the `routing_function`'s output to the name of the next node.
 
 ```python
 graph.add_conditional_edges(START, routing_function, {True: "node_b", False: "node_c"})
@@ -486,9 +487,9 @@ graph.add_conditional_edges(START, routing_function, {True: "node_b", False: "no
 
 ## `Send`
 
-默认情况下，`Nodes` 和 `Edges` 是预先定义的，并在相同的共享状态上操作。但是，在某些情况下，确切的边可能事先不知道，和/或您可能希望同时存在不同版本的 `State`。一个常见的例子是 [map-reduce](/oss/python/langgraph/graph-api#map-reduce-and-the-send-api) 设计模式。在这种设计模式中，第一个节点可能生成对象列表，您可能希望将某个其他节点应用于所有这些对象。对象的数量可能事先不知道（意味着边的数量可能不知道），并且下游 `Node` 的输入 `State` 应该不同（每个生成的对象一个）。
+By default, `Nodes` and `Edges` are defined ahead of time and operate on the same shared state. However, there can be cases where the exact edges are not known ahead of time and/or you may want different versions of `State` to exist at the same time. A common example of this is with [map-reduce](/oss/python/langgraph/graph-api#map-reduce-and-the-send-api) design patterns. In this design pattern, a first node may generate a list of objects, and you may want to apply some other node to all those objects. The number of objects may be unknown ahead of time (meaning the number of edges may not be known) and the input `State` to the downstream `Node` should be different (one for each generated object).
 
-为了支持这种设计模式，LangGraph 支持从条件边返回 [`Send`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.Send) 对象。`Send` 接受两个参数：第一个是节点的名称，第二个是要传递给该节点的状态。
+To support this design pattern, LangGraph supports returning [`Send`](https://reference.langchain.com/python/langgraph/types/Send) objects from conditional edges. `Send` takes two arguments: first is the name of the node, and second is the state to pass to that node.
 
 ```python
 def continue_to_jokes(state: OverallState):
@@ -503,7 +504,24 @@ graph.add_conditional_edges("node_a", continue_to_jokes)
 
 ## `Command`
 
-将控制流（边）和状态更新（节点）结合起来可能很有用。例如，您可能希望在同一节点中同时执行状态更新和决定下一个要去的节点。LangGraph 通过从节点函数返回 [`Command`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.Command) 对象来提供一种方法：
+[`Command`](https://reference.langchain.com/python/langgraph/types/Command) is a versatile primitive for controlling graph execution. It accepts four parameters:
+
+- `update`: Apply state updates (similar to returning updates from a node).
+- `goto`: Navigate to specific nodes (similar to [conditional edges](#conditional-edges)).
+- `graph`: Target a parent graph when navigating from [subgraphs](/oss/python/langgraph/use-subgraphs).
+- `resume`: Provide a value to resume execution after an [interrupt](/oss/python/langgraph/interrupts).
+
+`Command` is used in three contexts:
+
+- **[Return from nodes](#return-from-nodes)**: Use `update`, `goto`, and `graph` to combine state updates with control flow.
+- **[Input to `invoke`/`stream`](#input-to-invokestream)**: Use `resume` to continue execution after an interrupt.
+- **[Return from tools](#return-from-tools)**: Similar to return from nodes, combine state updates and control flow from inside a tool.
+
+### Return from nodes
+
+#### `update` and `goto`
+
+Return [`Command`](https://reference.langchain.com/python/langgraph/types/Command) from node functions to update state and route to the next node in a single step:
 
 ```python
 def my_node(state: State) -> Command[Literal["my_other_node"]]:
@@ -515,7 +533,7 @@ def my_node(state: State) -> Command[Literal["my_other_node"]]:
     )
 ```
 
-With [`Command`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.Command) you can also achieve dynamic control flow behavior (identical to [conditional edges](#conditional-edges)):
+With [`Command`](https://reference.langchain.com/python/langgraph/types/Command) you can also achieve dynamic control flow behavior (identical to [conditional edges](#conditional-edges)):
 
 ```python
 def my_node(state: State) -> Command[Literal["my_other_node"]]:
@@ -523,9 +541,11 @@ def my_node(state: State) -> Command[Literal["my_other_node"]]:
         return Command(update={"foo": "baz"}, goto="my_other_node")
 ```
 
+Use [`Command`](https://reference.langchain.com/python/langgraph/types/Command) when you need to **both** update state **and** route to a different node. If you only need to route without updating state, use [conditional edges](#conditional-edges) instead.
+
 <Note>
 
-在节点函数中返回 [`Command`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.Command) 时，您必须添加返回类型注释，其中包含节点正在路由到的节点名称列表，例如 `Command[Literal["my_other_node"]]`。这对于图渲染是必要的，并告诉 LangGraph `my_node` 可以导航到 `my_other_node`。
+When returning [`Command`](https://reference.langchain.com/python/langgraph/types/Command) in your node functions, you must add return type annotations with the list of node names the node is routing to, e.g. `Command[Literal["my_other_node"]]`. This is necessary for the graph rendering and tells LangGraph that `my_node` can navigate to `my_other_node`.
 
 </Note>
 
@@ -533,16 +553,17 @@ def my_node(state: State) -> Command[Literal["my_other_node"]]:
 
 
 
-查看此[操作指南](/oss/python/langgraph/use-graph-api#combine-control-flow-and-state-updates-with-command)以获取如何使用 [`Command`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.Command) 的端到端示例。
+<Warning>
 
-### 何时应该使用 command 而不是条件边？
+[`Command`](https://reference.langchain.com/python/langgraph/types/Command) only adds dynamic edges — static edges defined with `add_edge` / `addEdge` still execute. For example, if `node_a` returns `Command(goto="my_other_node")` and you also have `graph.add_edge("node_a", "node_b")`, both `node_b` and `my_other_node` will run.
 
-- 当您需要**同时**更新图状态**并且**路由到不同节点时，使用 [`Command`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.Command)。例如，在实现[多智能体交接](/oss/python/langchain/multi-agent/handoffs)时，路由到不同的智能体并将一些信息传递给该智能体很重要。
-- 使用[条件边](#条件边)在节点之间有条件地路由而不更新状态。
+</Warning>
 
-### 导航到父图中的节点
+Check out this [how-to guide](/oss/python/langgraph/use-graph-api#combine-control-flow-and-state-updates-with-command) for an end-to-end example of how to use [`Command`](https://reference.langchain.com/python/langgraph/types/Command).
 
-如果您使用[子图](/oss/python/langgraph/use-subgraphs)，您可能希望从子图中的节点导航到不同的子图（即父图中的不同节点）。为此，您可以在 [`Command`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.Command) 中指定 `graph=Command.PARENT`：
+#### `graph`
+
+If you are using [subgraphs](/oss/python/langgraph/use-subgraphs), you can navigate from a node within a subgraph to a different node in the parent graph by specifying `graph=Command.PARENT` in [`Command`](https://reference.langchain.com/python/langgraph/types/Command):
 
 ```python
 def my_node(state: State) -> Command[Literal["other_subgraph"]]:
@@ -555,9 +576,9 @@ def my_node(state: State) -> Command[Literal["other_subgraph"]]:
 
 <Note>
 
-将 `graph` 设置为 `Command.PARENT` 将导航到最近的父图。
+Setting `graph` to `Command.PARENT` will navigate to the closest parent graph.
 
-当您从子图节点向父图节点发送父图和子图[状态模式](#模式)共享的键的更新时，您**必须**为父图状态中正在更新的键定义[归约器](#归约器)。请参阅此[示例](/oss/python/langgraph/use-graph-api#navigate-to-a-node-in-a-parent-graph)。
+When you send updates from a subgraph node to a parent graph node for a key that's shared by both parent and subgraph [state schemas](#schema), you **must** define a [reducer](#reducers) for the key you're updating in the parent graph state. See this [example](/oss/python/langgraph/use-graph-api#navigate-to-a-node-in-a-parent-graph).
 
 </Note>
 
@@ -565,36 +586,84 @@ def my_node(state: State) -> Command[Literal["other_subgraph"]]:
 
 
 
-这在实现[多智能体交接](/oss/python/langchain/multi-agent/handoffs)时特别有用。
+This is particularly useful when implementing [multi-agent handoffs](/oss/python/langchain/multi-agent/handoffs). Check out [this guide](/oss/python/langgraph/use-graph-api#navigate-to-a-node-in-a-parent-graph) for detail.
 
-查看[此指南](/oss/python/langgraph/use-graph-api#navigate-to-a-node-in-a-parent-graph)以获取详细信息。
+### Input to `invoke`/`stream`
 
-### 在工具内部使用
+<Warning>
 
-一个常见的用例是从工具内部更新图状态。例如，在客户支持应用程序中，您可能希望在对话开始时根据客户的帐号或 ID 查找客户信息。
+`Command(resume=...)` is the **only** `Command` pattern intended as input to `invoke()`/`stream()`. Do not use `Command(update=...)` as input to continue multi-turn conversations — because passing any `Command` as input resumes from the latest checkpoint (i.e. the last step that ran, not `__start__`), the graph will appear stuck if it already finished. To continue a conversation on an existing thread, pass a plain input dict:
 
-有关详细信息，请参阅[此指南](/oss/python/langgraph/use-graph-api#use-inside-tools)。
+```python
+# WRONG — graph resumes from the latest checkpoint
+# (last step that ran), appears stuck
+graph.invoke(Command(update={  # [!code --]
+    "messages": [{"role": "user", "content": "follow up"}]  # [!code --]
+}), config)  # [!code --]
 
-### 人机协作
+# CORRECT — plain dict restarts from __start__
+graph.invoke( {  # [!code ++]
+    "messages": [{"role": "user", "content": "follow up"}]  # [!code ++]
+}, config)  # [!code ++]
+```
 
-[`Command`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.Command) 是人机协作工作流的重要部分：当使用 `interrupt()` 收集用户输入时，然后使用 [`Command`](https://reference.langchain.com/python/langgraph/types/#langgraph.types.Command) 通过 `Command(resume="User input")` 提供输入并恢复执行。查看[此概念指南](/oss/python/langgraph/interrupts)以获取更多信息。
+</Warning>
 
 
 
 
-## 图迁移
 
-LangGraph 可以轻松处理图定义（节点、边和状态）的迁移，即使在使用检查点器跟踪状态时也是如此。
+#### `resume`
 
-- 对于位于图末尾的线程（即未中断），您可以更改图的整个拓扑结构（即所有节点和边，删除、添加、重命名等）
-- 对于当前中断的线程，我们支持除重命名/删除节点之外的所有拓扑更改（因为该线程现在可能即将进入一个不再存在的节点）——如果这是一个阻碍，请联系我们，我们可以优先解决。
-- 对于修改状态，我们对添加和删除键具有完全的向后和向前兼容性
-- 重命名的状态键在现有线程中会丢失其保存的状态
-- 以不兼容方式更改类型的状态键目前可能会在更改之前具有状态的线程中导致问题——如果这是一个阻碍，请联系我们，我们可以优先解决。
+Use `Command(resume=...)` to provide a value and resume graph execution after an [interrupt](/oss/python/langgraph/interrupts). The value passed to `resume` becomes the return value of the `interrupt()` call inside the paused node:
 
-## 运行时上下文
+```python
+from langgraph.types import Command, interrupt
 
-创建图时，您可以为传递给节点的运行时上下文指定 `context_schema`。这对于将不属于图状态的信息传递给节点很有用。例如，您可能希望传递模型名称或数据库连接等依赖项。
+def human_review(state: State):
+    # Pauses the graph and waits for a value
+    answer = interrupt("Do you approve?")
+    return {"messages": [{"role": "user", "content": answer}]}
+
+# First invocation — hits the interrupt and pauses
+result = graph.invoke({"messages": [...]}, config)
+
+# Resume with a value — the interrupt() call returns "yes"
+result = graph.invoke(Command(resume="yes"), config)
+```
+
+Check out the [interrupts conceptual guide](/oss/python/langgraph/interrupts) for full details on interrupt patterns, including multiple interrupts and validation loops.
+
+
+
+
+
+### Return from tools
+
+You can return [`Command`](https://reference.langchain.com/python/langgraph/types/Command) from tools to update graph state and control flow. Use `update` to modify state (e.g., saving customer information looked up during a conversation) and `goto` to route to a specific node after the tool completes.
+
+<Warning>
+
+When used inside tools, `goto` adds a dynamic edge — any static edges already defined on the node that called the tool will still execute.
+
+</Warning>
+
+Refer to [this guide](/oss/python/langgraph/use-graph-api#use-inside-tools) for detail.
+
+## Graph migrations
+
+LangGraph can easily handle migrations of graph definitions (nodes, edges, and state) even when using a checkpointer to track state.
+
+- For threads at the end of the graph (i.e. not interrupted) you can change the entire topology of the graph (i.e. all nodes and edges, remove, add, rename, etc)
+- For threads currently interrupted, we support all topology changes other than renaming / removing nodes (as that thread could now be about to enter a node that no longer exists) -- if this is a blocker please reach out and we can prioritize a solution.
+- For modifying state, we have full backwards and forwards compatibility for adding and removing keys
+- State keys that are renamed lose their saved state in existing threads
+- State keys whose types change in incompatible ways could currently cause issues in threads with state from before the change -- if this is a blocker please reach out and we can prioritize a solution.
+
+## Runtime context
+
+When creating a graph, you can specify a `context_schema` for runtime context passed to nodes. This is useful for passing
+information to nodes that is not part of the graph state. For example, you might want to pass dependencies such as model name or a database connection.
 
 
 
@@ -608,7 +677,7 @@ class ContextSchema:
 graph = StateGraph(State, context_schema=ContextSchema)
 ```
 
-然后，您可以使用 `invoke` 方法的 `context` 参数将此上下文传递到图中。
+You can then pass this context into the graph using the `context` parameter of the `invoke` method.
 
 ```python
 graph.invoke(inputs, context={"llm_provider": "anthropic"})
@@ -617,8 +686,7 @@ graph.invoke(inputs, context={"llm_provider": "anthropic"})
 
 
 
-
-然后，您可以在节点或条件边内访问和使用此上下文：
+You can then access and use this context inside a node or conditional edge:
 
 ```python
 from langgraph.runtime import Runtime
@@ -631,42 +699,41 @@ def node_a(state: State, runtime: Runtime[ContextSchema]):
 
 
 
-
-有关配置的完整分解，请参阅[此指南](/oss/python/langgraph/use-graph-api#add-runtime-configuration)。
-
+See [this guide](/oss/python/langgraph/use-graph-api#add-runtime-configuration) for a full breakdown on configuration.
 
 
-### 递归限制
 
-递归限制设置图在单次执行期间可以执行的最大[超级步骤](#图)数。一旦达到限制，LangGraph 将引发 `GraphRecursionError`。从版本 1.0.6 开始，默认递归限制设置为 1000 步。递归限制可以在运行时设置在任何图上，并通过配置字典传递给 `invoke`/`stream`。重要的是，`recursion_limit` 是一个独立的 `config` 键，不应像所有其他用户定义的配置那样在 `configurable` 键内传递。请参阅以下示例：
+### Recursion limit
+
+The recursion limit sets the maximum number of [super-steps](#graphs) the graph can execute during a single execution. Once the limit is reached, LangGraph will raise `GraphRecursionError`. Starting in version 1.0.6, the deafult recursion limit is set to 1000 steps. The recursion limit can be set on any graph at runtime, and is passed to `invoke`/`stream` via the config dictionary. Importantly, `recursion_limit` is a standalone `config` key and should not be passed inside the `configurable` key as all other user-defined configuration. See the example below:
 
 ```python
 graph.invoke(inputs, config={"recursion_limit": 5}, context={"llm": "anthropic"})
 ```
 
-阅读[此操作指南](/oss/python/langgraph/graph-api#impose-a-recursion-limit)以了解更多关于递归限制如何工作的信息。
+Read [this how-to](/oss/python/langgraph/graph-api#impose-a-recursion-limit) to learn more about how the recursion limit works.
 
 
 
 
-### 访问和处理递归计数器
+### Accessing and handling the recursion counter
 
-当前步骤计数器可在任何节点内的 `config["metadata"]["langgraph_step"]` 中访问，允许在达到递归限制之前进行主动递归处理。这使您能够在图逻辑中实现优雅降级策略。
-
-
-
-
-#### 工作原理
-
-步骤计数器存储在 `config["metadata"]["langgraph_step"]` 中。递归限制检查遵循以下逻辑：`step > stop`，其中 `stop = step + recursion_limit + 1`。当超过限制时，LangGraph 引发 `GraphRecursionError`。
+The current step counter is accessible in `config["metadata"]["langgraph_step"]` within any node, allowing for proactive recursion handling before hitting the recursion limit. This enables you to implement graceful degradation strategies within your graph logic.
 
 
 
 
+#### How it works
 
-#### 访问当前步骤计数器
+The step counter is stored in `config["metadata"]["langgraph_step"]`. The recursion limit check follows the logic: `step > stop` where `stop = step + recursion_limit + 1`. When the limit is exceeded, LangGraph raises a `GraphRecursionError`.
 
-您可以在任何节点内访问当前步骤计数器以监控执行进度。
+
+
+
+
+#### Accessing the current step counter
+
+You can access the current step counter within any node to monitor execution progress.
 
 ```python
 from langchain_core.runnables import RunnableConfig
@@ -682,9 +749,9 @@ def my_node(state: dict, config: RunnableConfig) -> dict:
 
 
 
-#### 主动递归处理
+#### Proactive recursion handling
 
-LangGraph 提供了一个 `RemainingSteps` 托管值，用于跟踪在达到递归限制之前还剩多少步骤。这允许在图中进行优雅降级。
+LangGraph provides a `RemainingSteps` managed value that tracks how many steps remain before hitting the recursion limit. This allows for graceful degradation within your graph.
 
 ```python
 from typing import Annotated, Literal
@@ -734,9 +801,9 @@ result = graph.invoke({"messages": []}, {"recursion_limit": 10})
 
 
 
-#### 主动与被动方法
+#### Proactive vs reactive approaches
 
-处理递归限制有两种主要方法：主动（在图内监控）和被动（在外部捕获错误）。
+There are two main approaches to handling recursion limits: proactive (monitoring within the graph) and reactive (catching errors externally).
 
 ```python
 from typing import Annotated, Literal, TypedDict
@@ -834,16 +901,27 @@ def inspect_metadata(state: dict, config: RunnableConfig) -> dict:
 
 
 
-## 可视化
+## Visualization
 
-能够可视化图通常很有用，尤其是当它们变得更加复杂时。LangGraph 带有几种内置的图可视化方法。有关更多信息，请参阅[此操作指南](/oss/python/langgraph/use-graph-api#visualize-your-graph)。
+It's often nice to be able to visualize graphs, especially as they get more complex. LangGraph comes with several built-in ways to visualize graphs. See [this how-to guide](/oss/python/langgraph/use-graph-api#visualize-your-graph) for more info.
+
+## Observability and Tracing
+
+To trace, debug and evaluate your agents, use [LangSmith](/langsmith/home).
+
+## Learn more
+
+- [How to use the Graph API](/oss/python/langgraph/use-graph-api)
+- [Functional API conceptual overview](/oss/python/langgraph/functional-api)
+- [Choosing between Graph API and Functional API](/oss/python/langgraph/choosing-apis)
 
 ---
 
-<Callout icon="pen-to-square" iconType="regular">
+<div className="source-links">
+<Callout icon="edit">
     [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/graph-api.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
-<Tip icon="terminal" iconType="regular">
+<Callout icon="terminal-2">
     [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
-</Tip>
-<div class='fixed right-2 bg-white bottom-2'><img src='https://kunfanyang.site/site-file/wx_code.jpg' class='border' alt='微信扫码赞赏' width='200' /></div>
+</Callout>
+</div>

@@ -1,18 +1,18 @@
 ---
-title: 安全护栏
-description: 为你的 agents 实现安全检查和内容过滤
+title: Guardrails
+description: Implement safety checks and content filtering for your agents
 ---
 
-安全护栏通过在 agent 执行的关键点验证和过滤内容，帮助你构建安全、合规的 AI 应用。它们可以检测敏感信息、执行内容策略、验证输出，并在问题发生之前防止不安全的行为。
+Guardrails help you build safe, compliant AI applications by validating and filtering content at key points in your agent's execution. They can detect sensitive information, enforce content policies, validate outputs, and prevent unsafe behaviors before they cause problems.
 
-常见用例包括：
-- 防止 PII 泄露
-- 检测和阻止 prompt injection 攻击
-- 阻止不当或有害内容
-- 执行业务规则和合规要求
-- 验证输出质量和准确性
+Common use cases include:
+- Preventing PII leakage
+- Detecting and blocking prompt injection attacks
+- Blocking inappropriate or harmful content
+- Enforcing business rules and compliance requirements
+- Validating output quality and accuracy
 
-你可以使用 [middleware](/oss/python/langchain/middleware) 在战略点拦截执行来实现安全护栏 - 在 agent 启动之前、完成之后，或围绕模型和工具调用。
+You can implement guardrails using [middleware](/oss/python/langchain/middleware) to intercept execution at strategic points - before the agent starts, after it completes, or around model and tool calls.
 
 <div style={{ display: "flex", justifyContent: "center" }}>
     <img
@@ -22,35 +22,35 @@ description: 为你的 agents 实现安全检查和内容过滤
     />
 </div>
 
-安全护栏可以使用两种互补的方法来实现：
+Guardrails can be implemented using two complementary approaches:
 
 <CardGroup cols={2}>
-    <Card title="确定性护栏" icon="list-check">
-        使用基于规则的逻辑，如正则表达式模式、关键词匹配或显式检查。快速、可预测且成本效益高，但可能会遗漏细微的违规行为。
+    <Card title="Deterministic guardrails" icon="list-check">
+        Use rule-based logic like regex patterns, keyword matching, or explicit checks. Fast, predictable, and cost-effective, but may miss nuanced violations.
     </Card>
-    <Card title="基于模型的护栏" icon="brain">
-        使用 LLMs 或分类器以语义理解来评估内容。捕获规则遗漏的微妙问题，但速度较慢且成本较高。
+    <Card title="Model-based guardrails" icon="brain">
+        Use LLMs or classifiers to evaluate content with semantic understanding. Catch subtle issues that rules miss, but are slower and more expensive.
     </Card>
 </CardGroup>
 
-LangChain 提供内置的安全护栏（例如 [PII 检测](#pii-detection)、[人机协作](#human-in-the-loop)）以及灵活的 middleware 系统，用于使用任一方法构建自定义安全护栏。
+LangChain provides both built-in guardrails (e.g., [PII detection](#pii-detection), [human-in-the-loop](#human-in-the-loop)) and a flexible middleware system for building custom guardrails using either approach.
 
-## 内置安全护栏
+## Built-in guardrails
 
-### PII 检测
+### PII detection
 
-LangChain 提供内置 middleware 用于检测和处理对话中的个人身份信息（PII）。此 middleware 可以检测常见的 PII 类型，如电子邮件、信用卡、IP 地址等。
+LangChain provides built-in middleware for detecting and handling Personally Identifiable Information (PII) in conversations. This middleware can detect common PII types like emails, credit cards, IP addresses, and more.
 
-PII 检测 middleware 适用于以下场景：具有合规要求的医疗保健和金融应用、需要清理日志的客户服务 agents，以及一般处理敏感用户数据的任何应用。
+PII detection middleware is helpful for cases such as health care and financial applications with compliance requirements, customer service agents that need to sanitize logs, and generally any application handling sensitive user data.
 
-PII middleware 支持多种策略来处理检测到的 PII：
+The PII middleware supports multiple strategies for handling detected PII:
 
-| 策略 | 描述 | 示例 |
+| Strategy | Description | Example |
 |----------|-------------|---------|
-| `redact` | 替换为 `[REDACTED_{PII_TYPE}]` | `[REDACTED_EMAIL]` |
-| `mask` | 部分遮蔽（例如，最后 4 位数字） | `****-****-****-1234` |
-| `hash` | 替换为确定性哈希 | `a8f5f167...` |
-| `block` | 检测到时引发异常 | 抛出错误 |
+| `redact` | Replace with `[REDACTED_{PII_TYPE}]` | `[REDACTED_EMAIL]` |
+| `mask` | Partially obscure (e.g., last 4 digits) | `****-****-****-1234` |
+| `hash` | Replace with deterministic hash | `a8f5f167...` |
+| `block` | Raise exception when detected | Error thrown |
 
 ```python
 from langchain.agents import create_agent
@@ -58,7 +58,7 @@ from langchain.agents.middleware import PIIMiddleware
 
 
 agent = create_agent(
-    model="gpt-4o",
+    model="gpt-4.1",
     tools=[customer_service_tool, email_tool],
     middleware=[
         # Redact emails in user input before sending to model
@@ -92,38 +92,38 @@ result = agent.invoke({
 
 
 
-<Accordion title="内置 PII 类型和配置">
+<Accordion title="Built-in PII types and configuration">
 
-**内置 PII 类型：**
-- `email` - 电子邮件地址
-- `credit_card` - 信用卡号码（Luhn 验证）
-- `ip` - IP 地址
-- `mac_address` - MAC 地址
+**Built-in PII types:**
+- `email` - Email addresses
+- `credit_card` - Credit card numbers (Luhn validated)
+- `ip` - IP addresses
+- `mac_address` - MAC addresses
 - `url` - URLs
 
-**配置选项：**
+**Configuration options:**
 
-参数 | 描述 | 默认值
+Parameter | Description | Default
 -----------|-------------|---------
-`pii_type` | 要检测的 PII 类型（内置或自定义） | 必需
-`strategy` | 如何处理检测到的 PII（`"block"`、`"redact"`、`"mask"`、`"hash"`） | `"redact"`
-`detector` | 自定义检测器函数或正则表达式模式 | `None`（使用内置）
-`apply_to_input` | 在模型调用前检查用户消息 | `True`
-`apply_to_output` | 在模型调用后检查 AI 消息 | `False`
-`apply_to_tool_results` | 在执行后检查工具结果消息 | `False`
+`pii_type` | Type of PII to detect (built-in or custom) | Required
+`strategy` | How to handle detected PII (`"block"`, `"redact"`, `"mask"`, `"hash"`) | `"redact"`
+`detector` | Custom detector function or regex pattern | `None` (uses built-in)
+`apply_to_input` | Check user messages before model call | `True`
+`apply_to_output` | Check AI messages after model call | `False`
+`apply_to_tool_results` | Check tool result messages after execution | `False`
 
 
 
 
 </Accordion>
 
-有关 PII 检测功能的完整详细信息，请参阅 [middleware 文档](/oss/python/langchain/middleware#pii-detection)。
+See the [middleware documentation](/oss/python/langchain/middleware#pii-detection) for complete details on PII detection capabilities.
 
-### 人机协作
+### Human-in-the-loop
 
-LangChain 提供内置 middleware，用于在执行敏感操作之前要求人工批准。这是高风险决策最有效的安全护栏之一。
+LangChain provides built-in middleware for requiring human approval before executing sensitive operations. This is one of the most effective guardrails for high-stakes decisions.
 
-人机协作 middleware 适用于以下场景：金融交易和转账、删除或修改生产数据、向外部方发送通信，以及任何具有重大业务影响的操作。
+Human-in-the-loop middleware is helpful for cases such as financial transactions and transfers, deleting or modifying production data, sending communications to external parties, and any operation with significant business impact.
 
 ```python
 from langchain.agents import create_agent
@@ -133,7 +133,7 @@ from langgraph.types import Command
 
 
 agent = create_agent(
-    model="gpt-4o",
+    model="gpt-4.1",
     tools=[search_tool, send_email_tool, delete_database_tool],
     middleware=[
         HumanInTheLoopMiddleware(
@@ -169,16 +169,16 @@ result = agent.invoke(
 
 
 <Tip>
-    有关实现审批工作流的完整详细信息，请参阅[人机协作文档](/oss/python/langchain/human-in-the-loop)。
+    See the [human-in-the-loop documentation](/oss/python/langchain/human-in-the-loop) for complete details on implementing approval workflows.
 </Tip>
 
-## 自定义安全护栏
+## Custom guardrails
 
-对于更复杂的安全护栏，你可以创建在 agent 执行之前或之后运行的自定义 middleware。这使你可以完全控制验证逻辑、内容过滤和安全检查。
+For more sophisticated guardrails, you can create custom middleware that runs before or after the agent executes. This gives you full control over validation logic, content filtering, and safety checks.
 
-### Agent 之前的安全护栏
+### Before agent guardrails
 
-使用 "before agent" hooks 在每次调用开始时验证请求一次。这对于会话级别的检查很有用，如身份验证、速率限制或在任何处理开始之前阻止不当请求。
+Use "before agent" hooks to validate requests once at the start of each invocation. This is useful for session-level checks like authentication, rate limiting, or blocking inappropriate requests before any processing begins.
 
 <CodeGroup>
 
@@ -225,7 +225,7 @@ class ContentFilterMiddleware(AgentMiddleware):
 from langchain.agents import create_agent
 
 agent = create_agent(
-    model="gpt-4o",
+    model="gpt-4.1",
     tools=[search_tool, calculator_tool],
     middleware=[
         ContentFilterMiddleware(
@@ -279,7 +279,7 @@ def content_filter(state: AgentState, runtime: Runtime) -> dict[str, Any] | None
 from langchain.agents import create_agent
 
 agent = create_agent(
-    model="gpt-4o",
+    model="gpt-4.1",
     tools=[search_tool, calculator_tool],
     middleware=[content_filter],
 )
@@ -295,9 +295,9 @@ result = agent.invoke({
 
 
 
-### Agent 之后的安全护栏
+### After agent guardrails
 
-使用 "after agent" hooks 在返回给用户之前验证最终输出一次。这对于基于模型的安全检查、质量验证或对完整 agent 响应的最终合规扫描很有用。
+Use "after agent" hooks to validate final outputs once before returning to the user. This is useful for model-based safety checks, quality validation, or final compliance scans on the complete agent response.
 
 <CodeGroup>
 
@@ -313,7 +313,7 @@ class SafetyGuardrailMiddleware(AgentMiddleware):
 
     def __init__(self):
         super().__init__()
-        self.safety_model = init_chat_model("gpt-4o-mini")
+        self.safety_model = init_chat_model("gpt-4.1-mini")
 
     @hook_config(can_jump_to=["end"])
     def after_agent(self, state: AgentState, runtime: Runtime) -> dict[str, Any] | None:
@@ -342,7 +342,7 @@ class SafetyGuardrailMiddleware(AgentMiddleware):
 from langchain.agents import create_agent
 
 agent = create_agent(
-    model="gpt-4o",
+    model="gpt-4.1",
     tools=[search_tool, calculator_tool],
     middleware=[SafetyGuardrailMiddleware()],
 )
@@ -359,7 +359,7 @@ from langchain.messages import AIMessage
 from langchain.chat_models import init_chat_model
 from typing import Any
 
-safety_model = init_chat_model("gpt-4o-mini")
+safety_model = init_chat_model("gpt-4.1-mini")
 
 @after_agent(can_jump_to=["end"])
 def safety_guardrail(state: AgentState, runtime: Runtime) -> dict[str, Any] | None:
@@ -389,7 +389,7 @@ def safety_guardrail(state: AgentState, runtime: Runtime) -> dict[str, Any] | No
 from langchain.agents import create_agent
 
 agent = create_agent(
-    model="gpt-4o",
+    model="gpt-4.1",
     tools=[search_tool, calculator_tool],
     middleware=[safety_guardrail],
 )
@@ -405,16 +405,16 @@ result = agent.invoke({
 
 
 
-### 组合多个安全护栏
+### Combine multiple guardrails
 
-你可以通过将多个安全护栏添加到 middleware 数组中来堆叠它们。它们按顺序执行，允许你构建分层保护：
+You can stack multiple guardrails by adding them to the middleware array. They execute in order, allowing you to build layered protection:
 
 ```python
 from langchain.agents import create_agent
 from langchain.agents.middleware import PIIMiddleware, HumanInTheLoopMiddleware
 
 agent = create_agent(
-    model="gpt-4o",
+    model="gpt-4.1",
     tools=[search_tool, send_email_tool],
     middleware=[
         # Layer 1: Deterministic input filter (before agent)
@@ -436,19 +436,20 @@ agent = create_agent(
 
 
 
-## 其他资源
+## Additional resources
 
-- [Middleware 文档](/oss/python/langchain/middleware) - 自定义 middleware 完整指南
-- [Middleware API 参考](https://reference.langchain.com/python/langchain/middleware/) - 自定义 middleware 完整指南
-- [人机协作](/oss/python/langchain/human-in-the-loop) - 为敏感操作添加人工审核
-- [测试 agents](/oss/python/langchain/test) - 测试安全机制的策略
+- [Middleware documentation](/oss/python/langchain/middleware) - Complete guide to custom middleware
+- [Middleware API reference](https://reference.langchain.com/python/langchain/middleware/) - Complete guide to custom middleware
+- [Human-in-the-loop](/oss/python/langchain/human-in-the-loop) - Add human review for sensitive operations
+- [Testing agents](/oss/python/langchain/test) - Strategies for testing safety mechanisms
 
 ---
 
-<Callout icon="pen-to-square" iconType="regular">
+<div className="source-links">
+<Callout icon="edit">
     [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/guardrails.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
-<Tip icon="terminal" iconType="regular">
+<Callout icon="terminal-2">
     [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
-</Tip>
-<div class='fixed right-2 bg-white bottom-2'><img src='https://kunfanyang.site/site-file/wx_code.jpg' class='border' alt='微信扫码赞赏' width='200' /></div>
+</Callout>
+</div>

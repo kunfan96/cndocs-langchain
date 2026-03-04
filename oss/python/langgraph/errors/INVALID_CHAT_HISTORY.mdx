@@ -2,46 +2,46 @@
 title: INVALID_CHAT_HISTORY
 ---
 
-当预构建的 [`create_agent`](https://reference.langchain.com/python/langchain/agents/#langchain.agents.create_agent) 中的 `call_model` 图节点接收到格式错误的消息列表时会引发此错误。具体来说，当存在带有 `tool_calls`（LLM 请求调用工具）的 `AIMessages` 但没有对应的 [`ToolMessage`](https://reference.langchain.com/python/langchain/messages/#langchain.messages.ToolMessage)（返回给 LLM 的工具调用结果）时，格式是错误的。
+This error is raised in the prebuilt [`create_agent`](https://reference.langchain.com/python/langchain/agents/factory/create_agent) when the `call_model` graph node receives a malformed list of messages. Specifically, it is malformed when there are `AIMessages` with `tool_calls` (LLM requesting to call a tool) that do not have a corresponding [`ToolMessage`](https://reference.langchain.com/python/langchain-core/messages/tool/ToolMessage) (result of a tool invocation to return to the LLM).
 
 
 
 
-你看到此错误可能有以下几个原因：
+There could be a few reasons you're seeing this error:
 
-1. 你在调用图时手动传递了格式错误的消息列表，例如 `graph.invoke({'messages': [AIMessage(..., tool_calls=[...])]})`
-2. 图在从 `tools` 节点接收更新（即 [`ToolMessage`](https://reference.langchain.com/python/langchain/messages/#langchain.messages.ToolMessage) 列表）之前被中断
-    并且你使用非 None 或 ToolMessage 的输入调用了它，
-    例如 `graph.invoke({'messages': [HumanMessage(...)]}, config)`。
-    此中断可能通过以下方式之一触发：
-        * 你在 `create_agent` 中手动设置了 `interrupt_before = ['tools']`
-    * 其中一个工具引发了未被 [`ToolNode`](https://reference.langchain.com/python/langgraph/agents/#langgraph.prebuilt.tool_node.ToolNode)（`"tools"`）处理的错误
-
-
+1. You manually passed a malformed list of messages when invoking the graph, e.g. `graph.invoke({'messages': [AIMessage(..., tool_calls=[...])]})`
+2. The graph was interrupted before receiving updates from the `tools` node (i.e. a list of [`ToolMessage`](https://reference.langchain.com/python/langchain-core/messages/tool/ToolMessage))
+    and you invoked it with an input that is not None or a ToolMessage,
+    e.g. `graph.invoke({'messages': [HumanMessage(...)]}, config)`.
+    This interrupt could have been triggered in one of the following ways:
+        * You manually set `interrupt_before = ['tools']` in `create_agent`
+    * One of the tools raised an error that wasn't handled by the [`ToolNode`](https://reference.langchain.com/python/langgraph/agents/#langgraph.prebuilt.tool_node.ToolNode) (`"tools"`)
 
 
 
-## 故障排除
 
-要解决此问题，你可以执行以下操作之一：
+## Troubleshooting
 
-1. 不要使用格式错误的消息列表调用图
-2. 在中断（手动或由于错误）的情况下，你可以：
+To resolve this, you can do one of the following:
 
-* 提供与现有工具调用匹配的 [`ToolMessage`](https://reference.langchain.com/python/langchain/messages/#langchain.messages.ToolMessage) 对象并调用 `graph.invoke({'messages': [ToolMessage(...)]})`。
-  **注意**：这将把消息追加到历史记录中并从 START 节点运行图。
-  * 手动更新状态并从中断处恢复图：
-    1. 使用 `graph.get_state(config)` 从图状态获取最近的消息列表
-    2. 修改消息列表，从 AIMessages 中删除未回答的工具调用
+1. Don't invoke the graph with a malformed list of messages
+2. In case of an interrupt (manual or due to an error) you can:
 
-或添加 `tool_call_ids` 与未回答的工具调用匹配的 [`ToolMessage`](https://reference.langchain.com/python/langchain/messages/#langchain.messages.ToolMessage) 对象 3. 使用修改后的消息列表调用 `graph.update_state(config, {'messages': ...})` 4. 恢复图，例如调用 `graph.invoke(None, config)`
+* provide [`ToolMessage`](https://reference.langchain.com/python/langchain-core/messages/tool/ToolMessage) objects that match existing tool calls and call `graph.invoke({'messages': [ToolMessage(...)]})`.
+  **NOTE**: this will append the messages to the history and run the graph from the START node.
+  * manually update the state and resume the graph from the interrupt:
+    1. get the list of most recent messages from the graph state with `graph.get_state(config)`
+    2. modify the list of messages to either remove unanswered tool calls from AIMessages
+
+or add [`ToolMessage`](https://reference.langchain.com/python/langchain-core/messages/tool/ToolMessage) objects with `tool_call_ids` that match unanswered tool calls 3. call `graph.update_state(config, {'messages': ...})` with the modified list of messages 4. resume the graph, e.g. call `graph.invoke(None, config)`
 
 ---
 
-<Callout icon="pen-to-square" iconType="regular">
+<div className="source-links">
+<Callout icon="edit">
     [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/errors/INVALID_CHAT_HISTORY.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
-<Tip icon="terminal" iconType="regular">
+<Callout icon="terminal-2">
     [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
-</Tip>
-<div class='fixed right-2 bg-white bottom-2'><img src='https://kunfanyang.site/site-file/wx_code.jpg' class='border' alt='微信扫码赞赏' width='200' /></div>
+</Callout>
+</div>

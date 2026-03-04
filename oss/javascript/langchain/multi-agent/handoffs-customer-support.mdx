@@ -43,10 +43,10 @@ flowchart TD
     Escalate --> Close
 
     %% === Styling ===
-    classDef startEnd fill:#4CAF50,stroke:#2E7D32,stroke-width:2px,color:#fff
-    classDef decisionNode fill:#2196F3,stroke:#1565C0,stroke-width:2px,color:#fff
-    classDef actionNode fill:#FF9800,stroke:#E65100,stroke-width:2px,color:#fff
-    classDef escalateNode fill:#f44336,stroke:#c62828,stroke-width:2px,color:#fff
+    classDef startEnd fill:#DCFCE7,stroke:#16A34A,stroke-width:2px,color:#14532D
+    classDef decisionNode fill:#DBEAFE,stroke:#2563EB,stroke-width:2px,color:#1E3A8A
+    classDef actionNode fill:#FEF3C7,stroke:#F59E0B,stroke-width:2px,color:#78350F
+    classDef escalateNode fill:#FEE2E2,stroke:#DC2626,stroke-width:2px,color:#7F1D1D
 
     class Start,Close startEnd
     class Warranty,IssueType,OutOfWarranty decisionNode
@@ -111,6 +111,7 @@ First, define a custom state schema that tracks which step is currently active:
 
 
 ```typescript
+import { StateSchema } from "@langchain/langgraph";
 import { z } from "zod";
 
 // Define the possible workflow steps
@@ -119,7 +120,7 @@ const WarrantyStatusSchema = z.enum(["in_warranty", "out_of_warranty"]);
 const IssueTypeSchema = z.enum(["hardware", "software"]);
 
 // State for customer support workflow
-const SupportStateSchema = z.object({  // [!code highlight]
+const SupportState = new StateSchema({  // [!code highlight]
   currentStep: SupportStepSchema.optional(),  // [!code highlight]
   warrantyStatus: WarrantyStatusSchema.optional(),
   issueType: IssueTypeSchema.optional(),
@@ -143,7 +144,7 @@ import { tool, ToolMessage, type ToolRuntime } from "langchain";
 import { Command } from "@langchain/langgraph";
 
 const recordWarrantyStatus = tool(
-  async (input, config: ToolRuntime<typeof SupportStateSchema>) => {
+  async (input, config: ToolRuntime<typeof SupportState.State>) => {
     return new Command({ // [!code highlight]
       update: { // [!code highlight]
         messages: [
@@ -168,7 +169,7 @@ const recordWarrantyStatus = tool(
 );
 
 const recordIssueType = tool(
-  async (input, config: ToolRuntime<typeof SupportStateSchema>) => {
+  async (input, config: ToolRuntime<typeof SupportState.State>) => {
     return new Command({ // [!code highlight]
       update: { // [!code highlight]
         messages: [
@@ -316,7 +317,7 @@ import { createMiddleware } from "langchain";
 
 const applyStepMiddleware = createMiddleware({
   name: "applyStep",
-  stateSchema: SupportStateSchema,
+  stateSchema: SupportState,
   wrapModelCall: async (request, handler) => {
     // Get current step (defaults to warranty_collector for first interaction)
     const currentStep = request.state.currentStep ?? "warranty_collector"; // [!code highlight]
@@ -379,7 +380,7 @@ const allTools = [
 
 // Initialize the model
 const model = new ChatOpenAI({
-  model: "gpt-5o-mini",
+  model: "gpt-4.1-mini",
   temperature: 0.7,
 });
 
@@ -387,7 +388,7 @@ const model = new ChatOpenAI({
 const agent = createAgent({
   model,
   tools: allTools,
-  stateSchema: SupportStateSchema,  // [!code highlight]
+  stateSchema: SupportState,  // [!code highlight]
   middleware: [applyStepMiddleware],  // [!code highlight]
   checkpointer: new MemorySaver(),  // [!code highlight]
 });
@@ -534,11 +535,11 @@ import { MemorySaver } from "@langchain/langgraph";
 const agent = createAgent({
   model,
   tools: allTools,
-  stateSchema: SupportStateSchema,
+  stateSchema: SupportState,
   middleware: [
     applyStepMiddleware,
     new SummarizationMiddleware({  // [!code highlight]
-      model: "gpt-4o-mini",
+      model: "gpt-4.1-mini",
       trigger: { tokens: 4000 },
       keep: { messages: 10 },
     }),
@@ -647,7 +648,7 @@ import { createMiddleware, createAgent } from "langchain";
 import { z } from "zod";
 import { v4 as uuidv4 } from "uuid";
 import { tool, ToolMessage, type ToolRuntime, HumanMessage } from "langchain";
-import { Command, MemorySaver } from "@langchain/langgraph";
+import { Command, MemorySaver, StateSchema } from "@langchain/langgraph";
 import { ChatOpenAI } from "@langchain/openai";
 
 // Define the possible workflow steps
@@ -660,15 +661,14 @@ const WarrantyStatusSchema = z.enum(["in_warranty", "out_of_warranty"]);
 const IssueTypeSchema = z.enum(["hardware", "software"]);
 
 // State for customer support workflow
-const SupportStateSchema = z.object({
-
+const SupportState = new StateSchema({
   currentStep: SupportStepSchema.optional(),
   warrantyStatus: WarrantyStatusSchema.optional(),
   issueType: IssueTypeSchema.optional(),
 });
 
 const recordWarrantyStatus = tool(
-  async (input, config: ToolRuntime<typeof SupportStateSchema>) => {
+  async (input, config: ToolRuntime<typeof SupportState.State>) => {
     return new Command({
 
       update: {
@@ -695,7 +695,7 @@ const recordWarrantyStatus = tool(
 );
 
 const recordIssueType = tool(
-  async (input, config: ToolRuntime<typeof SupportStateSchema>) => {
+  async (input, config: ToolRuntime<typeof SupportState.State>) => {
     return new Command({
 
       update: {
@@ -806,7 +806,7 @@ const STEP_CONFIG = {
 
 const applyStepMiddleware = createMiddleware({
   name: "applyStep",
-  stateSchema: SupportStateSchema,
+  stateSchema: SupportState,
   wrapModelCall: async (request, handler) => {
     // Get current step (defaults to warranty_collector for first interaction)
     const currentStep = request.state.currentStep ?? "warranty_collector";
@@ -845,7 +845,7 @@ const allTools = [
 ];
 
 const model = new ChatOpenAI({
-  model: "gpt-5-mini",
+  model: "gpt-4.1-mini",
 });
 
 // Create the agent with step-based configuration
@@ -918,10 +918,11 @@ for (const msg of result.messages) {
 
 ---
 
-<Callout icon="pen-to-square" iconType="regular">
+<div className="source-links">
+<Callout icon="edit">
     [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/multi-agent/handoffs-customer-support.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
-<Tip icon="terminal" iconType="regular">
+<Callout icon="terminal-2">
     [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
-</Tip>
-<div class='fixed right-2 bg-white bottom-2'><img src='https://kunfanyang.site/site-file/wx_code.jpg' class='border' alt='微信扫码赞赏' width='200' /></div>
+</Callout>
+</div>

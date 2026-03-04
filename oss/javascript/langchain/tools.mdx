@@ -1,22 +1,22 @@
 ---
-title: 工具
+title: Tools
 ---
 
-工具扩展了 [Agent](/oss/javascript/langchain/agents) 的能力——让它们可以获取实时数据、执行代码、查询外部数据库并在世界中采取行动。
+Tools extend what [agents](/oss/javascript/langchain/agents) can do—letting them fetch real-time data, execute code, query external databases, and take actions in the world.
 
-在底层，工具是具有明确定义的输入和输出的可调用函数，它们被传递给[聊天模型](/oss/javascript/langchain/models)。模型根据对话上下文决定何时调用工具以及提供什么输入参数。
+Under the hood, tools are callable functions with well-defined inputs and outputs that get passed to a [chat model](/oss/javascript/langchain/models). The model decides when to invoke a tool based on the conversation context, and what input arguments to provide.
 
 <Tip>
-    有关模型如何处理工具调用的详细信息，请参阅[工具调用](/oss/javascript/langchain/models#tool-calling)。
+    For details on how models handle tool calls, see [Tool calling](/oss/javascript/langchain/models#tool-calling).
 </Tip>
 
-## 创建工具
+## Create tools
 
-### 基本工具定义
+### Basic tool definition
 
 
 
-创建工具最简单的方式是从 `langchain` 包导入 `tool` 函数。你可以使用 [zod](https://zod.dev/) 来定义工具的输入模式：
+The simplest way to create a tool is by importing the `tool` function from the `langchain` package. You can use [zod](https://zod.dev/) to define the tool's input schema:
 
 ```ts
 import * as z from "zod"
@@ -37,31 +37,28 @@ const searchDatabase = tool(
 
 
 <Note>
-    **服务器端工具使用**
-
-    一些聊天模型（例如 [OpenAI](/oss/javascript/integrations/chat/openai)、[Anthropic](/oss/javascript/integrations/chat/anthropic) 和 [Gemini](/oss/javascript/integrations/chat/google_generative_ai)）具有在服务器端执行的[内置工具](/oss/javascript/langchain/models#server-side-tool-use)，如网络搜索和代码解释器。请参阅[服务商概述](/oss/javascript/integrations/providers/overview)了解如何使用特定聊天模型访问这些工具。
+    **Server-side tool use:** Some chat models feature built-in tools (web search, code interpreters) that are executed server-side. See [Server-side tool use](#server-side-tool-use) for details.
 </Note>
 
-
-
-## 访问上下文
-
-<Info>
-**为什么这很重要：**当工具可以访问 Agent 状态、运行时上下文和长期记忆时，它们是最强大的。这使工具能够做出上下文感知的决策、个性化响应并在对话之间维护信息。
+<Warning>
+    Prefer `snake_case` for tool names (e.g., `web_search` instead of `Web Search`). Some model providers have issues with or reject names containing spaces or special characters with errors. Sticking to alphanumeric characters, underscores, and hyphens helps to improve compatibility across providers.
+</Warning>
 
 
 
-运行时上下文提供了一种结构化的方式来向工具提供运行时数据，如数据库连接、用户 ID 或配置。这避免了全局状态并保持工具的可测试性和可重用性。
+## Access context
 
-</Info>
-
-
-
-#### 上下文
+Tools are most powerful when they can access runtime information like conversation history, user data, and persistent memory. This section covers how to access and update this information from within your tools.
 
 
 
-工具可以通过 `config` 参数访问 Agent 的运行时上下文：
+### Context
+
+Context provides immutable configuration data that is passed at invocation time. Use it for user IDs, session details, or application-specific settings that shouldn't change during a conversation.
+
+
+
+Tools can access an agent's runtime context through the `config` parameter:
 
 ```ts
 import * as z from "zod"
@@ -84,7 +81,7 @@ const contextSchema = z.object({
 });
 
 const agent = createAgent({
-  model: new ChatOpenAI({ model: "gpt-4o" }),
+  model: new ChatOpenAI({ model: "gpt-4.1" }),
   tools: [getUserName],
   contextSchema,
 });
@@ -100,11 +97,13 @@ const result = await agent.invoke(
 ```
 
 
-#### 记忆（Store）
+### Long-term memory (Store)
+
+The [`BaseStore`](https://reference.langchain.com/javascript/langchain-core/stores/BaseStore) provides persistent storage that survives across conversations. Unlike state (short-term memory), data saved to the store remains available in future sessions.
 
 
 
-使用 store 跨对话访问持久数据。store 通过 `config.store` 访问，允许你保存和检索用户特定或应用程序特定的数据。
+Access the store through `config.store`. The store uses a namespace/key pattern to organize data:
 
 ```ts expandable
 import * as z from "zod";
@@ -150,7 +149,7 @@ const saveUserInfo = tool(
 );
 
 const agent = createAgent({
-  model: new ChatOpenAI({ model: "gpt-4o" }),
+  model: new ChatOpenAI({ model: "gpt-4.1" }),
   tools: [getUserInfo, saveUserInfo],
   store,
 });
@@ -180,11 +179,13 @@ console.log(result);
 ```
 
 
-#### 流式写入器
+### Stream writer
+
+Stream real-time updates from tools during execution. This is useful for providing progress feedback to users during long-running operations.
 
 
 
-使用 `config.streamWriter` 在工具执行时流式传输自定义更新。这对于向用户提供有关工具正在做什么的实时反馈很有用。
+Use `config.writer` to emit custom updates:
 
 ```ts
 import * as z from "zod";
@@ -212,12 +213,117 @@ const getWeather = tool(
 );
 ```
 
+
+## ToolNode
+
+[`ToolNode`](https://reference.langchain.com/javascript/langchain-langgraph/prebuilt/ToolNode) is a prebuilt node that executes tools in LangGraph workflows. It handles parallel tool execution, error handling, and state injection automatically.
+
+<Info>
+    For custom workflows where you need fine-grained control over tool execution patterns, use [`ToolNode`](https://reference.langchain.com/javascript/langchain-langgraph/prebuilt/ToolNode) instead of @[`create_agent`]. It's the building block that powers agent tool execution.
+</Info>
+
+### Basic usage
+
+
+
+```typescript
+import { ToolNode } from "@langchain/langgraph/prebuilt";
+import { tool } from "@langchain/core/tools";
+import * as z from "zod";
+
+const search = tool(
+  ({ query }) => `Results for: ${query}`,
+  {
+    name: "search",
+    description: "Search for information.",
+    schema: z.object({ query: z.string() }),
+  }
+);
+
+const calculator = tool(
+  ({ expression }) => String(eval(expression)),
+  {
+    name: "calculator",
+    description: "Evaluate a math expression.",
+    schema: z.object({ expression: z.string() }),
+  }
+);
+
+// Create the ToolNode with your tools
+const toolNode = new ToolNode([search, calculator]);
+```
+
+
+### Error handling
+
+Configure how tool errors are handled. See the [`ToolNode`](https://reference.langchain.com/javascript/langchain-langgraph/prebuilt/ToolNode) API reference for all options.
+
+
+
+```typescript
+import { ToolNode } from "@langchain/langgraph/prebuilt";
+
+// Default behavior
+const toolNode = new ToolNode(tools);
+
+// Catch all errors
+const toolNode = new ToolNode(tools, { handleToolErrors: true });
+
+// Custom error message
+const toolNode = new ToolNode(tools, {
+  handleToolErrors: "Something went wrong, please try again."
+});
+```
+
+
+### Route with tools_condition
+
+Use @[`tools_condition`] for conditional routing based on whether the LLM made tool calls:
+
+
+
+```typescript
+import { ToolNode, toolsCondition } from "@langchain/langgraph/prebuilt";
+import { StateGraph, MessagesAnnotation } from "@langchain/langgraph";
+
+const builder = new StateGraph(MessagesAnnotation)
+  .addNode("llm", callLlm)
+  .addNode("tools", new ToolNode(tools))
+  .addEdge("__start__", "llm")
+  .addConditionalEdges("llm", toolsCondition)  // Routes to "tools" or "__end__"
+  .addEdge("tools", "llm");
+
+const graph = builder.compile();
+```
+
+
+### State injection
+
+Tools can access the current graph state through @[`ToolRuntime`]:
+
+
+
+For more details on accessing state, context, and long-term memory from tools, see [Access context](#access-context).
+
+## Prebuilt tools
+
+LangChain provides a large collection of prebuilt tools and toolkits for common tasks like web search, code interpretation, database access, and more. These ready-to-use tools can be directly integrated into your agents without writing custom code.
+
+See the [tools and toolkits](/oss/javascript/integrations/tools) integration page for a complete list of available tools organized by category.
+
+## Server-side tool use
+
+Some chat models feature built-in tools that are executed server-side by the model provider. These include capabilities like web search and code interpreters that don't require you to define or host the tool logic.
+
+Refer to the individual [chat model integration pages](/oss/javascript/integrations/providers) and the [tool calling documentation](/oss/javascript/langchain/models#server-side-tool-use) for details on enabling and using these built-in tools.
+
 ---
 
-<Callout icon="pen-to-square" iconType="regular">
+<div className="source-links">
+<Callout icon="edit">
     [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/tools.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
-<Tip icon="terminal" iconType="regular">
+<Callout icon="terminal-2">
     [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
-</Tip>
-<div class='fixed right-2 bg-white bottom-2'><img src='https://kunfanyang.site/site-file/wx_code.jpg' class='border' alt='微信扫码赞赏' width='200' /></div>
+</Callout>
+</div>

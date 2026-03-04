@@ -1,38 +1,38 @@
 ---
-title: 测试
+title: Test
 ---
 
-Agentic 应用让 LLM 自行决定下一步来解决问题。这种灵活性很强大，但模型的黑盒特性使得很难预测你对 agent 某个部分的调整会如何影响其他部分。要构建生产就绪的 agents，彻底的测试是必不可少的。
+Agentic applications let an LLM decide its own next steps to solve a problem. That flexibility is powerful, but the model's black-box nature makes it hard to predict how a tweak in one part of your agent will affect the rest. To build production-ready agents, thorough testing is essential.
 
-有几种测试 agents 的方法：
+There are a few approaches to testing your agents:
 
-- 单元测试使用内存中的 fakes 单独测试 agent 中小的、确定性的部分，以便你可以快速且确定性地断言确切行为。
+- Unit tests exercise small, deterministic pieces of your agent in isolation using in-memory fakes so you can assert exact behavior quickly and deterministically.
 
-- [集成测试](#integration-testing) 使用真实的网络调用测试 agent，以确认组件协同工作、凭据和模式对齐，以及延迟可接受。
+- [Integration tests](#integration-testing) test the agent using real network calls to confirm that components work together, credentials and schemas line up, and latency is acceptable.
 
-Agentic 应用往往更依赖于集成测试，因为它们将多个组件链接在一起，并且必须处理由于 LLMs 的非确定性特性而导致的不稳定性。
+Agentic applications tend to lean more on integration because they chain multiple components together and must deal with flakiness due to the nondeterministic nature of LLMs.
 
 
 
-## 集成测试
+## Integration testing
 
-许多 agent 行为只有在使用真实 LLM 时才会出现，例如 agent 决定调用哪个工具、如何格式化响应，或者 prompt 修改是否影响整个执行轨迹。LangChain 的 [`agentevals`](https://github.com/langchain-ai/agentevals) 包提供了专门为使用实时模型测试 agent 轨迹而设计的评估器。
+Many agent behaviors only emerge when using a real LLM, such as which tool the agent decides to call, how it formats responses, or whether a prompt modification affects the entire execution trajectory. LangChain's [`agentevals`](https://github.com/langchain-ai/agentevals) package provides evaluators specifically designed for testing agent trajectories with live models.
 
-AgentEvals 让你可以通过执行**轨迹匹配**或使用 **LLM judge** 轻松评估 agent 的轨迹（消息的确切序列，包括工具调用）：
+AgentEvals lets you easily evaluate the trajectory of your agent (the exact sequence of messages, including tool calls) by performing a **trajectory match** or by using an **LLM judge**:
 
-<Card title="轨迹匹配" icon="equals" arrow="true" href="#trajectory-match-evaluator">
-为给定输入硬编码参考轨迹，并通过逐步比较验证运行。
+<Card title="Trajectory match" icon="equal" arrow="true" href="#trajectory-match-evaluator">
+Hard-code a reference trajectory for a given input and validate the run via a step-by-step comparison.
 
-非常适合测试你知道预期行为的明确定义的工作流。当你对应该调用哪些工具以及以什么顺序有特定期望时使用。这种方法是确定性的、快速且成本效益高的，因为它不需要额外的 LLM 调用。
+Ideal for testing well-defined workflows where you know the expected behavior. Use when you have specific expectations about which tools should be called and in what order. This approach is deterministic, fast, and cost-effective since it doesn't require additional LLM calls.
 </Card>
 
-<Card title="LLM-as-judge" icon="gavel" arrow="true" href="#llm-as-judge-evaluator">
-使用 LLM 定性验证 agent 的执行轨迹。"judge" LLM 根据 prompt 规则（可以包括参考轨迹）审查 agent 的决策。
+<Card title="LLM-as-judge" icon="hammer" arrow="true" href="#llm-as-judge-evaluator">
+Use a LLM to qualitatively validate your agent's execution trajectory. The "judge" LLM reviews the agent's decisions against a prompt rubric (which can include a reference trajectory).
 
-更灵活，可以评估效率和适当性等细微方面，但需要 LLM 调用且确定性较低。当你想要评估 agent 轨迹的整体质量和合理性而不需要严格的工具调用或排序要求时使用。
+More flexible and can assess nuanced aspects like efficiency and appropriateness, but requires an LLM call and is less deterministic. Use when you want to evaluate the overall quality and reasonableness of the agent's trajectory without strict tool call or ordering requirements.
 </Card>
 
-### 安装 AgentEvals
+### Installing AgentEvals
 
 
 
@@ -41,24 +41,24 @@ npm install agentevals @langchain/core
 ```
 
 
-或者，直接克隆 [AgentEvals 仓库](https://github.com/langchain-ai/agentevals)。
+Or, clone the [AgentEvals repository](https://github.com/langchain-ai/agentevals) directly.
 
-### 轨迹匹配评估器
-
-
-AgentEvals 提供 `createTrajectoryMatchEvaluator` 函数来将你的 agent 轨迹与参考轨迹进行匹配。有四种模式可供选择：
+### Trajectory match evaluator
 
 
-| 模式 | 描述 | 用例 |
+AgentEvals offers the `createTrajectoryMatchEvaluator` function to match your agent's trajectory against a reference trajectory. There are four modes to choose from:
+
+
+| Mode | Description | Use Case |
 |------|-------------|----------|
-| `strict` | 消息和工具调用以相同顺序完全匹配 | 测试特定序列（例如，授权前的策略查找） |
-| `unordered` | 允许相同的工具调用以任意顺序 | 当顺序无关紧要时验证信息检索 |
-| `subset` | Agent 只调用参考中的工具（无额外） | 确保 agent 不超出预期范围 |
-| `superset` | Agent 至少调用参考工具（允许额外） | 验证采取了最低要求的操作 |
+| `strict` | Exact match of messages and tool calls in the same order | Testing specific sequences (e.g., policy lookup before authorization) |
+| `unordered` | Same tool calls allowed in any order | Verifying information retrieval when order doesn't matter |
+| `subset` | Agent calls only tools from reference (no extras) | Ensuring agent doesn't exceed expected scope |
+| `superset` | Agent calls at least the reference tools (extras allowed) | Verifying minimum required actions are taken |
 
-<Accordion title="严格匹配">
+<Accordion title="Strict match">
 
-`strict` 模式确保轨迹包含相同顺序的相同消息和相同工具调用，尽管它允许消息内容的差异。当你需要强制执行特定的操作序列时（例如，在授权操作之前要求策略查找），这很有用。
+The `strict` mode ensures trajectories contain identical messages in the same order with the same tool calls, though it allows for differences in message content. This is useful when you need to enforce a specific sequence of operations, such as requiring a policy lookup before authorizing an action.
 
 
 
@@ -81,7 +81,7 @@ const getWeather = tool(
 );
 
 const agent = createAgent({
-  model: "gpt-4o",
+  model: "gpt-4.1",
   tools: [getWeather]
 });
 
@@ -125,9 +125,9 @@ async function testWeatherToolCalledStrict() {
 
 </Accordion>
 
-<Accordion title="无序匹配">
+<Accordion title="Unordered match">
 
-`unordered` 模式允许相同的工具调用以任意顺序，当你想验证检索了特定信息但不关心顺序时很有用。例如，agent 可能需要检查城市的天气和事件，但顺序无关紧要。
+The `unordered` mode allows the same tool calls in any order, which is helpful when you want to verify that specific information was retrieved but don't care about the sequence. For example, an agent might need to check both weather and events for a city, but the order doesn't matter.
 
 
 
@@ -159,7 +159,7 @@ const getEvents = tool(
 );
 
 const agent = createAgent({
-  model: "gpt-4o",
+  model: "gpt-4.1",
   tools: [getWeather, getEvents]
 });
 
@@ -208,9 +208,9 @@ async function testMultipleToolsAnyOrder() {
 
 </Accordion>
 
-<Accordion title="子集和超集匹配">
+<Accordion title="Subset and superset match">
 
-`superset` 和 `subset` 模式匹配部分轨迹。`superset` 模式验证 agent 至少调用了参考轨迹中的工具，允许额外的工具调用。`subset` 模式确保 agent 没有调用参考中工具之外的任何工具。
+The `superset` and `subset` modes match partial trajectories. The `superset` mode verifies that the agent called at least the tools in the reference trajectory, allowing additional tool calls. The `subset` mode ensures the agent did not call any tools beyond those in the reference.
 
 
 
@@ -244,7 +244,7 @@ const getDetailedForecast = tool(
 );
 
 const agent = createAgent({
-  model: "gpt-4o",
+  model: "gpt-4.1",
   tools: [getWeather, getDetailedForecast]
 });
 
@@ -291,17 +291,17 @@ async function testAgentCallsRequiredToolsPlusExtra() {
 
 <Info>
 
-你还可以设置 `toolArgsMatchMode` 属性和/或 `toolArgsMatchOverrides` 来自定义评估器如何考虑实际轨迹与参考中工具调用之间的相等性。默认情况下，只有对同一工具具有相同参数的工具调用才被视为相等。访问[仓库](https://github.com/langchain-ai/agentevals?tab=readme-ov-file#tool-args-match-modes)了解更多详情。
+You can also set the `toolArgsMatchMode` property and/or `toolArgsMatchOverrides` to customize how the evaluator considers equality between tool calls in the actual trajectory vs. the reference. By default, only tool calls with the same arguments to the same tool are considered equal. Visit the [repository](https://github.com/langchain-ai/agentevals?tab=readme-ov-file#tool-args-match-modes) for more details.
 
 </Info>
 
-### LLM-as-Judge 评估器
+### LLM-as-Judge evaluator
 
 
-你还可以使用 LLM 通过 `createTrajectoryLLMAsJudge` 函数评估 agent 的执行路径。与轨迹匹配评估器不同，它不需要参考轨迹，但如果可用可以提供一个。
+You can also use an LLM to evaluate the agent's execution path with the `createTrajectoryLLMAsJudge` function. Unlike the trajectory match evaluators, it doesn't require a reference trajectory, but one can be provided if available.
 
 
-<Accordion title="无参考轨迹">
+<Accordion title="Without reference trajectory">
 
 ```ts
 import { createAgent } from "langchain"
@@ -322,7 +322,7 @@ const getWeather = tool(
 );
 
 const agent = createAgent({
-  model: "gpt-4o",
+  model: "gpt-4.1",
   tools: [getWeather]
 });
 
@@ -350,9 +350,9 @@ async function testTrajectoryQuality() {
 
 </Accordion>
 
-<Accordion title="有参考轨迹">
+<Accordion title="With reference trajectory">
 
-如果你有参考轨迹，可以向 prompt 添加额外变量并传入参考轨迹。下面，我们使用预构建的 `TRAJECTORY_ACCURACY_PROMPT_WITH_REFERENCE` prompt 并配置 `reference_outputs` 变量：
+If you have a reference trajectory, you can add an extra variable to your prompt and pass in the reference trajectory. Below, we use the prebuilt `TRAJECTORY_ACCURACY_PROMPT_WITH_REFERENCE` prompt and configure the `reference_outputs` variable:
 
 
 
@@ -374,16 +374,16 @@ const evaluation = await evaluator({
 </Accordion>
 
 <Info>
-有关 LLM 如何评估轨迹的更多配置性，请访问[仓库](https://github.com/langchain-ai/agentevals?tab=readme-ov-file#trajectory-llm-as-judge)。
+For more configurability over how the LLM evaluates the trajectory, visit the [repository](https://github.com/langchain-ai/agentevals?tab=readme-ov-file#trajectory-llm-as-judge).
 </Info>
 
 
 
-## LangSmith 集成
+## LangSmith integration
 
-为了随时间跟踪实验，你可以将评估器结果记录到 [LangSmith](https://smith.langchain.com/)，这是一个用于构建生产级 LLM 应用的平台，包括追踪、评估和实验工具。
+For tracking experiments over time, you can log evaluator results to [LangSmith](https://smith.langchain.com/), a platform for building production-grade LLM applications that includes tracing, evaluation, and experimentation tools.
 
-首先，通过设置所需的环境变量来设置 LangSmith：
+First, set up LangSmith by setting the required environment variables:
 
 ```bash
 export LANGSMITH_API_KEY="your_langsmith_api_key"
@@ -392,9 +392,9 @@ export LANGSMITH_TRACING="true"
 
 
 
-LangSmith 提供两种运行评估的主要方法：[Vitest/Jest](/langsmith/vitest-jest) 集成和 `evaluate` 函数。
+LangSmith offers two main approaches for running evaluations: [Vitest/Jest](/langsmith/vitest-jest) integration and the `evaluate` function.
 
-<Accordion title="使用 vitest/jest 集成">
+<Accordion title="Using vitest/jest integration">
 
 ```ts
 import * as ls from "langsmith/vitest";
@@ -449,7 +449,7 @@ ls.describe("trajectory accuracy", () => {
 });
 ```
 
-使用你的测试运行器运行评估：
+Run the evaluation with your test runner:
 
 ```bash
 vitest run test_trajectory.eval.ts
@@ -459,9 +459,9 @@ jest test_trajectory.eval.ts
 
 </Accordion>
 
-<Accordion title="使用 evaluate 函数">
+<Accordion title="Using the evaluate function">
 
-或者，你可以在 LangSmith 中创建数据集并使用 `evaluate` 函数：
+Alternatively, you can create a dataset in LangSmith and use the `evaluate` function:
 
 ```ts
 import { evaluate } from "langsmith/evaluation";
@@ -486,20 +486,21 @@ await evaluate(
 );
 ```
 
-结果将自动记录到 LangSmith。
+Results will be automatically logged to LangSmith.
 
 </Accordion>
 
 <Tip>
-要了解有关评估 agent 的更多信息，请参阅 [LangSmith 文档](/langsmith/vitest-jest)。
+To learn more about evaluating your agent, see the [LangSmith docs](/langsmith/vitest-jest).
 </Tip>
 
 ---
 
-<Callout icon="pen-to-square" iconType="regular">
+<div className="source-links">
+<Callout icon="edit">
     [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/test.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
-<Tip icon="terminal" iconType="regular">
+<Callout icon="terminal-2">
     [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
-</Tip>
-<div class='fixed right-2 bg-white bottom-2'><img src='https://kunfanyang.site/site-file/wx_code.jpg' class='border' alt='微信扫码赞赏' width='200' /></div>
+</Callout>
+</div>

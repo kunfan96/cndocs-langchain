@@ -2,9 +2,11 @@
 title: INVALID_CONCURRENT_GRAPH_UPDATE
 ---
 
-LangGraph [`StateGraph`](https://langchain-ai.github.io/langgraph/reference/graphs/#langgraph.graph.state.StateGraph) 从多个节点接收到对其状态的并发更新，更新的状态属性不支持此操作。
+A LangGraph [`StateGraph`](https://langchain-ai.github.io/langgraph/reference/graphs/#langgraph.graph.state.StateGraph) received concurrent updates to its state from multiple nodes to a state property that doesn't
+support it.
 
-发生这种情况的一种方式是，如果你在图中使用 [fanout](/oss/javascript/langgraph/graph-api#map-reduce-and-the-send-api) 或其他并行执行，并且你定义了如下图：
+One way this can occur is if you are using a [fanout](/oss/javascript/langgraph/graph-api#map-reduce-and-the-send-api)
+or other parallel execution in your graph and you have defined a graph like this:
 
 
 
@@ -32,12 +34,12 @@ const graph = builder.compile();
 
 
 
+If a node in the above graph returns `{ someKey: "some_string_value" }`, this will overwrite the state value for `someKey` with `"some_string_value"`.
+However, if multiple nodes in e.g. a fanout within a single step return values for `someKey`, the graph will throw this error because
+there is uncertainty around how to update the internal state.
 
-如果上述图中的节点返回 `{ someKey: "some_string_value" }`，这将用 `"some_string_value"` 覆盖 `someKey` 的状态值。
-但是，如果单个步骤中 fanout 中的多个节点返回 `someKey` 的值，图将抛出此错误，因为不确定如何更新内部状态。
 
-
-要解决此问题，你可以定义一个组合多个值的 reducer：
+To get around this, you can define a reducer that combines multiple values:
 
 
 
@@ -57,21 +59,21 @@ const State = new StateSchema({  // [!code highlight]
 ```
 
 
+This will allow you to define logic that handles the same key returned from multiple nodes executed in parallel.
 
-这将允许你定义处理从并行执行的多个节点返回的相同键的逻辑。
+## Troubleshooting
 
-## 故障排除
+The following may help resolve this error:
 
-以下可能有助于解决此错误：
-
-* 如果你的图并行执行节点，请确保你已使用 reducer 定义相关的状态键。
+* If your graph executes nodes in parallel, make sure you have defined relevant state keys with a reducer.
 
 ---
 
-<Callout icon="pen-to-square" iconType="regular">
+<div className="source-links">
+<Callout icon="edit">
     [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/errors/INVALID_CONCURRENT_GRAPH_UPDATE.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
-<Tip icon="terminal" iconType="regular">
+<Callout icon="terminal-2">
     [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
-</Tip>
-<div class='fixed right-2 bg-white bottom-2'><img src='https://kunfanyang.site/site-file/wx_code.jpg' class='border' alt='微信扫码赞赏' width='200' /></div>
+</Callout>
+</div>

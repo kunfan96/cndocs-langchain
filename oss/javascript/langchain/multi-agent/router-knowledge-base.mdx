@@ -45,8 +45,8 @@ The router pattern provides several advantages:
 We will cover the following concepts:
 
 - [Multi-agent systems](/oss/javascript/langchain/multi-agent)
-- [StateGraph](/oss/javascript/langchain/graphs) for workflow orchestration
-- [Send API](/oss/javascript/langchain/send) for parallel execution
+- [StateGraph](/oss/javascript/langgraph/graph-api) for workflow orchestration
+- [Send API](/oss/javascript/langgraph/graph-api#send) for parallel execution
 
 <Tip>
 **Router vs. Subagents**: The [subagents pattern](/oss/javascript/langchain/multi-agent/subagents) can also route to multiple agents. Use the router pattern when you need specialized preprocessing, custom routing logic, or want explicit control over parallel execution. Use the subagents pattern when you want the LLM to decide which agents to call dynamically.
@@ -113,6 +113,7 @@ First, define the state schemas. We use three types:
 
 
 ```typescript
+import { StateSchema, ReducedValue } from "@langchain/langgraph";
 import { z } from "zod/v4";
 
 const AgentOutput = z.object({
@@ -120,7 +121,7 @@ const AgentOutput = z.object({
   result: z.string(),
 });
 
-const RouterState = z.object({
+const RouterState = new StateSchema({
   query: z.string(),
   classifications: z.array(
     z.object({
@@ -128,13 +129,10 @@ const RouterState = z.object({
       query: z.string(),
     })
   ),
-  results: z
-    .array(AgentOutput)
-    .default([])
-    .meta({
-      reducer: (current: z.infer<typeof AgentOutput>[], update: z.infer<typeof AgentOutput>[]) =>
-        current.concat(update),
-    }),
+  results: new ReducedValue(
+    z.array(AgentOutput).default(() => []),
+    { reducer: (current, update) => current.concat(update) }
+  ),
   finalAnswer: z.string(),
 });
 ```
@@ -256,7 +254,7 @@ Create an agent for each vertical. Each agent has domain-specific tools and a pr
 import { createAgent } from "langchain";
 import { ChatOpenAI } from "@langchain/openai";
 
-const llm = new ChatOpenAI({ model: "gpt-4o" });
+const llm = new ChatOpenAI({ model: "gpt-4.1" });
 
 const githubAgent = createAgent({
   model: llm,
@@ -305,7 +303,7 @@ Now build the router workflow using a StateGraph. The workflow has four main ste
 import { StateGraph, START, END, Send } from "@langchain/langgraph";
 import { z } from "zod";
 
-const routerLlm = new ChatOpenAI({ model: "gpt-4o-mini" });
+const routerLlm = new ChatOpenAI({ model: "gpt-4.1-mini" });
 
 
 // Define structured output schema for the classifier
@@ -532,7 +530,7 @@ After all agents complete, the `synthesize_results` function iterates over the c
 - Combines information from all sources without redundancy
 
 <Note>
-**Partial results**: In this tutorial, all selected agents must complete before synthesis. For more advanced patterns where you want to handle partial results or timeouts, see the [map-reduce guide](/oss/javascript/langchain/map-reduce).
+**Partial results**: In this tutorial, all selected agents must complete before synthesis.
 </Note>
 
 ## 8. Complete working example
@@ -553,14 +551,14 @@ Here's everything together in a runnable script:
  */
 import { z } from "zod/v4";
 import { tool } from "langchain";
-import { StateGraph, START, END, Send } from "@langchain/langgraph";
+import { StateGraph, START, END, Send, StateSchema, ReducedValue } from "@langchain/langgraph";
 
 const AgentOutput = z.object({
   source: z.string(),
   result: z.string(),
 });
 
-const RouterState = z.object({
+const RouterState = new StateSchema({
   query: z.string(),
   classifications: z.array(
     z.object({
@@ -568,13 +566,10 @@ const RouterState = z.object({
       query: z.string(),
     })
   ),
-  results: z
-    .array(AgentOutput)
-    .default([])
-    .meta({
-      reducer: (current: z.infer<typeof AgentOutput>[], update: z.infer<typeof AgentOutput>[]) =>
-        current.concat(update),
-    }),
+  results: new ReducedValue(
+    z.array(AgentOutput).default(() => []),
+    { reducer: (current, update) => current.concat(update) }
+  ),
   finalAnswer: z.string(),
 });
 
@@ -673,7 +668,7 @@ const getThread = tool(
 import { createAgent } from "langchain";
 import { ChatOpenAI } from "@langchain/openai";
 
-const llm = new ChatOpenAI({ model: "gpt-4o" });
+const llm = new ChatOpenAI({ model: "gpt-4.1" });
 
 const githubAgent = createAgent({
   model: llm,
@@ -705,7 +700,7 @@ shared knowledge and solutions.
   `.trim(),
 });
 
-const routerLlm = new ChatOpenAI({ model: "gpt-4o-mini" });
+const routerLlm = new ChatOpenAI({ model: "gpt-4.1-mini" });
 
 // Define structured output schema for the classifier
 const ClassificationResultSchema = z.object({
@@ -720,7 +715,7 @@ const ClassificationResultSchema = z.object({
     .describe("List of agents to invoke with their targeted sub-questions"),
 });
 
-async function classifyQuery(state: z.infer<typeof RouterState>) {
+async function classifyQuery(state: typeof RouterState.State) {
   const structuredLlm = routerLlm.withStructuredOutput(
     ClassificationResultSchema
   ); // [!code highlight]
@@ -750,13 +745,13 @@ Example for "How do I authenticate API requests?":
   return { classifications: result.classifications };
 }
 
-function routeToAgents(state: z.infer<typeof RouterState>): Send[] {
+function routeToAgents(state: typeof RouterState.State): Send[] {
   return state.classifications.map(
     (c) => new Send(c.source, { query: c.query }) // [!code highlight]
   );
 }
 
-async function queryGithub(state: z.infer<typeof RouterState>) {
+async function queryGithub(state: typeof RouterState.State) {
   const result = await githubAgent.invoke({
     messages: [{ role: "user", content: state.query }], // [!code highlight]
   });
@@ -765,7 +760,7 @@ async function queryGithub(state: z.infer<typeof RouterState>) {
   };
 }
 
-async function queryNotion(state: z.infer<typeof RouterState>) {
+async function queryNotion(state: typeof RouterState.State) {
   const result = await notionAgent.invoke({
     messages: [{ role: "user", content: state.query }], // [!code highlight]
   });
@@ -774,7 +769,7 @@ async function queryNotion(state: z.infer<typeof RouterState>) {
   };
 }
 
-async function querySlack(state: z.infer<typeof RouterState>) {
+async function querySlack(state: typeof RouterState.State) {
   const result = await slackAgent.invoke({
     messages: [{ role: "user", content: state.query }], // [!code highlight]
   });
@@ -783,7 +778,7 @@ async function querySlack(state: z.infer<typeof RouterState>) {
   };
 }
 
-async function synthesizeResults(state: z.infer<typeof RouterState>) {
+async function synthesizeResults(state: typeof RouterState.State) {
   if (state.results.length === 0) {
     return { finalAnswer: "No results found from any knowledge source." };
   }
@@ -952,10 +947,11 @@ For simpler cases with dynamic tool selection, consider the [subagents pattern](
 
 ---
 
-<Callout icon="pen-to-square" iconType="regular">
+<div className="source-links">
+<Callout icon="edit">
     [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/multi-agent/router-knowledge-base.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
-<Tip icon="terminal" iconType="regular">
+<Callout icon="terminal-2">
     [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
-</Tip>
-<div class='fixed right-2 bg-white bottom-2'><img src='https://kunfanyang.site/site-file/wx_code.jpg' class='border' alt='微信扫码赞赏' width='200' /></div>
+</Callout>
+</div>
