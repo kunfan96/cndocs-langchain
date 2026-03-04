@@ -1,52 +1,52 @@
 ---
-title: "CockroachDB vector store"
-description: "Integrate with the CockroachDB vector store using LangChain Python."
+title: "CockroachDB 向量存储"
+description: "使用 LangChain Python 集成 CockroachDB 向量存储。"
 ---
 
-`AsyncCockroachDBVectorStore` is an implementation of a LangChain vector store using CockroachDB's distributed SQL database with native vector support.
+`AsyncCockroachDBVectorStore` 是基于 CockroachDB 分布式 SQL 数据库（具备原生向量支持）的 LangChain 向量存储实现。
 
-This notebook goes over how to use the `AsyncCockroachDBVectorStore` API.
+本 notebook 介绍如何使用 `AsyncCockroachDBVectorStore` API。
 
-The code lives in the integration package: [langchain-cockroachdb](https://github.com/cockroachdb/langchain-cockroachdb/).
+代码位于集成包中：[langchain-cockroachdb](https://github.com/cockroachdb/langchain-cockroachdb/)。
 
-## Overview
+## 概览
 
-CockroachDB is a distributed SQL database that provides:
+CockroachDB 是一款分布式 SQL 数据库，提供以下功能：
 
-- **Native vector support** with the `VECTOR` data type (v24.2+)
-- **Distributed C-SPANN indexes** for approximate nearest neighbor (ANN) search (v25.2+)
-- **SERIALIZABLE isolation** by default for transaction correctness
-- **Horizontal scalability** with automatic sharding and replication
-- **PostgreSQL wire-compatible** for easy adoption
+- **原生向量支持**，具备 `VECTOR` 数据类型（v24.2+）
+- **分布式 C-SPANN 索引**，用于近似最近邻（ANN）搜索（v25.2+）
+- 默认的 **SERIALIZABLE 隔离级别**，保证事务正确性
+- **水平可扩展性**，支持自动分片和复制
+- **PostgreSQL 兼容协议**，便于迁移采用
 
-### Key advantages for vector workloads
+### 向量工作负载的核心优势
 
-- **Distributed vector indexes**: C-SPANN indexes automatically shard across your cluster
-- **Multi-tenancy support**: Prefix columns in indexes for efficient tenant isolation
-- **Strong consistency**: SERIALIZABLE transactions prevent data anomalies
-- **High availability**: Automatic failover with no data loss
+- **分布式向量索引**：C-SPANN 索引自动分布在集群各节点
+- **多租户支持**：索引中的前缀列可高效隔离租户
+- **强一致性**：SERIALIZABLE 事务防止数据异常
+- **高可用性**：自动故障转移，零数据丢失
 
-## Setup
+## 设置
 
-### Install
+### 安装
 
-Install the integration library, `langchain-cockroachdb`.
+安装集成库 `langchain-cockroachdb`。
 
 ```bash
 pip install -qU langchain-cockroachdb
 ```
 
-### CockroachDB cluster
+### CockroachDB 集群
 
-You need a CockroachDB cluster with vector support (v24.2+). Choose one option:
+您需要支持向量功能的 CockroachDB 集群（v24.2+）。请选择以下方式之一：
 
-#### Option 1: CockroachDB Cloud (Recommended)
+#### 方式一：CockroachDB Cloud（推荐）
 
-1. Sign up at [cockroachlabs.cloud](https://cockroachlabs.cloud)
-2. Create a free cluster
-3. Get your connection string from the cluster details page
+1. 在 [cockroachlabs.cloud](https://cockroachlabs.cloud) 注册账号
+2. 创建免费集群
+3. 从集群详情页面获取连接字符串
 
-#### Option 2: Docker (Development)
+#### 方式二：Docker（开发环境）
 
 ```bash
 docker run -d \
@@ -57,47 +57,47 @@ docker run -d \
   start-single-node --insecure
 ```
 
-#### Option 3: Local binary
+#### 方式三：本地二进制文件
 
-Download from [cockroachlabs.com/docs/releases](https://www.cockroachlabs.com/docs/releases/)
+从 [cockroachlabs.com/docs/releases](https://www.cockroachlabs.com/docs/releases/) 下载
 
 ```bash
 cockroach start-single-node --insecure --listen-addr=localhost:26257
 ```
 
-### Set your connection values
+### 设置连接参数
 
 ```python
-# For CockroachDB Cloud
+# CockroachDB Cloud
 CONNECTION_STRING = "cockroachdb://user:password@host:26257/database?sslmode=verify-full"
 
-# For local insecure cluster
+# 本地非安全集群
 CONNECTION_STRING = "cockroachdb://root@localhost:26257/defaultdb?sslmode=disable"
 
 TABLE_NAME = "langchain_vectors"
-VECTOR_DIMENSION = 1536  # Depends on your embedding model
+VECTOR_DIMENSION = 1536  # 取决于您使用的嵌入模型
 ```
 
-## Initialization
+## 初始化
 
-### Create a connection engine
+### 创建连接引擎
 
-The `CockroachDBEngine` manages a connection pool to your cluster:
+`CockroachDBEngine` 管理到集群的连接池：
 
 ```python
 from langchain_cockroachdb import CockroachDBEngine
 
 engine = CockroachDBEngine.from_connection_string(
     url=CONNECTION_STRING,
-    pool_size=10,        # Connection pool size
-    max_overflow=20,     # Additional connections allowed
-    pool_pre_ping=True,  # Health check connections
+    pool_size=10,        # 连接池大小
+    max_overflow=20,     # 允许的额外连接数
+    pool_pre_ping=True,  # 对连接进行健康检查
 )
 ```
 
-### Initialize a table
+### 初始化表
 
-Create a table with the proper schema for vector storage:
+创建具有向量存储所需 schema 的表：
 
 ```python
 await engine.ainit_vectorstore_table(
@@ -107,20 +107,20 @@ await engine.ainit_vectorstore_table(
 ```
 
 <Tip>
-**Optional**: Specify a schema name
+**可选**：指定 schema 名称
 
 ```python
 await engine.ainit_vectorstore_table(
     table_name=TABLE_NAME,
     vector_dimension=VECTOR_DIMENSION,
-    schema="my_schema",  # Default: "public"
+    schema="my_schema",  # 默认："public"
 )
 ```
 </Tip>
 
-### Create an embedding instance
+### 创建嵌入实例
 
-Use any [LangChain embeddings model](https://python.langchain.com/docs/integrations/text_embedding/).
+使用任意 [LangChain 嵌入模型](https://python.langchain.com/docs/integrations/text_embedding/)。
 
 ```python
 from langchain_openai import OpenAIEmbeddings
@@ -128,7 +128,7 @@ from langchain_openai import OpenAIEmbeddings
 embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
 ```
 
-### Initialize the vector store
+### 初始化向量存储
 
 ```python
 from langchain_cockroachdb import AsyncCockroachDBVectorStore
@@ -140,11 +140,11 @@ vectorstore = AsyncCockroachDBVectorStore(
 )
 ```
 
-## Manage vector store
+## 管理向量存储
 
-### Add documents
+### 添加文档
 
-Add documents with metadata:
+添加带元数据的文档：
 
 ```python
 import uuid
@@ -166,9 +166,9 @@ docs = [
 ids = await vectorstore.aadd_documents(docs)
 ```
 
-### Add texts
+### 添加文本
 
-Add text directly without structuring as documents:
+直接添加文本，无需构造文档结构：
 
 ```python
 texts = ["First text", "Second text", "Third text"]
@@ -179,22 +179,22 @@ ids = await vectorstore.aadd_texts(texts, metadatas=metadatas, ids=ids)
 ```
 
 <Warning>
-**Performance note**: CockroachDB's vector indexes work best with smaller batch sizes. The default `batch_size=100` is optimized for vector inserts. Large batch inserts of VECTOR types can cause performance degradation.
+**性能说明**：CockroachDB 的向量索引在较小批次时性能最佳。默认的 `batch_size=100` 已针对向量插入进行优化。大批量插入 VECTOR 类型数据可能导致性能下降。
 </Warning>
 
-### Delete documents
+### 删除文档
 
-Delete documents by ID:
+按 ID 删除文档：
 
 ```python
 await vectorstore.adelete([ids[0], ids[1]])
 ```
 
-## Query vector store
+## 查询向量存储
 
-### Similarity search
+### 相似度搜索
 
-Search for similar documents using natural language:
+使用自然语言搜索相似文档：
 
 ```python
 query = "distributed database"
@@ -204,9 +204,9 @@ for doc in docs:
     print(f"{doc.page_content[:50]}...")
 ```
 
-### Similarity search with scores
+### 带分数的相似度搜索
 
-Get relevance scores with results:
+获取带相关性分数的结果：
 
 ```python
 docs_with_scores = await vectorstore.asimilarity_search_with_score(query, k=5)
@@ -215,47 +215,47 @@ for doc, score in docs_with_scores:
     print(f"Score: {score:.4f} - {doc.page_content[:50]}...")
 ```
 
-### Search by vector
+### 按向量搜索
 
-Search using a pre-computed embedding vector:
+使用预计算的嵌入向量进行搜索：
 
 ```python
 query_vector = await embeddings.aembed_query(query)
 docs = await vectorstore.asimilarity_search_by_vector(query_vector, k=5)
 ```
 
-### Maximum marginal relevance (MMR) search
+### 最大边际相关性（MMR）搜索
 
-Retrieve diverse results that balance relevance and diversity:
+检索在相关性和多样性之间取得平衡的多样化结果：
 
 ```python
 docs = await vectorstore.amax_marginal_relevance_search(
     query,
-    k=5,           # Number of results to return
-    fetch_k=20,    # Number of candidates to consider
-    lambda_mult=0.5,  # 0 = max diversity, 1 = max relevance
+    k=5,           # 返回的结果数量
+    fetch_k=20,    # 候选考虑数量
+    lambda_mult=0.5,  # 0 = 最大多样性，1 = 最大相关性
 )
 ```
 
-## Vector indexes
+## 向量索引
 
-Speed up similarity search with CockroachDB's C-SPANN vector indexes (requires v25.2+).
+使用 CockroachDB 的 C-SPANN 向量索引加速相似度搜索（需要 v25.2+）。
 
-### What is C-SPANN?
+### 什么是 C-SPANN？
 
-C-SPANN (CockroachDB Space Partition Approximate Nearest Neighbor) is a distributed vector index that:
+C-SPANN（CockroachDB Space Partition Approximate Nearest Neighbor，空间分区近似最近邻）是一种分布式向量索引，具备以下特点：
 
-- Automatically shards across your cluster nodes
-- Provides sub-second query performance at scale
-- Supports cosine, Euclidean (L2), and inner product distances
-- Works with prefix columns for multi-tenant architectures
+- 自动在集群节点间分片
+- 大规模场景下实现亚秒级查询性能
+- 支持余弦、欧氏（L2）和内积距离
+- 支持前缀列，适用于多租户架构
 
-### Create a vector index
+### 创建向量索引
 
 ```python
 from langchain_cockroachdb import CSPANNIndex, DistanceStrategy
 
-# Create a cosine distance index (most common)
+# 创建余弦距离索引（最常用）
 index = CSPANNIndex(
     distance_strategy=DistanceStrategy.COSINE,
     name="my_vector_index",
@@ -264,44 +264,44 @@ index = CSPANNIndex(
 await vectorstore.aapply_vector_index(index)
 ```
 
-### Distance strategies
+### 距离策略
 
-Choose the distance metric that matches your use case:
+选择与您的使用场景匹配的距离度量：
 
 ```python
-# Cosine similarity (most common for text embeddings)
+# 余弦相似度（文本嵌入最常用）
 CSPANNIndex(distance_strategy=DistanceStrategy.COSINE)
 
-# Euclidean distance (L2)
+# 欧氏距离（L2）
 CSPANNIndex(distance_strategy=DistanceStrategy.EUCLIDEAN)
 
-# Inner product (for normalized vectors)
+# 内积（适用于归一化向量）
 CSPANNIndex(distance_strategy=DistanceStrategy.INNER_PRODUCT)
 ```
 
-### Tune index parameters
+### 调整索引参数
 
-Adjust partition sizes for performance:
+调整分区大小以优化性能：
 
 ```python
 index = CSPANNIndex(
     distance_strategy=DistanceStrategy.COSINE,
-    min_partition_size=16,   # Minimum vectors per partition
-    max_partition_size=128,  # Maximum vectors per partition
+    min_partition_size=16,   # 每个分区的最小向量数
+    max_partition_size=128,  # 每个分区的最大向量数
 )
 
 await vectorstore.aapply_vector_index(index)
 ```
 
-### Query-time tuning
+### 查询时调优
 
-Adjust search parameters at query time:
+在查询时调整搜索参数：
 
 ```python
 from langchain_cockroachdb import CSPANNQueryOptions
 
-# Increase beam size for better recall (slower)
-query_options = CSPANNQueryOptions(beam_size=200)  # Default: 100
+# 增大 beam size 以提高召回率（速度变慢）
+query_options = CSPANNQueryOptions(beam_size=200)  # 默认：100
 
 docs = await vectorstore.asimilarity_search(
     query,
@@ -310,53 +310,53 @@ docs = await vectorstore.asimilarity_search(
 )
 ```
 
-### Drop an index
+### 删除索引
 
-Remove a vector index:
+删除向量索引：
 
 ```python
 index = CSPANNIndex(name="my_vector_index")
 await vectorstore.adrop_vector_index(index)
 ```
 
-## Metadata filtering
+## 元数据过滤
 
-Filter similarity searches using metadata fields.
+使用元数据字段过滤相似度搜索。
 
-### Supported operators
+### 支持的运算符
 
-| Operator | Meaning | Example |
+| 运算符 | 含义 | 示例 |
 |----------|---------|---------|
-| `$eq` | Equality | `{"category": "news"}` |
-| `$ne` | Not equal | `{"category": {"$ne": "spam"}}` |
-| `$gt` | Greater than | `{"year": {"$gt": 2020}}` |
-| `$gte` | Greater than or equal | `{"rating": {"$gte": 4.0}}` |
-| `$lt` | Less than | `{"year": {"$lt": 2023}}` |
-| `$lte` | Less than or equal | `{"rating": {"$lte": 3.0}}` |
-| `$in` | In list | `{"category": {"$in": ["news", "blog"]}}` |
-| `$nin` | Not in list | `{"source": {"$nin": ["spam", "test"]}}` |
-| `$between` | Between values | `{"year": {"$between": [2020, 2023]}}` |
-| `$like` | Pattern match | `{"source": {"$like": "wiki%"}}` |
-| `$ilike` | Case-insensitive | `{"category": {"$ilike": "%NEWS%"}}` |
-| `$and` | Logical AND | `{"$and": [{...}, {...}]}` |
-| `$or` | Logical OR | `{"$or": [{...}, {...}]}` |
+| `$eq` | 等于 | `{"category": "news"}` |
+| `$ne` | 不等于 | `{"category": {"$ne": "spam"}}` |
+| `$gt` | 大于 | `{"year": {"$gt": 2020}}` |
+| `$gte` | 大于等于 | `{"rating": {"$gte": 4.0}}` |
+| `$lt` | 小于 | `{"year": {"$lt": 2023}}` |
+| `$lte` | 小于等于 | `{"rating": {"$lte": 3.0}}` |
+| `$in` | 在列表中 | `{"category": {"$in": ["news", "blog"]}}` |
+| `$nin` | 不在列表中 | `{"source": {"$nin": ["spam", "test"]}}` |
+| `$between` | 在范围内 | `{"year": {"$between": [2020, 2023]}}` |
+| `$like` | 模式匹配 | `{"source": {"$like": "wiki%"}}` |
+| `$ilike` | 不区分大小写匹配 | `{"category": {"$ilike": "%NEWS%"}}` |
+| `$and` | 逻辑与 | `{"$and": [{...}, {...}]}` |
+| `$or` | 逻辑或 | `{"$or": [{...}, {...}]}` |
 
-### Filter examples
+### 过滤示例
 
 ```python
-# Simple equality
+# 简单等值过滤
 docs = await vectorstore.asimilarity_search(
     query,
     filter={"category": "news"},
 )
 
-# Numeric comparison
+# 数值比较
 docs = await vectorstore.asimilarity_search(
     query,
     filter={"year": {"$gte": 2020}},
 )
 
-# Complex filters
+# 复合过滤
 docs = await vectorstore.asimilarity_search(
     query,
     filter={
@@ -369,61 +369,61 @@ docs = await vectorstore.asimilarity_search(
 )
 ```
 
-## Sync interface
+## 同步接口
 
-All async methods have sync equivalents using the sync wrapper:
+所有异步方法都有对应的同步版本，通过同步封装器使用：
 
 ```python
 from langchain_cockroachdb import CockroachDBVectorStore
 
-# Create sync vectorstore
+# 创建同步向量存储
 vectorstore = CockroachDBVectorStore(
     engine=engine,
     embeddings=embeddings,
     collection_name=TABLE_NAME,
 )
 
-# Use sync methods
+# 使用同步方法
 docs = vectorstore.similarity_search(query, k=5)
 ids = vectorstore.add_documents(docs)
 vectorstore.apply_vector_index(index)
 ```
 
-## Usage for retrieval-augmented generation (RAG)
+## 用于检索增强生成（RAG）
 
-For implementing RAG with CockroachDB as your vector store, see the [LangChain RAG tutorial](/oss/python/langchain/rag). The CockroachDB vector store can be used in place of any other vector store in those patterns.
+有关以 CockroachDB 作为向量存储实现 RAG 的内容，请参阅 [LangChain RAG 教程](/oss/python/langchain/rag)。CockroachDB 向量存储可替代这些模式中的任何其他向量存储。
 
-## Clean up
+## 清理
 
 <Warning>
-**⚠️ This operation cannot be undone**
+**⚠️ 此操作不可撤销**
 </Warning>
 
-Drop the vector store table:
+删除向量存储表：
 
 ```python
 await engine.adrop_table(TABLE_NAME)
 ```
 
-## API reference
+## API 参考
 
-For detailed documentation of all features and configurations:
+有关所有功能和配置的详细文档：
 
-- [GitHub repository](https://github.com/cockroachdb/langchain-cockroachdb)
-- [PyPI package](https://pypi.org/project/langchain-cockroachdb/)
+- [GitHub 仓库](https://github.com/cockroachdb/langchain-cockroachdb)
+- [PyPI 包](https://pypi.org/project/langchain-cockroachdb/)
 
-## Additional resources
+## 其他资源
 
-- [CockroachDB Vector Indexes documentation](https://www.cockroachlabs.com/docs/stable/vector-indexes)
+- [CockroachDB 向量索引文档](https://www.cockroachlabs.com/docs/stable/vector-indexes)
 - [CockroachDB Cloud](https://cockroachlabs.cloud)
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/vectorstores/cockroachdb.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/vectorstores/cockroachdb.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    通过 MCP [将这些文档连接](/use-these-docs) 到 Claude、VSCode 等，获取实时解答。
 </Callout>
 </div>

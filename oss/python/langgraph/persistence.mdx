@@ -1,23 +1,23 @@
 ---
-title: Persistence
+title: 持久化
 ---
 
 
 
-LangGraph has a built-in persistence layer, implemented through checkpointers. When you compile a graph with a checkpointer, the checkpointer saves a `checkpoint` of the graph state at every super-step. Those checkpoints are saved to a `thread`, which can be accessed after graph execution. Because `threads` allow access to graph's state after execution, several powerful capabilities including human-in-the-loop, memory, time travel, and fault-tolerance are all possible. Below, we'll discuss each of these concepts in more detail.
+LangGraph 内置了一个持久化层，通过检查点（checkpointer）实现。当你使用检查点编译图时，检查点会在每个超步（super-step）保存图状态的 `checkpoint`。这些检查点被保存到 `thread`（线程）中，可以在图执行完成后进行访问。由于 `threads` 允许在执行后访问图的状态，因此可以实现多种强大的功能，包括人机协作（human-in-the-loop）、记忆（memory）、时间旅行（time travel）和容错（fault-tolerance）。下面，我们将更详细地讨论这些概念。
 
-![Checkpoints](/oss/images/checkpoints.jpg)
+![检查点](/oss/images/checkpoints.jpg)
 
 <Info>
-**Agent Server handles checkpointing automatically**
-When using the [Agent Server](/langsmith/agent-server), you don't need to implement or configure checkpointers manually. The server handles all persistence infrastructure for you behind the scenes.
+**Agent Server 自动处理检查点**
+当使用 [Agent Server](/langsmith/agent-server) 时，你无需手动实现或配置检查点。服务器会在后台为你处理所有持久化基础设施。
 </Info>
 
-## Threads
+## 线程
 
-A thread is a unique ID or thread identifier assigned to each checkpoint saved by a checkpointer. It contains the accumulated state of a sequence of [runs](/langsmith/assistants#execution). When a run is executed, the [state](/oss/python/langgraph/graph-api#state) of the underlying graph of the assistant will be persisted to the thread.
+线程是分配给检查点保存的每个检查点的唯一 ID 或线程标识符。它包含一系列[运行](/langsmith/assistants#execution)的累积状态。当一个运行被执行时，助手底层图的[状态](/oss/python/langgraph/graph-api#state)将被持久化到线程中。
 
-When invoking a graph with a checkpointer, you **must** specify a `thread_id` as part of the `configurable` portion of the config:
+当使用检查点调用图时，你**必须**在配置的 `configurable` 部分指定 `thread_id`：
 
 ```python
 {"configurable": {"thread_id": "1"}}
@@ -26,23 +26,23 @@ When invoking a graph with a checkpointer, you **must** specify a `thread_id` as
 
 
 
-A thread's current and historical state can be retrieved. To persist state, a thread must be created prior to executing a run. The LangSmith API provides several endpoints for creating and managing threads and thread state. See the [API reference](https://reference.langchain.com/python/langsmith/) for more details.
+线程的当前和历史状态可以被检索。要持久化状态，必须在执行运行之前创建线程。LangSmith API 提供了多个用于创建和管理线程及线程状态的端点。有关详细信息，请参见 [API 参考](https://reference.langchain.com/python/langsmith/)。
 
-The checkpointer uses `thread_id` as the primary key for storing and retrieving checkpoints. Without it, the checkpointer cannot save state or resume execution after an [interrupt](/oss/python/langgraph/interrupts), since the checkpointer uses `thread_id` to load the saved state.
+检查点使用 `thread_id` 作为存储和检索检查点的主键。没有它，检查点就无法保存状态或在[中断](/oss/python/langgraph/interrupts)后恢复执行，因为检查点使用 `thread_id` 来加载已保存的状态。
 
-## Checkpoints
+## 检查点
 
-The state of a thread at a particular point in time is called a checkpoint. Checkpoint is a snapshot of the graph state saved at each super-step and is represented by `StateSnapshot` object with the following key properties:
+线程在特定时间点的状态称为检查点。检查点是在每个超步保存的图状态快照，由 `StateSnapshot` 对象表示，具有以下关键属性：
 
-* `config`: Config associated with this checkpoint.
-* `metadata`: Metadata associated with this checkpoint.
-* `values`: Values of the state channels at this point in time.
-* `next` A tuple of the node names to execute next in the graph.
-* `tasks`: A tuple of `PregelTask` objects that contain information about next tasks to be executed. If the step was previously attempted, it will include error information. If a graph was interrupted [dynamically](/oss/python/langgraph/interrupts#pause-using-interrupt) from within a node, tasks will contain additional data associated with interrupts.
+* `config`：与此检查点关联的配置。
+* `metadata`：与此检查点关联的元数据。
+* `values`：此时间点的状态通道值。
+* `next`：图中下一个要执行的节点名称的元组。
+* `tasks`：包含下一个要执行任务信息的 `PregelTask` 对象元组。如果该步骤之前已尝试过，它将包含错误信息。如果图在节点内[动态](/oss/python/langgraph/interrupts#pause-using-interrupt)中断，tasks 将包含与中断相关的额外数据。
 
-Checkpoints are persisted and can be used to restore the state of a thread at a later time.
+检查点会被持久化，并可用于在稍后恢复线程的状态。
 
-Let's see what checkpoints are saved when a simple graph is invoked as follows:
+让我们看看当简单图如下调用时保存了哪些检查点：
 
 ```python
 from langgraph.graph import StateGraph, START, END
@@ -80,28 +80,28 @@ graph.invoke({"foo": "", "bar":[]}, config)
 
 
 
-After we run the graph, we expect to see exactly 4 checkpoints:
+运行图后，我们预期会看到恰好 4 个检查点：
 
-* Empty checkpoint with [`START`](https://reference.langchain.com/python/langgraph/constants/START) as the next node to be executed
-* Checkpoint with the user input `{'foo': '', 'bar': []}` and `node_a` as the next node to be executed
-* Checkpoint with the outputs of `node_a` `{'foo': 'a', 'bar': ['a']}` and `node_b` as the next node to be executed
-* Checkpoint with the outputs of `node_b` `{'foo': 'b', 'bar': ['a', 'b']}` and no next nodes to be executed
+* 以 [`START`](https://reference.langchain.com/python/langgraph/constants/START) 为下一个要执行节点的空检查点
+* 包含用户输入 `{'foo': '', 'bar': []}` 且 `node_a` 为下一个要执行节点的检查点
+* 包含 `node_a` 输出 `{'foo': 'a', 'bar': ['a']}` 且 `node_b` 为下一个要执行节点的检查点
+* 包含 `node_b` 输出 `{'foo': 'b', 'bar': ['a', 'b']}` 且没有下一个要执行节点的检查点
 
-Note that we `bar` channel values contain outputs from both nodes as we have a reducer for `bar` channel.
-
-
+注意，`bar` 通道值包含两个节点的输出，因为我们为 `bar` 通道定义了 reducer。
 
 
-### Get state
 
-When interacting with the saved graph state, you **must** specify a [thread identifier](#threads). You can view the _latest_ state of the graph by calling `graph.get_state(config)`. This will return a `StateSnapshot` object that corresponds to the latest checkpoint associated with the thread ID provided in the config or a checkpoint associated with a checkpoint ID for the thread, if provided.
+
+### 获取状态
+
+在与保存的图状态交互时，你**必须**指定[线程标识符](#threads)。你可以通过调用 `graph.get_state(config)` 查看图的_最新_状态。这将返回一个 `StateSnapshot` 对象，对应于配置中提供的线程 ID 的最新检查点，或者如果提供了检查点 ID，则对应于该线程的特定检查点。
 
 ```python
-# get the latest state snapshot
+# 获取最新状态快照
 config = {"configurable": {"thread_id": "1"}}
 graph.get_state(config)
 
-# get a state snapshot for a specific checkpoint_id
+# 获取特定 checkpoint_id 的状态快照
 config = {"configurable": {"thread_id": "1", "checkpoint_id": "1ef663ba-28fe-6528-8002-5a559208592c"}}
 graph.get_state(config)
 ```
@@ -109,7 +109,7 @@ graph.get_state(config)
 
 
 
-In our example, the output of `get_state` will look like this:
+在我们的示例中，`get_state` 的输出将如下所示：
 
 ```
 StateSnapshot(
@@ -125,9 +125,9 @@ StateSnapshot(
 
 
 
-### Get state history
+### 获取状态历史
 
-You can get the full history of the graph execution for a given thread by calling [`graph.get_state_history(config)`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.CompiledStateGraph.get_state_history). This will return a list of `StateSnapshot` objects associated with the thread ID provided in the config. Importantly, the checkpoints will be ordered chronologically with the most recent checkpoint / `StateSnapshot` being the first in the list.
+你可以通过调用 [`graph.get_state_history(config)`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.CompiledStateGraph.get_state_history) 获取给定线程的完整图执行历史。这将返回与配置中提供的线程 ID 关联的 `StateSnapshot` 对象列表。重要的是，检查点将按时间顺序排列，最新的检查点/`StateSnapshot` 排在列表的第一位。
 
 ```python
 config = {"configurable": {"thread_id": "1"}}
@@ -137,7 +137,7 @@ list(graph.get_state_history(config))
 
 
 
-In our example, the output of [`get_state_history`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.CompiledStateGraph.get_state_history) will look like this:
+在我们的示例中，[`get_state_history`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.CompiledStateGraph.get_state_history) 的输出将如下所示：
 
 ```
 [
@@ -183,16 +183,16 @@ In our example, the output of [`get_state_history`](https://reference.langchain.
 
 
 
-![State](/oss/images/get_state.jpg)
+![状态](/oss/images/get_state.jpg)
 
-### Replay
+### 重放
 
-It's also possible to play-back a prior graph execution. If we `invoke` a graph with a `thread_id` and a `checkpoint_id`, then we will _re-play_ the previously executed steps _before_ a checkpoint that corresponds to the `checkpoint_id`, and only execute the steps _after_ the checkpoint.
+也可以回放之前的图执行。如果我们使用 `thread_id` 和 `checkpoint_id` 调用图，那么我们将_重放_对应 `checkpoint_id` 检查点_之前_已执行的步骤，并且只执行检查点_之后_的步骤。
 
-* `thread_id` is the ID of a thread.
-* `checkpoint_id` is an identifier that refers to a specific checkpoint within a thread.
+* `thread_id` 是线程的 ID。
+* `checkpoint_id` 是引用线程中特定检查点的标识符。
 
-You must pass these when invoking the graph as part of the `configurable` portion of the config:
+在调用图时，你必须将这些作为配置的 `configurable` 部分传入：
 
 ```python
 config = {"configurable": {"thread_id": "1", "checkpoint_id": "0c62ca34-ac19-445d-bbb0-5b4984975b2a"}}
@@ -202,26 +202,26 @@ graph.invoke(None, config=config)
 
 
 
-Importantly, LangGraph knows whether a particular step has been executed previously. If it has, LangGraph simply _re-plays_ that particular step in the graph and does not re-execute the step, but only for the steps _before_ the provided `checkpoint_id`. All of the steps _after_ `checkpoint_id` will be executed (i.e., a new fork), even if they have been executed previously. See this [how to guide on time-travel to learn more about replaying](/oss/python/langgraph/use-time-travel).
+重要的是，LangGraph 知道某个特定步骤之前是否已经执行过。如果已经执行过，LangGraph 只是_重放_图中的那个特定步骤，不会重新执行该步骤，但只对提供的 `checkpoint_id` _之前_的步骤执行此操作。`checkpoint_id` _之后_的所有步骤都将被执行（即创建新的分支），即使它们之前已经执行过。请参见[时间旅行使用指南以了解更多关于重放的信息](/oss/python/langgraph/use-time-travel)。
 
-![Replay](/oss/images/re_play.png)
+![重放](/oss/images/re_play.png)
 
-### Update state
+### 更新状态
 
-In addition to re-playing the graph from specific `checkpoints`, we can also _edit_ the graph state. We do this using [`update_state`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.CompiledStateGraph.update_state). This method accepts three different arguments:
+除了从特定 `checkpoints` 重放图之外，我们还可以_编辑_图状态。我们使用 [`update_state`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.CompiledStateGraph.update_state) 来实现这一点。此方法接受三个不同的参数：
 
 
 
 
 #### `config`
 
-The config should contain `thread_id` specifying which thread to update. When only the `thread_id` is passed, we update (or fork) the current state. Optionally, if we include `checkpoint_id` field, then we fork that selected checkpoint.
+config 应包含指定要更新哪个线程的 `thread_id`。当仅传入 `thread_id` 时，我们更新（或分叉）当前状态。可选地，如果我们包含 `checkpoint_id` 字段，则我们分叉所选的检查点。
 
 #### `values`
 
-These are the values that will be used to update the state. Note that this update is treated exactly as any update from a node is treated. This means that these values will be passed to the [reducer](/oss/python/langgraph/graph-api#reducers) functions, if they are defined for some of the channels in the graph state. This means that [`update_state`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.CompiledStateGraph.update_state) does NOT automatically overwrite the channel values for every channel, but only for the channels without reducers. Let's walk through an example.
+这些是将用于更新状态的值。请注意，此更新与来自节点的任何更新完全相同。这意味着这些值将传递给[reducer](/oss/python/langgraph/graph-api#reducers) 函数（如果为图状态中的某些通道定义了 reducer）。这意味着 [`update_state`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.CompiledStateGraph.update_state) 不会自动覆盖每个通道的值，而只覆盖没有 reducer 的通道。让我们来看一个例子。
 
-Let's assume you have defined the state of your graph with the following schema (see full example above):
+假设你已用以下 schema 定义了图的状态（见上面的完整示例）：
 
 ```python
 from typing import Annotated
@@ -236,7 +236,7 @@ class State(TypedDict):
 
 
 
-Let's now assume the current state of the graph is
+现在假设图的当前状态为
 
 ```
 {"foo": 1, "bar": ["a"]}
@@ -245,7 +245,7 @@ Let's now assume the current state of the graph is
 
 
 
-If you update the state as below:
+如果你如下更新状态：
 
 ```python
 graph.update_state(config, {"foo": 2, "bar": ["b"]})
@@ -254,48 +254,48 @@ graph.update_state(config, {"foo": 2, "bar": ["b"]})
 
 
 
-Then the new state of the graph will be:
+那么图的新状态将是：
 
 ```
 {"foo": 2, "bar": ["a", "b"]}
 ```
 
-The `foo` key (channel) is completely changed (because there is no reducer specified for that channel, so [`update_state`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.CompiledStateGraph.update_state) overwrites it). However, there is a reducer specified for the `bar` key, and so it appends `"b"` to the state of `bar`.
+`foo` 键（通道）被完全替换（因为该通道没有指定 reducer，所以 [`update_state`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.CompiledStateGraph.update_state) 会覆盖它）。但是，`bar` 键指定了一个 reducer，因此它会将 `"b"` 追加到 `bar` 的状态中。
 
 
 
 
 #### `as_node`
 
-The final thing you can optionally specify when calling [`update_state`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.CompiledStateGraph.update_state) is `as_node`. If you provided it, the update will be applied as if it came from node `as_node`. If `as_node` is not provided, it will be set to the last node that updated the state, if not ambiguous. The reason this matters is that the next steps to execute depend on the last node to have given an update, so this can be used to control which node executes next. See this [how to guide on time-travel to learn more about forking state](/oss/python/langgraph/use-time-travel).
+在调用 [`update_state`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.CompiledStateGraph.update_state) 时，你可以选择指定的最后一个参数是 `as_node`。如果你提供了它，更新将被应用，就像它来自节点 `as_node` 一样。如果未提供 `as_node`，它将被设置为最后一个更新状态的节点（如果不存在歧义）。这很重要，因为下一个要执行的步骤取决于最后一个给出更新的节点，所以这可以用来控制接下来执行哪个节点。请参见[时间旅行使用指南以了解更多关于分叉状态的信息](/oss/python/langgraph/use-time-travel)。
 
 
 
 
-![Update](/oss/images/checkpoints_full_story.jpg)
+![更新](/oss/images/checkpoints_full_story.jpg)
 
-## Memory store
+## 内存存储
 
-![Model of shared state](/oss/images/shared_state.png)
+![共享状态模型](/oss/images/shared_state.png)
 
-A [state schema](/oss/python/langgraph/graph-api#schema) specifies a set of keys that are populated as a graph is executed. As discussed above, state can be written by a checkpointer to a thread at each graph step, enabling state persistence.
+[状态 schema](/oss/python/langgraph/graph-api#schema) 指定了一组在图执行时填充的键。如上所述，状态可以由检查点在每个图步骤写入线程，从而实现状态持久化。
 
-But, what if we want to retain some information _across threads_? Consider the case of a chatbot where we want to retain specific information about the user across _all_ chat conversations (e.g., threads) with that user!
+但是，如果我们想在_跨线程_保留某些信息怎么办？考虑这样一个聊天机器人的案例，我们希望在与该用户的_所有_聊天对话（例如线程）中保留有关用户的特定信息！
 
-With checkpointers alone, we cannot share information across threads. This motivates the need for the [`Store`](https://reference.langchain.com/python/langgraph/store/) interface. As an illustration, we can define an `InMemoryStore` to store information about a user across threads. We simply compile our graph with a checkpointer, as before, and pass the store.
+仅使用检查点，我们无法跨线程共享信息。这就引出了对 [`Store`](https://reference.langchain.com/python/langgraph/store/) 接口的需求。作为说明，我们可以定义一个 `InMemoryStore` 来跨线程存储用户信息。我们只需像以前一样使用检查点编译图，并传入 store。
 
 <Info>
-**LangGraph API handles stores automatically**
-When using the LangGraph API, you don't need to implement or configure stores manually. The API handles all storage infrastructure for you behind the scenes.
+**LangGraph API 自动处理存储**
+当使用 LangGraph API 时，你无需手动实现或配置 store。API 会在后台为你处理所有存储基础设施。
 </Info>
 
 <Note>
-[InMemoryStore](https://reference.langchain.com/python/langchain-core/stores/InMemoryStore) is suitable for development and testing. For production, use a persistent store like `PostgresStore` or `RedisStore`. All implementations extend [BaseStore](https://reference.langchain.com/python/langchain-core/stores/BaseStore), which is the type annotation to use in node function signatures.
+[InMemoryStore](https://reference.langchain.com/python/langchain-core/stores/InMemoryStore) 适用于开发和测试。对于生产环境，请使用持久化存储，如 `PostgresStore` 或 `RedisStore`。所有实现都扩展了 [BaseStore](https://reference.langchain.com/python/langchain-core/stores/BaseStore)，这是在节点函数签名中使用的类型注解。
 </Note>
 
-### Basic usage
+### 基本用法
 
-First, let's showcase this in isolation without using LangGraph.
+首先，让我们在不使用 LangGraph 的情况下单独演示这一点。
 
 ```python
 from langgraph.store.memory import InMemoryStore
@@ -305,7 +305,7 @@ store = InMemoryStore()
 
 
 
-Memories are namespaced by a `tuple`, which in this specific example will be `(<user_id>, "memories")`. The namespace can be any length and represent anything, does not have to be user specific.
+记忆（memories）通过 `tuple` 命名空间化，在此特定示例中将是 `(<user_id>, "memories")`。命名空间可以是任意长度，表示任何内容，不必是特定于用户的。
 
 ```python
 user_id = "1"
@@ -315,7 +315,7 @@ namespace_for_memory = (user_id, "memories")
 
 
 
-We use the `store.put` method to save memories to our namespace in the store. When we do this, we specify the namespace, as defined above, and a key-value pair for the memory: the key is simply a unique identifier for the memory (`memory_id`) and the value (a dictionary) is the memory itself.
+我们使用 `store.put` 方法将记忆保存到存储中的命名空间。执行此操作时，我们指定如上定义的命名空间，以及记忆的键值对：键只是记忆的唯一标识符（`memory_id`），值（字典）是记忆本身。
 
 ```python
 memory_id = str(uuid.uuid4())
@@ -326,7 +326,7 @@ store.put(namespace_for_memory, memory_id, memory)
 
 
 
-We can read out memories in our namespace using the `store.search` method, which will return all memories for a given user as a list. The most recent memory is the last in the list.
+我们可以使用 `store.search` 方法读取命名空间中的记忆，该方法将以列表形式返回给定用户的所有记忆。最新的记忆是列表中的最后一个。
 
 ```python
 memories = store.search(namespace_for_memory)
@@ -338,28 +338,28 @@ memories[-1].dict()
  'updated_at': '2024-10-02T17:22:31.590605+00:00'}
 ```
 
-Each memory type is a Python class ([`Item`](https://langchain-ai.github.io/langgraph/reference/store/#langgraph.store.base.Item)) with certain attributes. We can access it as a dictionary by converting via `.dict` as above.
+每种记忆类型都是一个 Python 类（[`Item`](https://langchain-ai.github.io/langgraph/reference/store/#langgraph.store.base.Item)），具有特定属性。我们可以通过如上所示的 `.dict` 转换将其作为字典访问。
 
-The attributes it has are:
+它具有的属性有：
 
-* `value`: The value (itself a dictionary) of this memory
-* `key`: A unique key for this memory in this namespace
-* `namespace`: A tuple of strings, the namespace of this memory type
+* `value`：此记忆的值（本身是一个字典）
+* `key`：此命名空间中此记忆的唯一键
+* `namespace`：字符串元组，此记忆类型的命名空间
 
     <Note>
-    While the type is `tuple[str, ...]`, it may be serialized as a list when converted to JSON (for example, `['1', 'memories']`).
+    虽然类型是 `tuple[str, ...]`，但在转换为 JSON 时可能会被序列化为列表（例如，`['1', 'memories']`）。
     </Note>
 
-* `created_at`: Timestamp for when this memory was created
-* `updated_at`: Timestamp for when this memory was updated
+* `created_at`：此记忆创建时的时间戳
+* `updated_at`：此记忆更新时的时间戳
 
 
 
 
 
-### Semantic search
+### 语义搜索
 
-Beyond simple retrieval, the store also supports semantic search, allowing you to find memories based on meaning rather than exact matches. To enable this, configure the store with an embedding model:
+除了简单检索之外，store 还支持语义搜索，允许你根据含义而不是精确匹配来查找记忆。要启用此功能，请使用嵌入模型配置 store：
 
 ```python
 from langchain.embeddings import init_embeddings
@@ -376,11 +376,11 @@ store = InMemoryStore(
 
 
 
-Now when searching, you can use natural language queries to find relevant memories:
+现在在搜索时，你可以使用自然语言查询来查找相关记忆：
 
 ```python
-# Find memories about food preferences
-# (This can be done after putting memories into the store)
+# 查找关于食物偏好的记忆
+# （可以在将记忆放入存储后执行此操作）
 memories = store.search(
     namespace_for_memory,
     query="What does the user like to eat?",
@@ -391,10 +391,10 @@ memories = store.search(
 
 
 
-You can control which parts of your memories get embedded by configuring the `fields` parameter or by specifying the `index` parameter when storing memories:
+你可以通过配置 `fields` 参数或在存储记忆时指定 `index` 参数来控制哪些记忆部分会被嵌入：
 
 ```python
-# Store with specific fields to embed
+# 存储时指定要嵌入的字段
 store.put(
     namespace_for_memory,
     str(uuid.uuid4()),
@@ -405,7 +405,7 @@ store.put(
     index=["food_preference"]  # Only embed "food_preferences" field
 )
 
-# Store without embedding (still retrievable, but not searchable)
+# 不嵌入存储（仍可检索，但不可搜索）
 store.put(
     namespace_for_memory,
     str(uuid.uuid4()),
@@ -417,9 +417,9 @@ store.put(
 
 
 
-### Using in LangGraph
+### 在 LangGraph 中使用
 
-With this all in place, we use the store in LangGraph. The store works hand-in-hand with the checkpointer: the checkpointer saves state to threads, as discussed above, and the store allows us to store arbitrary information for access _across_ threads. We compile the graph with both the checkpointer and the store as follows.
+有了这些，我们在 LangGraph 中使用 store。store 与检查点协同工作：检查点将状态保存到线程（如上所述），store 允许我们存储任意信息以供_跨_线程访问。我们如下同时使用检查点和 store 编译图。
 
 ```python
 from dataclasses import dataclass
@@ -429,27 +429,27 @@ from langgraph.checkpoint.memory import InMemorySaver
 class Context:
     user_id: str
 
-# We need this because we want to enable threads (conversations)
+# 我们需要这个，因为我们想要启用线程（对话）
 checkpointer = InMemorySaver()
 
-# ... Define the graph ...
+# ... 定义图 ...
 
-# Compile the graph with the checkpointer and store
+# 使用检查点和 store 编译图
 builder = StateGraph(MessagesState, context_schema=Context)
-# ... add nodes and edges ...
+# ... 添加节点和边 ...
 graph = builder.compile(checkpointer=checkpointer, store=store)
 ```
 
 
 
 
-We invoke the graph with a `thread_id`, as before, and also with a `user_id`, which we'll use to namespace our memories to this particular user as we showed above.
+我们像以前一样使用 `thread_id` 调用图，还使用 `user_id`，我们将用它来为此特定用户的记忆命名空间，如上所示。
 
 ```python
-# Invoke the graph
+# 调用图
 config = {"configurable": {"thread_id": "1"}}
 
-# First let's just say hi to the AI
+# 首先让我们向 AI 打个招呼
 for update in graph.stream(
     {"messages": [{"role": "user", "content": "hi"}]},
     config,
@@ -462,7 +462,7 @@ for update in graph.stream(
 
 
 
-You can access the store and the `user_id` in _any node_ by using the `Runtime` object. The `Runtime` is automatically injected by LangGraph when you add it as a parameter to your node function. Here's how you might use it to save memories:
+你可以通过使用 `Runtime` 对象在_任何节点_中访问 store 和 `user_id`。当你将其作为参数添加到节点函数时，LangGraph 会自动注入 `Runtime`。以下是如何使用它来保存记忆：
 
 ```python
 from langgraph.runtime import Runtime
@@ -474,18 +474,18 @@ class Context:
 
 async def update_memory(state: MessagesState, runtime: Runtime[Context]):
 
-    # Get the user id from the runtime context
+    # 从运行时上下文获取用户 id
     user_id = runtime.context.user_id
 
-    # Namespace the memory
+    # 对记忆命名空间化
     namespace = (user_id, "memories")
 
-    # ... Analyze conversation and create a new memory
+    # ... 分析对话并创建新记忆
 
-    # Create a new memory ID
+    # 创建新的记忆 ID
     memory_id = str(uuid.uuid4())
 
-    # We create a new memory
+    # 我们创建一条新记忆
     await runtime.store.aput(namespace, memory_id, {"memory": memory})
 
 ```
@@ -495,7 +495,7 @@ async def update_memory(state: MessagesState, runtime: Runtime[Context]):
 
 
 
-As we showed above, we can also access the store in any node and use the `store.search` method to get memories. Recall the memories are returned as a list of objects that can be converted to a dictionary.
+如上所示，我们还可以在任何节点中访问 store 并使用 `store.search` 方法获取记忆。回想一下，记忆以可以转换为字典的对象列表形式返回。
 
 ```python
 memories[-1].dict()
@@ -509,7 +509,7 @@ memories[-1].dict()
 
 
 
-We can access the memories and use them in our model call.
+我们可以访问记忆并在模型调用中使用它们。
 
 ```python
 from dataclasses import dataclass
@@ -520,13 +520,13 @@ class Context:
     user_id: str
 
 async def call_model(state: MessagesState, runtime: Runtime[Context]):
-    # Get the user id from the runtime context
+    # 从运行时上下文获取用户 id
     user_id = runtime.context.user_id
 
-    # Namespace the memory
+    # 对记忆命名空间化
     namespace = (user_id, "memories")
 
-    # Search based on the most recent message
+    # 基于最新消息进行搜索
     memories = await runtime.store.asearch(
         namespace,
         query=state["messages"][-1].content,
@@ -534,19 +534,19 @@ async def call_model(state: MessagesState, runtime: Runtime[Context]):
     )
     info = "\n".join([d.value["memory"] for d in memories])
 
-    # ... Use memories in the model call
+    # ... 在模型调用中使用记忆
 ```
 
 
 
 
-If we create a new thread, we can still access the same memories so long as the `user_id` is the same.
+如果我们创建一个新线程，只要 `user_id` 相同，我们仍然可以访问相同的记忆。
 
 ```python
-# Invoke the graph on a new thread
+# 在新线程上调用图
 config = {"configurable": {"thread_id": "2"}}
 
-# Let's say hi again
+# 再次打招呼
 for update in graph.stream(
     {"messages": [{"role": "user", "content": "hi, tell me about my memories"}]},
     config,
@@ -559,7 +559,7 @@ for update in graph.stream(
 
 
 
-When we use the LangSmith, either locally (e.g., in [Studio](/langsmith/studio)) or [hosted with LangSmith](/langsmith/platform-setup), the base store is available to use by default and does not need to be specified during graph compilation. To enable semantic search, however, you **do** need to configure the indexing settings in your `langgraph.json` file. For example:
+当我们使用 LangSmith 时，无论是本地（例如在 [Studio](/langsmith/studio) 中）还是[通过 LangSmith 托管](/langsmith/platform-setup)，基础 store 默认可用，在图编译期间无需指定。但是，要启用语义搜索，你**确实**需要在 `langgraph.json` 文件中配置索引设置。例如：
 
 ```json
 {
@@ -574,50 +574,50 @@ When we use the LangSmith, either locally (e.g., in [Studio](/langsmith/studio))
 }
 ```
 
-See the [deployment guide](/langsmith/semantic-search) for more details and configuration options.
+有关更多详细信息和配置选项，请参见[部署指南](/langsmith/semantic-search)。
 
-## Checkpointer libraries
+## 检查点库
 
-Under the hood, checkpointing is powered by checkpointer objects that conform to [`BaseCheckpointSaver`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.base.BaseCheckpointSaver) interface. LangGraph provides several checkpointer implementations, all implemented via standalone, installable libraries:
+在底层，检查点由符合 [`BaseCheckpointSaver`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.base.BaseCheckpointSaver) 接口的检查点对象提供支持。LangGraph 提供了多种检查点实现，均通过独立的可安装库实现：
 
-* `langgraph-checkpoint`: The base interface for checkpointer savers ([`BaseCheckpointSaver`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.base.BaseCheckpointSaver)) and serialization/deserialization interface ([`SerializerProtocol`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.serde.base.SerializerProtocol)). Includes in-memory checkpointer implementation ([`InMemorySaver`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.memory.InMemorySaver)) for experimentation. LangGraph comes with `langgraph-checkpoint` included.
-* `langgraph-checkpoint-sqlite`: An implementation of LangGraph checkpointer that uses SQLite database ([`SqliteSaver`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.sqlite.SqliteSaver) / [`AsyncSqliteSaver`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.sqlite.aio.AsyncSqliteSaver)). Ideal for experimentation and local workflows. Needs to be installed separately.
-* `langgraph-checkpoint-postgres`: An advanced checkpointer that uses Postgres database ([`PostgresSaver`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.postgres.PostgresSaver) / [`AsyncPostgresSaver`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.postgres.aio.AsyncPostgresSaver)), used in LangSmith. Ideal for using in production. Needs to be installed separately.
-* `langgraph-checkpoint-cosmosdb`: An implementation of LangGraph checkpointer that uses Azure Cosmos DB (@[`CosmosDBSaver`] / @[`AsyncCosmosDBSaver`]). Ideal for using in production with Azure. Supports both sync and async operations. Needs to be installed separately.
-
-
+* `langgraph-checkpoint`：检查点保存器的基础接口（[`BaseCheckpointSaver`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.base.BaseCheckpointSaver)）和序列化/反序列化接口（[`SerializerProtocol`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.serde.base.SerializerProtocol)）。包含用于实验的内存检查点实现（[`InMemorySaver`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.memory.InMemorySaver)）。LangGraph 自带 `langgraph-checkpoint`。
+* `langgraph-checkpoint-sqlite`：使用 SQLite 数据库的 LangGraph 检查点实现（[`SqliteSaver`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.sqlite.SqliteSaver) / [`AsyncSqliteSaver`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.sqlite.aio.AsyncSqliteSaver)）。适用于实验和本地工作流。需要单独安装。
+* `langgraph-checkpoint-postgres`：使用 Postgres 数据库的高级检查点（[`PostgresSaver`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.postgres.PostgresSaver) / [`AsyncPostgresSaver`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.postgres.aio.AsyncPostgresSaver)），用于 LangSmith。适用于生产环境。需要单独安装。
+* `langgraph-checkpoint-cosmosdb`：使用 Azure Cosmos DB 的 LangGraph 检查点实现（@[`CosmosDBSaver`] / @[`AsyncCosmosDBSaver`]）。适用于在 Azure 中的生产环境。支持同步和异步操作。需要单独安装。
 
 
-### Checkpointer interface
 
-Each checkpointer conforms to [`BaseCheckpointSaver`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.base.BaseCheckpointSaver) interface and implements the following methods:
 
-* `.put` - Store a checkpoint with its configuration and metadata.
-* `.put_writes` - Store intermediate writes linked to a checkpoint (i.e. [pending writes](#pending-writes)).
-* `.get_tuple` - Fetch a checkpoint tuple using for a given configuration (`thread_id` and `checkpoint_id`). This is used to populate `StateSnapshot` in `graph.get_state()`.
-* `.list` - List checkpoints that match a given configuration and filter criteria. This is used to populate state history in `graph.get_state_history()`
+### 检查点接口
 
-If the checkpointer is used with asynchronous graph execution (i.e. executing the graph via `.ainvoke`, `.astream`, `.abatch`), asynchronous versions of the above methods will be used (`.aput`, `.aput_writes`, `.aget_tuple`, `.alist`).
+每个检查点都符合 [`BaseCheckpointSaver`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.base.BaseCheckpointSaver) 接口并实现以下方法：
+
+* `.put` - 存储带有配置和元数据的检查点。
+* `.put_writes` - 存储链接到检查点的中间写入（即[待处理写入](#pending-writes)）。
+* `.get_tuple` - 使用给定配置（`thread_id` 和 `checkpoint_id`）获取检查点元组。用于在 `graph.get_state()` 中填充 `StateSnapshot`。
+* `.list` - 列出符合给定配置和过滤条件的检查点。用于在 `graph.get_state_history()` 中填充状态历史。
+
+如果检查点与异步图执行一起使用（即通过 `.ainvoke`、`.astream`、`.abatch` 执行图），将使用上述方法的异步版本（`.aput`、`.aput_writes`、`.aget_tuple`、`.alist`）。
 
 <Note>
-For running your graph asynchronously, you can use [`InMemorySaver`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.memory.InMemorySaver), or async versions of Sqlite/Postgres checkpointers -- [`AsyncSqliteSaver`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.sqlite.aio.AsyncSqliteSaver) / [`AsyncPostgresSaver`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.postgres.aio.AsyncPostgresSaver) checkpointers.
+对于异步运行图，你可以使用 [`InMemorySaver`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.memory.InMemorySaver)，或 Sqlite/Postgres 检查点的异步版本——[`AsyncSqliteSaver`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.sqlite.aio.AsyncSqliteSaver) / [`AsyncPostgresSaver`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.postgres.aio.AsyncPostgresSaver) 检查点。
 </Note>
 
 
 
 
-### Serializer
+### 序列化器
 
-When checkpointers save the graph state, they need to serialize the channel values in the state. This is done using serializer objects.
+当检查点保存图状态时，需要序列化状态中的通道值。这通过序列化器对象完成。
 
-`langgraph_checkpoint` defines [protocol](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.serde.base.SerializerProtocol) for implementing serializers provides a default implementation ([`JsonPlusSerializer`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.serde.jsonplus.JsonPlusSerializer)) that handles a wide variety of types, including LangChain and LangGraph primitives, datetimes, enums and more.
+`langgraph_checkpoint` 定义了用于实现序列化器的[协议](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.serde.base.SerializerProtocol)，并提供了一个默认实现（[`JsonPlusSerializer`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.serde.jsonplus.JsonPlusSerializer)），它可以处理各种类型，包括 LangChain 和 LangGraph 原语、日期时间、枚举等。
 
-#### Serialization with `pickle`
+#### 使用 `pickle` 进行序列化
 
-The default serializer, [`JsonPlusSerializer`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.serde.jsonplus.JsonPlusSerializer), uses ormsgpack and JSON under the hood, which is not suitable for all types of objects.
+默认序列化器 [`JsonPlusSerializer`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.serde.jsonplus.JsonPlusSerializer) 底层使用 ormsgpack 和 JSON，不适用于所有类型的对象。
 
-If you want to fallback to pickle for objects not currently supported by our msgpack encoder (such as Pandas dataframes),
-you can use the `pickle_fallback` argument of the [`JsonPlusSerializer`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.serde.jsonplus.JsonPlusSerializer):
+如果你想对当前不受我们的 msgpack 编码器支持的对象（如 Pandas dataframes）回退到 pickle，
+可以使用 [`JsonPlusSerializer`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.serde.jsonplus.JsonPlusSerializer) 的 `pickle_fallback` 参数：
 
 ```python
 from langgraph.checkpoint.memory import InMemorySaver
@@ -629,9 +629,9 @@ graph.compile(
 )
 ```
 
-#### Encryption
+#### 加密
 
-Checkpointers can optionally encrypt all persisted state. To enable this, pass an instance of [`EncryptedSerializer`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.serde.encrypted.EncryptedSerializer) to the `serde` argument of any [`BaseCheckpointSaver`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.base.BaseCheckpointSaver) implementation. The easiest way to create an encrypted serializer is via [`from_pycryptodome_aes`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.serde.encrypted.EncryptedSerializer.from_pycryptodome_aes), which reads the AES key from the `LANGGRAPH_AES_KEY` environment variable (or accepts a `key` argument):
+检查点可以选择加密所有持久化状态。要启用此功能，请将 [`EncryptedSerializer`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.serde.encrypted.EncryptedSerializer) 的实例传递给任何 [`BaseCheckpointSaver`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.base.BaseCheckpointSaver) 实现的 `serde` 参数。创建加密序列化器最简单的方法是通过 [`from_pycryptodome_aes`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.serde.encrypted.EncryptedSerializer.from_pycryptodome_aes)，它从 `LANGGRAPH_AES_KEY` 环境变量读取 AES 密钥（或接受 `key` 参数）：
 
 ```python
 import sqlite3
@@ -652,38 +652,38 @@ checkpointer = PostgresSaver.from_conn_string("postgresql://...", serde=serde)
 checkpointer.setup()
 ```
 
-When running on LangSmith, encryption is automatically enabled whenever `LANGGRAPH_AES_KEY` is present, so you only need to provide the environment variable. Other encryption schemes can be used by implementing [`CipherProtocol`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.serde.base.CipherProtocol) and supplying it to [`EncryptedSerializer`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.serde.encrypted.EncryptedSerializer).
+在 LangSmith 上运行时，只要存在 `LANGGRAPH_AES_KEY`，加密就会自动启用，因此你只需提供环境变量。其他加密方案可以通过实现 [`CipherProtocol`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.serde.base.CipherProtocol) 并将其提供给 [`EncryptedSerializer`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.serde.encrypted.EncryptedSerializer) 来使用。
 
 
-## Capabilities
+## 功能
 
-### Human-in-the-loop
+### 人机协作
 
-First, checkpointers facilitate [human-in-the-loop workflows](/oss/python/langgraph/interrupts) by allowing humans to inspect, interrupt, and approve graph steps. Checkpointers are needed for these workflows as the human has to be able to view the state of a graph at any point in time, and the graph has to be to resume execution after the human has made any updates to the state. See [the how-to guides](/oss/python/langgraph/interrupts) for examples.
+首先，检查点通过允许人工检查、中断和批准图步骤来促进[人机协作工作流](/oss/python/langgraph/interrupts)。这些工作流需要检查点，因为人工需要能够在任何时间点查看图的状态，并且在人工对状态进行任何更新后，图必须能够恢复执行。参见[使用指南](/oss/python/langgraph/interrupts)获取示例。
 
-### Memory
+### 记忆
 
-Second, checkpointers allow for ["memory"](/oss/python/concepts/memory) between interactions. In the case of repeated human interactions (like conversations) any follow up messages can be sent to that thread, which will retain its memory of previous ones. See [Add memory](/oss/python/langgraph/add-memory) for information on how to add and manage conversation memory using checkpointers.
+其次，检查点允许在交互之间实现["记忆"](/oss/python/concepts/memory)。在反复的人机交互（如对话）的情况下，任何后续消息都可以发送到该线程，该线程将保留之前交互的记忆。参见[添加记忆](/oss/python/langgraph/add-memory)了解如何使用检查点添加和管理对话记忆。
 
-### Time travel
+### 时间旅行
 
-Third, checkpointers allow for ["time travel"](/oss/python/langgraph/use-time-travel), allowing users to replay prior graph executions to review and / or debug specific graph steps. In addition, checkpointers make it possible to fork the graph state at arbitrary checkpoints to explore alternative trajectories.
+第三，检查点允许["时间旅行"](/oss/python/langgraph/use-time-travel)，允许用户回放之前的图执行以检查和/或调试特定的图步骤。此外，检查点使得在任意检查点分叉图状态成为可能，以探索替代轨迹。
 
-### Fault-tolerance
+### 容错
 
-Lastly, checkpointing also provides fault-tolerance and error recovery: if one or more nodes fail at a given superstep, you can restart your graph from the last successful step. Additionally, when a graph node fails mid-execution at a given superstep, LangGraph stores pending checkpoint writes from any other nodes that completed successfully at that superstep, so that whenever we resume graph execution from that superstep we don't re-run the successful nodes.
+最后，检查点还提供容错和错误恢复：如果一个或多个节点在给定的超步失败，你可以从最后一个成功步骤重新启动图。此外，当图节点在给定超步中执行中途失败时，LangGraph 会存储在该超步中成功完成的任何其他节点的待处理检查点写入，这样每当我们从该超步恢复图执行时，就不会重新运行成功的节点。
 
-#### Pending writes
+#### 待处理写入
 
-Additionally, when a graph node fails mid-execution at a given superstep, LangGraph stores pending checkpoint writes from any other nodes that completed successfully at that superstep, so that whenever we resume graph execution from that superstep we don't re-run the successful nodes.
+此外，当图节点在给定超步中执行中途失败时，LangGraph 会存储在该超步中成功完成的任何其他节点的待处理检查点写入，这样每当我们从该超步恢复图执行时，就不会重新运行成功的节点。
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/persistence.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/persistence.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [连接这些文档](/use-these-docs) 到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 </div>

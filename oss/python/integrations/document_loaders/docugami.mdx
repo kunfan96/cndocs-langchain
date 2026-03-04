@@ -1,38 +1,38 @@
 ---
-title: "Docugami integration"
-description: "Integrate with the Docugami document loader using LangChain Python."
+title: "Docugami 集成"
+description: "使用 LangChain Python 集成 Docugami 文档加载器。"
 ---
 
-This notebook covers how to load documents from `Docugami`. It provides the advantages of using this system over alternative data loaders.
+本 notebook 介绍如何从 `Docugami` 加载文档，以及使用此系统相比其他数据加载器的优势。
 
-## Prerequisites
+## 前提条件
 
-1. Install necessary python packages.
-2. Grab an access token for your workspace, and make sure it is set as the `DOCUGAMI_API_KEY` environment variable.
-3. Grab some docset and document IDs for your processed documents, as described here: [help.docugami.com/home/docugami-api](https://help.docugami.com/home/docugami-api)
+1. 安装必要的 Python 包。
+2. 获取工作区的访问令牌，并确保将其设置为 `DOCUGAMI_API_KEY` 环境变量。
+3. 获取已处理文档的文档集和文档 ID，如此处所述：[help.docugami.com/home/docugami-api](https://help.docugami.com/home/docugami-api)
 
 ```python
 # You need the dgml-utils package to use the DocugamiLoader (run pip install directly without "poetry run" if you are not using poetry)
 !poetry run pip install docugami-langchain dgml-utils==0.3.0 --upgrade --quiet
 ```
 
-## Quick start
+## 快速入门
 
-1. Create a [Docugami workspace](http://www.docugami.com) (free trials available)
-2. Add your documents (PDF, DOCX or DOC) and allow Docugami to ingest and cluster them into sets of similar documents, e.g. NDAs, Lease Agreements, and Service Agreements. There is no fixed set of document types supported by the system, the clusters created depend on your particular documents, and you can [change the docset assignments](https://help.docugami.com/home/working-with-the-doc-sets-view) later.
-3. Create an access token via the Developer Playground for your workspace. [Detailed instructions](https://help.docugami.com/home/docugami-api)
-4. Explore the [Docugami API](https://api-docs.docugami.com) to get a list of your processed docset IDs, or just the document IDs for a particular docset.
-6. Use the DocugamiLoader as detailed below, to get rich semantic chunks for your documents.
-7. Optionally, build and publish one or more [reports or abstracts](https://help.docugami.com/home/reports). This helps Docugami improve the semantic XML with better tags based on your preferences, which are then added to the DocugamiLoader output as metadata. Use techniques like self-querying retriever to do high accuracy Document QA.
+1. 创建一个 [Docugami 工作区](http://www.docugami.com)（提供免费试用）
+2. 添加您的文档（PDF、DOCX 或 DOC），让 Docugami 将其摄取并聚类为相似文档集，例如保密协议、租赁协议和服务协议。系统支持的文档类型没有固定限制，创建的聚类取决于您的具体文档，您可以稍后[更改文档集分配](https://help.docugami.com/home/working-with-the-doc-sets-view)。
+3. 通过开发者 Playground 为您的工作区创建访问令牌。[详细说明](https://help.docugami.com/home/docugami-api)
+4. 探索 [Docugami API](https://api-docs.docugami.com)，获取已处理的文档集 ID 列表，或特定文档集的文档 ID。
+6. 按照以下详细说明使用 DocugamiLoader，为您的文档获取丰富的语义分块。
+7. 可选地，构建并发布一个或多个[报告或摘要](https://help.docugami.com/home/reports)。这有助于 Docugami 根据您的偏好使用更好的标签改进语义 XML，这些标签随后作为元数据添加到 DocugamiLoader 输出中。使用自查询检索器等技术进行高精度文档问答。
 
-## Advantages vs other chunking techniques
+## 与其他分块技术相比的优势
 
-Appropriate chunking of your documents is critical for retrieval from documents. Many chunking techniques exist, including simple ones that rely on whitespace and recursive chunk splitting based on character length. Docugami offers a different approach:
+对文档进行适当的分块对于从文档中进行检索至关重要。现有许多分块技术，包括依赖空白字符的简单方法和基于字符长度的递归分块。Docugami 提供了一种不同的方法：
 
-1. **Intelligent Chunking:** Docugami breaks down every document into a hierarchical semantic XML tree of chunks of varying sizes, from single words or numerical values to entire sections. These chunks follow the semantic contours of the document, providing a more meaningful representation than arbitrary length or simple whitespace-based chunking.
-2. **Semantic Annotations:** Chunks are annotated with semantic tags that are coherent across the document set, facilitating consistent hierarchical queries across multiple documents, even if they are written and formatted differently. For example, in set of lease agreements, you can easily identify key provisions like the Landlord, Tenant, or Renewal Date, as well as more complex information such as the wording of any sub-lease provision or whether a specific jurisdiction has an exception section within a Termination Clause.
-3. **Structured Representation:** In addition, the XML tree indicates the structural contours of every document, using attributes denoting headings, paragraphs, lists, tables, and other common elements, and does that consistently across all supported document formats, such as scanned PDFs or DOCX files. It appropriately handles long-form document characteristics like page headers/footers or multi-column flows for clean text extraction.
-4. **Additional Metadata:** Chunks are also annotated with additional metadata, if a user has been using Docugami. This additional metadata can be used for high-accuracy Document QA without context window restrictions. See detailed code walk-through below.
+1. **智能分块：** Docugami 将每个文档分解为大小不同的层级语义 XML 树，从单个单词或数值到整个章节。这些分块遵循文档的语义轮廓，提供比任意长度或简单空白字符分块更有意义的表示。
+2. **语义注释：** 分块使用在整个文档集中保持一致的语义标签进行注释，便于在多个文档之间进行一致的层级查询，即使这些文档的写作和格式不同。例如，在一组租赁协议中，您可以轻松识别关键条款，如房东、租户或续约日期，以及更复杂的信息，例如任何分租条款的措辞或特定司法管辖区是否在终止条款中有例外条款。
+3. **结构化表示：** 此外，XML 树通过属性标注标题、段落、列表、表格和其他常见元素，表示每个文档的结构轮廓，并在所有受支持的文档格式（如扫描的 PDF 或 DOCX 文件）中保持一致性。它能适当处理长文档特性，如页眉/页脚或多列排版，以实现干净的文本提取。
+4. **附加元数据：** 如果用户一直在使用 Docugami，分块还会附加额外的元数据。这些额外的元数据可用于不受上下文窗口限制的高精度文档问答。请参阅下面的详细代码演示。
 
 ```python
 import os
@@ -40,9 +40,9 @@ import os
 from docugami_langchain.document_loaders import DocugamiLoader
 ```
 
-## Load documents
+## 加载文档
 
-If the DOCUGAMI_API_KEY environment variable is set, there is no need to pass it in to the loader explicitly otherwise you can pass it in as the `access_token` parameter.
+如果已设置 DOCUGAMI_API_KEY 环境变量，则无需显式传递给加载器，否则可以通过 `access_token` 参数传入。
 
 ```python
 DOCUGAMI_API_KEY = os.environ.get("DOCUGAMI_API_KEY")
@@ -62,18 +62,18 @@ len(chunks)
 120
 ```
 
-The `metadata` for each [`Document`](https://reference.langchain.com/python/langchain-core/documents/base/Document) (really, a chunk of an actual PDF, DOC or DOCX) contains some useful additional information:
+每个 [`Document`](https://reference.langchain.com/python/langchain-core/documents/base/Document) 的 `metadata`（实际上是实际 PDF、DOC 或 DOCX 的一个分块）包含一些有用的附加信息：
 
-1. **id and source:** ID and Name of the file (PDF, DOC or DOCX) the chunk is sourced from within Docugami.
-2. **xpath:** XPath inside the XML representation of the document, for the chunk. Useful for source citations directly to the actual chunk inside the document XML.
-3. **structure:** Structural attributes of the chunk, e.g. h1, h2, div, table, td, etc. Useful to filter out certain kinds of chunks if needed by the caller.
-4. **tag:** Semantic tag for the chunk, using various generative and extractive techniques. More details here: [github.com/docugami/DFM-benchmarks](https://github.com/docugami/DFM-benchmarks)
+1. **id 和 source：** 分块在 Docugami 中所属文件（PDF、DOC 或 DOCX）的 ID 和名称。
+2. **xpath：** 分块在文档 XML 表示中的 XPath。可用于直接引用文档 XML 中实际分块的来源引用。
+3. **structure：** 分块的结构属性，例如 h1、h2、div、table、td 等。如果调用方需要，可用于过滤特定类型的分块。
+4. **tag：** 使用各种生成和提取技术为分块生成的语义标签。更多详情请参阅：[github.com/docugami/DFM-benchmarks](https://github.com/docugami/DFM-benchmarks)
 
-You can control chunking behavior by setting the following properties on the `DocugamiLoader` instance:
+您可以通过设置 `DocugamiLoader` 实例的以下属性来控制分块行为：
 
-1. You can set min and max chunk size, which the system tries to adhere to with minimal truncation. You can set `loader.min_text_length` and `loader.max_text_length` to control these.
-2. By default, only the text for chunks is returned. However, Docugami's XML knowledge graph has additional rich information including semantic tags for entities inside the chunk. Set `loader.include_xml_tags = True` if you want the additional xml metadata on the returned chunks.
-3. In addition, you can set `loader.parent_hierarchy_levels` if you want Docugami to return parent chunks in the chunks it returns. The child chunks point to the parent chunks via the `loader.parent_id_key` value. This is useful e.g. with the MultiVector Retriever for [small-to-big](https://www.youtube.com/watch?v=ihSiRrOUwmg) retrieval. See detailed example later in this notebook.
+1. 您可以设置最小和最大分块大小，系统会尽量遵守，同时尽量减少截断。可以设置 `loader.min_text_length` 和 `loader.max_text_length` 来控制这些值。
+2. 默认情况下，只返回分块的文本。但是，Docugami 的 XML 知识图谱包含额外的丰富信息，包括分块内实体的语义标签。如果需要返回分块的附加 XML 元数据，请设置 `loader.include_xml_tags = True`。
+3. 此外，如果希望 Docugami 在返回的分块中包含父级分块，可以设置 `loader.parent_hierarchy_levels`。子分块通过 `loader.parent_id_key` 值指向父分块。这对于使用 MultiVector 检索器进行[从小到大](https://www.youtube.com/watch?v=ihSiRrOUwmg)检索等场景非常有用。请参阅本 notebook 后面的详细示例。
 
 ```python
 loader.min_text_length = 64
@@ -92,9 +92,9 @@ page_content='2.2 <Expenses>Time and expenses will be charged based on actuals u
 page_content='2.3 <RegularWorkingHours>All work will be executed during regular working hours <RegularWorkingHours>Monday</RegularWorkingHours>-<Weekday>Friday </Weekday><RegularWorkingHours><RegularWorkingHours>0800</RegularWorkingHours>-<Number>1900</Number></RegularWorkingHours>. For work outside of these hours on weekdays, Company will charge <Charge>one hundred percent (100%) </Charge>of the regular hourly rate and <Charge>two hundred percent (200%) </Charge>for Saturdays, Sundays and public holidays applicable to Company. </RegularWorkingHours>' metadata={'xpath': '/dg:chunk/docset:MASTERSERVICESAGREEMENT-section/docset:MASTERSERVICESAGREEMENT/dg:chunk[1]/docset:Standard/dg:chunk[3]/dg:chunk[2]/docset:ADailyBasis/dg:chunk[3]/dg:chunk', 'id': 'dac7a3ded61b5c4f3e59771243ea46c1', 'name': 'Master Services Agreement - Daltech.docx', 'source': 'Master Services Agreement - Daltech.docx', 'structure': 'lim p', 'tag': 'chunk RegularWorkingHours', 'Liability': '', 'Workers Compensation Insurance': '$1,000,000', 'Limit': '$1,000,000', 'Commercial General Liability Insurance': '$2,000,000', 'Technology Professional Liability Errors Omissions Policy': '$5,000,000', 'Excess Liability Umbrella Coverage': '$9,000,000', 'Client': 'Daltech, Inc.', 'Services Agreement Date': 'INITIAL STATEMENT  OF WORK (SOW)  The purpose of this SOW is to describe the Software and Services that Company will initially provide to  Daltech, Inc.  the “Client”) under the terms and conditions of the  Services Agreement  entered into between the parties on  June 15, 2021', 'Completion of the Services by Company Date': 'February 15, 2022', 'Charge': 'one hundred percent (100%)', 'Company': 'MagicSoft, Inc.', 'Effective Date': 'February 15, 2021', 'Start Date': '03/15/2021', 'Scheduled Onsite Visits Are Cancelled': 'ten (10) working days', 'Limit on Liability': '', 'Liability Cap': '', 'Business Automobile Liability': 'Business Automobile Liability  covering all vehicles that Company owns, hires or leases with a limit of no less than  $1,000,000  (combined single limit for bodily injury and property damage) for each accident.', 'Contractual Liability Coverage': 'Commercial General Liability insurance including  Contractual Liability Coverage , with coverage for products liability, completed operations, property damage and bodily injury, including  death , with an aggregate limit of no less than  $2,000,000 . This policy shall name Client as an additional insured with respect to the provision of services provided under this Agreement. This policy shall include a waiver of subrogation against Client.', 'Technology Professional Liability Errors Omissions': 'Technology Professional Liability Errors & Omissions policy (which includes Cyber Risk coverage and Computer Security and Privacy Liability coverage) with a limit of no less than  $5,000,000  per occurrence and in the aggregate.'}
 ```
 
-## Basic use: Docugami loader for document QA
+## 基本用法：用于文档问答的 Docugami 加载器
 
-You can use the Docugami Loader like a standard loader for Document QA over multiple docs, albeit with much better chunks that follow the natural contours of the document. There are many great tutorials on how to do this, e.g. [this one](https://www.youtube.com/watch?v=3yPBVii7Ct0). We can just use the same code, but use the `DocugamiLoader` for better chunking, instead of loading text or PDF files directly with basic splitting techniques.
+您可以像使用标准加载器一样使用 Docugami 加载器进行多文档问答，但可以获得遵循文档自然轮廓的更好分块。关于如何实现这一点，有许多优秀的教程，例如[这个](https://www.youtube.com/watch?v=3yPBVii7Ct0)。我们只需使用相同的代码，但使用 `DocugamiLoader` 进行更好的分块，而不是直接用基本分割技术加载文本或 PDF 文件。
 
 ```python
 !poetry run pip install -U langchain-openai tiktoken langchain-chroma hnswlib
@@ -121,9 +121,9 @@ print(len(chunks))
 4674
 ```
 
-The documents returned by the loader are already split, so we don't need to use a text splitter. Optionally, we can use the metadata on each document, for example the structure or tag attributes, to do any post-processing we want.
+加载器返回的文档已经经过分割，因此无需使用文本分割器。我们可以选择使用每个文档的元数据（例如 structure 或 tag 属性）进行所需的后处理。
 
-We will just use the output of the `DocugamiLoader` as-is to set up a retrieval QA chain the usual way.
+我们将直接使用 `DocugamiLoader` 的输出，按常规方式设置检索问答链。
 
 ```python
 from langchain_classic.chains import RetrievalQA
@@ -152,11 +152,11 @@ qa_chain("What can tenants do with signage on their properties?")
   Document(page_content='8. SIGNS:\n Tenant shall not install signs upon the Premises without Landlord’s prior written approval, which approval shall not be unreasonably withheld or delayed, and any such signage shall be subject to any applicable governmental laws, ordinances, regulations, and other requirements. Tenant shall remove all such signs by the terminations of this Lease. Such installations and removals shall be made in such a manner as to avoid injury or defacement of the Building and other improvements, and Tenant shall repair any injury or defacement, including without limitation discoloration caused by such installations and/or removal.', metadata={'id': '6b7d88f0c979c65d5db088fc177fa81f', 'name': 'Lease Agreements/Bioplex, Inc.pdf', 'structure': 'lim h1 div', 'xpath': '/dg:chunk/docset:WITNESSETH-section/docset:WITNESSETH/dg:chunk/docset:TheObligation/dg:chunk[8]/dg:chunk'})]}
 ```
 
-## Using docugami knowledge graph for high accuracy document QA
+## 使用 Docugami 知识图谱实现高精度文档问答
 
-One issue with large documents is that the correct answer to your question may depend on chunks that are far apart in the document. Typical chunking techniques, even with overlap, will struggle with providing the LLM sufficent context to answer such questions. With upcoming very large context LLMs, it may be possible to stuff a lot of tokens, perhaps even entire documents, inside the context but this will still hit limits at some point with very long documents, or a lot of documents.
+处理大型文档时存在一个问题：问题的正确答案可能依赖于文档中相距甚远的分块。典型的分块技术，即使有重叠，也难以为大语言模型提供足够的上下文来回答此类问题。随着超大上下文大语言模型的出现，也许可以在上下文中塞入大量 token，甚至是整个文档，但对于非常长的文档或大量文档，仍然会遇到限制。
 
-For example, if we ask a more complex question that requires the LLM to draw on chunks from different parts of the document, even OpenAI's powerful LLM is unable to answer correctly.
+例如，如果我们提出一个需要大语言模型从文档不同部分提取分块的复杂问题，即使是 OpenAI 强大的大语言模型也无法正确回答。
 
 ```python
 chain_response = qa_chain("What is rentable area for the property owned by DHA Group?")
@@ -178,11 +178,11 @@ chain_response["source_documents"]
  Document(page_content='1.6 Rentable Area of the Premises.', metadata={'id': '5b39a1ae84d51682328dca1467be211f', 'name': 'Sample Commercial Leases/Shorebucks LLC_TX.pdf', 'structure': 'lim h1', 'xpath': '/docset:OFFICELEASE-section/docset:OFFICELEASE/docset:WITNESSETH-section/docset:WITNESSETH/dg:chunk/dg:chunk/docset:BasicLeaseInformation/docset:BASICLEASEINFORMATIONANDDEFINEDTERMS-section/docset:BASICLEASEINFORMATIONANDDEFINEDTERMS/docset:LandmarkLlc/dg:chunk[6]/dg:chunk'})]
 ```
 
-At first glance the answer may seem reasonable, but it is incorrect. If you review the source chunks carefully for this answer, you will see that the chunking of the document did not end up putting the Landlord name and the rentable area in the same context, and produced irrelevant chunks therefore the answer is incorrect (should be **13,500 sq ft**)
+乍一看答案可能看起来合理，但实际上是错误的。如果仔细查看此答案的来源分块，您会发现文档分块最终未能将房东名称和可租赁面积放在同一上下文中，产生了不相关的分块，因此答案是错误的（正确答案应为 **13,500 sq ft**）
 
-Docugami can help here. Chunks are annotated with additional metadata created using different techniques if a user has been [using Docugami](https://help.docugami.com/home/reports). More technical approaches will be added later.
+在这里 Docugami 可以提供帮助。如果用户一直在[使用 Docugami](https://help.docugami.com/home/reports)，分块会附加使用不同技术创建的额外元数据。后续将添加更多技术方法。
 
-Specifically, let's ask Docugami to return XML tags on its output, as well as additional metadata:
+具体来说，让我们要求 Docugami 在输出中返回 XML 标签以及额外的元数据：
 
 ```python
 loader = DocugamiLoader(docset_id="zo954yqy53wp")
@@ -197,7 +197,7 @@ print(chunks[0].metadata)
 {'xpath': '/docset:OFFICELEASE-section/dg:chunk', 'id': '47297e277e556f3ce8b570047304560b', 'name': 'Sample Commercial Leases/Shorebucks LLC_AZ.pdf', 'source': 'Sample Commercial Leases/Shorebucks LLC_AZ.pdf', 'structure': 'h1 h1 p', 'tag': 'chunk Lease', 'Lease Date': 'March  29th , 2019', 'Landlord': 'Menlo Group', 'Tenant': 'Shorebucks LLC', 'Premises Address': '1564  E Broadway Rd ,  Tempe ,  Arizona  85282', 'Term of Lease': '96  full calendar months', 'Square Feet': '16,159'}
 ```
 
-We can use a self-querying retriever to improve our query accuracy, using this additional metadata:
+我们可以利用这些额外的元数据使用自查询检索器来提高查询准确性：
 
 ```python
 !poetry run pip install -U lark --quiet
@@ -235,7 +235,7 @@ qa_chain = RetrievalQA.from_chain_type(
 )
 ```
 
-Let's run the same question again. It returns the correct result since all the chunks have metadata key/value pairs on them carrying key information about the document even if this information is physically very far away from the source chunk used to generate the answer.
+让我们再次运行相同的问题。这次返回了正确结果，因为所有分块都携带了关于文档的关键信息元数据键/值对，即使这些信息在物理位置上与用于生成答案的来源分块相距甚远。
 
 ```python
 qa_chain(
@@ -258,13 +258,13 @@ qa_chain(
   Document(page_content='1.11 Percentage Rent.\n (a) <GrossRevenue><Percent>55% </Percent>of Gross Revenue to Landlord until Landlord receives Percentage Rent in an amount equal to the Annual Market Rent Hurdle (as escalated); and </GrossRevenue>', metadata={'Landlord': 'DHA Group', 'Lease Date': 'March  29th , 2019', 'Premises Address': '111  Bauer Dr ,  Oakland ,  New Jersey ,  07436', 'Square Feet': '13,500', 'Tenant': 'Shorebucks LLC', 'Term of Lease': '84  full calendar  months', 'id': 'c8bb9cbedf65a578d9db3f25f519dd3d', 'name': 'Sample Commercial Leases/Shorebucks LLC_NJ.pdf', 'source': 'Sample Commercial Leases/Shorebucks LLC_NJ.pdf', 'structure': 'lim h1 lim p', 'tag': 'chunk GrossRevenue', 'xpath': '/docset:OFFICELEASE-section/docset:OFFICELEASE-section/docset:OFFICELEASE/docset:WITNESSETH-section/docset:WITNESSETH/docset:GrossRentCredit-section/docset:GrossRentCredit/dg:chunk/dg:chunk/dg:chunk/docset:PercentageRent/dg:chunk[1]/dg:chunk[1]'})]}
 ```
 
-This time the answer is correct, since the self-querying retriever created a filter on the landlord attribute of the metadata, correctly filtering to document that specifically is about the DHA Group landlord. The resulting source chunks are all relevant to this landlord, and this improves answer accuracy even though the landlord is not directly mentioned in the specific chunk that contains the correct answer.
+这次答案是正确的，因为自查询检索器在元数据的房东属性上创建了一个过滤器，正确地过滤到专门关于 DHA Group 房东的文档。生成的来源分块都与该房东相关，即使该房东没有在包含正确答案的特定分块中直接提及，这也提高了答案的准确性。
 
-# Advanced topic: Small-to-Big retrieval with document knowledge graph hierarchy
+# 高级主题：基于文档知识图谱层级的从小到大检索
 
-Documents are inherently semi-structured and the DocugamiLoader is able to navigate the semantic and structural contours of the document to provide parent chunk references on the chunks it returns. This is useful e.g. with the MultiVector Retriever for [small-to-big](https://www.youtube.com/watch?v=ihSiRrOUwmg) retrieval.
+文档本质上是半结构化的，DocugamiLoader 能够导航文档的语义和结构轮廓，在返回的分块上提供父级分块引用。这对于使用 MultiVector 检索器进行[从小到大](https://www.youtube.com/watch?v=ihSiRrOUwmg)检索等场景非常有用。
 
-To get parent chunk references, you can set `loader.parent_hierarchy_levels` to a non-zero value.
+要获取父级分块引用，可以将 `loader.parent_hierarchy_levels` 设置为非零值。
 
 ```python
 from typing import Dict, List
@@ -409,9 +409,9 @@ for chunk in retrieved_parent_docs:
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/document_loaders/docugami.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/document_loaders/docugami.mdx) 或[提交 Issue](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等工具，通过 MCP 获取实时解答。
 </Callout>
 </div>

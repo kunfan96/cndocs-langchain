@@ -1,39 +1,39 @@
 ---
-title: "Timescale vector (Postgres) integration"
-description: "Integrate with the Timescale vector (Postgres) vector store using LangChain Python."
+title: "Timescale vector（Postgres）集成"
+description: "使用 LangChain Python 集成 Timescale vector（Postgres）向量存储。"
 ---
 
->[Timescale Vector](https://www.timescale.com/ai?utm_campaign=vectorlaunch&utm_source=langchain&utm_medium=referral) is `PostgreSQL++` vector database for AI applications.
+>[Timescale Vector](https://www.timescale.com/ai?utm_campaign=vectorlaunch&utm_source=langchain&utm_medium=referral) 是专为 AI 应用打造的 `PostgreSQL++` 向量数据库。
 
-This notebook shows how to use the Postgres vector database `Timescale Vector`. You'll learn how to use TimescaleVector for (1) semantic search, (2) time-based vector search, (3) self-querying, and (4) how to create indexes to speed up queries.
+本 notebook 展示了如何使用 Postgres 向量数据库 `Timescale Vector`。您将学习如何使用 TimescaleVector 进行：(1) 语义搜索、(2) 基于时间的向量搜索、(3) 自查询，以及 (4) 如何创建索引以加速查询。
 
-## What is timescale vector?
+## 什么是 Timescale Vector？
 
-`Timescale Vector` enables you to efficiently store and query millions of vector embeddings in `PostgreSQL`.
+`Timescale Vector` 可让您在 `PostgreSQL` 中高效存储和查询数百万条向量嵌入。
 
-- Enhances `pgvector` with faster and more accurate similarity search on 100M+ vectors via `DiskANN` inspired indexing algorithm.
-- Enables fast time-based vector search via automatic time-based partitioning and indexing.
-- Provides a familiar SQL interface for querying vector embeddings and relational data.
+- 通过受 `DiskANN` 启发的索引算法，增强了 `pgvector` 在 1 亿以上向量上的搜索速度和准确性。
+- 通过自动按时间分区和索引，支持快速的时序向量搜索。
+- 提供熟悉的 SQL 接口，用于查询向量嵌入和关系数据。
 
-`Timescale Vector` is cloud `PostgreSQL` for AI that scales with you from POC to production:
+`Timescale Vector` 是面向 AI 的云端 `PostgreSQL`，可从概念验证无缝扩展至生产环境：
 
-- Simplifies operations by enabling you to store relational metadata, vector embeddings, and time-series data in a single database.
-- Benefits from rock-solid PostgreSQL foundation with enterprise-grade features like streaming backups and replication, high availability and row-level security.
-- Enables a worry-free experience with enterprise-grade security and compliance.
+- 支持在单一数据库中存储关系元数据、向量嵌入和时序数据，从而简化运维。
+- 基于坚实的 PostgreSQL 基础，提供流备份与复制、高可用和行级安全等企业级特性。
+- 提供企业级安全与合规，让您无后顾之忧。
 
-## How to access timescale vector
+## 如何访问 Timescale Vector
 
-`Timescale Vector` is available on [Timescale](https://www.timescale.com/ai?utm_campaign=vectorlaunch&utm_source=langchain&utm_medium=referral), the cloud PostgreSQL platform. (There is no self-hosted version at this time.)
+`Timescale Vector` 可在云端 PostgreSQL 平台 [Timescale](https://www.timescale.com/ai?utm_campaign=vectorlaunch&utm_source=langchain&utm_medium=referral) 上获取。（目前暂不提供自托管版本。）
 
-LangChain users get a 90-day free trial for Timescale Vector.
+LangChain 用户可获得 90 天的 Timescale Vector 免费试用。
 
-- To get started, [signup](https://console.cloud.timescale.com/signup?utm_campaign=vectorlaunch&utm_source=langchain&utm_medium=referral) to Timescale, create a new database and follow this notebook!
-- See the [Timescale Vector explainer blog](https://www.timescale.com/blog/how-we-made-postgresql-the-best-vector-database/?utm_campaign=vectorlaunch&utm_source=langchain&utm_medium=referral) for more details and performance benchmarks.
-- See the [installation instructions](https://github.com/timescale/python-vector) for more details on using Timescale Vector in Python.
+- 入门请先[注册](https://console.cloud.timescale.com/signup?utm_campaign=vectorlaunch&utm_source=langchain&utm_medium=referral) Timescale，创建新数据库，然后按照本 notebook 操作！
+- 请参阅 [Timescale Vector 详解博客](https://www.timescale.com/blog/how-we-made-postgresql-the-best-vector-database/?utm_campaign=vectorlaunch&utm_source=langchain&utm_medium=referral) 了解更多细节和性能基准。
+- 请参阅[安装说明](https://github.com/timescale/python-vector)了解更多在 Python 中使用 Timescale Vector 的详情。
 
-## Setup
+## 安装配置
 
-Follow these steps to get ready to follow this tutorial.
+请按照以下步骤为本教程做好准备。
 
 ```python
 # Pip install necessary packages
@@ -42,7 +42,7 @@ pip install -qU  langchain-openai langchain-community
 pip install -qU  tiktoken
 ```
 
-In this example, we'll use `OpenAIEmbeddings`, so let's load your OpenAI API key.
+在本示例中，我们将使用 `OpenAIEmbeddings`，因此请加载您的 OpenAI API 密钥。
 
 ```python
 import os
@@ -67,7 +67,7 @@ OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 from typing import Tuple
 ```
 
-Next we'll import the needed Python libraries and libraries from LangChain. Note that we import the `timescale-vector` library as well as the TimescaleVector LangChain vectorstore.
+接下来，我们将导入所需的 Python 库和 LangChain 库。请注意，我们同时导入了 `timescale-vector` 库以及 TimescaleVector LangChain 向量存储。
 
 ```python
 from datetime import datetime, timedelta
@@ -80,9 +80,9 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import CharacterTextSplitter
 ```
 
-## 1. Similarity search with euclidean distance (Default)
+## 1. 基于欧几里得距离的相似度搜索（默认）
 
-First, we'll look at an example of doing a similarity search query on the State of the Union speech to find the most similar sentences to a given query sentence. We'll use the [Euclidean distance](https://en.wikipedia.org/wiki/Euclidean_distance) as our similarity metric.
+首先，我们将演示如何对国情咨文进行相似度搜索，找出与给定查询句子最相似的句子。我们将使用[欧几里得距离](https://en.wikipedia.org/wiki/Euclidean_distance)作为相似度度量。
 
 ```python
 # Load the text and split it into chunks
@@ -94,13 +94,13 @@ docs = text_splitter.split_documents(documents)
 embeddings = OpenAIEmbeddings()
 ```
 
-Next, we'll load the service URL for our Timescale database.
+接下来，我们将加载 Timescale 数据库的服务 URL。
 
-If you haven't already, [signup for Timescale](https://console.cloud.timescale.com/signup?utm_campaign=vectorlaunch&utm_source=langchain&utm_medium=referral), and create a new database.
+如果您尚未注册，请先[注册 Timescale](https://console.cloud.timescale.com/signup?utm_campaign=vectorlaunch&utm_source=langchain&utm_medium=referral)，并创建一个新数据库。
 
-Then, to connect to your PostgreSQL database, you'll need your service URI, which can be found in the cheatsheet or `.env` file you downloaded after creating a new database.
+然后，要连接到 PostgreSQL 数据库，您需要服务 URI，可以在创建新数据库后下载的速查表或 `.env` 文件中找到。
 
-The URI will look something like this: `postgres://tsdbadmin:<password>@<id>.tsdb.cloud.timescale.com:<port>/tsdb?sslmode=require`.
+URI 格式如下：`postgres://tsdbadmin:<password>@<id>.tsdb.cloud.timescale.com:<port>/tsdb?sslmode=require`。
 
 ```python
 # Timescale Vector needs the service url to your cloud database. You can see this as soon as you create the
@@ -115,9 +115,9 @@ SERVICE_URL = os.environ["TIMESCALE_SERVICE_URL"]
 # SERVICE_URL = os.environ.get("TIMESCALE_SERVICE_URL", "")
 ```
 
-Next we create a TimescaleVector vectorstore. We specify a collection name, which will be the name of the table our data is stored in.
+接下来，我们创建一个 TimescaleVector 向量存储。我们指定一个集合名称，它将作为数据存储所在表的名称。
 
-Note: When creating a new instance of TimescaleVector, the TimescaleVector Module will try to create a table with the name of the collection. So, make sure that the collection name is unique (i.e it doesn't already exist).
+注意：创建 TimescaleVector 新实例时，TimescaleVector 模块将尝试以集合名称创建一张表。因此，请确保集合名称唯一（即该名称不已存在）。
 
 ```python
 # The TimescaleVector Module will create a table with the name of the collection.
@@ -132,7 +132,7 @@ db = TimescaleVector.from_documents(
 )
 ```
 
-Now that we've loaded our data, we can perform a similarity search.
+数据加载完成后，我们可以执行相似度搜索。
 
 ```python
 query = "What did the president say about Ketanji Brown Jackson"
@@ -198,9 +198,9 @@ We’re securing commitments and supporting partners in South and Central Americ
 --------------------------------------------------------------------------------
 ```
 
-### Using a timescale vector as a retriever
+### 将 Timescale Vector 用作检索器
 
-After initializing a TimescaleVector store, you can use it as a [retriever](/oss/python/langchain/retrieval).
+初始化 TimescaleVector 存储后，您可以将其用作[检索器](/oss/python/langchain/retrieval)。
 
 ```python
 # Use TimescaleVector as a retriever
@@ -215,11 +215,11 @@ print(retriever)
 tags=['TimescaleVector', 'OpenAIEmbeddings'] metadata=None vectorstore=<langchain_community.vectorstores.timescalevector.TimescaleVector object at 0x10fc8d070> search_type='similarity' search_kwargs={}
 ```
 
-Let's look at an example of using Timescale Vector as a retriever with the RetrievalQA chain and the stuff documents chain.
+让我们看一个将 Timescale Vector 与 RetrievalQA 链和 stuff documents 链结合使用的示例。
 
-In this example, we'll ask the same query as above, but this time we'll pass the relevant documents returned from Timescale Vector to an LLM to use as context to answer our question.
+在本示例中，我们将提出与上述相同的查询，但这次会将 Timescale Vector 返回的相关文档传递给 LLM 作为上下文来回答问题。
 
-First we'll create our stuff chain:
+首先，我们创建 stuff 链：
 
 ```python
 # Initialize GPT3.5 model
@@ -257,28 +257,28 @@ print(response)
 The President said that he nominated Circuit Court of Appeals Judge Ketanji Brown Jackson, who is one of our nation's top legal minds and will continue Justice Breyer's legacy of excellence. He also mentioned that since her nomination, she has received a broad range of support from various groups, including the Fraternal Order of Police and former judges appointed by Democrats and Republicans.
 ```
 
-## 2. Similarity search with time-based filtering
+## 2. 基于时间过滤的相似度搜索
 
-A key use case for Timescale Vector is efficient time-based vector search. Timescale Vector enables this by automatically partitioning vectors (and associated metadata) by time. This allows you to efficiently query vectors by both similarity to a query vector and time.
+Timescale Vector 的一个核心应用场景是高效的时序向量搜索。Timescale Vector 通过自动按时间对向量（及其关联元数据）进行分区来实现这一功能，使您能够按查询向量的相似度和时间两个维度高效查询向量。
 
-Time-based vector search functionality is helpful for applications like:
+基于时间的向量搜索功能适用于以下应用场景：
 
-- Storing and retrieving LLM response history (e.g. chatbots)
-- Finding the most recent embeddings that are similar to a query vector (e.g recent news).
-- Constraining similarity search to a relevant time range (e.g asking time-based questions about a knowledge base)
+- 存储和检索 LLM 响应历史（例如聊天机器人）
+- 查找与查询向量相似的最新嵌入（例如最新新闻）。
+- 将相似度搜索限定在相关时间范围内（例如对知识库进行基于时间的提问）
 
-To illustrate how to use TimescaleVector's time-based vector search functionality, we'll ask questions about the git log history for TimescaleDB . We'll illustrate how to add documents with a time-based uuid and how run similarity searches with time range filters.
+为了说明如何使用 TimescaleVector 的时序向量搜索功能，我们将针对 TimescaleDB 的 git log 历史提问。我们将演示如何添加带时序 UUID 的文档，以及如何使用时间范围过滤器进行相似度搜索。
 
-### Extract content and metadata from git log JSON
+### 从 git log JSON 中提取内容和元数据
 
-First lets load in the git log data into a new collection in our PostgreSQL database named `timescale_commits`.
+首先，将 git log 数据加载到 PostgreSQL 数据库中名为 `timescale_commits` 的新集合。
 
 ```python
 ```
 
-We'll define a helper function to create a uuid for a document and associated vector embedding based on its timestamp. We'll use this function to create a uuid for each git log entry.
+我们将定义一个辅助函数，根据时间戳为文档及其关联的向量嵌入创建 UUID。我们将使用此函数为每条 git log 条目创建 UUID。
 
-Important note: If you are working with documents and want the current date and time associated with vector for time-based search, you can skip this step. A uuid will be automatically generated when the documents are ingested by default.
+重要提示：如果您希望向量与当前日期和时间关联以进行时序搜索，可以跳过此步骤。默认情况下，文档摄入时会自动生成 UUID。
 
 ```python
 from timescale_vector import client
@@ -294,7 +294,7 @@ def create_uuid(date_string: str):
     return str(uuid)
 ```
 
-Next, we'll define a metadata function to extract the relevant metadata from the JSON record. We'll pass this function to the JSONLoader. See the [JSON document loader docs](/oss/python/integrations/document_loaders/json) for more details.
+接下来，我们将定义一个元数据函数，从 JSON 记录中提取相关元数据。我们会将此函数传递给 JSONLoader。详情请参阅 [JSON 文档加载器文档](/oss/python/integrations/document_loaders/json)。
 
 ```python
 # Helper function to split name and email given an author string consisting of Name Lastname <email>
@@ -356,9 +356,9 @@ def extract_metadata(record: dict, metadata: dict) -> dict:
     return metadata
 ```
 
-Next, you'll need to [download the sample dataset](https://s3.amazonaws.com/assets.timescale.com/ai/ts_git_log.json) and place it in the same directory as this notebook.
+接下来，您需要[下载示例数据集](https://s3.amazonaws.com/assets.timescale.com/ai/ts_git_log.json)，并将其放置在与本 notebook 相同的目录中。
 
-You can use following command:
+您可以使用以下命令：
 
 ```python
 # Download the file using curl and save it as commit_history.csv
@@ -366,7 +366,7 @@ You can use following command:
 !curl -O https://s3.amazonaws.com/assets.timescale.com/ai/ts_git_log.json
 ```
 
-Finally we can initialize the JSON loader to parse the JSON records. We also remove empty records for simplicity.
+最后，我们初始化 JSON 加载器来解析 JSON 记录，并为简化处理移除空记录。
 
 ```python
 # Define path to the JSON file relative to this notebook
@@ -394,18 +394,18 @@ print(documents[0])
 page_content='{"commit": "44e41c12ab25e36c202f58e068ced262eadc8d16", "author": "Lakshmi Narayanan Sreethar[lakshmi@timescale.com](mailto:lakshmi@timescale.com)", "date": "Tue Sep 5 21:03:21 2023 +0530", "change summary": "Fix segfault in set_integer_now_func", "change details": "When an invalid function oid is passed to set_integer_now_func, it finds out that the function oid is invalid but before throwing the error, it calls ReleaseSysCache on an invalid tuple causing a segfault. Fixed that by removing the invalid call to ReleaseSysCache.  Fixes #6037 "}' metadata={'source': '/Users/avtharsewrathan/sideprojects2023/timescaleai/tsv-langchain/ts_git_log.json', 'seq_num': 1, 'id': '8b407680-4c01-11ee-96a6-b82284ddccc6', 'date': '2023-09-5 21:03:21+0850', 'author_name': 'Lakshmi Narayanan Sreethar', 'author_email': 'lakshmi@timescale.com', 'commit_hash': '44e41c12ab25e36c202f58e068ced262eadc8d16'}
 ```
 
-### Load documents and metadata into TimescaleVector vectorstore
+### 将文档和元数据加载到 TimescaleVector 向量存储中
 
-Now that we have prepared our documents, let's process them and load them, along with their vector embedding representations into our TimescaleVector vectorstore.
+文档准备就绪后，让我们对其进行处理，并连同向量嵌入表示一起加载到 TimescaleVector 向量存储中。
 
-Since this is a demo, we will only load the first 500 records. In practice, you can load as many records as you want.
+由于这是演示，我们只加载前 500 条记录。实际使用中，您可以加载任意数量的记录。
 
 ```python
 NUM_RECORDS = 500
 documents = documents[:NUM_RECORDS]
 ```
 
-Then we use the CharacterTextSplitter to split the documents into smaller chunks if needed for easier embedding. Note that this splitting process retains the metadata for each document.
+然后，我们使用 CharacterTextSplitter 将文档拆分为更小的块（如有需要），以便更好地进行嵌入。注意，拆分过程会保留每个文档的元数据。
 
 ```python
 # Split the documents into chunks for embedding
@@ -416,13 +416,13 @@ text_splitter = CharacterTextSplitter(
 docs = text_splitter.split_documents(documents)
 ```
 
-Next we'll create a Timescale Vector instance from the collection of documents that we finished pre-processsing.
+接下来，我们将从预处理完毕的文档集合中创建一个 Timescale Vector 实例。
 
-First, we'll define a collection name, which will be the name of our table in the PostgreSQL database.
+首先，我们定义一个集合名称，它将作为 PostgreSQL 数据库中表的名称。
 
-We'll also define a time delta, which we pass to the `time_partition_interval` argument, which will be used to as the interval for partitioning the data by time. Each partition will consist of data for the specified length of time. We'll use 7 days for simplicity, but you can pick whatever value make sense for your use case -- for example if you query recent vectors frequently you might want to use a smaller time delta like 1 day, or if you query vectors over a decade long time period then you might want to use a larger time delta like 6 months or 1 year.
+我们还将定义一个时间增量，并将其传递给 `time_partition_interval` 参数，用作按时间分区数据的间隔。每个分区将包含指定时长内的数据。为简化示例，我们使用 7 天，但您可以根据实际情况选择合适的值——例如，如果您经常查询最近的向量，可以使用较小的时间增量（如 1 天）；如果查询跨越数十年的向量，则可以使用较大的时间增量（如 6 个月或 1 年）。
 
-Finally, we'll create the TimescaleVector instance. We specify the `ids` argument to be the `uuid` field in our metadata that we created in the pre-processing step above. We do this because we want the time part of our uuids to reflect dates in the past (i.e when the commit was made). However, if we wanted the current date and time to be associated with our document, we can remove the id argument and uuid's will be automatically created with the current date and time.
+最后，我们创建 TimescaleVector 实例。我们将 `ids` 参数指定为上述预处理步骤中创建的元数据中的 `uuid` 字段。这样做是因为我们希望 UUID 中的时间部分反映过去的日期（即提交时间）。如果希望文档与当前日期和时间关联，可以省略 id 参数，UUID 将自动使用当前日期和时间生成。
 
 ```python
 # Define collection name
@@ -440,13 +440,13 @@ db = TimescaleVector.from_documents(
 )
 ```
 
-### Querying vectors by time and similarity
+### 按时间和相似度查询向量
 
-Now that we have loaded our documents into TimescaleVector, we can query them by time and similarity.
+将文档加载到 TimescaleVector 后，我们可以按时间和相似度查询它们。
 
-TimescaleVector provides multiple methods for querying vectors by doing similarity search with time-based filtering.
+TimescaleVector 提供了多种通过时间过滤进行相似度搜索的向量查询方法。
 
-Let's take a look at each method below:
+下面分别介绍每种方法：
 
 ```python
 # Time filter variables
@@ -457,7 +457,7 @@ td = timedelta(days=7)  # Time delta = 7 days
 query = "What's new with TimescaleDB functions?"
 ```
 
-Method 1: Filter within a provided start date and end date.
+方法 1：在指定的开始日期和结束日期范围内过滤。
 
 ```python
 # Method 1: Query for vectors between start_date and end_date
@@ -496,9 +496,9 @@ Date:  2023-08-9 15:26:03+0500
 --------------------------------------------------------------------------------
 ```
 
-Note how the query only returns results within the specified date range.
+请注意，查询仅返回指定日期范围内的结果。
 
-Method 2: Filter within a provided start date, and a time delta later.
+方法 2：从指定开始日期起，按时间增量过滤。
 
 ```python
 # Method 2: Query for vectors between start_dt and a time delta td later
@@ -538,9 +538,9 @@ Date:  2023-08-2 20:24:14+0140
 --------------------------------------------------------------------------------
 ```
 
-Once again, notice how we get results within the specified time filter, different from the previous query.
+同样，请注意我们获取的结果在指定时间过滤范围内，与前一个查询不同。
 
-Method 3: Filter within a provided end date and a time delta earlier.
+方法 3：从指定结束日期往前按时间增量过滤。
 
 ```python
 # Method 3: Query for vectors between end_dt and a time delta td earlier
@@ -578,9 +578,9 @@ Date:  2023-08-27 13:20:04+0320
 --------------------------------------------------------------------------------
 ```
 
-Method 4: We can also filter for all vectors after a given date by only specifying a start date in our query.
+方法 4：也可以仅指定开始日期，过滤该日期之后的所有向量。
 
-Method 5: Similarly, we can filter for or all vectors before a given date by only specify an end date in our query.
+方法 5：类似地，也可以仅指定结束日期，过滤该日期之前的所有向量。
 
 ```python
 # Method 4: Query all vectors after start_date
@@ -652,9 +652,9 @@ Date:  2023-08-29 18:13:24+0320
 --------------------------------------------------------------------------------
 ```
 
-The main takeaway is that in each result above, only vectors within the specified time range are returned. These queries are very efficient as they only need to search the relevant partitions.
+以上每个结果的关键点在于，只返回指定时间范围内的向量。这些查询非常高效，因为只需搜索相关分区。
 
-We can also use this functionality for question answering, where we want to find the most relevant vectors within a specified time range to use as context for answering a question. Let's take a look at an example below, using Timescale Vector as a retriever:
+我们也可以将此功能用于问答，即在指定时间范围内查找最相关的向量作为回答问题的上下文。以下是一个将 Timescale Vector 用作检索器的示例：
 
 ```python
 # Set timescale vector as a retriever and specify start and end dates via kwargs
@@ -694,21 +694,21 @@ The following changes were made to the timescaledb functions:
 4. "Move partitioning functions to _timescaledb_functions schema" - This change was made on Tue Aug 29 10:49:47 2023 +0200.
 ```
 
-Note that the context the LLM uses to compose an answer are from retrieved documents only within the specified date range.
+请注意，LLM 用于生成回答的上下文仅来自指定日期范围内检索到的文档。
 
-This shows how you can use Timescale Vector to enhance retrieval augmented generation by retrieving documents within time ranges relevant to your query.
+这展示了如何通过检索与查询相关时间范围内的文档，使用 Timescale Vector 增强检索增强生成（RAG）。
 
-## 3. Using ANN search indexes to speed up queries
+## 3. 使用 ANN 搜索索引加速查询
 
-You can speed up similarity queries by creating an index on the embedding column. You should only do this once you have ingested a large part of your data.
+您可以通过在嵌入列上创建索引来加速相似度查询。建议在摄入大量数据后再创建索引。
 
-Timescale Vector supports the following indexes:
+Timescale Vector 支持以下索引：
 
-- timescale_vector index (tsv): a disk-ann inspired graph index for fast similarity search (default).
-- pgvector's HNSW index: a hierarchical navigable small world graph index for fast similarity search.
-- pgvector's IVFFLAT index: an inverted file index for fast similarity search.
+- timescale_vector 索引 (tsv)：受 disk-ann 启发的图索引，用于快速相似度搜索（默认）。
+- pgvector 的 HNSW 索引：用于快速相似度搜索的分层可导航小世界图索引。
+- pgvector 的 IVFFLAT 索引：用于快速相似度搜索的倒排文件索引。
 
-Important note: In PostgreSQL, each table can only have one index on a particular column. So if you'd like to test the performance of different index types, you can do so either by (1) creating multiple tables with different indexes, (2) creating multiple vector columns in the same table and creating different indexes on each column, or (3) by dropping and recreating the index on the same column and comparing results.
+重要提示：在 PostgreSQL 中，每张表的特定列只能有一个索引。因此，如果要测试不同索引类型的性能，可以通过以下方式进行：(1) 创建多张具有不同索引的表，(2) 在同一张表中创建多个向量列并分别为每列创建不同索引，或 (3) 删除并重建同一列上的索引后比较结果。
 
 ```python
 # Initialize an existing TimescaleVector store
@@ -721,7 +721,7 @@ db = TimescaleVector(
 )
 ```
 
-Using the `create_index()` function without additional arguments will create a timescale_vector_index by default, using the default parameters.
+不带额外参数调用 `create_index()` 函数时，默认会使用默认参数创建 timescale_vector_index。
 
 ```python
 # create an index
@@ -729,9 +729,9 @@ Using the `create_index()` function without additional arguments will create a t
 db.create_index()
 ```
 
-You can also specify the parameters for the index. See the Timescale Vector documentation for a full discussion of the different parameters and their effects on performance.
+您也可以指定索引参数。请参阅 Timescale Vector 文档，了解不同参数及其对性能影响的详细说明。
 
-Note: You don't need to specify parameters as we set smart defaults. But you can always specify your own parameters if you want to experiment eek out more performance for your specific dataset.
+注意：我们已设置了智能默认值，无需指定参数。但如果您想针对特定数据集进行性能优化实验，也可以自行指定参数。
 
 ```python
 # drop the old index
@@ -742,7 +742,7 @@ db.drop_index()
 db.create_index(index_type="tsv", max_alpha=1.0, num_neighbors=50)
 ```
 
-Timescale Vector also supports the HNSW ANN indexing algorithm, as well as the ivfflat ANN indexing algorithm. Simply specify in the `index_type` argument which index you'd like to create, and optionally specify the parameters for the index.
+Timescale Vector 还支持 HNSW ANN 索引算法和 ivfflat ANN 索引算法。只需在 `index_type` 参数中指定要创建的索引类型，并可选择性地指定索引参数。
 
 ```python
 # drop the old index
@@ -762,7 +762,7 @@ db.drop_index()
 db.create_index(index_type="ivfflat", num_lists=20, num_records=1000)
 ```
 
-In general, we recommend using the default timescale vector index, or the HNSW index.
+通常，我们建议使用默认的 timescale vector 索引或 HNSW 索引。
 
 ```python
 # drop the old index
@@ -771,11 +771,11 @@ db.drop_index()
 db.create_index()
 ```
 
-## 4. Self querying retriever with timescale vector
+## 4. 使用 Timescale Vector 的自查询检索器
 
-Timescale Vector also supports the self-querying retriever functionality, which gives it the ability to query itself. Given a natural language query with a query statement and filters (single or composite), the retriever uses a query constructing LLM chain to write a SQL query and then applies it to the underlying PostgreSQL database in the Timescale Vector vectorstore.
+Timescale Vector 还支持自查询检索器功能，使其能够自行查询。给定带有查询语句和过滤条件（单一或复合）的自然语言查询，检索器将使用查询构建 LLM 链生成 SQL 查询，然后将其应用于 Timescale Vector 向量存储底层的 PostgreSQL 数据库。
 
-To illustrate self-querying with Timescale Vector, we'll use the same gitlog dataset from Part 3.
+为了演示 Timescale Vector 的自查询功能，我们将使用第 3 部分中相同的 gitlog 数据集。
 
 ```python
 COLLECTION_NAME = "timescale_commits"
@@ -786,7 +786,7 @@ vectorstore = TimescaleVector(
 )
 ```
 
-Next we'll create our self-querying retriever. To do this we'll need to provide some information upfront about the metadata fields that our documents support and a short description of the document contents.
+接下来，我们创建自查询检索器。为此，需要提前提供文档支持的元数据字段信息以及对文档内容的简短描述。
 
 ```python
 from langchain_classic.chains.query_constructor.base import AttributeInfo
@@ -830,11 +830,11 @@ retriever = SelfQueryRetriever.from_llm(
 )
 ```
 
-Now let's test out the self-querying retriever on our gitlog dataset.
+现在，让我们在 gitlog 数据集上测试自查询检索器。
 
-Run the queries below and note how you can specify a query, query with a filter, and query with a composite filter (filters with AND, OR) in natural language and the self-query retriever will translate that query into SQL and perform the search on the Timescale Vector PostgreSQL vectorstore.
+运行以下查询，请注意您可以使用自然语言指定查询、带过滤器的查询以及带复合过滤器（AND、OR 过滤器）的查询，自查询检索器将把查询转换为 SQL 并在 Timescale Vector PostgreSQL 向量存储上执行搜索。
 
-This illustrates the power of the self-query retriever. You can use it to perform complex searches over your vectorstore without you or your users having to write any SQL directly!
+这展示了自查询检索器的强大之处。您和您的用户无需直接编写任何 SQL，即可对向量存储执行复杂搜索！
 
 ```python
 # This example specifies a relevant query
@@ -918,11 +918,11 @@ query='hierarchical continuous aggregates' filter=None limit=2
  Document(page_content='{"commit": " 3749953e9704e45df8f621607989ada0714ce28d", "author": "Fabr\\u00edzio de Royes Mello[fabriziomello@gmail.com](mailto:fabriziomello@gmail.com)", "date": "Wed Oct 5 18:45:40 2022 -0300", "change summary": "Hierarchical Continuous Aggregates", "change details": "Enable users create Hierarchical Continuous Aggregates (aka Continuous Aggregates on top of another Continuous Aggregates).  With this PR users can create levels of aggregation granularity in Continuous Aggregates making the refresh process even faster.  A problem with this feature can be in upper levels we can end up with the \\"average of averages\\". But to get the \\"real average\\" we can rely on \\"stats_aggs\\" TimescaleDB Toolkit function that calculate and store the partials that can be finalized with other toolkit functions like \\"average\\" and \\"sum\\".  Closes #1400 "}', metadata={'id': '0df31a00-44f7-11ed-9794-ebcc1227340f', 'date': '2022-10-5 18:45:40+-500', 'source': '/Users/avtharsewrathan/sideprojects2023/timescaleai/tsv-langchain/langchain/docs/docs/modules/ts_git_log.json', 'seq_num': 470, 'author_name': 'Fabrízio de Royes Mello', 'commit_hash': ' 3749953e9704e45df8f621607989ada0714ce28d', 'author_email': 'fabriziomello@gmail.com'})]
 ```
 
-## 5. Working with an existing TimescaleVector vectorstore
+## 5. 使用已有的 TimescaleVector 向量存储
 
-In the examples above, we created a vectorstore from a collection of documents. However, often we want to work insert data into and query data from an existing vectorstore. Let's see how to initialize, add documents to, and query an existing collection of documents in a TimescaleVector vector store.
+在上述示例中，我们从文档集合创建了向量存储。但通常情况下，我们希望向已有向量存储中插入数据并进行查询。下面介绍如何初始化、向现有 TimescaleVector 向量存储的文档集合中添加文档，以及如何查询。
 
-To work with an existing Timescale Vector store, we need to know the name of the table we want to query (`COLLECTION_NAME`) and the URL of the cloud PostgreSQL database (`SERVICE_URL`).
+要使用已有的 Timescale Vector 存储，我们需要知道要查询的表名（`COLLECTION_NAME`）和云端 PostgreSQL 数据库的 URL（`SERVICE_URL`）。
 
 ```python
 # Initialize the existing
@@ -935,11 +935,11 @@ vectorstore = TimescaleVector(
 )
 ```
 
-To load new data into the table, we use the `add_document()` function. This function takes a list of documents and a list of metadata. The metadata must contain a unique id for each document.
+要向表中加载新数据，我们使用 `add_document()` 函数。该函数接收文档列表和元数据列表，元数据必须包含每个文档的唯一 ID。
 
-If you want your documents to be associated with the current date and time, you do not need to create a list of ids. A uuid will be automatically generated for each document.
+如果希望文档与当前日期和时间关联，则无需创建 ID 列表，系统会为每个文档自动生成 UUID。
 
-If you want your documents to be associated with a past date and time, you can create a list of ids using the `uuid_from_time` function in the `timecale-vector` python library, as shown in Section 2 above. This function takes a datetime object and returns a uuid with the date and time encoded in the uuid.
+如果希望文档与过去的日期和时间关联，可以使用 `timescale-vector` Python 库中的 `uuid_from_time` 函数创建 ID 列表，如上方第 2 节所示。该函数接收一个 datetime 对象，并返回一个将日期和时间编码在 UUID 中的 UUID。
 
 ```python
 # Add documents to a collection in TimescaleVector
@@ -973,9 +973,9 @@ docs_with_score[1]
  0.23607668446580354)
 ```
 
-### Deleting data
+### 删除数据
 
-You can delete data by uuid or by a filter on the metadata.
+您可以通过 UUID 或元数据过滤条件删除数据。
 
 ```python
 ids = vectorstore.add_documents([Document(page_content="Bar")])
@@ -987,7 +987,7 @@ vectorstore.delete(ids)
 True
 ```
 
-Deleting using metadata is especially useful if you want to periodically update information scraped from a particular source, or particular date or some other metadata attribute.
+通过元数据删除在以下场景中特别有用：需要定期更新从特定来源、特定日期或其他元数据属性抓取的信息时。
 
 ```python
 vectorstore.add_documents(
@@ -1013,9 +1013,9 @@ vectorstore.add_documents(
 ['c6367004-53d7-11ee-8cc3-de1e4b2a0118']
 ```
 
-### Overriding a vectorstore
+### 覆盖向量存储
 
-If you have an existing collection, you override it by doing `from_documents` and setting `pre_delete_collection` = True
+如果已有集合，可以通过执行 `from_documents` 并将 `pre_delete_collection` 设置为 True 来覆盖它。
 
 ```python
 db = TimescaleVector.from_documents(
@@ -1039,9 +1039,9 @@ docs_with_score[0]
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/vectorstores/timescalevector.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/vectorstores/timescalevector.mdx) 或[提交 Issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接](/use-these-docs) 到 Claude、VSCode 等工具，通过 MCP 获取实时解答。
 </Callout>
 </div>

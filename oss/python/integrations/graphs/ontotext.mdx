@@ -1,30 +1,30 @@
 ---
-title: "Ontotext GraphDB integration"
-description: "Integrate with the Ontotext GraphDB graph using LangChain Python."
+title: "Ontotext GraphDB 集成"
+description: "使用 LangChain Python 集成 Ontotext GraphDB 图数据库。"
 ---
 
->[Ontotext GraphDB](https://graphdb.ontotext.com/) is a graph database and knowledge discovery tool compliant with [RDF](https://www.w3.org/RDF/) and [SPARQL](https://www.w3.org/TR/sparql11-query/).
+>[Ontotext GraphDB](https://graphdb.ontotext.com/) 是一款符合 [RDF](https://www.w3.org/RDF/) 和 [SPARQL](https://www.w3.org/TR/sparql11-query/) 标准的图数据库和知识发现工具。
 
->This notebook shows how to use LLMs to provide natural language querying (NLQ to SPARQL, also called `text2sparql`) for `Ontotext GraphDB`.
+>本 notebook 展示如何使用 LLM 为 `Ontotext GraphDB` 提供自然语言查询功能（NLQ 转 SPARQL，也称为 `text2sparql`）。
 
-## GraphDB LLM functionalities
+## GraphDB LLM 功能
 
-`GraphDB` supports some LLM integration functionalities as described [here](https://github.com/w3c/sparql-dev/issues/193):
+`GraphDB` 支持一些 LLM 集成功能，如[此处](https://github.com/w3c/sparql-dev/issues/193)所述：
 
 [gpt-queries](https://graphdb.ontotext.com/documentation/10.5/gpt-queries.html)
 
-* magic predicates to ask an LLM for text, list or table using data from your knowledge graph (KG)
-* query explanation
-* result explanation, summarization, rephrasing, translation
+* 使用知识图谱（KG）中的数据向 LLM 请求文本、列表或表格的魔法谓词
+* 查询解释
+* 结果解释、摘要、改写、翻译
 
 [retrieval-graphdb-connector](https://graphdb.ontotext.com/documentation/10.5/retrieval-graphdb-connector.html)
 
-* Indexing of KG entities in a vector database
-* Supports any text embedding algorithm and vector database
-* Uses the same powerful connector (indexing) language that GraphDB uses for Elastic, Solr, Lucene
-* Automatic synchronization of changes in RDF data to the KG entity index
-* Supports nested objects (no UI support in GraphDB version 10.5)
-* Serializes KG entities to text like this (e.g. for a Wines dataset):
+* 在向量数据库中索引 KG 实体
+* 支持任何文本嵌入算法和向量数据库
+* 使用 GraphDB 为 Elastic、Solr、Lucene 使用的相同强大连接器（索引）语言
+* 自动将 RDF 数据的变更同步到 KG 实体索引
+* 支持嵌套对象（GraphDB 10.5 版本不支持 UI）
+* 将 KG 实体序列化为文本，例如（以葡萄酒数据集为例）：
 
 ```
 Franvino:
@@ -37,35 +37,35 @@ Franvino:
 
 [talk-to-graph](https://graphdb.ontotext.com/documentation/10.5/talk-to-graph.html)
 
-* A simple chatbot using a defined KG entity index
+* 使用已定义 KG 实体索引的简单聊天机器人
 
-For this tutorial, we won't use the GraphDB LLM integration, but `SPARQL` generation from NLQ. We'll use the `Star Wars API` (`SWAPI`) ontology and dataset that you can examine [here](https://github.com/Ontotext-AD/langchain-graphdb-qa-chain-demo/blob/main/starwars-data.trig).
+本教程不使用 GraphDB LLM 集成，而是从自然语言查询（NLQ）生成 `SPARQL`。我们将使用 `Star Wars API`（`SWAPI`）本体和数据集，可在[此处](https://github.com/Ontotext-AD/langchain-graphdb-qa-chain-demo/blob/main/starwars-data.trig)查看。
 
-## Setting up
+## 配置
 
-You need a running GraphDB instance. This tutorial shows how to run the database locally using the [GraphDB Docker image](https://hub.docker.com/r/ontotext/graphdb). It provides a docker compose set-up, which populates GraphDB with the Star Wars dataset. All necessary files including this notebook can be downloaded from [the GitHub repository langchain-graphdb-qa-chain-demo](https://github.com/Ontotext-AD/langchain-graphdb-qa-chain-demo).
+你需要一个正在运行的 GraphDB 实例。本教程展示如何使用 [GraphDB Docker 镜像](https://hub.docker.com/r/ontotext/graphdb)在本地运行数据库。它提供了一个 Docker Compose 配置，可以用 Star Wars 数据集填充 GraphDB。包括本 notebook 在内的所有必要文件可从 [GitHub 仓库 langchain-graphdb-qa-chain-demo](https://github.com/Ontotext-AD/langchain-graphdb-qa-chain-demo) 下载。
 
-* Install [Docker](https://docs.docker.com/get-docker/). This tutorial is created using Docker version `24.0.7` which bundles [Docker Compose](https://docs.docker.com/compose/). For earlier Docker versions you may need to install Docker Compose separately.
-* Clone [the GitHub repository langchain-graphdb-qa-chain-demo](https://github.com/Ontotext-AD/langchain-graphdb-qa-chain-demo) in a local folder on your machine.
-* Start GraphDB with the following script executed from the same folder
+* 安装 [Docker](https://docs.docker.com/get-docker/)。本教程使用 Docker 版本 `24.0.7`，该版本内置了 [Docker Compose](https://docs.docker.com/compose/)。对于早期 Docker 版本，可能需要单独安装 Docker Compose。
+* 将 [GitHub 仓库 langchain-graphdb-qa-chain-demo](https://github.com/Ontotext-AD/langchain-graphdb-qa-chain-demo) 克隆到本机的本地文件夹中。
+* 从同一文件夹执行以下脚本启动 GraphDB
 
 ```
 docker build --tag graphdb .
 docker compose up -d graphdb
 ```
 
-  You need to wait a couple of seconds for the database to start on `http://localhost:7200/`. The Star Wars dataset `starwars-data.trig` is automatically loaded into the `langchain` repository. The local SPARQL endpoint `http://localhost:7200/repositories/langchain` can be used to run queries against. You can also open the GraphDB Workbench from your favourite web browser `http://localhost:7200/sparql` where you can make queries interactively.
+  你需要等待几秒钟让数据库在 `http://localhost:7200/` 上启动。Star Wars 数据集 `starwars-data.trig` 会自动加载到 `langchain` 仓库中。本地 SPARQL 端点 `http://localhost:7200/repositories/langchain` 可用于执行查询。你也可以在浏览器中打开 GraphDB Workbench：`http://localhost:7200/sparql`，在那里可以交互式地执行查询。
 
-* Set up working environment
+* 设置工作环境
 
-If you use `conda`, create and activate a new conda environment, e.g.:
+如果使用 `conda`，创建并激活一个新的 conda 环境，例如：
 
 ```
 conda create -n graph_ontotext_graphdb_qa python=3.12
 conda activate graph_ontotext_graphdb_qa
 ```
 
-Install the following libraries:
+安装以下库：
 
 ```
 pip install jupyter==1.1.1
@@ -74,23 +74,23 @@ pip install langchain-community==0.3.4
 pip install langchain-openai==0.2.4
 ```
 
-Run Jupyter with
+使用以下命令运行 Jupyter：
 
 ```
 jupyter notebook
 ```
 
-## Specifying the ontology
+## 指定本体
 
-In order for the LLM to be able to generate SPARQL, it needs to know the knowledge graph schema (the ontology). It can be provided using one of two parameters on the `OntotextGraphDBGraph` class:
+为了让 LLM 能够生成 SPARQL，它需要了解知识图谱 schema（本体）。可以通过 `OntotextGraphDBGraph` 类的两个参数之一来提供：
 
-* `query_ontology`: a `CONSTRUCT` query that is executed on the SPARQL endpoint and returns the KG schema statements. We recommend that you store the ontology in its own named graph, which will make it easier to get only the relevant statements (as the example below). `DESCRIBE` queries are not supported, because `DESCRIBE` returns the Symmetric Concise Bounded Description (SCBD), i.e. also the incoming class links. In case of large graphs with a million of instances, this is not efficient. Check [github.com/eclipse-rdf4j/rdf4j/issues/4857](https://github.com/eclipse-rdf4j/rdf4j/issues/4857)
-* `local_file`: a local RDF ontology file. Supported RDF formats are `Turtle`, `RDF/XML`, `JSON-LD`, `N-Triples`, `Notation-3`, `Trig`, `Trix`, `N-Quads`.
+* `query_ontology`：一个在 SPARQL 端点上执行的 `CONSTRUCT` 查询，返回 KG schema 语句。建议将本体存储在独立的命名图中，这样更容易只获取相关语句（如下面的示例）。不支持 `DESCRIBE` 查询，因为 `DESCRIBE` 返回对称的简洁有界描述（SCBD），即也包括传入的类链接。对于具有百万实例的大型图，这效率不高。参见 [github.com/eclipse-rdf4j/rdf4j/issues/4857](https://github.com/eclipse-rdf4j/rdf4j/issues/4857)
+* `local_file`：本地 RDF 本体文件。支持的 RDF 格式有 `Turtle`、`RDF/XML`、`JSON-LD`、`N-Triples`、`Notation-3`、`Trig`、`Trix`、`N-Quads`。
 
-In either case, the ontology dump should:
+无论哪种情况，本体转储都应该：
 
-* Include enough information about classes, properties, property attachment to classes (using rdfs:domain, schema:domainIncludes or OWL restrictions), and taxonomies (important individuals).
-* Not include overly verbose and irrelevant definitions and examples that do not help SPARQL construction.
+* 包含足够的关于类、属性、属性与类的关联（使用 rdfs:domain、schema:domainIncludes 或 OWL 限制）以及分类体系（重要个体）的信息。
+* 不包含过于冗长和无关的定义及示例，这些对 SPARQL 构建没有帮助。
 
 ```python
 from langchain_community.graphs import OntotextGraphDBGraph
@@ -112,9 +112,9 @@ graph = OntotextGraphDBGraph(
 )
 ```
 
-Either way, the ontology (schema) is fed to the LLM as `Turtle` since `Turtle` with appropriate prefixes is most compact and easiest for the LLM to remember.
+无论哪种方式，本体（schema）都以 `Turtle` 格式提供给 LLM，因为带有适当前缀的 `Turtle` 格式最为紧凑，也最容易被 LLM 记忆。
 
-The Star Wars ontology is a bit unusual in that it includes a lot of specific triples about classes, e.g. that the species `:Aleena` live on `<planet/38>`, they are a subclass of `:Reptile`, have certain typical characteristics (average height, average lifespan, skinColor), and specific individuals (characters) are representatives of that class:
+Star Wars 本体有些特殊，它包含了大量关于类的特定三元组，例如 `:Aleena` 物种居住在 `<planet/38>`，它们是 `:Reptile` 的子类，具有某些典型特征（平均身高、平均寿命、皮肤颜色），且特定个体（角色）是该类的代表：
 
 ```
 @prefix : [swapi.co/vocabulary/](https://swapi.co/vocabulary/) .
@@ -138,7 +138,7 @@ The Star Wars ontology is a bit unusual in that it includes a lot of specific tr
 
  ```
 
-In order to keep this tutorial simple, we use un-secured GraphDB. If GraphDB is secured, you should set the environment variables 'GRAPHDB_USERNAME' and 'GRAPHDB_PASSWORD' before the initialization of `OntotextGraphDBGraph`.
+为了保持本教程简单，我们使用未加密的 GraphDB。如果 GraphDB 已加密，应在初始化 `OntotextGraphDBGraph` 之前设置环境变量 'GRAPHDB_USERNAME' 和 'GRAPHDB_PASSWORD'。
 
 ```python
 os.environ["GRAPHDB_USERNAME"] = "graphdb-user"
@@ -150,9 +150,9 @@ graph = OntotextGraphDBGraph(
 )
 ```
 
-## Question answering against the StarWars dataset
+## 针对 StarWars 数据集的问答
 
-We can now use the `OntotextGraphDBQAChain` to ask some questions.
+现在可以使用 `OntotextGraphDBQAChain` 提问了。
 
 ```python
 import os
@@ -180,7 +180,7 @@ chain = OntotextGraphDBQAChain.from_llm(
 )
 ```
 
-Let's ask a simple one.
+让我们先问一个简单的问题。
 
 ```python
 chain.invoke({chain.input_key: "What is the climate on Tatooine?"})[chain.output_key]
@@ -207,7 +207,7 @@ WHERE {
 'The climate on Tatooine is arid.'
 ```
 
-And a bit more complicated one.
+再问一个稍复杂的问题。
 
 ```python
 chain.invoke({chain.input_key: "What is the climate on Luke Skywalker's home planet?"})[
@@ -237,7 +237,7 @@ WHERE {
 "The climate on Luke Skywalker's home planet is arid."
 ```
 
-We can also ask more complicated questions like
+我们还可以提更复杂的问题，例如
 
 ```python
 chain.invoke(
@@ -268,17 +268,17 @@ WHERE {
 'The average box office revenue for all the Star Wars movies is approximately 754.1 million dollars.'
 ```
 
-## Chain modifiers
+## 链修饰符
 
-The Ontotext GraphDB QA chain allows prompt refinement for further improvement of your QA chain and enhancing the overall user experience of your app.
+Ontotext GraphDB QA chain 允许通过提示词优化来进一步改善 QA chain，并提升应用的整体用户体验。
 
-### "SPARQL generation" prompt
+### "SPARQL 生成"提示词
 
-The prompt is used for the SPARQL query generation based on the user question and the KG schema.
+该提示词用于根据用户问题和 KG schema 生成 SPARQL 查询。
 
 * `sparql_generation_prompt`
 
-    Default value:
+    默认值：
 
   ```python
     GRAPHDB_SPARQL_GENERATION_TEMPLATE = """
@@ -304,13 +304,13 @@ The prompt is used for the SPARQL query generation based on the user question an
     )
   ```
 
-### "SPARQL fix" prompt
+### "SPARQL 修复"提示词
 
-Sometimes, the LLM may generate a SPARQL query with syntactic errors or missing prefixes, etc. The chain will try to amend this by prompting the LLM to correct it a certain number of times.
+有时，LLM 可能会生成带有语法错误或缺少前缀等问题的 SPARQL 查询。该链会通过提示 LLM 一定次数来修正这些问题。
 
 * `sparql_fix_prompt`
 
-    Default value:
+    默认值：
 
   ```python
     GRAPHDB_SPARQL_FIX_TEMPLATE = """
@@ -342,15 +342,15 @@ Sometimes, the LLM may generate a SPARQL query with syntactic errors or missing 
 
 * `max_fix_retries`
 
-    Default value: `5`
+    默认值：`5`
 
-### "Answering" prompt
+### "答案生成"提示词
 
-The prompt is used for answering the question based on the results returned from the database and the initial user question. By default, the LLM is instructed to only use the information from the returned result(s). If the result set is empty, the LLM should inform that it can't answer the question.
+该提示词用于根据数据库返回的结果和初始用户问题来回答问题。默认情况下，指示 LLM 只使用返回结果中的信息。如果结果集为空，LLM 应告知用户无法回答该问题。
 
 * `qa_prompt`
 
-  Default value:
+  默认值：
 
   ```python
     GRAPHDB_QA_TEMPLATE = """Task: Generate a natural language response from the results of a SPARQL query.
@@ -369,19 +369,18 @@ The prompt is used for answering the question based on the results returned from
     )
   ```
 
-Once you're finished playing with QA with GraphDB, you can shut down the Docker environment by running
+完成与 GraphDB 的问答体验后，可以从 Docker Compose 文件所在目录运行以下命令关闭 Docker 环境：
 ``
 docker compose down -v --remove-orphans
 ``
-from the directory with the Docker compose file.
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/graphs/ontotext.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/graphs/ontotext.mdx) 或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等工具，通过 MCP 获取实时答案。
 </Callout>
 </div>

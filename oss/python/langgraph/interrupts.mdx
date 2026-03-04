@@ -1,29 +1,29 @@
 ---
-title: Interrupts
+title: 中断
 ---
 
-Interrupts allow you to pause graph execution at specific points and wait for external input before continuing. This enables human-in-the-loop patterns where you need external input to proceed. When an interrupt is triggered, LangGraph saves the graph state using its [persistence](/oss/python/langgraph/persistence) layer and waits indefinitely until you resume execution.
+中断允许你在图执行的特定节点暂停，并等待外部输入后再继续。这支持了需要外部输入才能推进的人机协作（human-in-the-loop）模式。当中断触发时，LangGraph 通过其[持久化](/oss/python/langgraph/persistence)层保存图状态，并无限期等待直到你恢复执行。
 
-Interrupts work by calling the `interrupt()` function at any point in your graph nodes. The function accepts any JSON-serializable value which is surfaced to the caller. When you're ready to continue, you resume execution by re-invoking the graph using `Command`, which then becomes the return value of the `interrupt()` call from inside the node.
+中断的工作方式是在图节点的任意位置调用 `interrupt()` 函数。该函数接受任何 JSON 可序列化的值，并将其暴露给调用方。当你准备继续时，可以使用 `Command` 重新调用图来恢复执行，该值将成为节点内 `interrupt()` 调用的返回值。
 
-Unlike static breakpoints (which pause before or after specific nodes), interrupts are **dynamic**—they can be placed anywhere in your code and can be conditional based on your application logic.
+与静态断点（在特定节点前后暂停）不同，中断是**动态的**——它们可以放置在代码的任意位置，并可根据应用逻辑设置条件。
 
-- **Checkpointing keeps your place:** the checkpointer writes the exact graph state so you can resume later, even when in an error state.
-- **`thread_id` is your pointer:** set `config={"configurable": {"thread_id": ...}}` to tell the checkpointer which state to load.
-- **Interrupt payloads surface as `__interrupt__`:** the values you pass to `interrupt()` return to the caller in the `__interrupt__` field so you know what the graph is waiting on.
+- **检查点保存你的位置：** 检查点器会写入精确的图状态，让你之后可以恢复执行，即使处于错误状态也可以。
+- **`thread_id` 是你的指针：** 设置 `config={"configurable": {"thread_id": ...}}` 以告诉检查点器加载哪个状态。
+- **中断载荷以 `__interrupt__` 形式暴露：** 你传给 `interrupt()` 的值会通过 `__interrupt__` 字段返回给调用方，让你知道图在等待什么。
 
 
 
-The `thread_id` you choose is effectively your persistent cursor. Reusing it resumes the same checkpoint; using a new value starts a brand-new thread with an empty state.
+你选择的 `thread_id` 实际上就是你的持久游标。重用它会恢复同一个检查点；使用新值则会启动一个状态为空的全新线程。
 
-## Pause using `interrupt`
+## 使用 `interrupt` 暂停
 
-The [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) function pauses graph execution and returns a value to the caller. When you call [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) within a node, LangGraph saves the current graph state and waits for you to resume execution with input.
+[`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) 函数会暂停图执行并将一个值返回给调用方。当你在节点中调用 [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) 时，LangGraph 会保存当前图状态，并等待你带着输入恢复执行。
 
-To use [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt), you need:
-1. A **checkpointer** to persist the graph state (use a durable checkpointer in production)
-2. A **thread ID** in your config so the runtime knows which state to resume from
-3. To call `interrupt()` where you want to pause (payload must be JSON-serializable)
+使用 [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) 需要：
+1. 一个**检查点器**来持久化图状态（生产环境中请使用持久化检查点器）
+2. 配置中的一个 **thread ID**，让运行时知道从哪个状态恢复
+3. 在你想要暂停的地方调用 `interrupt()`（载荷必须是 JSON 可序列化的）
 
 ```python
 from langgraph.types import interrupt
@@ -39,17 +39,17 @@ def approval_node(state: State):
 
 
 
-When you call [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt), here's what happens:
+当你调用 [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) 时，会发生以下情况：
 
-1. **Graph execution gets suspended** at the exact point where [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) is called
-2. **State is saved** using the checkpointer so execution can be resumed later, In production, this should be a persistent checkpointer (e.g. backed by a database)
-3. **Value is returned** to the caller under `__interrupt__`; it can be any JSON-serializable value (string, object, array, etc.)
-4. **Graph waits indefinitely** until you resume execution with a response
-5. **Response is passed back** into the node when you resume, becoming the return value of the `interrupt()` call
+1. **图执行被暂停**，精确停在 [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) 被调用的位置
+2. **状态被保存**，使用检查点器以便之后恢复执行。生产环境中应使用持久化检查点器（例如由数据库支持）
+3. **值被返回**给调用方，以 `__interrupt__` 形式呈现；可以是任何 JSON 可序列化的值（字符串、对象、数组等）
+4. **图无限期等待**，直到你带着响应恢复执行
+5. **响应被传回**节点，成为 `interrupt()` 调用的返回值
 
-## Resuming interrupts
+## 恢复中断
 
-After an interrupt pauses execution, you resume the graph by invoking it again with a `Command` that contains the resume value. The resume value is passed back to the `interrupt` call, allowing the node to continue execution with the external input.
+中断暂停执行后，你可以通过再次调用图并传入包含恢复值的 `Command` 来恢复图执行。恢复值会被传回到 `interrupt` 调用处，让节点能够利用外部输入继续执行。
 
 ```python
 from langgraph.types import Command
@@ -69,16 +69,16 @@ print(result["__interrupt__"])
 graph.invoke(Command(resume=True), config=config)
 ```
 
-**Key points about resuming:**
+**恢复的关键要点：**
 
-- You must use the **same thread ID** when resuming that was used when the interrupt occurred
-- The value passed to `Command(resume=...)` becomes the return value of the [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) call
-- The node restarts from the beginning of the node where the [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) was called when resumed, so any code before the [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) runs again
-- You can pass any JSON-serializable value as the resume value
+- 恢复时必须使用与中断发生时**相同的 thread ID**
+- 传给 `Command(resume=...)` 的值会成为 [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) 调用的返回值
+- 恢复时，节点会从 [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) 所在节点的**开头**重新开始，因此 [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) 之前的代码会再次运行
+- 可以传入任何 JSON 可序列化的值作为恢复值
 
 <Warning>
 
-`Command(resume=...)` is the **only** `Command` pattern intended as input to `invoke()`/`stream()`. The other `Command` parameters (`update`, `goto`, `graph`) are designed for [returning from node functions](/oss/python/langgraph/graph-api#command). Do not pass `Command(update=...)` as input to continue multi-turn conversations — pass a plain input dict instead.
+`Command(resume=...)` 是**唯一**设计为 `invoke()`/`stream()` 输入的 `Command` 模式。其他 `Command` 参数（`update`、`goto`、`graph`）是为[从节点函数返回](/oss/python/langgraph/graph-api#command)而设计的。不要将 `Command(update=...)` 作为输入传入以继续多轮对话——请传入普通的输入字典。
 
 </Warning>
 
@@ -86,24 +86,24 @@ graph.invoke(Command(resume=True), config=config)
 
 
 
-## Common patterns
+## 常见模式
 
-The key thing that interrupts unlock is the ability to pause execution and wait for external input. This is useful for a variety of use cases, including:
+中断解锁的核心能力是暂停执行并等待外部输入。这在多种场景下都很有用，包括：
 
-- <Icon icon="circle-check" /> [Approval workflows](#approve-or-reject): Pause before executing critical actions (API calls, database changes, financial transactions)
-- <Icon icon="link" /> [Handling multiple interrupts](#handling-multiple-interrupts): Pair interrupt IDs with resume values when resuming multiple interrupts in a single invocation
-- <Icon icon="pencil" /> [Review and edit](#review-and-edit-state): Let humans review and modify LLM outputs or tool calls before continuing
-- <Icon icon="tool" /> [Interrupting tool calls](#interrupts-in-tools): Pause before executing tool calls to review and edit the tool call before execution
-- <Icon icon="shield-check" /> [Validating human input](#validating-human-input): Pause before proceeding to the next step to validate human input
+- <Icon icon="circle-check" /> [审批工作流](#approve-or-reject)：在执行关键操作（API 调用、数据库变更、金融交易）之前暂停
+- <Icon icon="link" /> [处理多个中断](#handling-multiple-interrupts)：在单次调用中恢复多个中断时，将中断 ID 与恢复值对应
+- <Icon icon="pencil" /> [审查与编辑](#review-and-edit-state)：让人类在继续之前审查并修改 LLM 输出或工具调用
+- <Icon icon="tool" /> [中断工具调用](#interrupts-in-tools)：在工具调用执行前暂停，以便在执行前审查和编辑工具调用
+- <Icon icon="shield-check" /> [验证人类输入](#validating-human-input)：在进入下一步之前暂停以验证人类输入
 
-### Stream with human-in-the-loop (HITL) interrupts
+### 使用人机协作（HITL）中断进行流式处理
 
-When building interactive agents with human-in-the-loop workflows, you can stream both message chunks and node updates simultaneously to provide real-time feedback while handling interrupts.
+在构建带人机协作工作流的交互式智能体时，你可以同时流式传输消息块和节点更新，从而在处理中断的同时提供实时反馈。
 
-Use multiple stream modes (`"messages"` and `"updates"`) with `subgraphs=True` (if subgraphs are present) to:
-- Stream AI responses in real-time as they're generated
-- Detect when the graph encounters an interrupt
-- Handle user input and resume execution seamlessly
+使用多种流模式（`"messages"` 和 `"updates"`）以及 `subgraphs=True`（如果存在子图）可以：
+- 实时流式传输 AI 响应
+- 检测图何时遇到中断
+- 无缝处理用户输入并恢复执行
 
 ```python
 async for metadata, mode, chunk in graph.astream(
@@ -137,16 +137,16 @@ async for metadata, mode, chunk in graph.astream(
             current_node = list(chunk.keys())[0]
 ```
 
-- **`stream_mode=["messages", "updates"]`**: Enables dual streaming of both message chunks and graph state updates
-- **`subgraphs=True`**: Required for interrupt detection in nested graphs
-- **`"__interrupt__"` detection**: Signals when human input is needed
-- **`Command(resume=...)`**: Resumes graph execution with user-provided data
+- **`stream_mode=["messages", "updates"]`**：同时启用消息块和图状态更新的双重流式传输
+- **`subgraphs=True`**：在嵌套图中检测中断时必需
+- **`"__interrupt__"` 检测**：表示需要人类输入
+- **`Command(resume=...)`**：使用用户提供的数据恢复图执行
 
-### Handling multiple interrupts
+### 处理多个中断
 
-When parallel branches interrupt simultaneously (for example, fan-out to multiple nodes that each call `interrupt()`), you may need to resume multiple interrupts in a single invocation.
-When resuming multiple interrupts with a single invocation, map each interrupt ID to its resume value.
-This ensures each response is paired with the correct interrupt at runtime.
+当并行分支同时中断时（例如，扇出到多个节点，每个节点都调用 `interrupt()`），你可能需要在单次调用中恢复多个中断。
+在单次调用中恢复多个中断时，将每个中断 ID 映射到其恢复值。
+这确保每个响应在运行时与正确的中断配对。
 
 ```python
 from typing import Annotated, TypedDict
@@ -212,9 +212,9 @@ print("Final state:", result)
 
 
 
-### Approve or reject
+### 审批或拒绝
 
-One of the most common uses of interrupts is to pause before a critical action and ask for approval. For example, you might want to ask a human to approve an API call, a database change, or any other important decision.
+中断最常见的用途之一是在执行关键操作之前暂停并请求审批。例如，你可能希望请求人类批准 API 调用、数据库变更或任何其他重要决策。
 
 ```python
 from typing import Literal
@@ -237,7 +237,7 @@ def approval_node(state: State) -> Command[Literal["proceed", "cancel"]]:
 
 
 
-When you resume the graph, pass `true` to approve or `false` to reject:
+恢复图时，传入 `true` 表示批准，传入 `false` 表示拒绝：
 
 ```python
 # To approve
@@ -250,7 +250,7 @@ graph.invoke(Command(resume=False), config=config)
 
 
 
-<Accordion title="Full example">
+<Accordion title="完整示例">
     ```python
     from typing import Literal, Optional, TypedDict
 
@@ -312,9 +312,9 @@ graph.invoke(Command(resume=False), config=config)
 
 </Accordion>
 
-### Review and edit state
+### 审查与编辑状态
 
-Sometimes you want to let a human review and edit part of the graph state before continuing. This is useful for correcting LLMs, adding missing information, or making adjustments.
+有时你希望让人类在继续之前审查并编辑部分图状态。这对于纠正 LLM 输出、补充缺失信息或进行调整非常有用。
 
 ```python
 from langgraph.types import interrupt
@@ -333,7 +333,7 @@ def review_node(state: State):
 
 
 
-When resuming, provide the edited content:
+恢复时，提供编辑后的内容：
 
 ```python
 graph.invoke(
@@ -393,11 +393,11 @@ graph.invoke(
 
 </Accordion>
 
-### Interrupts in tools
+### 工具中的中断
 
-You can also place interrupts directly inside tool functions. This makes the tool itself pause for approval whenever it's called, and allows for human review and editing of the tool call before it is executed.
+你也可以直接在工具函数内部设置中断。这使得工具每次被调用时都会暂停等待审批，并允许在执行工具调用前进行人工审查和编辑。
 
-First, define a tool that uses [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt):
+首先，定义一个使用 [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) 的工具：
 
 ```python
 from langchain.tools import tool
@@ -428,7 +428,7 @@ def send_email(to: str, subject: str, body: str):
 
 
 
-This approach is useful when you want the approval logic to live with the tool itself, making it reusable across different parts of your graph. The LLM can call the tool naturally, and the interrupt will pause execution whenever the tool is invoked, allowing you to approve, edit, or cancel the action.
+当你希望审批逻辑与工具本身放在一起、使其在图的不同部分可复用时，这种方式非常有用。LLM 可以自然地调用工具，每当工具被调用时中断就会暂停执行，让你可以批准、编辑或取消该操作。
 
 <Accordion title="Full example">
     ```python
@@ -512,9 +512,9 @@ This approach is useful when you want the approval logic to live with the tool i
 
 </Accordion>
 
-### Validating human input
+### 验证人类输入
 
-Sometimes you need to validate input from humans and ask again if it's invalid. You can do this using multiple [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) calls in a loop.
+有时你需要验证来自人类的输入，并在输入无效时重新提问。你可以在循环中使用多个 [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) 调用来实现这一点。
 
 ```python
 from langgraph.types import interrupt
@@ -539,7 +539,7 @@ def get_age_node(state: State):
 
 
 
-Each time you resume the graph with invalid input, it will ask again with a clearer message. Once valid input is provided, the node completes and the graph continues.
+每次以无效输入恢复图时，它会用更清晰的消息再次提问。一旦提供了有效输入，节点就会完成，图继续执行。
 
 <Accordion title="Full example">
     ```python
@@ -593,18 +593,18 @@ Each time you resume the graph with invalid input, it will ask again with a clea
 
 </Accordion>
 
-## Rules of interrupts
+## 中断规则
 
-When you call [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) within a node, LangGraph suspends execution by raising an exception that signals the runtime to pause. This exception propagates up through the call stack and is caught by the runtime, which notifies the graph to save the current state and wait for external input.
+当你在节点中调用 [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) 时，LangGraph 通过抛出一个特殊异常来暂停执行，该异常会通知运行时进行暂停。这个异常沿调用栈向上传播，被运行时捕获，通知图保存当前状态并等待外部输入。
 
-When execution resumes (after you provide the requested input), the runtime restarts the entire node from the beginning—it does not resume from the exact line where [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) was called. This means any code that ran before the [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) will execute again. Because of this, there's a few important rules to follow when working with interrupts to ensure they behave as expected.
+当执行恢复时（在你提供了请求的输入之后），运行时会从**节点开头**重新启动整个节点——而不是从 [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) 被调用的确切位置恢复。这意味着 [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) 之前运行的任何代码都会再次执行。因此，在使用中断时有一些重要规则需要遵守，以确保其行为符合预期。
 
-### Do not wrap `interrupt` calls in try/except
+### 不要将 `interrupt` 调用包裹在 try/except 中
 
-The way that [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) pauses execution at the point of the call is by throwing a special exception. If you wrap the [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) call in a try/except block, you will catch this exception and the interrupt will not be passed back to the graph.
+[`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) 在调用点暂停执行的方式是抛出一个特殊异常。如果你将 [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) 调用包裹在 try/except 块中，就会捕获这个异常，中断将无法传回图。
 
-* ✅ Separate [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) calls from error-prone code
-* ✅ Use specific exception types in try/except blocks
+* ✅ 将 [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) 调用与可能出错的代码分开
+* ✅ 在 try/except 块中使用特定的异常类型
 
 <CodeGroup>
 ```python Separating logic
@@ -631,7 +631,7 @@ def node_a(state: State):
 ```
 </CodeGroup>
 
-* 🔴 Do not wrap [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) calls in bare try/except blocks
+* 🔴 不要将 [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) 调用包裹在裸 try/except 块中
 
 ```python
 def node_a(state: State):
@@ -647,13 +647,13 @@ def node_a(state: State):
 
 
 
-### Do not reorder `interrupt` calls within a node
+### 不要在节点内重排 `interrupt` 调用
 
-It's common to use multiple interrupts in a single node, however this can lead to unexpected behavior if not handled carefully.
+在单个节点中使用多个中断很常见，但如果处理不当可能导致意外行为。
 
-When a node contains multiple interrupt calls, LangGraph keeps a list of resume values specific to the task executing the node. Whenever execution resumes, it starts at the beginning of the node. For each interrupt encountered, LangGraph checks if a matching value exists in the task's resume list. Matching is **strictly index-based**, so the order of interrupt calls within the node is important.
+当节点包含多个 interrupt 调用时，LangGraph 会维护一个与执行该节点的任务对应的恢复值列表。每次恢复执行时，都从节点开头开始。对于遇到的每个 interrupt，LangGraph 检查任务恢复列表中是否存在匹配的值。匹配是**严格基于索引**的，因此节点内 interrupt 调用的顺序非常重要。
 
-* ✅ Keep [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) calls consistent across node executions
+* ✅ 保持 [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) 调用在各次节点执行中一致
 
 ```python
 def node_a(state: State):
@@ -671,8 +671,8 @@ def node_a(state: State):
 
 
 
-* 🔴 Do not conditionally skip [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) calls within a node
-* 🔴 Do not loop [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) calls using logic that isn't deterministic across executions
+* 🔴 不要在节点内有条件地跳过 [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) 调用
+* 🔴 不要使用在各次执行间不确定的逻辑循环 [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) 调用
 
 <CodeGroup>
 ```python Skipping interrupts
@@ -704,12 +704,12 @@ def node_a(state: State):
 
 
 
-### Do not return complex values in `interrupt` calls
+### 不要在 `interrupt` 调用中返回复杂值
 
-Depending on which checkpointer is used, complex values may not be serializable (e.g. you can't serialize a function). To make your graphs adaptable to any deployment, it's best practice to only use values that can be reasonably serialized.
+根据所使用的检查点器，复杂值可能无法序列化（例如，函数不能被序列化）。为使你的图能适应任何部署环境，最佳实践是只使用可以合理序列化的值。
 
-* ✅ Pass simple, JSON-serializable types to [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt)
-* ✅ Pass dictionaries/objects with simple values
+* ✅ 向 [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) 传入简单的 JSON 可序列化类型
+* ✅ 传入包含简单值的字典/对象
 
 <CodeGroup>
 ```python Simple values
@@ -737,7 +737,7 @@ def node_a(state: State):
 
 
 
-* 🔴 Do not pass functions, class instances, or other complex objects to [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt)
+* 🔴 不要向 [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) 传入函数、类实例或其他复杂对象
 
 <CodeGroup>
 ```python Functions
@@ -774,15 +774,15 @@ def node_a(state: State):
 
 
 
-### Side effects called before `interrupt` must be idempotent
+### `interrupt` 之前的副作用必须是幂等的
 
-Because interrupts work by re-running the nodes they were called from, side effects called before [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) should (ideally) be idempotent. For context, idempotency means that the same operation can be applied multiple times without changing the result beyond the initial execution.
+由于中断通过重新运行所在节点来工作，在 [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) 之前调用的副作用最好是幂等的。幂等性是指同一操作可以多次执行，但结果与首次执行相同。
 
-As an example, you might have an API call to update a record inside of a node. If [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) is called after that call is made, it will be re-run multiple times when the node is resumed, potentially overwriting the initial update or creating duplicate records.
+例如，你可能在节点内有一个更新记录的 API 调用。如果该调用完成后才调用 [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt)，节点恢复时这个 API 调用会被多次重新执行，可能会覆盖初始更新或创建重复记录。
 
-* ✅ Use idempotent operations before [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt)
-* ✅ Place side effects after [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) calls
-* ✅ Separate side effects into separate nodes when possible
+* ✅ 在 [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) 之前使用幂等操作
+* ✅ 将副作用放在 [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) 调用之后
+* ✅ 尽可能将副作用分离到独立节点中
 
 <CodeGroup>
 ```python Idempotent operations
@@ -835,8 +835,8 @@ def notification_node(state: State):
 
 
 
-* 🔴 Do not perform non-idempotent operations before [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt)
-* 🔴 Do not create new records without checking if they exist
+* 🔴 不要在 [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) 之前执行非幂等操作
+* 🔴 不要在未检查记录是否已存在的情况下创建新记录
 
 <CodeGroup>
 ```python Creating records
@@ -868,9 +868,9 @@ def node_a(state: State):
 
 
 
-## Using with subgraphs called as functions
+## 与以函数方式调用的子图配合使用
 
-When invoking a subgraph within a node, the parent graph will resume execution from the **beginning of the node** where the subgraph was invoked and the [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) was triggered. Similarly, the **subgraph** will also resume from the beginning of the node where [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) was called.
+在节点中调用子图时，父图将从**调用子图的节点开头**恢复执行，即触发 [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) 的地方。同样，**子图**也会从调用 [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) 的节点开头恢复。
 
 ```python
 def node_in_parent_graph(state: State):
@@ -888,18 +888,18 @@ def node_in_subgraph(state: State):
 
 
 
-## Debugging with interrupts
+## 使用中断进行调试
 
-To debug and test a graph, you can use static interrupts as breakpoints to step through the graph execution one node at a time. Static interrupts are triggered at defined points either before or after a node executes. You can set these by specifying `interrupt_before` and `interrupt_after` when compiling the graph.
+为了调试和测试图，你可以使用静态中断作为断点，逐节点地单步执行图。静态中断在节点执行前或执行后的定义位置触发。你可以在编译图时通过指定 `interrupt_before` 和 `interrupt_after` 来设置这些断点。
 
 
 
 <Note>
-    Static interrupts are **not** recommended for human-in-the-loop workflows. Use the [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) function instead.
+    静态中断**不**推荐用于人机协作工作流。请改用 [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) 函数。
 </Note>
 
 <Tabs>
-    <Tab title="At compile time">
+    <Tab title="编译时">
         ```python
         graph = builder.compile(
             interrupt_before=["node_a"],  # [!code highlight]
@@ -907,30 +907,30 @@ To debug and test a graph, you can use static interrupts as breakpoints to step 
             checkpointer=checkpointer,
         )
 
-        # Pass a thread ID to the graph
+        # 向图传入 thread ID
         config = {
             "configurable": {
                 "thread_id": "some_thread"
             }
         }
 
-        # Run the graph until the breakpoint
+        # 运行图直到断点
         graph.invoke(inputs, config=config)  # [!code highlight]
 
-        # Resume the graph
+        # 恢复图
         graph.invoke(None, config=config)  # [!code highlight]
         ```
 
-        1. The breakpoints are set during `compile` time.
-        2. `interrupt_before` specifies the nodes where execution should pause before the node is executed.
-        3. `interrupt_after` specifies the nodes where execution should pause after the node is executed.
-        4. A checkpointer is required to enable breakpoints.
-        5. The graph is run until the first breakpoint is hit.
-        6. The graph is resumed by passing in `None` for the input. This will run the graph until the next breakpoint is hit.
+        1. 断点在 `compile` 时设置。
+        2. `interrupt_before` 指定在节点执行**之前**暂停的节点。
+        3. `interrupt_after` 指定在节点执行**之后**暂停的节点。
+        4. 需要检查点器才能启用断点。
+        5. 图运行直到命中第一个断点。
+        6. 通过传入 `None` 作为输入来恢复图。这会运行图直到命中下一个断点。
 
 
     </Tab>
-    <Tab title="At run time">
+    <Tab title="运行时">
         ```python
         config = {
             "configurable": {
@@ -938,7 +938,7 @@ To debug and test a graph, you can use static interrupts as breakpoints to step 
             }
         }
 
-        # Run the graph until the breakpoint
+        # 运行图直到断点
         graph.invoke(
             inputs,
             interrupt_before=["node_a"],  # [!code highlight]
@@ -946,27 +946,27 @@ To debug and test a graph, you can use static interrupts as breakpoints to step 
             config=config,
         )
 
-        # Resume the graph
+        # 恢复图
         graph.invoke(None, config=config)  # [!code highlight]
         ```
 
-        1. `graph.invoke` is called with the `interrupt_before` and `interrupt_after` parameters. This is a run-time configuration and can be changed for every invocation.
-        2. `interrupt_before` specifies the nodes where execution should pause before the node is executed.
-        3. `interrupt_after` specifies the nodes where execution should pause after the node is executed.
-        4. The graph is run until the first breakpoint is hit.
-        5. The graph is resumed by passing in `None` for the input. This will run the graph until the next breakpoint is hit.
+        1. `graph.invoke` 使用 `interrupt_before` 和 `interrupt_after` 参数调用。这是运行时配置，每次调用时都可以更改。
+        2. `interrupt_before` 指定在节点执行**之前**暂停的节点。
+        3. `interrupt_after` 指定在节点执行**之后**暂停的节点。
+        4. 图运行直到命中第一个断点。
+        5. 通过传入 `None` 作为输入来恢复图。这会运行图直到命中下一个断点。
 
 
     </Tab>
 </Tabs>
 
 <Tip>
-To debug your interrupts, use [LangSmith](/langsmith/home).
+要调试中断，请使用 [LangSmith](/langsmith/home)。
 </Tip>
 
-### Using LangSmith Studio
+### 使用 LangSmith Studio
 
-You can use [LangSmith Studio](/langsmith/studio) to set static interrupts in your graph in the UI before running the graph. You can also use the UI to inspect the graph state at any point in the execution.
+你可以使用 [LangSmith Studio](/langsmith/studio) 在 UI 中运行图之前设置静态中断。你还可以使用 UI 在执行过程中的任意节点检查图状态。
 
 ![image](/oss/images/static-interrupt.png)
 
@@ -974,9 +974,9 @@ You can use [LangSmith Studio](/langsmith/studio) to set static interrupts in yo
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/interrupts.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/interrupts.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [连接这些文档](/use-these-docs) 到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 </div>

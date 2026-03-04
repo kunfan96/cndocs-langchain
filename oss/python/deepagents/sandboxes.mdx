@@ -1,19 +1,19 @@
 ---
-title: Sandboxes
-sidebarTitle: Sandboxes
-description: Execute code in isolated environments with sandbox backends
+title: 沙盒
+sidebarTitle: 沙盒
+description: 使用沙盒后端在隔离环境中执行代码
 ---
 
 import SandboxBasicPy from '/snippets/deepagents-sandbox-basic-py.mdx';
 import SandboxBasicJs from '/snippets/deepagents-sandbox-basic-js.mdx';
 
-Agents generate code, interact with filesystems, and run shell commands. Because we can't predict what an agent might do, it's important that its environment is isolated so it can't access credentials, files, or the network. Sandboxes provide this isolation by creating a boundary between the agent's execution environment and your host system.
+智能体会生成代码、与文件系统交互并执行 shell 命令。由于我们无法预测智能体可能执行的操作，因此必须将其运行环境隔离，以防止其访问凭据、文件或网络。沙盒通过在智能体执行环境与宿主系统之间创建边界来提供这种隔离。
 
-In deep agents, **sandboxes are [backends](/oss/python/deepagents/backends)** that define the environment where the agent operates. Unlike other backends (State, Filesystem, Store) which only expose file operations, sandbox backends also give the agent an `execute` tool for running shell commands. When you configure a sandbox backend, the agent gets:
+在深度智能体中，**沙盒是[后端](/oss/python/deepagents/backends)**，定义了智能体运行的环境。与仅暴露文件操作的其他后端（State、Filesystem、Store）不同，沙盒后端还为智能体提供了用于执行 shell 命令的 `execute` 工具。配置沙盒后端后，智能体将获得：
 
-- All standard filesystem tools (`ls`, `read_file`, `write_file`, `edit_file`, `glob`, `grep`)
-- The `execute` tool for running arbitrary shell commands in the sandbox
-- A secure boundary that protects your host system
+- 所有标准文件系统工具（`ls`、`read_file`、`write_file`、`edit_file`、`glob`、`grep`）
+- 用于在沙盒中运行任意 shell 命令的 `execute` 工具
+- 保护宿主系统的安全边界
 
 ```mermaid
 graph LR
@@ -31,64 +31,64 @@ graph LR
     end
 ```
 
-## Why use sandboxes?
+## 为何使用沙盒？
 
-Sandboxes are used for security.
-They let agents execute arbitrary code, access files, and use the network without compromising your credentials, local files, or host system.
-This isolation is essential when agents run autonomously.
+沙盒用于保障安全性。
+它们让智能体能够执行任意代码、访问文件和使用网络，而不会危及您的凭据、本地文件或宿主系统。
+在智能体自主运行时，这种隔离至关重要。
 
-Sandboxes are especially useful for:
+沙盒特别适用于：
 
-- Coding agents: Agents that run autonomously can use shell, git, clone repositories (many providers offer native git APIs, e.g., [Daytona's git operations](https://www.daytona.io/docs/en/git-operations/)), and run Docker-in-Docker for build and test pipelines
-- Data analysis agents — Load files, install data analysis libraries (pandas, numpy, etc.), run statistical calculations, and create outputs like PowerPoint presentations in a safe, isolated environment
+- 编码智能体：自主运行的智能体可以使用 shell、git、克隆代码库（许多提供商提供原生 git API，例如 [Daytona 的 git 操作](https://www.daytona.io/docs/en/git-operations/)），并在 Docker-in-Docker 中运行构建和测试流水线
+- 数据分析智能体 — 在安全隔离的环境中加载文件、安装数据分析库（pandas、numpy 等）、运行统计计算，并创建 PowerPoint 演示文稿等输出
 
-## Integration patterns
+## 集成模式
 
-There are two architecture patterns for integrating agents with sandboxes, based on where the agent runs.
+根据智能体运行位置的不同，有两种架构模式可将智能体与沙盒集成。
 
-### Agent in sandbox pattern
+### 智能体在沙盒内模式
 
-The agent runs inside the sandbox and you communicate with it over the network. You build a Docker or VM image with your agent framework pre-installed, run it inside the sandbox, and connect from outside to send messages.
+智能体在沙盒内运行，您通过网络与其通信。您构建一个预安装了智能体框架的 Docker 或 VM 镜像，在沙盒内运行它，并从外部连接发送消息。
 
-Benefits:
+优势：
 
-- ✅ Mirrors local development closely.
-- ✅ Tight coupling between agent and environment.
+- ✅ 与本地开发环境高度一致。
+- ✅ 智能体与环境紧密耦合。
 
-Trade-offs:
+劣势：
 
-- 🔴 API keys must live inside the sandbox (security risk).
-- 🔴 Updates require rebuilding images.
-- 🔴 Requires infrastructure for communication (WebSocket or HTTP layer).
+- 🔴 API 密钥必须存在于沙盒内（安全风险）。
+- 🔴 更新需要重新构建镜像。
+- 🔴 需要通信基础设施（WebSocket 或 HTTP 层）。
 
-To run an agent in a sandbox, build an image and install deepagents on it.
+要在沙盒内运行智能体，请构建镜像并在其上安装 deepagents。
 
 ```dockerfile
 FROM python:3.11
 RUN pip install deepagents-cli
 ```
 
-Then run the agent inside the sandbox.
-To use the agent inside the sandbox you have to add additional infrastructure to handle communication between your application and the agent inside the sandbox.
+然后在沙盒内运行智能体。
+要在沙盒内使用智能体，您需要添加额外的基础设施来处理应用程序与沙盒内智能体之间的通信。
 
-### Sandbox as tool pattern
+### 沙盒作为工具模式
 
-The agent runs on your machine or server. When it needs to execute code, it calls sandbox tools (such as `execute`, `read_file`, or `write_file`) which invoke the provider's APIs to run operations in a remote sandbox.
+智能体在您的机器或服务器上运行。当需要执行代码时，它调用沙盒工具（如 `execute`、`read_file` 或 `write_file`），这些工具会调用提供商的 API 在远程沙盒中运行操作。
 
-Benefits:
+优势：
 
-- ✅ Update agent code instantly without rebuilding images.
-- ✅ Cleaner separation between agent state and execution.
-    - API keys stay outside the sandbox.
-    - Sandbox failures don't lose agent state.
-    - Option to run tasks in multiple sandboxes in parallel.
-- ✅ Pay only for execution time.
+- ✅ 无需重建镜像即可立即更新智能体代码。
+- ✅ 智能体状态与执行之间的清晰分离。
+    - API 密钥保留在沙盒外。
+    - 沙盒故障不会丢失智能体状态。
+    - 可以选择在多个沙盒中并行运行任务。
+- ✅ 仅为执行时间付费。
 
-Trade-offs:
+劣势：
 
-- 🔴 Network latency on each execution call.
+- 🔴 每次执行调用都有网络延迟。
 
-Example:
+示例：
 
 ```python
 from dotenv import load_dotenv
@@ -130,56 +130,55 @@ except Exception:
 
 
 
+本文档中的示例使用沙盒作为工具模式。
+当提供商的 SDK 处理通信层且您希望生产环境与本地开发一致时，选择智能体在沙盒内模式。
+当您需要快速迭代智能体逻辑、将 API 密钥保留在沙盒外，或偏好更清晰的关注点分离时，选择沙盒作为工具模式。
 
-The examples in this doc use the sandbox as a tool pattern.
-Choose the agent in sandbox pattern when your provider's SDK handles the communication layer and you want production to mirror local development.
-Choose the sandbox as tool pattern when you need to iterate quickly on agent logic, keep API keys outside the sandbox, or prefer cleaner separation of concerns.
+## 可用提供商
 
-## Available providers
-
-For provider-specific setup, authentication, and lifecycle details, see the provider integration pages:
+有关特定提供商的设置、身份验证和生命周期详情，请参阅提供商集成页面：
 
 
 
 <CardGroup cols={2}>
     <Card title="Modal" icon="/images/providers/modal-icon.svg" href="/oss/python/integrations/providers/modal">
-        ML/AI workloads, GPU access.
+        ML/AI 工作负载、GPU 访问。
     </Card>
     <Card title="Daytona" icon="/images/providers/daytona-icon.svg" href="/oss/python/integrations/providers/daytona">
-        TypeScript/Python development, fast cold starts.
+        TypeScript/Python 开发，快速冷启动。
     </Card>
     <Card title="Runloop" href="/oss/python/integrations/providers/runloop">
-        Disposable devboxes for isolated code execution.
+        用于隔离代码执行的一次性开发箱。
     </Card>
 </CardGroup>
 
 
-If you provide a sandbox platform and want to contribute an integration, see [Contributing a sandbox integration](/oss/python/contributing/integrations-langchain).
+如果您是沙盒平台提供商并希望贡献集成，请参阅[贡献沙盒集成](/oss/python/contributing/integrations-langchain)。
 
 
 
-## Basic usage
+## 基本用法
 
-These examples assume you have already created a sandbox/devbox using the provider's SDK and have credentials set up. For signup, authentication, and provider-specific lifecycle details, see [Available providers](#available-providers).
+以下示例假设您已使用提供商的 SDK 创建了沙盒/开发箱并设置了凭据。有关注册、身份验证和特定提供商生命周期详情，请参阅[可用提供商](#available-providers)。
 
 <SandboxBasicPy />
 
 
 
-## How sandboxes work
+## 沙盒工作原理
 
-### Isolation boundaries
+### 隔离边界
 
-All sandbox providers protect your host system from the agent's filesystem and shell operations. The agent cannot read your local files, access environment variables on your machine, or interfere with other processes. However, sandboxes alone do **not** protect against:
+所有沙盒提供商都保护您的宿主系统免受智能体文件系统和 shell 操作的影响。智能体无法读取您的本地文件、访问您机器上的环境变量或干扰其他进程。但是，沙盒本身**不能**防范：
 
-- **Context injection** — An attacker who controls part of the agent's input can instruct it to run arbitrary commands inside the sandbox. The sandbox is isolated, but the agent has full control within it.
-- **Network exfiltration** — Unless network access is blocked, a context-injected agent can send data out of the sandbox over HTTP or DNS. Some providers support blocking network access (e.g., `blockNetwork: true` on Modal).
+- **上下文注入** — 控制智能体部分输入的攻击者可以指示其在沙盒内运行任意命令。沙盒是隔离的，但智能体在其中拥有完全控制权。
+- **网络渗漏** — 除非阻止网络访问，否则被注入上下文的智能体可以通过 HTTP 或 DNS 将数据从沙盒中发送出去。某些提供商支持阻止网络访问（例如 Modal 上的 `blockNetwork: true`）。
 
-See [security considerations](#security-considerations) for how to handle secrets and mitigate these risks.
+有关如何处理机密信息和降低这些风险的方法，请参阅[安全注意事项](#security-considerations)。
 
-### The `execute` method
+### `execute` 方法
 
-Sandbox backends have a simple architecture: the only method a provider must implement is `execute()`, which runs a shell command and returns its output. Every other filesystem operation — `read`, `write`, `edit`, `ls`, `glob`, `grep` — is built on top of `execute()` by the `BaseSandbox` base class, which constructs scripts and runs them inside the sandbox via `execute()`.
+沙盒后端采用简单架构：提供商只需实现 `execute()` 方法，该方法运行 shell 命令并返回其输出。所有其他文件系统操作——`read`、`write`、`edit`、`ls`、`glob`、`grep`——都由 `BaseSandbox` 基类通过 `execute()` 构建，它会构造脚本并通过 `execute()` 在沙盒内运行。
 
 ```mermaid
 graph TB
@@ -194,13 +193,13 @@ graph TB
     Provider["Provider SDK"] --> execute_method
 ```
 
-This design means:
-- **Adding a new provider is straightforward.** Implement `execute()` — the base class handles everything else.
-- **The `execute` tool is conditionally available.** On every model call, the harness checks whether the backend implements `SandboxBackendProtocol`. If not, the tool is filtered out and the agent never sees it.
+这种设计意味着：
+- **添加新提供商非常简单。** 只需实现 `execute()`——基类处理其他所有事情。
+- **`execute` 工具是条件可用的。** 每次模型调用时，框架会检查后端是否实现了 `SandboxBackendProtocol`。如果没有，该工具会被过滤掉，智能体永远不会看到它。
 
-When the agent calls the `execute` tool, it provides a `command` string and gets back the combined stdout/stderr, exit code, and a truncation notice if the output was too large.
+当智能体调用 `execute` 工具时，它提供一个 `command` 字符串并获得合并的 stdout/stderr、退出码以及输出过大时的截断提示。
 
-You can also call the backend `execute()` method directly in your application code.
+您也可以在应用代码中直接调用后端的 `execute()` 方法。
 
 <Tabs>
   <Tab title="Modal">
@@ -278,7 +277,7 @@ print(result.output)
 </Tabs>
 
 
-For example:
+例如：
 
 ```
 4
@@ -290,18 +289,18 @@ bash: foobar: command not found
 [Command failed with exit code 127]
 ```
 
-If a command produces very large output, the result is automatically saved to a file and the agent is instructed to use `read_file` to access it incrementally. This prevents context window overflow.
+如果命令产生非常大的输出，结果会自动保存到文件中，并指示智能体使用 `read_file` 逐步访问。这可以防止上下文窗口溢出。
 
-### Two planes of file access
+### 两种文件访问平面
 
-There are two distinct ways files move in and out of a sandbox, and it's important to understand when to use each:
+文件在沙盒中移入移出有两种不同方式，了解各自的适用场景非常重要：
 
-**Agent filesystem tools** — `read_file`, `write_file`, `edit_file`, `ls`, `glob`, `grep`, and `execute` are the tools the LLM calls during its execution. These go through `execute()` inside the sandbox. The agent uses them to read code, write files, and run commands as part of its task.
+**智能体文件系统工具** — `read_file`、`write_file`、`edit_file`、`ls`、`glob`、`grep` 和 `execute` 是 LLM 在执行过程中调用的工具。这些工具通过沙盒内的 `execute()` 运行。智能体使用它们来读取代码、写入文件，并在任务执行过程中运行命令。
 
-**File transfer APIs** — the `uploadFiles()` and `downloadFiles()` methods that your application code calls. These use the provider's native file transfer APIs (not shell commands) and are designed for moving files between your host environment and the sandbox. Use these to:
-- **Seed the sandbox** with source code, configuration, or data before the agent runs
-- **Retrieve artifacts** (generated code, build outputs, reports) after the agent finishes
-- **Pre-populate dependencies** that the agent will need
+**文件传输 API** — 您的应用代码调用的 `uploadFiles()` 和 `downloadFiles()` 方法。这些方法使用提供商的原生文件传输 API（而非 shell 命令），用于在宿主环境和沙盒之间移动文件。使用场景：
+- **预置沙盒** — 在智能体运行前将源代码、配置或数据注入沙盒
+- **获取产物** — 在智能体完成后检索产出（生成的代码、构建输出、报告）
+- **预填充依赖** — 预先准备智能体所需的依赖项
 
 ```mermaid
 graph LR
@@ -324,13 +323,13 @@ graph LR
 
 
 
-## Working with files
+## 文件操作
 
-The deepagents sandbox backends support file transfer APIs for moving files between your application and the sandbox.
+deepagents 沙盒后端支持文件传输 API，用于在应用程序和沙盒之间移动文件。
 
-### Seeding the sandbox
+### 预置沙盒
 
-Use `upload_files()` to populate the sandbox before the agent runs. Paths must be absolute and contents are `bytes`:
+在智能体运行前使用 `upload_files()` 填充沙盒。路径必须为绝对路径，内容为 `bytes`：
 
 <Tabs>
   <Tab title="Modal">
@@ -416,9 +415,9 @@ backend.upload_files(
   </Tab>
 </Tabs>
 
-### Retrieving artifacts
+### 获取产物
 
-Use `download_files()` to retrieve files from the sandbox after the agent finishes:
+在智能体完成后使用 `download_files()` 从沙盒中检索文件：
 
 <Tabs>
   <Tab title="Modal">
@@ -505,20 +504,20 @@ for result in results:
 </Tabs>
 
 <Note>
-Inside the sandbox, the agent uses filesystem tools (`read_file`, `write_file`). The `upload_files` and `download_files` methods are for your application code to move files across the boundary between your host and the sandbox.
+在沙盒内，智能体使用文件系统工具（`read_file`、`write_file`）。`upload_files` 和 `download_files` 方法供您的应用代码在宿主机和沙盒之间移动文件时使用。
 </Note>
 
 
-## Lifecycle and cleanup
+## 生命周期与清理
 
-Sandboxes consume resources and cost money until they're shut down.
-To avoid paying for resources that are no longer needed, remember to shut down sandboxes as soon as your application no longer needs them.
+沙盒消耗资源并持续产生费用，直到关闭为止。
+为避免为不再需要的资源付费，请在应用程序不再需要沙盒时立即关闭它。
 
 <Tip>
-**TTL for chat applications.** When users can re-engage after idle time, you often don't know if or when they'll return. Configure a time-to-live (TTL) on the sandbox—for example, TTL to archive or TTL to delete—so the provider automatically cleans up idle sandboxes. Many sandbox providers support this.
+**聊天应用的 TTL 配置。** 当用户可以在空闲后重新接入时，您往往不知道他们是否会或何时会返回。为沙盒配置生存时间（TTL）——例如归档 TTL 或删除 TTL——使提供商能够自动清理空闲的沙盒。许多沙盒提供商都支持此功能。
 </Tip>
 
-### Basic lifecycle
+### 基本生命周期
 
 
 
@@ -576,15 +575,15 @@ sandbox.stop()
 </Tabs>
 
 
-### Per-conversation lifecycle
+### 按对话生命周期
 
-In chat applications, a conversation is typically represented by a `thread_id`.
-Generally, each `thread_id` should use its own unique sandbox.
+在聊天应用中，对话通常由 `thread_id` 表示。
+一般而言，每个 `thread_id` 应使用其专属的沙盒。
 
-Store the mapping between sandbox ID and `thread_id` in your application or with the sandbox if the sandbox provider allows attaching metadata to the sandbox.
+在您的应用中存储沙盒 ID 与 `thread_id` 的映射，或者如果沙盒提供商允许为沙盒附加元数据，则将映射存储在沙盒中。
 
-The following example shows a get-or-create pattern using Daytona.
-For other providers, consult the sandbox provider API for the equivalent labels, metadata, and TTL options:
+以下示例展示了使用 Daytona 的获取或创建模式。
+对于其他提供商，请查阅沙盒提供商 API 以了解等效的标签、元数据和 TTL 选项：
 
 ```python
 import uuid
@@ -640,48 +639,47 @@ except Exception:
 
 
 
+## 安全注意事项
 
-## Security considerations
-
-Sandboxes isolate code execution from your host system, but they don't protect against **context injection**. An attacker who controls part of the agent's input can instruct it to read files, run commands, or exfiltrate data from within the sandbox. This makes credentials inside the sandbox especially dangerous.
-
-<Warning>
-**Never put secrets inside a sandbox.** API keys, tokens, database credentials, and other secrets injected into a sandbox (via environment variables, mounted files, or the `secrets` option) can be read and exfiltrated by a context-injected agent. This applies even to short-lived or scoped credentials — if an agent can access them, so can an attacker.
-</Warning>
-
-### Handling secrets safely
-
-If your agent needs to call authenticated APIs or access protected resources, you have two options:
-
-1. **Keep secrets in tools outside the sandbox.** Define tools that run in your host environment (not inside the sandbox) and handle authentication there. The agent calls these tools by name, but never sees the credentials. This is the recommended approach.
-
-2. **Use a network proxy that injects credentials.** Some sandbox providers support proxies that intercept outgoing HTTP requests from the sandbox and attach credentials (e.g., `Authorization` headers) before forwarding them. The agent never sees the secret — it just makes plain requests to a URL. This approach is not yet widely available across providers.
+沙盒将代码执行与宿主系统隔离，但无法防范**上下文注入**。控制智能体部分输入的攻击者可以指示其读取文件、运行命令或从沙盒内部渗漏数据。这使沙盒内的凭据尤为危险。
 
 <Warning>
-If you must inject secrets into a sandbox (not recommended), take these precautions:
-
-- Enable [human-in-the-loop](/oss/python/deepagents/human-in-the-loop) approval for **all** tool calls, not just sensitive ones
-- Block or restrict network access from the sandbox to limit exfiltration paths
-- Use the narrowest possible credential scope and shortest possible lifetime
-- Monitor sandbox network traffic for unexpected outbound requests
-
-Even with these safeguards, this remains an unsafe workaround. A sufficiently creative enough context injection attack can bypass output filtering and HITL review.
+**切勿将机密信息放入沙盒。** 注入沙盒的 API 密钥、令牌、数据库凭据和其他机密信息（通过环境变量、挂载文件或 `secrets` 选项）可以被上下文注入的智能体读取和渗漏。即使是短期或有限范围的凭据也如此——只要智能体能访问，攻击者同样可以。
 </Warning>
 
-### General best practices
+### 安全处理机密信息
 
-- Review sandbox outputs before acting on them in your application
-- Block sandbox network access when not needed
-- Use [middleware](/oss/python/langchain/middleware) to filter or redact sensitive patterns in tool outputs
-- Treat everything produced inside the sandbox as untrusted input
+如果您的智能体需要调用经身份验证的 API 或访问受保护资源，您有两种选择：
+
+1. **将机密信息保留在沙盒外的工具中。** 定义在宿主环境（而非沙盒内）运行的工具，并在那里处理身份验证。智能体按名称调用这些工具，但永远看不到凭据。这是推荐做法。
+
+2. **使用注入凭据的网络代理。** 某些沙盒提供商支持代理，可拦截沙盒的出站 HTTP 请求，并在转发前附加凭据（例如 `Authorization` 标头）。智能体永远看不到机密信息——它只是向 URL 发起普通请求。这种方法目前在各提供商中尚未广泛支持。
+
+<Warning>
+如果您必须将机密信息注入沙盒（不推荐），请采取以下预防措施：
+
+- 为**所有**工具调用启用[人工介入](/oss/python/deepagents/human-in-the-loop)审批，而不仅限于敏感操作
+- 阻止或限制沙盒的网络访问，以限制渗漏路径
+- 使用尽可能窄的凭据权限范围和最短的有效期
+- 监控沙盒网络流量，检测意外的出站请求
+
+即使采取了这些保护措施，这仍然是不安全的变通方法。足够有创意的上下文注入攻击可以绕过输出过滤和人工介入审查。
+</Warning>
+
+### 通用最佳实践
+
+- 在应用程序中采取行动前审查沙盒输出
+- 不需要时阻止沙盒网络访问
+- 使用[中间件](/oss/python/langchain/middleware)过滤或脱敏工具输出中的敏感模式
+- 将沙盒内产生的所有内容视为不可信输入
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/deepagents/sandboxes.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/deepagents/sandboxes.mdx) 或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    通过 MCP 将这些文档[连接](/use-these-docs)到 Claude、VSCode 等工具，获取实时答案。
 </Callout>
 </div>

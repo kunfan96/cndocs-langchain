@@ -1,238 +1,238 @@
 ---
-title: Harness capabilities
-sidebarTitle: Overview
+title: Harness 能力
+sidebarTitle: 概览
 ---
 
-An agent harness is a combination of several different capabilities that make building long-running agents easier:
+Agent harness 是多种不同能力的组合，使构建长时运行的 agent 更加容易：
 
-- [Planning capabilities](#planning-capabilities)
-- [Virtual filesystem](#virtual-filesystem-access)
-- [Task delegation (subagents)](#task-delegation-subagents)
-- [Context and token management](#context-management)
-- [Code execution](#code-execution)
+- [规划能力](#planning-capabilities)
+- [虚拟文件系统](#virtual-filesystem-access)
+- [任务委派（子 agent）](#task-delegation-subagents)
+- [上下文与 token 管理](#context-management)
+- [代码执行](#code-execution)
 - [Human-in-the-loop](#human-in-the-loop)
 
-Alongside these capabilities, deep agents use [Skills](#skills) and [Memory](#memory) for additional context and instructions.
+除了这些能力之外，deep agent 还使用 [Skills](#skills) 和 [Memory](#memory) 来获取额外的上下文和指令。
 
-## Planning capabilities
+## 规划能力
 
-The harness provides a `write_todos` tool that agents can use to maintain a structured task list.
+Harness 提供了一个 `write_todos` 工具，agent 可以使用它来维护结构化的任务列表。
 
-**Features:**
-- Track multiple tasks with statuses (`'pending'`, `'in_progress'`, `'completed'`)
-- Persisted in agent state
-- Helps agent organize complex multi-step work
-- Useful for long-running tasks and planning
+**功能特性：**
+- 使用状态跟踪多个任务（`'pending'`、`'in_progress'`、`'completed'`）
+- 持久化到 agent 状态中
+- 帮助 agent 组织复杂的多步骤工作
+- 适用于长时运行任务和规划场景
 
-## Virtual filesystem access
+## 虚拟文件系统访问
 
-The harness provides a configurable virtual filesystem which can be backed by different pluggable backends.
-The backends support the following file system operations:
+Harness 提供了一个可配置的虚拟文件系统，支持不同的可插拔后端。
+这些后端支持以下文件系统操作：
 
-| Tool | Description |
+| 工具 | 描述 |
 | ---- | ----------- |
-| `ls` | List files in a directory with metadata (size, modified time) |
-| `read_file` | Read file contents with line numbers, supports offset/limit for large files. Also supports reading images (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`), returning them as multimodal content blocks. |
-| `write_file` | Create new files |
-| `edit_file` | Perform exact string replacements in files (with global replace mode) |
-| `glob` | Find files matching patterns (e.g., `**/*.py`) |
-| `grep` | Search file contents with multiple output modes (files only, content with context, or counts) |
-| `execute` | Run shell commands in the environment (available with [sandbox backends](/oss/python/deepagents/sandboxes) only) |
+| `ls` | 列出目录中的文件及元数据（大小、修改时间） |
+| `read_file` | 读取文件内容并显示行号，支持对大文件使用偏移量/限制。也支持读取图片（`.png`、`.jpg`、`.jpeg`、`.gif`、`.webp`），以多模态内容块的形式返回。 |
+| `write_file` | 创建新文件 |
+| `edit_file` | 对文件执行精确的字符串替换（支持全局替换模式） |
+| `glob` | 查找匹配模式的文件（例如 `**/*.py`） |
+| `grep` | 以多种输出模式搜索文件内容（仅文件、带上下文的内容或计数） |
+| `execute` | 在环境中运行 shell 命令（仅适用于[沙箱后端](/oss/python/deepagents/sandboxes)） |
 
-The virtual filesystem is used by several other harness capabilities such as skills, memory, code execution, and context management.
-You can also use the file system when building custom tools and middleware for deep agents.
+虚拟文件系统被 harness 的多项其他能力使用，例如 skills、memory、代码执行和上下文管理。
+在为 deep agent 构建自定义工具和中间件时，也可以使用文件系统。
 
-For more information, see [backends](/oss/python/deepagents/backends).
+更多信息，请参见[后端](/oss/python/deepagents/backends)。
 
-## Task delegation (subagents)
+## 任务委派（子 agent）
 
-The harness allows the main agent to create ephemeral "subagents" for isolated multi-step tasks.
+Harness 允许主 agent 创建临时的"子 agent"来处理隔离的多步骤任务。
 
-**Why it's useful:**
-- **Context isolation** - Subagent's work doesn't clutter main agent's context
-- **Parallel execution** - Multiple subagents can run concurrently
-- **Specialization** - Subagents can have different tools/configurations
-- **Token efficiency** - Large subtask context is compressed into a single result
+**为什么有用：**
+- **上下文隔离** — 子 agent 的工作不会干扰主 agent 的上下文
+- **并行执行** — 多个子 agent 可以并发运行
+- **专业化** — 子 agent 可以拥有不同的工具和配置
+- **Token 效率** — 大型子任务的上下文被压缩成单一结果
 
-**How it works:**
-- Main agent has a `task` tool
-- When invoked, it creates a fresh agent instance with its own context
-- Subagent executes autonomously until completion
-- Returns a single final report to the main agent
-- Subagents are stateless (can't send multiple messages back)
+**工作原理：**
+- 主 agent 拥有一个 `task` 工具
+- 调用时，会创建一个具有自身上下文的全新 agent 实例
+- 子 agent 自主执行直至完成
+- 向主 agent 返回单一的最终报告
+- 子 agent 是无状态的（无法发送多条消息返回）
 
-**Default subagent:**
-- "general-purpose" subagent automatically available
-- Has filesystem tools by default
-- Can be customized with additional tools/middleware
+**默认子 agent：**
+- 自动提供"通用"子 agent
+- 默认具有文件系统工具
+- 可使用额外的工具和中间件进行自定义
 
-**Custom subagents:**
-- Define specialized subagents with specific tools
-- Example: code-reviewer, web-researcher, test-runner
-- Configure via `subagents` parameter
+**自定义子 agent：**
+- 定义具有特定工具的专业化子 agent
+- 示例：代码审查员、网络研究员、测试运行器
+- 通过 `subagents` 参数进行配置
 
-## Context management
+## 上下文管理
 
-Deep agents can handle long-running tasks by making use of effective context management.
+Deep agent 通过有效的上下文管理来处理长时运行的任务。
 
-Agents have access to several kinds of context.
-Some sources are provided to the agent at startup; others become available during runtime, such as user input.
+Agent 可以访问多种类型的上下文。
+某些来源在启动时提供给 agent；其他来源在运行时变为可用，例如用户输入。
 
-This section provides an overview of the different kinds of context your deep agent has access to and manages.
+本节概述了 deep agent 可以访问和管理的不同类型上下文。
 
-### Input context
+### 输入上下文
 
-Input context consists of sources of information provided to your deep agent at startup that are added to the prompt.
+输入上下文由启动时提供给 deep agent 的信息来源组成，这些信息会被添加到提示词中。
 
-#### Prompts
+#### 提示词
 
-Deep agents use system prompts to define the agent's role, behavior, capabilities, and knowledge base.
-If you provide a custom system prompt, this gets prepended to the built-in system prompt which includes detailed guidance for using built-in tools like the planning tool, filesystem tools, and subagents.
+Deep agent 使用系统提示词来定义 agent 的角色、行为、能力和知识库。
+如果提供了自定义系统提示词，它会被添加到内置系统提示词的前面，内置提示词包含了使用内置工具（如规划工具、文件系统工具和子 agent）的详细指导。
 
-Middleware that adds tools (such as the filesystem middleware) automatically appends tool-specific instructions to the system prompt, creating tool prompts that explain how to use those tools effectively.
+添加工具的中间件（例如文件系统中间件）会自动将工具特定的说明附加到系统提示词中，创建解释如何有效使用这些工具的工具提示词。
 
-The final deep agent prompt consists of the following parts:
+最终的 deep agent 提示词由以下部分组成：
 
-1. Custom system_prompt (if provided)
-1. [Base agent prompt](https://github.com/langchain-ai/deepagents/blob/595f6fe66bd974eaba9d429a76217607cb02f7a8/libs/deepagents/deepagents/graph.py#L36)
-1. To-do list prompt: Instructions for how to plan with to do lists
-1. Memory prompt: AGENTS.md + memory usage guidelines (only when `memory` provided)
-1. Skills prompt: Skills locations + list of skills with frontmatter information + usage (only when skills provided)
-1. Virtual filesystem prompt (filesystem + execute tool docs if applicable)
-1. Subagent prompt: Task tool usage
-1. User-provided middleware prompts (if custom middleware is provided)
-1. Human-in-the-loop prompt (when `interrupt_on` is set)
-1. Local context prompt: Current directory, project info,... (when using CLI locally)
+1. 自定义 system_prompt（如果提供）
+1. [基础 agent 提示词](https://github.com/langchain-ai/deepagents/blob/595f6fe66bd974eaba9d429a76217607cb02f7a8/libs/deepagents/deepagents/graph.py#L36)
+1. 待办列表提示词：关于如何使用待办列表进行规划的说明
+1. Memory 提示词：AGENTS.md + memory 使用指南（仅在提供 `memory` 时）
+1. Skills 提示词：Skills 位置 + 带 frontmatter 信息的 skills 列表 + 使用说明（仅在提供 skills 时）
+1. 虚拟文件系统提示词（文件系统 + 执行工具文档，如适用）
+1. 子 agent 提示词：Task 工具使用说明
+1. 用户提供的中间件提示词（如果提供了自定义中间件）
+1. Human-in-the-loop 提示词（当设置了 `interrupt_on` 时）
+1. 本地上下文提示词：当前目录、项目信息等（在本地使用 CLI 时）
 
-### Runtime context
+### 运行时上下文
 
-Deep agents use a pattern called context compression which works by reducing the size of the information in an agent's working memory while preserving the details that are relevant to the task.
-The following techniques are the built-in features to ensure the context passed to LLMs stays within its context window limit:
+Deep agent 使用一种称为上下文压缩的模式，通过减少 agent 工作内存中信息的大小，同时保留与任务相关的细节来实现。
+以下技术是内置功能，用于确保传递给 LLM 的上下文保持在其上下文窗口限制之内：
 
-- [Offloading large tool inputs and results](#offloading-large-tool-inputs-and-results)
-- [Summarization](#summarization)
+- [卸载大型工具输入和结果](#offloading-large-tool-inputs-and-results)
+- [摘要化](#summarization)
 
-You can also configure deep agents to use [long-term memory](#long-term-memory) to allow them to store information across different threads and conversations.
+您还可以配置 deep agent 使用[长期记忆](#long-term-memory)，以便跨不同线程和对话存储信息。
 
-#### Offloading large tool inputs and results
+#### 卸载大型工具输入和结果
 
-Deep agents use the [built-in filesystem tools](#virtual-filesystem-access) to automatically offload content and to search and retrieve that offloaded content as needed.
-Content offloading happens in two cases:
+Deep agent 使用[内置文件系统工具](#virtual-filesystem-access)来自动卸载内容，并根据需要搜索和检索已卸载的内容。
+内容卸载发生在两种情况下：
 
-1. **Tool call inputs exceed 20,000 tokens** (configurable via `tool_token_limit_before_evict`): File write and edit operations leave behind tool calls containing the complete file content in the agent's conversation history.
-    Since this content is already persisted to the filesystem, it's often redundant.
-    As the session context crosses 85% of the model’s available window, Deep agents will truncate older tool calls, replacing them with a pointer to the file on disk and reducing the size of the active context.
+1. **工具调用输入超过 20,000 个 token**（可通过 `tool_token_limit_before_evict` 配置）：文件写入和编辑操作会在 agent 的对话历史中留下包含完整文件内容的工具调用。
+    由于此内容已持久化到文件系统中，通常是多余的。
+    当会话上下文超过模型可用窗口的 85% 时，Deep agent 将截断较旧的工具调用，用磁盘上的文件指针替换它们，从而减小活动上下文的大小。
 
-    ![An example of offloading showing a large input which is saved to disk and the truncated version is used for the tool call](/oss/images/deepagents/offloading-inputs.png)
+    ![卸载示例，展示了一个被保存到磁盘的大型输入以及用于工具调用的截断版本](/oss/images/deepagents/offloading-inputs.png)
 
-2. **Tool call results exceed 20,000 tokens** (configurable via `tool_token_limit_before_evict`): When this occurs, the deep agent offloads the response to the configured backend and substitutes it with a file path reference and a preview of the first 10 lines. Agents can then re-read or search the content as needed.
+2. **工具调用结果超过 20,000 个 token**（可通过 `tool_token_limit_before_evict` 配置）：发生这种情况时，deep agent 将响应卸载到配置的后端，并用文件路径引用和前 10 行的预览替换它。Agent 随后可以根据需要重新读取或搜索内容。
 
-    ![An example of offloading showing a large tool response that is replaced with a message about the location of the offloaded results and the first 10 lines of the result](/oss/images/deepagents/offloading-results.png)
+    ![卸载示例，展示了一个大型工具响应被替换为关于卸载结果位置和结果前 10 行的消息](/oss/images/deepagents/offloading-results.png)
 
-#### Summarization
+#### 摘要化
 
-When the context size crosses the model's context window limit (for example 85% of `max_input_tokens`), and there is no more context eligible for offloading, the deep agent summarizes the message history.
+当上下文大小超过模型的上下文窗口限制（例如 `max_input_tokens` 的 85%），且不再有符合卸载条件的上下文时，deep agent 会对消息历史进行摘要化处理。
 
-This process has two components:
+此过程包含两个组成部分：
 
-- **In-context summary**: An LLM generates a structured summary of the conversation—including session intent, artifacts created, and next steps—which replaces the full conversation history in the agent's working memory.
-- **Filesystem preservation**: The complete, original conversation messages are written to the filesystem as a canonical record.
+- **上下文内摘要**：LLM 生成对话的结构化摘要——包括会话意图、已创建的产物和后续步骤——替换 agent 工作内存中的完整对话历史。
+- **文件系统保存**：完整的原始对话消息作为规范记录写入文件系统。
 
-This dual approach ensures the agent maintains awareness of its goals and progress (via the summary) while preserving the ability to recover specific details when needed (via filesystem search).
+这种双重方法确保 agent 保持对其目标和进度的感知（通过摘要），同时保留在需要时恢复特定细节的能力（通过文件系统搜索）。
 
-![An example of summarization showing an agent's conversation history, where several steps get compacted](/oss/images/deepagents/summarization.png)
+![摘要化示例，展示了 agent 的对话历史，其中几个步骤被压缩](/oss/images/deepagents/summarization.png)
 
-**Configuration:**
-- Triggers at 85% of the model's `max_input_tokens` from its [model profile](/oss/python/langchain/models#model-profiles)
-- Keeps 10% of tokens as recent context
-- Falls back to 170,000-token trigger / 6 messages kept if model profile is unavailable
-- If any model call raises `ContextOverflowError`, Deep Agents immediately falls back to summarization and retries with summary + recent preserved messages
-- Older messages are summarized by the model
+**配置：**
+- 在模型的[模型配置文件](/oss/python/langchain/models#model-profiles)中，当 `max_input_tokens` 的 85% 时触发
+- 保留 10% 的 token 作为最近上下文
+- 如果模型配置文件不可用，则回退到 170,000 token 触发 / 保留 6 条消息
+- 如果任何模型调用引发 `ContextOverflowError`，Deep agent 立即回退到摘要化并使用摘要和最近保留的消息重试
+- 较旧的消息由模型进行摘要化
 
-**Why it's useful:**
-- Enables very long conversations without hitting context limits
-- Preserves recent context while compressing ancient history
-- Transparent to the agent (appears as a special system message)
+**为什么有用：**
+- 使超长对话成为可能，不会触及上下文限制
+- 保留最近上下文同时压缩较早的历史记录
+- 对 agent 透明（表现为特殊系统消息）
 
-#### Long-term memory
+#### 长期记忆
 
-When using the default filesystem, your deep agent stores its working memory files in agent state, which only persists within a single thread.
-Long-term memory enables your deep agent to persist information across different threads and conversations.
-To use long-term memory, you must use a `CompositeBackend` that routes specific paths (typically `/memories/`) to a LangGraph Store, which provides durable cross-thread persistence.
-The `CompositeBackend` is a hybrid storage system where some files persist indefinitely while others remain scoped to a single thread.
+使用默认文件系统时，deep agent 将其工作内存文件存储在 agent 状态中，该状态仅在单个线程内持久化。
+长期记忆使 deep agent 能够跨不同线程和对话持久化信息。
+要使用长期记忆，您必须使用 `CompositeBackend`，它将特定路径（通常是 `/memories/`）路由到 LangGraph Store，后者提供持久的跨线程持久化。
+`CompositeBackend` 是一种混合存储系统，其中某些文件无限期持久化，而其他文件则限定在单个线程内。
 
-Files that the agent stores in the long-term memory path (for example, `/memories/preferences.txt`) survive agent restarts and can be accessed from any conversation thread.
-Deep agents can use these files for storing user preferences, accumulated knowledge, research progress, or any information that should persist beyond a single session.
+Agent 存储在长期记忆路径中的文件（例如 `/memories/preferences.txt`）在 agent 重启后仍然存在，并可从任何对话线程访问。
+Deep agent 可以使用这些文件存储用户偏好、积累的知识、研究进度，或任何应在单个会话之外持久化的信息。
 
-For more information, see [Long-term memory](/oss/python/deepagents/long-term-memory).
+更多信息，请参见[长期记忆](/oss/python/deepagents/long-term-memory)。
 
-## Code execution
+## 代码执行
 
-When you use a [sandbox backend](/oss/python/deepagents/sandboxes), the harness exposes an `execute` tool that lets the agent run shell commands in an isolated environment. This enables the agent to install dependencies, run scripts, and execute code as part of its task.
+当使用[沙箱后端](/oss/python/deepagents/sandboxes)时，harness 会暴露一个 `execute` 工具，让 agent 在隔离环境中运行 shell 命令。这使 agent 能够作为任务的一部分安装依赖、运行脚本和执行代码。
 
-**How it works:**
-- Sandbox backends implement the `SandboxBackendProtocol` — when detected, the harness adds the `execute` tool to the agent's available tools
-- Without a sandbox backend, the agent only has filesystem tools (`read_file`, `write_file`, etc.) and cannot run commands
-- The `execute` tool returns combined stdout/stderr, exit code, and truncates large outputs (saving to a file for the agent to read incrementally)
+**工作原理：**
+- 沙箱后端实现 `SandboxBackendProtocol`——检测到时，harness 将 `execute` 工具添加到 agent 的可用工具中
+- 没有沙箱后端时，agent 只有文件系统工具（`read_file`、`write_file` 等），无法运行命令
+- `execute` 工具返回合并的 stdout/stderr、退出码，并截断大型输出（将其保存到文件供 agent 增量读取）
 
-**Why it's useful:**
-- **Security** — Code runs in isolation, protecting your host system from the agent's operations
-- **Clean environments** — Use specific dependencies or OS configurations without local setup
-- **Reproducibility** — Consistent execution environments across teams
+**为什么有用：**
+- **安全性** — 代码在隔离环境中运行，保护主机系统不受 agent 操作的影响
+- **干净的环境** — 无需本地设置即可使用特定的依赖项或 OS 配置
+- **可复现性** — 跨团队一致的执行环境
 
-For setup, providers, and file transfer APIs, see [Sandboxes](/oss/python/deepagents/sandboxes).
+有关设置、提供商和文件传输 API，请参见[沙箱](/oss/python/deepagents/sandboxes)。
 
 ## Human-in-the-loop
 
-The harness can pause agent execution at specified tool calls to allow human approval or modification. This feature is opt-in via the `interrupt_on` parameter.
+Harness 可以在指定的工具调用处暂停 agent 执行，以便人工审批或修改。此功能通过 `interrupt_on` 参数选择性启用。
 
-**Configuration:**
-- Pass `interrupt_on` to `create_deep_agent` with a mapping of tool names to interrupt configurations
-- Example: `interrupt_on={"edit_file": True}` pauses before every edit
-- You can provide approval messages or modify tool inputs when prompted
+**配置：**
+- 向 `create_deep_agent` 传递 `interrupt_on`，包含工具名称到中断配置的映射
+- 示例：`interrupt_on={"edit_file": True}` 在每次编辑前暂停
+- 在提示时可以提供审批消息或修改工具输入
 
-**Why it's useful:**
-- Safety gates for destructive operations
-- User verification before expensive API calls
-- Interactive debugging and guidance
+**为什么有用：**
+- 为破坏性操作设置安全关卡
+- 在进行昂贵的 API 调用前进行用户验证
+- 交互式调试和引导
 
 ## Skills
 
-The harness supports skills that provide specialized workflows and domain knowledge to your deep agent.
+Harness 支持为 deep agent 提供专业化工作流和领域知识的 skills。
 
-**How it works:**
-- Skills follow the [Agent Skills standard](https://agentskills.io/)
-- Each skill is a directory containing a `SKILL.md` file with instructions and metadata
-- Skills can include additional scripts, reference docs, templates, and other resources
-- Skills use progressive disclosure—they are only loaded when the agent determines they're useful for the current task
-- Agent reads frontmatter from each `SKILL.md` file at startup, then reviews full skill content when needed
+**工作原理：**
+- Skills 遵循 [Agent Skills 标准](https://agentskills.io/)
+- 每个 skill 是一个包含带有说明和元数据的 `SKILL.md` 文件的目录
+- Skills 可以包含额外的脚本、参考文档、模板和其他资源
+- Skills 使用渐进式披露——仅在 agent 判断其对当前任务有用时才加载
+- Agent 在启动时读取每个 `SKILL.md` 文件的 frontmatter，然后在需要时查看完整的 skill 内容
 
-**Why it's useful:**
-- Reduces token usage by only loading relevant skills when needed
-- Bundles capabilities together into larger actions with additional context
-- Provides specialized expertise without cluttering the system prompt
-- Enables modular, reusable agent capabilities
+**为什么有用：**
+- 通过仅在需要时加载相关 skills 来减少 token 使用
+- 将能力捆绑成具有额外上下文的更大操作
+- 提供专业专长而不会使系统提示词杂乱
+- 支持模块化、可复用的 agent 能力
 
-For more information, see [Skills](/oss/python/deepagents/skills).
+更多信息，请参见 [Skills](/oss/python/deepagents/skills)。
 
 ## Memory
 
-The harness supports persistent memory files that provide extra context to your deep agent across conversations.
-These files often contain general coding style, preferences, conventions, and guidelines that help the agent understand how to work with your codebase and follow your preferences.
+Harness 支持为 deep agent 跨对话提供额外上下文的持久化 memory 文件。
+这些文件通常包含通用的编码风格、偏好、约定和指南，帮助 agent 了解如何与您的代码库协作并遵循您的偏好。
 
-**How it works:**
-- Uses [`AGENTS.md` files](https://agents.md/) to provide persistent context
-- Memory files are always loaded (unlike skills, which use progressive disclosure)
-- Pass one or more file paths to the `memory` parameter when creating your agent
-- Files are stored in the agent's backend (StateBackend, StoreBackend, or FilesystemBackend)
-- The agent can update memory based on your interactions, feedback, and identified patterns
+**工作原理：**
+- 使用 [`AGENTS.md` 文件](https://agents.md/)提供持久化上下文
+- Memory 文件始终被加载（与使用渐进式披露的 skills 不同）
+- 创建 agent 时，向 `memory` 参数传递一个或多个文件路径
+- 文件存储在 agent 的后端（StateBackend、StoreBackend 或 FilesystemBackend）
+- Agent 可以根据您的互动、反馈和识别出的模式更新 memory
 
-**Why it's useful:**
-- Provides persistent context that doesn't need to be re-specified each conversation
-- Useful for storing user preferences, project guidelines, or domain knowledge
-- Always available to the agent, ensuring consistent behavior
+**为什么有用：**
+- 提供无需在每次对话中重新指定的持久化上下文
+- 适用于存储用户偏好、项目指南或领域知识
+- 始终对 agent 可用，确保行为一致
 
-For configuration details and examples, see [Memory](/oss/python/deepagents/customization#memory).
+有关配置详细信息和示例，请参见 [Memory](/oss/python/deepagents/customization#memory)。
 
 ---
 

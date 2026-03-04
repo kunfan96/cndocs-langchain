@@ -1,20 +1,20 @@
 ---
-title: Test
+title: 测试
 ---
 
 
 
-After you've prototyped your LangGraph agent, a natural next step is to add tests. This guide covers some useful patterns you can use when writing unit tests.
+在您为 LangGraph 智能体制作原型后，自然的下一步是添加测试。本指南涵盖了编写单元测试时可以使用的一些有用模式。
 
-Note that this guide is LangGraph-specific and covers scenarios around graphs with custom structures - if you are just getting started, check out [this section](/oss/python/langchain/test/) that uses LangChain's built-in [`create_agent`](https://reference.langchain.com/python/langchain/agents/factory/create_agent) instead.
-
-
+请注意，本指南是针对 LangGraph 的，涵盖了围绕具有自定义结构的图的场景 - 如果您刚刚开始，请查看 [此部分](/oss/python/langchain/test/)，它使用的是 LangChain 的内置 [`create_agent`](https://reference.langchain.com/python/langchain/agents/factory/create_agent)。
 
 
 
-## Prerequisites
 
-First, make sure you have [`pytest`](https://docs.pytest.org/) installed:
+
+## 先决条件
+
+首先，确保您已安装 [`pytest`](https://docs.pytest.org/)：
 
 ```bash
 $ pip install -U pytest
@@ -23,11 +23,11 @@ $ pip install -U pytest
 
 
 
-## Getting started
+## 开始
 
-Because many LangGraph agents depend on state, a useful pattern is to create your graph before each test where you use it, then compile it within tests with a new checkpointer instance.
+由于许多 LangGraph 智能体依赖于状态，因此一种有用的模式是在每次使用它的测试之前创建您的图，然后在测试中使用新的检查点实例对其进行编译。
 
-The below example shows how this works with a simple, linear graph that progresses through `node1` and `node2`. Each node updates the single state key `my_key`:
+下面的示例展示了这如何在一个简单的线性图中工作，该图通过 `node1` 和 `node2` 进行。每个节点都会更新单个状态键 `my_key`：
 
 ```python
 import pytest
@@ -62,9 +62,9 @@ def test_basic_agent_execution() -> None:
 
 
 
-## Testing individual nodes and edges
+## 测试单个节点和边
 
-Compiled LangGraph agents expose references to each individual node as `graph.nodes`. You can take advantage of this to test individual nodes within your agent. Note that this will bypass any checkpointers passed when compiling the graph:
+编译后的 LangGraph 智能体将每个单独的节点公开为 `graph.nodes`。您可以利用它来测试智能体中的单个节点。请注意，这将绕过编译图时传递的任何检查点：
 
 ```python
 import pytest
@@ -100,19 +100,19 @@ def test_individual_node_execution() -> None:
 
 
 
-## Partial execution
+## 部分执行
 
-For agents made up of larger graphs, you may wish to test partial execution paths within your agent rather than the entire flow end-to-end. In some cases, it may make semantic sense to [restructure these sections as subgraphs](/oss/python/langgraph/use-subgraphs), which you can invoke in isolation as normal.
+对于由较大图组成的智能体，您可能希望测试智能体内的部分执行路径，而不是端到端的整个流程。在某些情况下，[将这些部分重组为子图](/oss/python/langgraph/use-subgraphs) 可能在语义上是有意义的，您可以像往常一样单独调用它们。
 
-However, if you do not wish to make changes to your agent graph's overall structure, you can use LangGraph's persistence mechanisms to simulate a state where your agent is paused right before the beginning of the desired section, and will pause again at the end of the desired section. The steps are as follows:
+但是，如果您不希望更改智能体图的整体结构，则可以使用 LangGraph 的持久性机制来模拟智能体在所需部分开始之前暂停的状态，并将在所需部分结束时再次暂停。步骤如下：
 
-1. Compile your agent with a checkpointer (the in-memory checkpointer [`InMemorySaver`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.memory.InMemorySaver) will suffice for testing).
-2. Call your agent's [`update_state`](/oss/python/langgraph/use-time-travel) method with an [`as_node`](/oss/python/langgraph/persistence#as-node) parameter set to the name of the node *before* the one you want to start your test.
-3. Invoke your agent with the same `thread_id` you used to update the state and an `interrupt_after` parameter set to the name of the node you want to stop at.
+1. 使用检查点编译您的智能体（内存检查点 [`InMemorySaver`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.memory.InMemorySaver) 足以进行测试）。
+2. 调用智能体的 [`update_state`](/oss/python/langgraph/use-time-travel) 方法，并将 [`as_node`](/oss/python/langgraph/persistence#as-node) 参数设置为您要开始测试的节点*之前*的节点名称。
+3. 使用用于更新状态的相同 `thread_id` 和设置为您要停止的节点名称的 `interrupt_after` 参数来调用您的智能体。
 
 
 
-Here's an example that executes only the second and third nodes in a linear graph:
+这是一个仅执行线性图中第二个和第三个节点的示例：
 
 ```python
 import pytest
@@ -147,18 +147,17 @@ def test_partial_execution_from_node2_to_node3() -> None:
             "thread_id": "1"
           }
         },
-        # The state passed into node 2 - simulating the state at
-        # the end of node 1
+        # 传入节点 2 的状态 - 模拟节点 1 结束时的状态
         values={"my_key": "initial_value"},
-        # Update saved state as if it came from node 1
-        # Execution will resume at node 2
+        # 更新保存的状态，就好像它来自节点 1 一样
+        # 执行将在节点 2 恢复
         as_node="node1",
     )
     result = compiled_graph.invoke(
-        # Resume execution by passing None
+        # 通过传递 None 恢复执行
         None,
         config={"configurable": {"thread_id": "1"}},
-        # Stop after node 3 so that node 4 doesn't run
+        # 在节点 3 之后停止，以便节点 4 不会运行
         interrupt_after="node3",
     )
     assert result["my_key"] == "hello from node3"
@@ -168,9 +167,9 @@ def test_partial_execution_from_node2_to_node3() -> None:
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/test.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/test.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接](/use-these-docs) 到 Claude、VSCode 等，通过 MCP 获取实时解答。
 </Callout>
 </div>

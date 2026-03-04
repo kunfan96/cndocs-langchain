@@ -1,19 +1,19 @@
 ---
-title: "Outline integration"
-description: "Integrate with the Outline retriever using LangChain Python."
+title: "Outline 集成"
+description: "使用 LangChain Python 集成 Outline 检索器。"
 ---
 
->[Outline](https://www.getoutline.com/) is an open-source collaborative knowledge base platform designed for team information sharing.
+>[Outline](https://www.getoutline.com/) 是一个开源的协作知识库平台，专为团队信息共享而设计。
 
-This notebook shows how to retrieve documents from your Outline instance into the Document format that is used downstream.
+本 notebook 展示如何将 Outline 实例中的文档检索为下游使用的 Document 格式。
 
-## Setup
+## 设置
 
 ```python
 pip install -qU langchain langchain-openai
 ```
 
-You first need to [create an api key](https://www.getoutline.com/developers#section/Authentication) for your Outline instance. Then you need to set the following environment variables:
+首先需要为您的 Outline 实例[创建 API 密钥](https://www.getoutline.com/developers#section/Authentication)，然后设置以下环境变量：
 
 ```python
 import os
@@ -22,17 +22,17 @@ os.environ["OUTLINE_API_KEY"] = "xxx"
 os.environ["OUTLINE_INSTANCE_URL"] = "https://app.getoutline.com"
 ```
 
-`OutlineRetriever` has these arguments:
+`OutlineRetriever` 支持以下参数：
 
-- optional `top_k_results`: default=3. Use it to limit number of documents retrieved.
-- optional `load_all_available_meta`: default=False. By default only the most important fields retrieved: `title`, `source` (the url of the document). If True, other fields also retrieved.
-- optional `doc_content_chars_max` default=4000. Use it to limit the number of characters for each document retrieved.
+- 可选 `top_k_results`：默认值为 3，用于限制检索到的文档数量。
+- 可选 `load_all_available_meta`：默认值为 False。默认情况下只检索最重要的字段：`title`、`source`（文档的 URL）。设为 True 时，还会检索其他字段。
+- 可选 `doc_content_chars_max`：默认值为 4000，用于限制每个检索文档的字符数。
 
-`get_relevant_documents()` has one argument, `query`: free text which used to find documents in your Outline instance.
+`get_relevant_documents()` 接受一个参数 `query`：用于在 Outline 实例中查找文档的自由文本。
 
-## Examples
+## 示例
 
-### Running retriever
+### 运行检索器
 
 ```python
 from langchain_community.retrievers import OutlineRetriever
@@ -52,7 +52,7 @@ retriever.invoke("LangChain", doc_content_chars_max=100)
  Document(page_content='This walkthrough showcases using an agent to implement the [ReAct](https://react-lm.github.io/) logic.\n\n\`\`\`javascript\nfrom langchain.agents import AgentType, create_agent, load_tools\nfrom langchain_openai import OpenAI\n\`\`\`\n\nFirst, let\'s load the language model we\'re going to use to control the agent.\n\n\`\`\`javascript\nllm = OpenAI(temperature=0)\n\`\`\`\n\nNext, let\'s load some tools to use. Note that the llm-math tool uses an LLM, so we need to pass that in.\n\n\`\`\`javascript\ntools = load_tools(["serpapi", "llm-math"], llm=llm)\n\`\`\`\n\n## Using LCEL[\u200b](/docs/modules/agents/agent_types/react#using-lcel "Direct link to Using LCEL")\n\nWe will first show how to create the agent using LCEL\n\n\`\`\`javascript\nfrom langchain import hub\nfrom langchain.agents.format_scratchpad import format_log_to_str\nfrom langchain.agents.output_parsers import ReActSingleInputOutputParser\nfrom langchain.tools.render import render_text_description\n\`\`\`\n\n\`\`\`javascript\nprompt = hub.pull("hwchase17/react")\nprompt = prompt.partial(\n    tools=render_text_description(tools),\n    tool_names=", ".join([t.name for t in tools]),\n)\n\`\`\`\n\n\`\`\`javascript\nllm_with_stop = llm.bind(stop=["\\nObservation"])\n\`\`\`\n\n\`\`\`javascript\nagent = (\n    {\n        "input": lambda x: x["input"],\n        "agent_scratchpad": lambda x: format_log_to_str(x["intermediate_steps"]),\n    }\n    | prompt\n    | llm_with_stop\n    | ReActSingleInputOutputParser()\n)\n\`\`\`\n\n\`\`\`javascript\nfrom langchain.agents import AgentExecutor\n\`\`\`\n\n\`\`\`javascript\nagent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)\n\`\`\`\n\n\`\`\`javascript\nagent_executor.invoke(\n    {\n        "input": "Who is Leo DiCaprio\'s girlfriend? What is her current age raised to the 0.43 power?"\n    }\n)\n\`\`\`\n\n\`\`\`javascript\n    \n    \n    > Entering new AgentExecutor chain...\n     I need to find out who Leo DiCaprio\'s girlfriend is and then calculate her age raised to the 0.43 power.\n    Action: Search\n    Action Input: "Leo DiCaprio girlfriend"model Vittoria Ceretti I need to find out Vittoria Ceretti\'s age\n    Action: Search\n    Action Input: "Vittoria Ceretti age"25 years I need to calculate 25 raised to the 0.43 power\n    Action: Calculator\n    Action Input: 25^0.43Answer: 3.991298452658078 I now know the final answer\n    Final Answer: Leo DiCaprio\'s girlfriend is Vittoria Ceretti and her current age raised to the 0.43 power is 3.991298452658078.\n    \n    > Finished chain.\n\n\n\n\n\n    {\'input\': "Who is Leo DiCaprio\'s girlfriend? What is her current age raised to the 0.43 power?",\n     \'output\': "Leo DiCaprio\'s girlfriend is Vittoria Ceretti and her current age raised to the 0.43 power is 3.991298452658078."}\n\`\`\`\n\n## Using ZeroShotReactAgent[\u200b](/docs/modules/agents/agent_types/react#using-zeroshotreactagent "Direct link to Using ZeroShotReactAgent")\n\nWe will now show how to use the agent with an off-the-shelf agent implementation\n\n\`\`\`javascript\nagent_executor = create_agent(\n    tools, llm, agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION, verbose=True\n)\n\`\`\`\n\n\`\`\`javascript\nagent_executor.invoke(\n    {\n        "input": "Who is Leo DiCaprio\'s girlfriend? What is her current age raised to the 0.43 power?"\n    }\n)\n\`\`\`\n\n\`\`\`javascript\n    \n    \n    > Entering new AgentExecutor chain...\n     I need to find out who Leo DiCaprio\'s girlfriend is and then calculate her age raised to the 0.43 power.\n    Action: Search\n    Action Input: "Leo DiCaprio girlfriend"\n    Observation: model Vittoria Ceretti\n    Thought: I need to find out Vittoria Ceretti\'s age\n    Action: Search\n    Action Input: "Vittoria Ceretti age"\n    Observation: 25 years\n    Thought: I need to calculate 25 raised to the 0.43 power\n    Action: Calculator\n    Action Input: 25^0.43\n    Observation: Answer: 3.991298452658078\n    Thought: I now know the final answer\n    Final Answer: Leo DiCaprio\'s girlfriend is Vittoria Ceretti and her current age raised to the 0.43 power is 3.991298452658078.\n    \n    > Finished chain.\n\n\n\n\n\n    {\'input\': "Who is L', metadata={'title': 'ReAct', 'source': 'https://d01.getoutline.com/doc/react-d6rxRS1MHk'})]
 ```
 
-### Answering questions on outline documents
+### 基于 Outline 文档回答问题
 
 ```python
 import os
@@ -84,9 +84,9 @@ qa.invoke({"question": "what is langchain?", "chat_history": []})
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/retrievers/outline.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/retrievers/outline.mdx) 或 [提交 issue](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP 获取实时解答。
 </Callout>
 </div>

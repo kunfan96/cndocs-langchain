@@ -1,39 +1,39 @@
 ---
-title: "Microsoft SharePoint integration"
-description: "Integrate with the Microsoft SharePoint document loader using LangChain Python."
+title: "Microsoft SharePoint 集成"
+description: "使用 LangChain Python 集成 Microsoft SharePoint 文档加载器。"
 ---
 
 > [Microsoft SharePoint](https://en.wikipedia.org/wiki/SharePoint) is a website-based collaboration system that uses workflow applications, “list” databases, and other web parts and security features to empower business teams to work together developed by Microsoft.
 
-This notebook covers how to load documents from the [SharePoint Document Library](https://support.microsoft.com/en-us/office/what-is-a-document-library-3b5976dd-65cf-4c9e-bf5a-713c10ca2872). By default the document loader loads `pdf`, `doc`, `docx` and `txt` files. You can load other file types by providing appropriate parsers (see more below).
+本笔记本介绍如何从 [SharePoint 文档库](https://support.microsoft.com/en-us/office/what-is-a-document-library-3b5976dd-65cf-4c9e-bf5a-713c10ca2872)加载文档。默认情况下，文档加载器加载 `pdf`、`doc`、`docx` 和 `txt` 文件。您可以通过提供适当的解析器来加载其他文件类型（详见下文）。
 
-## Prerequisites
+## 前提条件
 
-1. Register an application with the [Microsoft identity platform](https://learn.microsoft.com/en-us/azure/active-directory/develop/quickstart-register-app) instructions.
-2. When registration finishes, the Azure portal displays the app registration's Overview pane. You see the Application (client) ID. Also called the `client ID`, this value uniquely identifies your application in the Microsoft identity platform.
-3. During the steps you will be following at **item 1**, you can set the redirect URI as `https://login.microsoftonline.com/common/oauth2/nativeclient`
-4. During the steps you will be following at **item 1**, generate a new password (`client_secret`) under Application Secrets section.
-5. Follow the instructions at this [document](https://learn.microsoft.com/en-us/azure/active-directory/develop/quickstart-configure-app-expose-web-apis#add-a-scope) to add the following `SCOPES` (`offline_access` and `Sites.Read.All`) to your application.
-6. To retrieve files from your **Document Library**, you will need its ID. To obtain it, you will need values of `Tenant Name`, `Collection ID`, and `Subsite ID`.
-7. To find your `Tenant Name` follow the instructions at this [document](https://learn.microsoft.com/en-us/azure/active-directory-b2c/tenant-management-read-tenant-name). Once you got this, just remove `.onmicrosoft.com` from the value and hold the rest as your `Tenant Name`.
-8. To obtain your `Collection ID` and `Subsite ID`, you will need your **SharePoint** `site-name`. Your `SharePoint` site URL has the following format `https://<tenant-name>.sharepoint.com/sites/<site-name>`. The last part of this URL is the `site-name`.
-9. To Get the Site `Collection ID`, hit this URL in the browser: `https://<tenant>.sharepoint.com/sites/<site-name>/_api/site/id` and copy the value of the `Edm.Guid` property.
-10. To get the `Subsite ID` (or web ID) use: `https://<tenant>.sharepoint.com/sites/<site-name>/_api/web/id` and copy the value of the `Edm.Guid` property.
-11. The `SharePoint site ID` has the following format: `<tenant-name>.sharepoint.com,<Collection ID>,<subsite ID>`. You can hold that value to use in the next step.
-12. Visit the [Graph Explorer Playground](https://developer.microsoft.com/en-us/graph/graph-explorer) to obtain your `Document Library ID`. The first step is to ensure you are logged in with the account associated with your **SharePoint** site. Then you need to make a request to `https://graph.microsoft.com/v1.0/sites/<SharePoint site ID>/drive` and the response will return a payload with a field `id` that holds the ID of your `Document Library ID`.
+1. 按照 [Microsoft 身份平台](https://learn.microsoft.com/en-us/azure/active-directory/develop/quickstart-register-app)的说明注册应用程序。
+2. 注册完成后，Azure 门户将显示应用程序注册的概览页面。您会看到应用程序（客户端）ID，也称为 `client ID`，该值在 Microsoft 身份平台中唯一标识您的应用程序。
+3. 按照**步骤 1**操作时，可以将重定向 URI 设置为 `https://login.microsoftonline.com/common/oauth2/nativeclient`
+4. 按照**步骤 1**操作时，在"应用程序机密"部分生成新密码（`client_secret`）。
+5. 按照此[文档](https://learn.microsoft.com/en-us/azure/active-directory/develop/quickstart-configure-app-expose-web-apis#add-a-scope)的说明，向您的应用程序添加以下 `SCOPES`（`offline_access` 和 `Sites.Read.All`）。
+6. 要从**文档库**检索文件，您需要其 ID。为此需要 `Tenant Name`、`Collection ID` 和 `Subsite ID` 的值。
+7. 要查找您的 `Tenant Name`，请按照此[文档](https://learn.microsoft.com/en-us/azure/active-directory-b2c/tenant-management-read-tenant-name)的说明操作。获取后，删除值中的 `.onmicrosoft.com` 部分，其余部分即为您的 `Tenant Name`。
+8. 要获取 `Collection ID` 和 `Subsite ID`，需要知道您的 **SharePoint** `site-name`。您的 `SharePoint` 站点 URL 格式为 `https://<tenant-name>.sharepoint.com/sites/<site-name>`，URL 的最后部分即为 `site-name`。
+9. 要获取站点 `Collection ID`，在浏览器中访问：`https://<tenant>.sharepoint.com/sites/<site-name>/_api/site/id`，并复制 `Edm.Guid` 属性的值。
+10. 要获取 `Subsite ID`（或 web ID），使用：`https://<tenant>.sharepoint.com/sites/<site-name>/_api/web/id`，并复制 `Edm.Guid` 属性的值。
+11. `SharePoint site ID` 的格式为：`<tenant-name>.sharepoint.com,<Collection ID>,<subsite ID>`，请保存该值以备下一步使用。
+12. 访问 [Graph Explorer Playground](https://developer.microsoft.com/en-us/graph/graph-explorer) 获取您的 `Document Library ID`。首先确保使用与您的 **SharePoint** 站点关联的账户登录，然后向 `https://graph.microsoft.com/v1.0/sites/<SharePoint site ID>/drive` 发起请求，响应中的 `id` 字段即为您的 `Document Library ID`。
 
-## 🧑 Instructions for ingesting your documents from SharePoint document library
+## 🧑 从 SharePoint 文档库导入文档的说明
 
-### 🔑 Authentication
+### 🔑 认证
 
-By default, the `SharePointLoader` expects that the values of `CLIENT_ID` and `CLIENT_SECRET` must be stored as environment variables named `O365_CLIENT_ID` and `O365_CLIENT_SECRET` respectively. You could pass those environment variables through a `.env` file at the root of your application or using the following command in your script.
+默认情况下，`SharePointLoader` 期望 `CLIENT_ID` 和 `CLIENT_SECRET` 分别以环境变量 `O365_CLIENT_ID` 和 `O365_CLIENT_SECRET` 的形式存储。您可以通过应用程序根目录下的 `.env` 文件或在脚本中使用以下命令来传递这些环境变量。
 
 ```python
 os.environ['O365_CLIENT_ID'] = "YOUR CLIENT ID"
 os.environ['O365_CLIENT_SECRET'] = "YOUR CLIENT SECRET"
 ```
 
-This loader uses an authentication called [*on behalf of a user*](https://learn.microsoft.com/en-us/graph/auth-v2-user?context=graph%2Fapi%2F1.0&view=graph-rest-1.0). It is a 2 step authentication with user consent. When you instantiate the loader, it will call will print a url that the user must visit to give consent to the app on the required permissions. The user must then visit this url and give consent to the application. Then the user must copy the resulting page url and paste it back on the console. The method will then return True if the login attempt was succesful.
+该加载器使用一种称为[*代表用户*](https://learn.microsoft.com/en-us/graph/auth-v2-user?context=graph%2Fapi%2F1.0&view=graph-rest-1.0)的认证方式，是需要用户同意的两步认证。实例化加载器时，它会打印一个 URL，用户需要访问该 URL 以授予应用程序所需权限。用户访问该 URL 并同意应用程序后，需要将结果页面的 URL 复制粘贴回控制台。如果登录成功，该方法将返回 True。
 
 ```python
 from langchain_community.document_loaders.sharepoint import SharePointLoader
@@ -41,7 +41,7 @@ from langchain_community.document_loaders.sharepoint import SharePointLoader
 loader = SharePointLoader(document_library_id="YOUR DOCUMENT LIBRARY ID")
 ```
 
-Once the authentication has been done, the loader will store a token (`o365_token.txt`) at `~/.credentials/` folder. This token could be used later to authenticate without the copy/paste steps explained earlier. To use this token for authentication, you need to change the `auth_with_token` parameter to True in the instantiation of the loader.
+认证完成后，加载器会将令牌（`o365_token.txt`）存储在 `~/.credentials/` 文件夹中。之后可以使用此令牌进行认证，无需再执行上述复制粘贴步骤。要使用此令牌进行认证，需要在实例化加载器时将 `auth_with_token` 参数设置为 True。
 
 ```python
 from langchain_community.document_loaders.sharepoint import SharePointLoader
@@ -49,11 +49,11 @@ from langchain_community.document_loaders.sharepoint import SharePointLoader
 loader = SharePointLoader(document_library_id="YOUR DOCUMENT LIBRARY ID", auth_with_token=True)
 ```
 
-### 🗂️ Documents loader
+### 🗂️ 文档加载器
 
-#### 📑 Loading documents from a document library directory
+#### 📑 从文档库目录加载文档
 
-`SharePointLoader` can load documents from a specific folder within your Document Library. For instance, you want to load all documents that are stored at `Documents/marketing` folder within your Document Library.
+`SharePointLoader` 可以从文档库中的特定文件夹加载文档。例如，加载文档库中 `Documents/marketing` 文件夹下存储的所有文档。
 
 ```python
 from langchain_community.document_loaders.sharepoint import SharePointLoader
@@ -62,7 +62,7 @@ loader = SharePointLoader(document_library_id="YOUR DOCUMENT LIBRARY ID", folder
 documents = loader.load()
 ```
 
-If you are receiving the error `Resource not found for the segment`, try using the `folder_id` instead of the folder path, which can be obtained from the [Microsoft Graph API](https://developer.microsoft.com/en-us/graph/graph-explorer)
+如果收到 `Resource not found for the segment` 错误，请尝试使用 `folder_id` 代替文件夹路径，可以从 [Microsoft Graph API](https://developer.microsoft.com/en-us/graph/graph-explorer) 获取该 ID
 
 ```python
 loader = SharePointLoader(document_library_id="YOUR DOCUMENT LIBRARY ID", auth_with_token=True
@@ -70,7 +70,7 @@ loader = SharePointLoader(document_library_id="YOUR DOCUMENT LIBRARY ID", auth_w
 documents = loader.load()
 ```
 
-If you wish to load documents from the root directory, you can omit `folder_id`, `folder_path` and `documents_ids` and loader will load root directory.
+如果希望从根目录加载文档，可以省略 `folder_id`、`folder_path` 和 `documents_ids`，加载器将加载根目录。
 
 ```python
 # loads documents from root directory
@@ -78,7 +78,7 @@ loader = SharePointLoader(document_library_id="YOUR DOCUMENT LIBRARY ID", auth_w
 documents = loader.load()
 ```
 
-Combined with `recursive=True` you can simply load all documents from whole SharePoint:
+结合 `recursive=True` 可以简单地加载整个 SharePoint 中的所有文档：
 
 ```python
 # loads documents from root directory
@@ -88,11 +88,11 @@ loader = SharePointLoader(document_library_id="YOUR DOCUMENT LIBRARY ID",
 documents = loader.load()
 ```
 
-#### 📑 Loading documents from a list of documents IDs
+#### 📑 从文档 ID 列表加载文档
 
-Another possibility is to provide a list of `object_id` for each document you want to load. For that, you will need to query the [Microsoft Graph API](https://developer.microsoft.com/en-us/graph/graph-explorer) to find all the documents ID that you are interested in. This [link](https://learn.microsoft.com/en-us/graph/api/resources/onedrive?view=graph-rest-1.0#commonly-accessed-resources) provides a list of endpoints that will be helpful to retrieve the documents ID.
+另一种方式是为每个要加载的文档提供 `object_id` 列表。为此，您需要查询 [Microsoft Graph API](https://developer.microsoft.com/en-us/graph/graph-explorer) 以找到所需文档的 ID。此[链接](https://learn.microsoft.com/en-us/graph/api/resources/onedrive?view=graph-rest-1.0#commonly-accessed-resources)提供了一系列可帮助检索文档 ID 的端点。
 
-For instance, to retrieve information about all objects that are stored at `data/finance/` folder, you need make a request to: `https://graph.microsoft.com/v1.0/drives/<document-library-id>/root:/data/finance:/children`. Once you have the list of IDs that you are interested in, then you can instantiate the loader with the following parameters.
+例如，要检索存储在 `data/finance/` 文件夹下的所有对象信息，需要向以下地址发送请求：`https://graph.microsoft.com/v1.0/drives/<document-library-id>/root:/data/finance:/children`。获取所需的 ID 列表后，可以使用以下参数实例化加载器。
 
 ```python
 from langchain_community.document_loaders.sharepoint import SharePointLoader
@@ -101,9 +101,9 @@ loader = SharePointLoader(document_library_id="YOUR DOCUMENT LIBRARY ID", object
 documents = loader.load()
 ```
 
-#### 📑 Choosing supported file types and preffered parsers
+#### 📑 选择支持的文件类型和首选解析器
 
-By default `SharePointLoader` loads file types defined in [`document_loaders/parsers/registry`](https://github.com/langchain-ai/langchain/blob/master/libs/community/langchain_community/document_loaders/parsers/registry.py#L10-L22) using the default parsers (see below).
+默认情况下，`SharePointLoader` 使用默认解析器加载在 [`document_loaders/parsers/registry`](https://github.com/langchain-ai/langchain/blob/master/libs/community/langchain_community/document_loaders/parsers/registry.py#L10-L22) 中定义的文件类型（见下文）。
 
 ```python
 def _get_default_parser() -> BaseBlobParser:
@@ -121,13 +121,12 @@ def _get_default_parser() -> BaseBlobParser:
     )
 ```
 
-You can override this behavior by passing `handlers` argument to `SharePointLoader`.
-Pass a dictionary mapping either file extensions (like `"doc"`, `"pdf"`, etc.)
-or MIME types (like `"application/pdf"`, `"text/plain"`, etc.) to parsers.
-Note that you must use either file extensions or MIME types exclusively and
-cannot mix them.
+您可以通过向 `SharePointLoader` 传递 `handlers` 参数来覆盖此行为。
+传入一个字典，将文件扩展名（如 `"doc"`、`"pdf"` 等）
+或 MIME 类型（如 `"application/pdf"`、`"text/plain"` 等）映射到对应的解析器。
+请注意，只能使用文件扩展名或 MIME 类型中的一种，不能混用。
 
-Do not include the leading dot for file extensions.
+文件扩展名不需要包含前导点。
 
 ```python
 # using file extensions:
@@ -149,9 +148,8 @@ loader = SharePointLoader(document_library_id="...",
                             )
 ```
 
-In case multiple file extensions map to the same MIME type, the last dictionary item will
-apply.
-Example:
+如果多个文件扩展名映射到同一 MIME 类型，则以字典中最后一项为准。
+示例：
 
 ```python
 # 'jpg' and 'jpeg' both map to 'image/jpeg' MIME type. SecondParser() will be used
@@ -166,9 +164,9 @@ handlers = {
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/document_loaders/microsoft_sharepoint.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/document_loaders/microsoft_sharepoint.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接](/use-these-docs) 到 Claude、VSCode 等工具，通过 MCP 获取实时答案。
 </Callout>
 </div>
