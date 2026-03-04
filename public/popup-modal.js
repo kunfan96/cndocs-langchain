@@ -1,6 +1,6 @@
 /**
  * 弹框显示脚本
- * 功能：每天第1/5/7/10次打开页面会弹出一个弹框，显示图片
+ * 功能：每隔3次打开页面会弹出一个弹框，显示图片
  */
 
 function initPopupModal() {
@@ -15,10 +15,8 @@ function initPopupModal() {
   // 更新localStorage
   localStorage.setItem(storageKey, visits);
 
-  // 触发显示弹框的次数，可以根据需要调整
-  const triggerTimes = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50];
-
-  if (triggerTimes.includes(visits)) {
+  // 每隔3次打开弹框（第1、4、7、10、13次...）
+  if (visits % 3 === 1) {
     showPopupModal();
   }
 }
@@ -78,6 +76,7 @@ function showPopupModal() {
     align-items: center;
     justify-content: center;
     transition: color 0.2s;
+    font-weight: 200;
   `;
 
   closeBtn.addEventListener("mouseenter", function () {
@@ -95,7 +94,8 @@ function showPopupModal() {
   // 创建图片容器
   const imageContainer = document.createElement("div");
   imageContainer.style.cssText = `
-    text-align: center;
+    display: flex;
+    justify-content: center;
     margin-top: 10px;
   `;
 
@@ -104,8 +104,8 @@ function showPopupModal() {
   img.src = "https://kunfanyang.site/site-file/wx_code.jpg";
   img.alt = "WeChat QR Code";
   img.style.cssText = `
-    max-width: 100%;
-    height: auto;
+    width: 300px;
+    height: 300px;
     border-radius: 4px;
   `;
 
@@ -183,8 +183,4 @@ function addPopupAnimation() {
 }
 
 // 页面加载完成后初始化
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initPopupModal);
-} else {
-  initPopupModal();
-}
+initPopupModal();
