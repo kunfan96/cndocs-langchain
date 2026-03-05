@@ -1,50 +1,45 @@
 ---
-title: Functional API overview
-sidebarTitle: Functional API
+title: 功能性 API 概述
+sidebarTitle: 功能性 API
 ---
 
 
 
-The **Functional API** allows you to add LangGraph's key features — [persistence](/oss/javascript/langgraph/persistence), [memory](/oss/javascript/langgraph/add-memory), [human-in-the-loop](/oss/javascript/langgraph/interrupts), and [streaming](/oss/javascript/langgraph/streaming) — to your applications with minimal changes to your existing code.
+**功能性 API** 允许你在最少改动现有代码的情况下，将 LangGraph 的关键功能（[持久化](/oss/javascript/langgraph/persistence)、[记忆](/oss/javascript/langgraph/add-memory)、[人工介入](/oss/javascript/langgraph/interrupts) 和 [流式处理](/oss/javascript/langgraph/streaming)）添加到你的应用中。
 
-It is designed to integrate these features into existing code that may use standard language primitives for branching and control flow, such as `if` statements, `for` loops, and function calls. Unlike many data orchestration frameworks that require restructuring code into an explicit pipeline or DAG, the Functional API allows you to incorporate these capabilities without enforcing a rigid execution model.
+该 API 设计用于将这些功能整合到可能使用标准控制流语法（例如 if 语句、for 循环和函数调用）的现有代码中。与许多要求将代码重构为明确管道或 DAG 的数据编排框架不同，功能性 API 允许你在不强制采用刚性执行模型的情况下集成这些能力。
 
-The Functional API uses two key building blocks:
+功能性 API 使用两个关键构建块：
 
+* **`entrypoint`** – 封装工作流逻辑并管理执行流，包括处理长时任务和中断。
+* **`task`** – 表示一个独立的工作单元（如 API 调用或数据处理步骤），可在 entrypoint 内异步执行。任务返回类似 future 的对象，可被 await 或同步解析。
 
-
-* **`entrypoint`** – An entrypoint encapsulates workflow logic and manages execution flow, including handling long-running tasks and interrupts.
-* **`task`** – Represents a discrete unit of work, such as an API call or data processing step, that can be executed asynchronously within an entrypoint. Tasks return a future-like object that can be awaited or resolved synchronously.
-
-
-This provides a minimal abstraction for building workflows with state management and streaming.
+这为具有状态管理和流式能力的工作流提供了一个最小抽象。
 
 <Tip>
-For information on how to use the functional API, see [Use Functional API](/oss/javascript/langgraph/use-functional-api).
+有关如何使用功能性 API 的信息，请参见 [Use Functional API](/oss/javascript/langgraph/use-functional-api)。
 </Tip>
 
-## Functional API vs. Graph API
+## 功能性 API 与 图 API
 
-For users who prefer a more declarative approach, LangGraph's [Graph API](/oss/javascript/langgraph/graph-api) allows you to define workflows using a Graph paradigm. Both APIs share the same underlying runtime, so you can use them together in the same application.
+对于喜欢声明式方式的用户，LangGraph 的 [图 API](/oss/javascript/langgraph/graph-api) 允许你使用图的范式来定义工作流。两个 API 使用相同的运行时，因此可以在同一应用中混合使用。
 
-Here are some key differences:
+关键差异：
 
-* **Control flow**: The Functional API does not require thinking about graph structure. You can use standard Python constructs to define workflows. This will usually trim the amount of code you need to write.
-* **Short-term memory**: The **GraphAPI** requires declaring a [**State**](/oss/javascript/langgraph/graph-api#state) and may require defining [**reducers**](/oss/javascript/langgraph/graph-api#reducers) to manage updates to the graph state. `@entrypoint` and `@tasks` do not require explicit state management as their state is scoped to the function and is not shared across functions.
-* **Checkpointing**: Both APIs generate and use checkpoints. In the **Graph API** a new checkpoint is generated after every [superstep](/oss/javascript/langgraph/graph-api). In the **Functional API**, when tasks are executed, their results are saved to an existing checkpoint associated with the given entrypoint instead of creating a new checkpoint.
-* **Visualization**: The Graph API makes it easy to visualize the workflow as a graph which can be useful for debugging, understanding the workflow, and sharing with others. The Functional API does not support visualization as the graph is dynamically generated during runtime.
+* **控制流**：功能性 API 不要求考虑图结构，你可以使用常规 TypeScript/JavaScript 结构来定义工作流，通常能减少需编写的代码量。
+* **短期记忆**：**Graph API** 要求声明 [**State**](/oss/javascript/langgraph/graph-api#state)，并可能需要定义 [**reducers**](/oss/javascript/langgraph/graph-api#reducers) 来管理状态更新。`@entrypoint` 和 `@tasks` 不要求显式状态管理，因为它们的状态作用域限于函数本身，函数间不共享状态。
+* **检查点**：两者都会生成并使用检查点。在 **Graph API** 中，每个 [superstep](/oss/javascript/langgraph/graph-api) 后都会生成新的检查点。而在功能性 API 中，当任务执行时，其结果会保存到与给定 entrypoint 关联的现有检查点中，而不是创建新的检查点。
+* **可视化**：Graph API 便于将工作流可视化为图，便于调试和交流。功能性 API 没有此可视化支持，因为图是在运行时动态生成的。
 
-## Example
+## 示例
 
-Below we demonstrate a simple application that writes an essay and [interrupts](/oss/javascript/langgraph/interrupts) to request human review.
-
-
+下面演示一个简单应用：写一篇文章并通过 [interrupts](/oss/javascript/langgraph/interrupts) 暂停以请求人工审核。
 
 ```typescript
 import { MemorySaver, entrypoint, task, interrupt } from "@langchain/langgraph";
 
 const writeEssay = task("writeEssay", async (topic: string) => {
-  // A placeholder for a long-running task.
+  // 模拟一个长时间运行的任务。
   await new Promise((resolve) => setTimeout(resolve, 1000));
   return `An essay about topic: ${topic}`;
 });
@@ -54,37 +49,32 @@ const workflow = entrypoint(
   async (topic: string) => {
     const essay = await writeEssay(topic);
     const isApproved = interrupt({
-      // Any json-serializable payload provided to interrupt as argument.
-      // It will be surfaced on the client side as an Interrupt when streaming data
-      // from the workflow.
-      essay, // The essay we want reviewed.
-      // We can add any additional information that we need.
-      // For example, introduce a key called "action" with some instructions.
+      // 传入到 interrupt 的任何可 JSON 序列化的负载。
+      // 在从工作流流式传输数据到客户端时，会作为 Interrupt 被展示。
+      essay, // 我们希望人工审核的文章。
+      // 可以添加任何附加信息，例如添加一个名为 "action" 的键作为指示。
       action: "Please approve/reject the essay",
     });
 
     return {
-      essay, // The essay that was generated
-      isApproved, // Response from HIL
+      essay, // 生成的文章
+      isApproved, // 来自人工的响应
     };
   }
 );
 ```
 
+<Accordion title="详细说明">
+  该工作流将为主题 "cat" 写一篇文章，然后暂停以等待人工审核。工作流可以无限期中断，直到提供审核结果。
 
-<Accordion title="Detailed Explanation">
-  This workflow will write an essay about the topic "cat" and then pause to get a review from a human. The workflow can be interrupted for an indefinite amount of time until a review is provided.
-
-  When the workflow is resumed, it executes from the very start, but because the result of the `writeEssay` task was already saved, the task result will be loaded from the checkpoint instead of being recomputed.
-
-
+  当工作流恢复时，它会从开始处执行，但由于 `writeEssay` 任务的结果已经保存，任务结果将从检查点加载，而不会重新计算。
 
   ```typescript
   import { v4 as uuidv4 } from "uuid";
   import { MemorySaver, entrypoint, task, interrupt } from "@langchain/langgraph";
 
   const writeEssay = task("writeEssay", async (topic: string) => {
-    // This is a placeholder for a long-running task.
+    // 这是一个长时间运行任务的占位符。
     await new Promise(resolve => setTimeout(resolve, 1000));
     return `An essay about topic: ${topic}`;
   });
@@ -94,18 +84,13 @@ const workflow = entrypoint(
     async (topic: string) => {
       const essay = await writeEssay(topic);
       const isApproved = interrupt({
-        // Any json-serializable payload provided to interrupt as argument.
-        // It will be surfaced on the client side as an Interrupt when streaming data
-        // from the workflow.
-        essay, // The essay we want reviewed.
-        // We can add any additional information that we need.
-        // For example, introduce a key called "action" with some instructions.
+        essay,
         action: "Please approve/reject the essay",
       });
 
       return {
-        essay, // The essay that was generated
-        isApproved, // Response from HIL
+        essay,
+        isApproved,
       };
     }
   );
@@ -135,13 +120,13 @@ const workflow = entrypoint(
   }
   ```
 
-  An essay has been written and is ready for review. Once the review is provided, we can resume the workflow:
+  一篇文章已生成并等待审核。一旦提供审核，我们可以恢复工作流：
 
   ```typescript
   import { Command } from "@langchain/langgraph";
 
-  // Get review from a user (e.g., via a UI)
-  // In this case, we're using a bool, but this can be any json-serializable value.
+  // 从用户处获取审核（例如通过 UI）
+  // 这里使用布尔值，但可以是任何可 JSON 序列化的值。
   const humanReview = true;
 
   const stream = await workflow.stream(
@@ -157,28 +142,23 @@ const workflow = entrypoint(
   { workflow: { essay: 'An essay about topic: cat', isApproved: true } }
   ```
 
-  The workflow has been completed and the review has been added to the essay.
+  工作流完成，审核结果已添加到文章中。
 
 </Accordion>
 
 ## Entrypoint
 
+[`entrypoint`](https://reference.langchain.com/javascript/langchain-langgraph/index/entrypoint) 函数可用于从函数创建工作流。它封装了工作流逻辑并管理执行流，包括处理长时任务和 [中断](/oss/javascript/langgraph/interrupts)。
 
+### 定义
 
-The [`entrypoint`](https://reference.langchain.com/javascript/langchain-langgraph/index/entrypoint) function can be used to create a workflow from a function. It encapsulates workflow logic and manages execution flow, including handling _long-running tasks_ and [interrupts](/oss/javascript/langgraph/interrupts).
+**entrypoint** 通过将配置和函数传入 `entrypoint` 函数来定义。
 
+该函数**必须接受单个位置参数**，该参数作为工作流输入。如果需要传递多项数据，请将一个对象作为第一个参数的输入类型。
 
-### Definition
+使用函数创建 entrypoint 将生成一个工作流实例，用于管理工作流执行（例如处理流式、恢复和检查点）。
 
-
-
-An **entrypoint** is defined by calling the `entrypoint` function with configuration and a function.
-
-The function **must accept a single positional argument**, which serves as the workflow input. If you need to pass multiple pieces of data, use an object as the input type for the first argument.
-
-Creating an entrypoint with a function produces a workflow instance which helps to manage the execution of the workflow (e.g., handles streaming, resumption, and checkpointing).
-
-You will often want to pass a **checkpointer** to the `entrypoint` function to enable persistence and use features like **human-in-the-loop**.
+通常需要将 **checkpointer** 传递给 `entrypoint` 以启用持久化并使用人工介入等功能。
 
 ```typescript
 import { entrypoint } from "@langchain/langgraph";
@@ -186,26 +166,21 @@ import { entrypoint } from "@langchain/langgraph";
 const myWorkflow = entrypoint(
   { checkpointer, name: "workflow" },
   async (someInput: Record<string, any>): Promise<number> => {
-    // some logic that may involve long-running tasks like API calls,
-    // and may be interrupted for human-in-the-loop
+    // 可能涉及长时任务（如 API 调用），并可能被人工中断
     return result;
   }
 );
 ```
 
-
 <Warning>
-**Serialization**
-The **inputs** and **outputs** of entrypoints must be JSON-serializable to support checkpointing. Please see the [serialization](#serialization) section for more details.
+**序列化**
+
+Entrypoint 的 **输入** 与 **输出** 必须是可 JSON 序列化的，以支持检查点。请参阅 [序列化](#serialization) 部分了解更多细节。
 </Warning>
 
+### 执行
 
-
-### Executing
-
-
-
-Using the [`entrypoint`](#entrypoint) function will return an object that can be executed using the `invoke` and `stream` methods.
+使用 [`entrypoint`](#entrypoint) 函数会返回一个对象，可以使用 `invoke` 和 `stream` 方法执行。
 
 <Tabs>
     <Tab title="Invoke">
@@ -215,7 +190,7 @@ Using the [`entrypoint`](#entrypoint) function will return an object that can be
         thread_id: "some_thread_id"
       }
     };
-    await myWorkflow.invoke(someInput, config); // Wait for the result
+    await myWorkflow.invoke(someInput, config); // 等待结果
     ```
     </Tab>
     <Tab title="Stream">
@@ -233,14 +208,11 @@ Using the [`entrypoint`](#entrypoint) function will return an object that can be
     </Tab>
 </Tabs>
 
+### 恢复执行
 
-### Resuming
+在遇到 [interrupt](https://reference.langchain.com/javascript/langchain-langgraph/index/interrupt) 后恢复执行，可以通过向 [`Command`](https://reference.langchain.com/javascript/langchain-langgraph/index/Command) 原语传入 **resume** 值来完成。
 
-
-
-Resuming an execution after an [interrupt](https://reference.langchain.com/javascript/langchain-langgraph/index/interrupt) can be done by passing a **resume** value to the [`Command`](https://reference.langchain.com/javascript/langchain-langgraph/index/Command) primitive.
-
-<Tabs>
+< Tabs>
     <Tab title="Invoke">
     ```typescript
     import { Command } from "@langchain/langgraph";
@@ -276,14 +248,11 @@ Resuming an execution after an [interrupt](https://reference.langchain.com/javas
     </Tab>
 </Tabs>
 
+**在错误后恢复**
 
+要在错误后恢复，请使用相同的 **thread id**（config）以 `null` 作为输入运行 entrypoint。
 
-
-**Resuming after an error**
-
-To resume after an error, run the `entrypoint` with `null` and the same **thread id** (config).
-
-This assumes that the underlying **error** has been resolved and execution can proceed successfully.
+这假设底层 **错误** 已被修复并且执行可以继续。
 
 <Tabs>
     <Tab title="Invoke">
@@ -312,16 +281,13 @@ This assumes that the underlying **error** has been resolved and execution can p
     </Tab>
 </Tabs>
 
+### 短期记忆
 
-### Short-term memory
+当 `entrypoint` 使用 `checkpointer` 定义时，它会在相同 **thread id** 的连续调用之间将信息存储在 [检查点](/oss/javascript/langgraph/persistence#checkpoints) 中。
 
-When an `entrypoint` is defined with a `checkpointer`, it stores information between successive invocations on the same **thread id** in [checkpoints](/oss/javascript/langgraph/persistence#checkpoints).
+这允许使用 `getPreviousState` 函数访问前一次调用的状态。
 
-
-
-This allows accessing the state from the previous invocation using the `getPreviousState` function.
-
-By default, the `getPreviousState` function returns the return value of the previous invocation.
+默认情况下，`getPreviousState` 返回前一次调用的返回值。
 
 ```typescript
 import { entrypoint, getPreviousState } from "@langchain/langgraph";
@@ -340,18 +306,15 @@ const config = {
   },
 };
 
-await myWorkflow.invoke(1, config); // 1 (previous was undefined)
-await myWorkflow.invoke(2, config); // 3 (previous was 1 from the previous invocation)
+await myWorkflow.invoke(1, config); // 1 (previous 未定义)
+await myWorkflow.invoke(2, config); // 3 (previous 为上一次调用的 1)
 ```
-
 
 #### `entrypoint.final`
 
+[`entrypoint.final`](https://reference.langchain.com/javascript/functions/_langchain_langgraph.index.entrypoint.html#final) 是一个特殊的原语，可以从 entrypoint 返回，允许**将保存在检查点中的值**与**entrypoint 的返回值**解耦。
 
-
-[`entrypoint.final`](https://reference.langchain.com/javascript/functions/_langchain_langgraph.index.entrypoint.html#final) is a special primitive that can be returned from an entrypoint and allows **decoupling** the value that is **saved in the checkpoint** from the **return value of the entrypoint**.
-
-The first value is the return value of the entrypoint, and the second value is the value that will be saved in the checkpoint.
+第一个值是返回给调用者的值，第二个值将保存到检查点中。
 
 ```typescript
 import { entrypoint, getPreviousState } from "@langchain/langgraph";
@@ -360,9 +323,8 @@ const myWorkflow = entrypoint(
   { checkpointer, name: "workflow" },
   async (number: number) => {
     const previous = getPreviousState<number>() ?? 0;
-    // This will return the previous value to the caller, saving
-    // 2 * number to the checkpoint, which will be used in the next invocation
-    // for the `previous` parameter.
+    // 这将把 previous 返回给调用者，同时把 2 * number 保存到检查点中，
+    // 下次调用时会用作 `previous` 参数。
     return entrypoint.final({
       value: previous,
       save: 2 * number,
@@ -376,48 +338,42 @@ const config = {
   },
 };
 
-await myWorkflow.invoke(3, config); // 0 (previous was undefined)
-await myWorkflow.invoke(1, config); // 6 (previous was 3 * 2 from the previous invocation)
+await myWorkflow.invoke(3, config); // 0 (previous 未定义)
+await myWorkflow.invoke(1, config); // 6 (previous 为上一次调用保存的 3 * 2)
 ```
-
 
 ## Task
 
-A **task** represents a discrete unit of work, such as an API call or data processing step. It has two key characteristics:
+**任务（task）** 表示独立的工作单元，例如 API 调用或数据处理步骤。其两个关键特性：
 
-* **Asynchronous Execution**: Tasks are designed to be executed asynchronously, allowing multiple operations to run concurrently without blocking.
-* **Checkpointing**: Task results are saved to a checkpoint, enabling resumption of the workflow from the last saved state. (See [persistence](/oss/javascript/langgraph/persistence) for more details).
+* **异步执行**：任务设计为异步执行，允许多个操作并发运行而不阻塞。
+* **检查点**：任务结果会保存到检查点，从而在恢复工作流程时可以从上次保存的状态继续。（详见 [持久化](/oss/javascript/langgraph/persistence)）。
 
-### Definition
+### 定义
 
-
-
-Tasks are defined using the `task` function, which wraps a regular function.
+任务通过 `task` 函数定义，它包装了一个常规函数。
 
 ```typescript
 import { task } from "@langchain/langgraph";
 
 const slowComputation = task("slowComputation", async (inputValue: any) => {
-  // Simulate a long-running operation
+  // 模拟长时间运行的操作
   return result;
 });
 ```
 
-
 <Warning>
-**Serialization**
-The **outputs** of tasks must be JSON-serializable to support checkpointing.
+**序列化**
+任务的 **输出** 必须可 JSON 序列化以支持检查点。
 </Warning>
 
-### Execution
+### 执行
 
-**Tasks** can only be called from within an **entrypoint**, another **task**, or a [state graph node](/oss/javascript/langgraph/graph-api#nodes).
+**任务** 只能在 **entrypoint**、另一个 **task** 或 [状态图节点](/oss/javascript/langgraph/graph-api#nodes) 内被调用。
 
-Tasks _cannot_ be called directly from the main application code.
+任务**不能**直接从主应用代码中调用。
 
-
-
-When you call a **task**, it returns a Promise that can be awaited.
+当调用 **task** 时，它会返回一个可 await 的 Promise。
 
 ```typescript
 const myWorkflow = entrypoint(
@@ -428,56 +384,48 @@ const myWorkflow = entrypoint(
 );
 ```
 
+## 何时使用 task
 
-## When to use a task
+**任务** 适合以下场景：
 
-**Tasks** are useful in the following scenarios:
+* **检查点**：需要将长时操作结果保存到检查点，以便恢复时无需重算。
+* **人工介入**：构建需要人工参与的工作流时，必须使用 **tasks** 来封装任何随机性（例如 API 调用），以确保可以正确恢复。参见 [确定性](#determinism) 节了解更多细节。
+* **并行执行**：对于 I/O 密集型任务，**tasks** 支持并行执行，允许多个操作同时运行（例如调用多个 API）。
+* **可观察性**：将操作包装为 **tasks** 可以让 LangSmith 跟踪工作流进度并监控单个操作的执行。
+* **可重试工作**：当工作需要重试以应对失败或不一致时，**tasks** 提供了一种封装并管理重试逻辑的方式。
 
-* **Checkpointing**: When you need to save the result of a long-running operation to a checkpoint, so you don't need to recompute it when resuming the workflow.
-* **Human-in-the-loop**: If you're building a workflow that requires human intervention, you MUST use **tasks** to encapsulate any randomness (e.g., API calls) to ensure that the workflow can be resumed correctly. See the [determinism](#determinism) section for more details.
-* **Parallel Execution**: For I/O-bound tasks, **tasks** enable parallel execution, allowing multiple operations to run concurrently without blocking (e.g., calling multiple APIs).
-* **Observability**: Wrapping operations in **tasks** provides a way to track the progress of the workflow and monitor the execution of individual operations using [LangSmith](/langsmith/home).
-* **Retryable Work**: When work needs to be retried to handle failures or inconsistencies, **tasks** provide a way to encapsulate and manage the retry logic.
+## 序列化
 
-## Serialization
+LangGraph 中的序列化有两个关键点：
 
-There are two key aspects to serialization in LangGraph:
+1. `entrypoint` 的输入和输出必须可 JSON 序列化。
+2. `task` 的输出必须可 JSON 序列化。
 
-1. `entrypoint` inputs and outputs must be JSON-serializable.
-2. `task` outputs must be JSON-serializable.
+这些要求对于启用检查点和工作流恢复至关重要。请使用对象、数组、字符串、数字和布尔值等基本类型以保证可序列化。
 
+提供不可序列化的输入或输出会在配置了 checkpointer 的工作流运行时产生错误。
 
+## 确定性（Determinism）
 
-These requirements are necessary for enabling checkpointing and workflow resumption. Use primitives like objects, arrays, strings, numbers, and booleans to ensure that your inputs and outputs are serializable.
+要利用例如 **人工介入** 的功能，任何随机性都应被封装在 **tasks** 内。这样保证在执行被中止（例如等待人工）然后恢复时，会遵循相同的执行步骤序列，即使 **task** 的结果本身是非确定性的。
 
+LangGraph 通过在执行期间持久化 **task** 和 [**子图**](/oss/javascript/langgraph/use-subgraphs) 的结果来实现这一点。良好设计的工作流确保恢复执行时遵循相同的已记录步骤序列，从而可以正确检索先前计算的结果而无需重新执行。
 
-Serialization ensures that workflow state, such as task results and intermediate values, can be reliably saved and restored. This is critical for enabling human-in-the-loop interactions, fault tolerance, and parallel execution.
+虽然不同运行可能产生不同结果，但恢复某次**特定**运行时应始终遵循相同的记录步骤序列，这允许 LangGraph 有效地查找在中断发生前已经执行的 **task** 和 **subgraph** 结果并避免重复计算。
 
-Providing non-serializable inputs or outputs will result in a runtime error when a workflow is configured with a checkpointer.
+## 幂等性
 
-## Determinism
+幂等性保证多次运行同一操作会产生相同结果。这有助于防止在步骤重试时出现重复的 API 调用或冗余处理。务必将 API 调用放在 **tasks** 内以便检查点控制，并设计这些调用在重执行时是幂等的，例如使用幂等键或验证已有结果以避免重复。
 
-To utilize features like **human-in-the-loop**, any randomness should be encapsulated inside of **tasks**. This guarantees that when execution is halted (e.g., for human in the loop) and then resumed, it will follow the same _sequence of steps_, even if **task** results are non-deterministic.
+## 常见陷阱
 
-LangGraph achieves this behavior by persisting **task** and [**subgraph**](/oss/javascript/langgraph/use-subgraphs) results as they execute. A well-designed workflow ensures that resuming execution follows the _same sequence of steps_, allowing previously computed results to be retrieved correctly without having to re-execute them. This is particularly useful for long-running **tasks** or **tasks** with non-deterministic results, as it avoids repeating previously done work and allows resuming from essentially the same.
+### 处理副作用
 
-While different runs of a workflow can produce different results, resuming a **specific** run should always follow the same sequence of recorded steps. This allows LangGraph to efficiently look up **task** and **subgraph** results that were executed prior to the graph being interrupted and avoid recomputing them.
-
-## Idempotency
-
-Idempotency ensures that running the same operation multiple times produces the same result. This helps prevent duplicate API calls and redundant processing if a step is rerun due to a failure. Always place API calls inside **tasks** functions for checkpointing, and design them to be idempotent in case of re-execution. Re-execution can occur if a **task** starts, but does not complete successfully. Then, if the workflow is resumed, the **task** will run again. Use idempotency keys or verify existing results to avoid duplication.
-
-## Common pitfalls
-
-### Handling side effects
-
-Encapsulate side effects (e.g., writing to a file, sending an email) in tasks to ensure they are not executed multiple times when resuming a workflow.
+将副作用（例如写文件、发送邮件）封装在 tasks 中，以确保在恢复工作流时不会被多次执行。
 
 <Tabs>
     <Tab title="Incorrect">
-    In this example, a side effect (writing to a file) is directly included in the workflow, so it will be executed a second time when resuming the workflow.
-
-
+    在该示例中，副作用（写入文件）直接包含在工作流中，因此在恢复工作流时会被重复执行。
 
     ```typescript
     import { entrypoint, interrupt } from "@langchain/langgraph";
@@ -486,8 +434,8 @@ Encapsulate side effects (e.g., writing to a file, sending an email) in tasks to
     const myWorkflow = entrypoint(
       { checkpointer, name: "workflow },
       async (inputs: Record<string, any>) => {
-        // This code will be executed a second time when resuming the workflow.
-        // Which is likely not what you want.
+        // 这段代码在恢复工作流时会被重复执行，
+        // 这通常不是期望的行为。
         fs.writeFileSync("output.txt", "Side effect executed");
         const value = interrupt("question");
         return value;
@@ -497,9 +445,7 @@ Encapsulate side effects (e.g., writing to a file, sending an email) in tasks to
 
     </Tab>
     <Tab title="Correct">
-    In this example, the side effect is encapsulated in a task, ensuring consistent execution upon resumption.
-
-
+    在该示例中，副作用被封装到 task 中，确保在恢复时执行一致。
 
     ```typescript
     import { entrypoint, task, interrupt } from "@langchain/langgraph";
@@ -512,7 +458,7 @@ Encapsulate side effects (e.g., writing to a file, sending an email) in tasks to
     const myWorkflow = entrypoint(
       { checkpointer, name: "workflow" },
       async (inputs: Record<string, any>) => {
-        // The side effect is now encapsulated in a task.
+        // 副作用现在封装在 task 中。
         await writeToFile();
         const value = interrupt("question");
         return value;
@@ -523,95 +469,28 @@ Encapsulate side effects (e.g., writing to a file, sending an email) in tasks to
     </Tab>
 </Tabs>
 
-### Non-deterministic control flow
+### 非确定性控制流
 
-Operations that might give different results each time (like getting current time or random numbers) should be encapsulated in tasks to ensure that on resume, the same result is returned.
+可能每次执行都产生不同结果的操作（如获取当前时间或随机数）应封装在 tasks 中，以确保在恢复时返回相同结果。
 
-* In a task: Get random number (5) → interrupt → resume → (returns 5 again) → ...
-* Not in a task: Get random number (5) → interrupt → resume → get new random number (7) → ...
+* 在 task 中：获取随机数 (5) → interrupt → 恢复 →（返回 5）→ …
+* 不在 task 中：获取随机数 (5) → interrupt → 恢复 → 获取新的随机数 (7) → …
 
-This is especially important when using **human-in-the-loop** workflows with multiple interrupt calls. LangGraph keeps a list of resume values for each task/entrypoint. When an interrupt is encountered, it's matched with the corresponding resume value. This matching is strictly **index-based**, so the order of the resume values should match the order of the interrupts.
+这在包含多个中断调用的 **人工介入** 工作流中尤为重要。LangGraph 为每个 task/entrypoint 保持一组 resume 值，当遇到中断时，会基于索引将中断与对应的 resume 值匹配。因此 resume 值的顺序应当与中断的顺序一致。
 
-If order of execution is not maintained when resuming, one [`interrupt`](https://reference.langchain.com/javascript/langchain-langgraph/index/interrupt) call may be matched with the wrong `resume` value, leading to incorrect results.
+## 了解更多
 
-Please read the section on [determinism](#determinism) for more details.
-
-<Tabs>
-    <Tab title="Incorrect">
-    In this example, the workflow uses the current time to determine which task to execute. This is non-deterministic because the result of the workflow depends on the time at which it is executed.
-
-
-
-    ```typescript
-    import { entrypoint, interrupt } from "@langchain/langgraph";
-
-    const myWorkflow = entrypoint(
-      { checkpointer, name: "workflow" },
-      async (inputs: { t0: number }) => {
-        const t1 = Date.now();
-
-        const deltaT = t1 - inputs.t0;
-
-        if (deltaT > 1000) {
-          const result = await slowTask(1);
-          const value = interrupt("question");
-          return { result, value };
-        } else {
-          const result = await slowTask(2);
-          const value = interrupt("question");
-          return { result, value };
-        }
-      }
-    );
-    ```
-
-    </Tab>
-    <Tab title="Correct">
-
-
-    In this example, the workflow uses the input `t0` to determine which task to execute. This is deterministic because the result of the workflow depends only on the input.
-
-    ```typescript
-    import { entrypoint, task, interrupt } from "@langchain/langgraph";
-
-    const getTime = task("getTime", () => Date.now());
-
-    const myWorkflow = entrypoint(
-      { checkpointer, name: "workflow" },
-      async (inputs: { t0: number }): Promise<any> => {
-        const t1 = await getTime();
-
-        const deltaT = t1 - inputs.t0;
-
-        if (deltaT > 1000) {
-          const result = await slowTask(1);
-          const value = interrupt("question");
-          return { result, value };
-        } else {
-          const result = await slowTask(2);
-          const value = interrupt("question");
-          return { result, value };
-        }
-      }
-    );
-    ```
-
-    </Tab>
-</Tabs>
-
-## Learn more
-
-- [How to use the Functional API](/oss/javascript/langgraph/use-functional-api)
-- [Graph API conceptual overview](/oss/javascript/langgraph/graph-api)
-- [Choosing between Graph API and Functional API](/oss/javascript/langgraph/choosing-apis)
+- [如何使用功能性 API](/oss/javascript/langgraph/use-functional-api)
+- [图 API 概念概述](/oss/javascript/langgraph/graph-api)
+- [在 Graph API 与 Functional API 之间选择](/oss/javascript/langgraph/choosing-apis)
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/functional-api.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/functional-api.mdx) 或 [提交 issue](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接到 MCP 以实现实时答案](/use-these-docs)。
 </Callout>
 </div>

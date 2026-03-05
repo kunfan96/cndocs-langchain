@@ -1,39 +1,34 @@
 ---
-title: Custom middleware
+title: 自定义中间件
 ---
 
-Build custom middleware by implementing hooks that run at specific points in the agent execution flow.
+通过实现运行在代理执行流程中特定点的钩子来构建自定义中间件。
 
-## Hooks
+## 钩子
 
-Middleware provides two styles of hooks to intercept agent execution:
+中间件提供两种风格的钩子来拦截代理执行：
 
 <CardGroup cols={2}>
-    <Card title="Node-style hooks" icon="share" href="#node-style-hooks">
-        Run sequentially at specific execution points.
+    <Card title="节点式钩子" icon="share" href="#node-style-hooks">
+        在特定的执行点按顺序运行。
     </Card>
-    <Card title="Wrap-style hooks" icon="container" href="#wrap-style-hooks">
-        Run around each model or tool call.
+    <Card title="包装式钩子" icon="container" href="#wrap-style-hooks">
+        围绕每个模型或工具调用运行。
     </Card>
 </CardGroup>
 
-### Node-style hooks
+### 节点式钩子
 
-Run sequentially at specific execution points. Use for logging, validation, and state updates.
+在特定的执行点按顺序运行。用于日志记录、验证和状态更新。
 
-**Available hooks:**
+**可用钩子：**
 
+- `beforeAgent` - 代理开始前（每次调用一次）
+- `beforeModel` - 每次模型调用前
+- `afterModel` - 每次模型响应后
+- `afterAgent` - 代理完成后（每次调用一次）
 
-
-- `beforeAgent` - Before agent starts (once per invocation)
-- `beforeModel` - Before each model call
-- `afterModel` - After each model response
-- `afterAgent` - After agent completes (once per invocation)
-
-
-**Example:**
-
-
+**示例：**
 
 ```typescript
 import { createMiddleware, AIMessage } from "langchain";
@@ -62,25 +57,18 @@ const createMessageLimitMiddleware = (maxMessages: number = 50) => {
 };
 ```
 
+### 包装式钩子
 
+拦截执行并控制处理程序的调用时机。用于重试、缓存和转换。
 
-### Wrap-style hooks
+你决定处理程序是被调用零次（短路）、一次（正常流程）还是多次（重试逻辑）。
 
-Intercept execution and control when the handler is called. Use for retries, caching, and transformation.
+**可用钩子：**
 
-You decide if the handler is called zero times (short-circuit), once (normal flow), or multiple times (retry logic).
+- `wrapModelCall` - 围绕每个模型调用
+- `wrapToolCall` - 围绕每个工具调用
 
-**Available hooks:**
-
-
-
-- `wrapModelCall` - Around each model call
-- `wrapToolCall` - Around each tool call
-
-
-**Example:**
-
-
+**示例：**
 
 ```typescript
 import { createMiddleware } from "langchain";
@@ -105,13 +93,9 @@ const createRetryMiddleware = (maxRetries: number = 3) => {
 };
 ```
 
+## 创建中间件
 
-
-## Create middleware
-
-
-
-Use the `createMiddleware` function to define custom middleware:
+使用 `createMiddleware` 函数定义自定义中间件：
 
 ```typescript
 import { createMiddleware } from "langchain";
@@ -130,20 +114,14 @@ const loggingMiddleware = createMiddleware({
 });
 ```
 
+## 自定义状态模式
 
+中间件可以使用自定义属性扩展代理的状态。这使得中间件能够：
 
-## Custom state schema
-
-Middleware can extend the agent's state with custom properties. This enables middleware to:
-
-- **Track state across execution**: Maintain counters, flags, or other values that persist throughout the agent's execution lifecycle
-
-- **Share data between hooks**: Pass information from `beforeModel` to `afterModel` or between different middleware instances
-
-- **Implement cross-cutting concerns**: Add functionality like rate limiting, usage tracking, user context, or audit logging without modifying the core agent logic
-- **Make conditional decisions**: Use accumulated state to determine whether to continue execution, jump to different nodes, or modify behavior dynamically
-
-
+- **跨执行跟踪状态**：维护在代理执行生命周期中持久存在的计数器、标志或其他值
+- **在钩子之间共享数据**：从 `beforeModel` 传递信息到 `afterModel`，或在不同的中间件实例之间传递
+- **实现横切关注点**：在不修改核心代理逻辑的情况下，添加速率限制、使用情况跟踪、用户上下文或审计日志等功能
+- **做出条件决策**：使用累积的状态来决定是否继续执行、跳转到不同节点或动态修改行为
 
 ```typescript
 import { createMiddleware, createAgent, HumanMessage } from "langchain";
@@ -186,9 +164,9 @@ const result = await agent.invoke({
 });
 ```
 
-State fields can be either public or private. Fields that start with an underscore (`_`) are considered private and will not be included in the agent's result. Only public fields (those without a leading underscore) are returned.
+状态字段可以是公共的或私有的。以下划线 (`_`) 开头的字段被视为私有，不会包含在代理的结果中。只有公共字段（没有前导下划线的字段）会被返回。
 
-This is useful for storing internal middleware state that shouldn't be exposed to the caller, such as temporary tracking variables or internal flags:
+这对于存储不应暴露给调用者的内部中间件状态非常有用，例如临时跟踪变量或内部标志：
 
 ```typescript
 import { StateSchema } from "@langchain/langgraph";
@@ -223,18 +201,16 @@ console.log(result.publicCounter); // 1
 console.log(result._internalFlag); // undefined
 ```
 
+## 自定义上下文
 
+中间件可以定义自定义上下文模式来访问每次调用的元数据。与状态不同，上下文是只读的，并且不会在调用之间持久化。这使它非常适合：
 
-## Custom context
+- **用户信息**：传递在执行期间不会更改的用户 ID、角色或首选项
+- **配置覆盖**：提供每次调用的设置，如速率限制或功能标志
+- **租户/工作区上下文**：为多租户应用程序包含特定于组织的数据
+- **请求元数据**：传递中间件所需的请求 ID、API 密钥或其他元数据
 
-Middleware can define a custom context schema to access per-invocation metadata. Unlike state, context is read-only and not persisted between invocations. This makes it ideal for:
-
-- **User information**: Pass user ID, roles, or preferences that don't change during execution
-- **Configuration overrides**: Provide per-invocation settings like rate limits or feature flags
-- **Tenant/workspace context**: Include organization-specific data for multi-tenant applications
-- **Request metadata**: Pass request IDs, API keys, or other metadata needed by middleware
-
-Define a context schema using Zod and access it via `runtime.context` in middleware hooks. Required fields in the context schema will be enforced at the TypeScript level, ensuring you must provide them when calling `agent.invoke()`.
+使用 Zod 定义上下文模式，并通过中间件钩子中的 `runtime.context` 访问它。上下文模式中的必填字段将在 TypeScript 级别强制执行，确保在调用 `agent.invoke()` 时必须提供它们。
 
 ```typescript
 import { createAgent, createMiddleware, HumanMessage } from "langchain";
@@ -283,7 +259,7 @@ const result = await agent.invoke(
 );
 ```
 
-**Required context fields**: When you define required fields in your `contextSchema` (fields without `.optional()` or `.default()`), TypeScript will enforce that these fields must be provided during `agent.invoke()` calls. This ensures type safety and prevents runtime errors from missing required context.
+**必填上下文字段**：当你在 `contextSchema` 中定义必填字段（没有 `.optional()` 或 `.default()` 的字段）时，TypeScript 将强制在 `agent.invoke()` 调用期间必须提供这些字段。这确保了类型安全，并防止因缺少所需上下文而导致的运行时错误。
 
 ```typescript
 // This will cause a TypeScript error if userId or tenantId are missing
@@ -293,12 +269,9 @@ const result = await agent.invoke(
 );
 ```
 
+## 执行顺序
 
-## Execution order
-
-When using multiple middleware, understand how they execute:
-
-
+当使用多个中间件时，了解它们如何执行：
 
 ```typescript
 const agent = createAgent({
@@ -308,31 +281,30 @@ const agent = createAgent({
 });
 ```
 
+<Accordion title="执行流程">
 
-<Accordion title="Execution flow">
-
-**Before hooks run in order:**
+**前置钩子按顺序运行：**
 1. `middleware1.before_agent()`
 2. `middleware2.before_agent()`
 3. `middleware3.before_agent()`
 
-__Agent loop starts__
+__代理循环开始__
 
 4. `middleware1.before_model()`
 5. `middleware2.before_model()`
 6. `middleware3.before_model()`
 
-**Wrap hooks nest like function calls:**
+**包装钩子像函数调用一样嵌套：**
 
 7. `middleware1.wrap_model_call()` → `middleware2.wrap_model_call()` → `middleware3.wrap_model_call()` → model
 
-**After hooks run in reverse order:**
+**后置钩子按相反顺序运行：**
 
 8. `middleware3.after_model()`
 9. `middleware2.after_model()`
 10. `middleware1.after_model()`
 
-__Agent loop ends__
+__代理循环结束__
 
 11. `middleware3.after_agent()`
 12. `middleware2.after_agent()`
@@ -340,21 +312,19 @@ __Agent loop ends__
 
 </Accordion>
 
-**Key rules:**
-- `before_*` hooks: First to last
-- `after_*` hooks: Last to first (reverse)
-- `wrap_*` hooks: Nested (first middleware wraps all others)
+**关键规则：**
+- `before_*` 钩子：从第一个到最后一个
+- `after_*` 钩子：从最后一个到第一个（反向）
+- `wrap_*` 钩子：嵌套（第一个中间件包装所有其他中间件）
 
-## Agent jumps
+## 代理跳转
 
-To exit early from middleware, return a dictionary with `jump_to`:
+要提前退出中间件，返回一个带有 `jump_to` 的字典：
 
-**Available jump targets:**
-- `'end'`: Jump to the end of the agent execution (or the first `after_agent` hook)
-- `'tools'`: Jump to the tools node
-- `'model'`: Jump to the model node (or the first `before_model` hook)
-
-
+**可用跳转目标：**
+- `'end'`：跳转到代理执行的末尾（或第一个 `after_agent` 钩子）
+- `'tools'`：跳转到工具节点
+- `'model'`：跳转到模型节点（或第一个 `before_model` 钩子）
 
 ```typescript
 import { createAgent, createMiddleware, AIMessage } from "langchain";
@@ -391,24 +361,21 @@ const result = await agent.invoke({
 console.log(result.messages.at(-1)?.content);
 ```
 
+## 最佳实践
 
-## Best practices
+1. 保持中间件专注 - 每个中间件应该做好一件事
+2. 优雅地处理错误 - 不要让中间件错误导致代理崩溃
+3. **使用适当的钩子类型**：
+    - 节点式用于顺序逻辑（日志记录、验证）
+    - 包装式用于控制流（重试、回退、缓存）
+4. 清楚地记录任何自定义状态属性
+5. 在集成之前独立地进行单元测试中间件
+6. 考虑执行顺序 - 将关键中间件放在列表的首位
+7. 尽可能使用内置中间件
 
-1. Keep middleware focused - each should do one thing well
-2. Handle errors gracefully - don't let middleware errors crash the agent
-3. **Use appropriate hook types**:
-    - Node-style for sequential logic (logging, validation)
-    - Wrap-style for control flow (retry, fallback, caching)
-4. Clearly document any custom state properties
-5. Unit test middleware independently before integrating
-6. Consider execution order - place critical middleware first in the list
-7. Use built-in middleware when possible
+## 示例
 
-## Examples
-
-### Dynamic model selection
-
-
+### 动态模型选择
 
 ```typescript
 import { createMiddleware, initChatModel } from "langchain";
@@ -427,11 +394,7 @@ const dynamicModelMiddleware = createMiddleware({
 });
 ```
 
-
-
-### Tool call monitoring
-
-
+### 工具调用监控
 
 ```typescript
 import { createMiddleware } from "langchain";
@@ -453,18 +416,14 @@ const toolMonitoringMiddleware = createMiddleware({
 });
 ```
 
+### 动态选择工具
 
+在运行时选择相关工具以提高性能和准确性。本节涵盖过滤预注册工具。关于注册在运行时发现的工具（例如，从 MCP 服务器），请参见 [运行时工具注册](/oss/javascript/langchain/agents#dynamic-tools)。
 
-### Dynamically selecting tools
-
-Select relevant tools at runtime to improve performance and accuracy. This section covers filtering pre-registered tools. For registering tools that are discovered at runtime (e.g., from MCP servers), see [Runtime tool registration](/oss/javascript/langchain/agents#dynamic-tools).
-
-**Benefits:**
-- **Shorter prompts** - Reduce complexity by exposing only relevant tools
-- **Better accuracy** - Models choose correctly from fewer options
-- **Permission control** - Dynamically filter tools based on user access
-
-
+**好处：**
+- **更短的提示词** - 通过仅暴露相关工具来降低复杂性
+- **更高的准确性** - 模型从更少的选项中做出正确选择
+- **权限控制** - 基于用户访问权限动态过滤工具
 
 ```typescript
 import { createAgent, createMiddleware } from "langchain";
@@ -486,15 +445,11 @@ const agent = createAgent({
 });
 ```
 
+### 使用系统消息
 
+在中间件中使用 `ModelRequest` 中的 `systemMessage` 字段修改系统消息。它包含一个 [`SystemMessage`](https://reference.langchain.com/javascript/langchain-core/messages/SystemMessage) 对象（即使代理是使用字符串 [`systemPrompt`](https://reference.langchain.com/javascript/types/langchain.index.CreateAgentParams.html#systemprompt) 创建的）。
 
-### Working with system messages
-
-
-
-Modify system messages in middleware using the `systemMessage` field in `ModelRequest`. It contains a [`SystemMessage`](https://reference.langchain.com/javascript/langchain-core/messages/SystemMessage) object (even if the agent was created with a string [`systemPrompt`](https://reference.langchain.com/javascript/types/langchain.index.CreateAgentParams.html#systemprompt)).
-
-**Example: Chaining middleware** - Different middleware can use different approaches:
+**示例：链式中间件** - 不同的中间件可以使用不同的方法：
 
 ```typescript
 import { createMiddleware, SystemMessage, createAgent } from "langchain";
@@ -538,7 +493,7 @@ const agent = createAgent({
 });
 ```
 
-The resulting system message will be:
+生成的系统消息将是：
 ```typescript
 new SystemMessage({
   content: [
@@ -553,23 +508,21 @@ new SystemMessage({
 });
 ```
 
-Use [`SystemMessage.concat`](https://reference.langchain.com/javascript/langchain-core/utils/stream/concat) to preserve cache control metadata or structured content blocks created by other middleware.
+使用 [`SystemMessage.concat`](https://reference.langchain.com/javascript/langchain-core/utils/stream/concat) 来保留缓存控制元数据或由其他中间件创建的结构化内容块。
 
+## 其他资源
 
-
-## Additional resources
-
-- [Middleware API reference](https://reference.langchain.com/python/langchain/middleware/)
-- [Built-in middleware](/oss/javascript/langchain/middleware/built-in)
-- [Testing agents](/oss/javascript/langchain/test)
+- [中间件 API 参考](https://reference.langchain.com/python/langchain/middleware/)
+- [内置中间件](/oss/javascript/langchain/middleware/built-in)
+- [测试代理](/oss/javascript/langchain/test)
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/middleware/custom.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/middleware/custom.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接](/use-these-docs) 到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 </div>
