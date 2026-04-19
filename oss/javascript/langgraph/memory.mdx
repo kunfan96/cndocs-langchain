@@ -2,14 +2,12 @@
 title: 内存概述
 ---
 
-
-
 [内存](/oss/javascript/langgraph/add-memory) 是一个记录先前交互信息的系统。对于 AI 代理而言，内存至关重要，因为它能让代理记住先前的交互、从反馈中学习并适应用户偏好。随着代理处理更复杂的任务和更多的用户交互，这种能力对于效率和用户满意度都变得必不可少。
 
 本概念指南根据回忆范围涵盖了两种类型的内存：
 
-* [短期记忆](#short-term-memory)，或[线程](/oss/javascript/langgraph/persistence#threads)作用域内存，通过在会话内维护消息历史来跟踪正在进行的对话。LangGraph 将短期内存作为代理[状态](/oss/javascript/langgraph/graph-api#state)的一部分进行管理。状态使用[检查点](/oss/javascript/langgraph/persistence#checkpoints)持久化到数据库，以便线程可以随时恢复。短期内存在图被调用或步骤完成时更新，并且状态在每个步骤开始时被读取。
-* [长期记忆](#long-term-memory) 存储跨会话的用户特定或应用程序级数据，并在对话线程之间共享。它可以在任何时间、任何线程中被回忆。记忆的作用域可以是任何自定义命名空间，而不仅仅限于单个线程 ID。LangGraph 提供[存储](/oss/javascript/langgraph/persistence#memory-store)（[参考文档](https://langchain-ai.github.io/langgraph/reference/store/#langgraph.store.base.BaseStore)）来让您保存和回忆长期记忆。
+- [短期记忆](#short-term-memory)，或[线程](/oss/javascript/langgraph/persistence#threads)作用域内存，通过在会话内维护消息历史来跟踪正在进行的对话。LangGraph 将短期内存作为代理[状态](/oss/javascript/langgraph/graph-api#state)的一部分进行管理。状态使用[检查点](/oss/javascript/langgraph/persistence#checkpoints)持久化到数据库，以便线程可以随时恢复。短期内存在图被调用或步骤完成时更新，并且状态在每个步骤开始时被读取。
+- [长期记忆](#long-term-memory) 存储跨会话的用户特定或应用程序级数据，并在对话线程之间共享。它可以在任何时间、任何线程中被回忆。记忆的作用域可以是任何自定义命名空间，而不仅仅限于单个线程 ID。LangGraph 提供[存储](/oss/javascript/langgraph/persistence#memory-store)（[参考文档](https://langchain-ai.github.io/langgraph/reference/store/#langgraph.store.base.BaseStore)）来让您保存和回忆长期记忆。
 
 ![短期与长期](/oss/images/short-vs-long.png)
 
@@ -35,46 +33,23 @@ LangGraph 中的[长期记忆](/oss/javascript/langgraph/add-memory#add-long-ter
 
 长期记忆是一个复杂的挑战，没有一刀切的解决方案。然而，以下问题提供了一个框架，帮助您导航不同的技术：
 
-* 记忆的类型是什么？人类使用记忆来记住事实（[语义记忆](#semantic-memory)）、经历（[情景记忆](#episodic-memory)）和规则（[程序记忆](#procedural-memory)）。AI 代理可以以相同的方式使用记忆。例如，AI 代理可以使用记忆来记住有关用户的特定事实以完成任务。
-* [您何时想更新记忆？](#writing-memories) 记忆可以作为代理应用程序逻辑的一部分进行更新（例如，“在热路径上”）。在这种情况下，代理通常在响应用户之前决定记住事实。或者，记忆可以作为后台任务更新（在后台/异步运行并生成记忆的逻辑）。我们将在[下面的部分](#writing-memories)解释这些方法之间的权衡。
+- 记忆的类型是什么？人类使用记忆来记住事实（[语义记忆](#semantic-memory)）、经历（[情景记忆](#episodic-memory)）和规则（[程序记忆](#procedural-memory)）。AI 代理可以以相同的方式使用记忆。例如，AI 代理可以使用记忆来记住有关用户的特定事实以完成任务。
+- [您何时想更新记忆？](#writing-memories) 记忆可以作为代理应用程序逻辑的一部分进行更新（例如，“在热路径上”）。在这种情况下，代理通常在响应用户之前决定记住事实。或者，记忆可以作为后台任务更新（在后台/异步运行并生成记忆的逻辑）。我们将在[下面的部分](#writing-memories)解释这些方法之间的权衡。
 
 不同的应用程序需要各种类型的记忆。虽然类比并不完美，但研究[人类记忆类型](https://www.psychologytoday.com/us/basics/memory/types-of-memory?ref=blog.langchain.dev) 可以提供见解。一些研究（例如 [CoALA 论文](https://arxiv.org/pdf/2309.02427)）甚至将这些人类记忆类型映射到 AI 代理中使用的类型。
 
-| 记忆类型 | 存储内容 | 人类示例 | 代理示例 |
-|-------------|----------------|---------------|---------------|
-| [语义](#semantic-memory) | 事实 | 我在学校学到的东西 | 有关用户的事实 |
-| [情景](#episodic-memory) | 经历 | 我做过的事情 | 过去的代理操作 |
-| [程序](#procedural-memory) | 指令 | 本能或运动技能 | 代理系统提示 |
+| 记忆类型                   | 存储内容 | 人类示例           | 代理示例       |
+| -------------------------- | -------- | ------------------ | -------------- |
+| [语义](#semantic-memory)   | 事实     | 我在学校学到的东西 | 有关用户的事实 |
+| [情景](#episodic-memory)   | 经历     | 我做过的事情       | 过去的代理操作 |
+| [程序](#procedural-memory) | 指令     | 本能或运动技能     | 代理系统提示   |
 
 ### 语义记忆
 
 [语义记忆](https://en.wikipedia.org/wiki/Semantic_memory)，无论是在人类还是 AI 代理中，都涉及保留特定的事实和概念。在人类中，它可以包括在学校学到的信息以及对概念及其关系的理解。对于 AI 代理而言，语义记忆通常用于通过记住过去交互中的事实或概念来个性化应用程序。
 
 <Note>
-语义记忆不同于“语义搜索”，后者是一种使用“含义”（通常作为嵌入）查找相似内容的技术。语义记忆是一个来自心理学的术语，指存储事实和知识，而语义搜索是一种基于含义而非精确匹配检索信息的方法。
-</Note>
-
-#### 个人资料
-
-语义记忆可以通过不同的方式管理。例如，记忆可以是关于用户、组织或其他实体（包括代理本身）的单一、持续更新的“个人资料”，其中包含范围明确且具体的信息。个人资料通常只是一个 JSON 文档，其中包含您选择用于表示领域的各种键值对。
-
-在记住个人资料时，您需要确保每次都在**更新**个人资料。因此，您需要传入先前的个人资料并[要求模型生成新的个人资料](https://github.com/langchain-ai/memory-template)（或一些[JSON 补丁](https://github.com/hinthornw/trustcall)应用于旧个人资料）。随着个人资料变大，这可能容易出错，并且可能受益于将个人资料拆分为多个文档或在生成文档时进行**严格**解码，以确保内存模式保持有效。
-
-![更新个人资料](/oss/images/update-profile.png)
-
-#### 集合
-
-或者，记忆可以是一个随时间不断更新和扩展的文档集合。每个单独的记忆可以范围更窄且更容易生成，这意味着您不太可能随时间**丢失**信息。对于 LLM 来说，为新信息生成*新*对象比将新信息与现有个人资料协调更容易。因此，文档集合往往会导致[下游更高的召回率](https://en.wikipedia.org/wiki/Precision_and_recall)。
-
-然而，这将一些复杂性转移到了记忆更新上。模型现在必须*删除*或*更新*列表中的现有项目，这可能很棘手。此外，一些模型可能默认过度插入，而另一些模型可能默认过度更新。请参阅 [Trustcall](https://github.com/hinthornw/trustcall) 包以获取一种管理此问题的方法，并考虑使用评估（例如，使用 [LangSmith](/langsmith/evaluate-chatbot-tutorial) 等工具）来帮助您调整行为。
-
-使用文档集合还会将复杂性转移到： / /的 / / / / /的的 / / /将 / / / / / / / //：： / / //，： /目 / / / /，，**   目目 / / / / / / // /   /
-
-
-
-   | | /    / / // /      |           |      | | | |               ****  |  | | | /
-
-  /  /。 。。。 / /。 / / /。。 /。 。 /。 /。。。。 |  | | | |  |   | |  |  |  | /  | | | |  | | | | | | | | |  |  |  / | |  /  |  |  |  |  | |  /    ( | | | /      /  / | / | | /   |  | / / / ( / / /, / / / / / / | | | 语义记忆 |一个来自心理学的术语，指存储事实和知识，而语义搜索是一种基于含义而非精确匹配检索信息的方法。
+  语义记忆不同于“语义搜索”，后者是一种使用“含义”（通常作为嵌入）查找相似内容的技术。语义记忆是一个来自心理学的术语，指存储事实和知识，而语义搜索是一种基于含义而非精确匹配检索信息的方法。
 </Note>
 
 #### 个人资料
@@ -128,7 +103,7 @@ const callModel: GraphNode<typeof State> = async (state, config) => {
   const instructions = await config.store?.get(namespace, "agent_a");
   // 应用程序逻辑
   const prompt = promptTemplate.format({
-    instructions: instructions[0].value.instructions
+    instructions: instructions[0].value.instructions,
   });
   // ...
 };
@@ -140,12 +115,12 @@ const updateInstructions: GraphNode<typeof State> = async (state, config) => {
   // 内存逻辑
   const prompt = promptTemplate.format({
     instructions: currentInstructions[0].value.instructions,
-    conversation: state.messages
+    conversation: state.messages,
   });
   const output = await llm.invoke(prompt);
   const newInstructions = output.new_instructions;
   await store.put(["agent_instructions"], "agent_a", {
-    instructions: newInstructions
+    instructions: newInstructions,
   });
   // ...
 };
@@ -193,29 +168,22 @@ const userId = "my-user";
 const applicationContext = "chitchat";
 const namespace = [userId, applicationContext];
 
-await store.put(
-  namespace,
-  "a-memory",
-  {
-    rules: [
-      "User likes short, direct language",
-      "User only speaks English & TypeScript",
-    ],
-    "my-key": "my-value",
-  }
-);
+await store.put(namespace, "a-memory", {
+  rules: [
+    "User likes short, direct language",
+    "User only speaks English & TypeScript",
+  ],
+  "my-key": "my-value",
+});
 
 // 通过 ID 获取“记忆”
 const item = await store.get(namespace, "a-memory");
 
 // 在此命名空间内搜索“记忆”，根据内容等效性进行过滤，并按向量相似度排序
-const items = await store.search(
-  namespace,
-  {
-    filter: { "my-key": "my-value" },
-    query: "language preferences"
-  }
-);
+const items = await store.search(namespace, {
+  filter: { "my-key": "my-value" },
+  query: "language preferences",
+});
 ```
 
 有关内存存储的更多信息，请参阅[持久性](/oss/javascript/langgraph/persistence#memory-store) 指南。
@@ -223,10 +191,13 @@ const items = await store.search(
 ---
 
 <div className="source-links">
-<Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/memory.mdx) 或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
-</Callout>
-<Callout icon="terminal-2">
-    [通过 MCP 将这些文档连接到 Claude、VSCode 等](/use-these-docs) 以获取实时答案。
-</Callout>
+  <Callout icon="edit">
+    [在 GitHub
+    上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/memory.mdx)
+    或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
+  </Callout>
+  <Callout icon="terminal-2">
+    [通过 MCP 将这些文档连接到 Claude、VSCode 等](/use-these-docs)
+    以获取实时答案。
+  </Callout>
 </div>

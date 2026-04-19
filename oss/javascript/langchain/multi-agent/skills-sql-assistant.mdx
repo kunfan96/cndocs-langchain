@@ -3,8 +3,8 @@ title: 使用按需技能构建 SQL 助手
 sidebarTitle: "技能：SQL 助手"
 ---
 
-import ChatModelTabsPy from '/snippets/chat-model-tabs.mdx';
-import ChatModelTabsJs from '/snippets/chat-model-tabs-js.mdx';
+import ChatModelTabsPy from "/snippets/chat-model-tabs.mdx";
+import ChatModelTabsJs from "/snippets/chat-model-tabs-js.mdx";
 
 本教程展示如何使用**渐进式披露**——一种上下文管理技术，其中代理按需加载信息而非预先加载——来实现**技能**（基于提示的专门指令）。代理通过工具调用加载技能，而不是动态更改系统提示，仅发现并加载每个任务所需的技能。
 
@@ -13,11 +13,15 @@ import ChatModelTabsJs from '/snippets/chat-model-tabs-js.mdx';
 **您将构建什么：** 一个具有两种技能（销售分析和库存管理）的 SQL 查询助手。代理在其系统提示中看到轻量级技能描述，然后仅在与用户查询相关时通过工具调用加载完整的数据库模式和业务逻辑。
 
 <Note>
-有关具有查询执行、错误纠正和验证功能的 SQL 代理的完整示例，请参阅我们的 [SQL 代理教程](/oss/javascript/langchain/sql-agent)。本教程重点介绍渐进式披露模式，该模式可应用于任何领域。
+  有关具有查询执行、错误纠正和验证功能的 SQL 代理的完整示例，请参阅我们的 [SQL
+  代理教程](/oss/javascript/langchain/sql-agent)。本教程重点介绍渐进式披露模式，该模式可应用于任何领域。
 </Note>
 
 <Tip>
-渐进式披露由 Anthropic 推广，作为构建可扩展代理技能系统的技术。此方法使用三级架构（元数据 → 核心内容 → 详细资源），代理仅在需要时加载信息。有关此技术的更多信息，请参阅 [使用代理技能为代理配备现实世界](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills)。
+  渐进式披露由 Anthropic
+  推广，作为构建可扩展代理技能系统的技术。此方法使用三级架构（元数据 → 核心内容
+  → 详细资源），代理仅在需要时加载信息。有关此技术的更多信息，请参阅
+  [使用代理技能为代理配备现实世界](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills)。
 </Tip>
 
 ## 工作原理
@@ -52,6 +56,7 @@ flowchart TD
 ```
 
 **为什么使用渐进式披露：**
+
 - **减少上下文使用** - 仅加载任务所需的 2-3 个技能，而非所有可用技能
 - **实现团队自主性** - 不同团队可以独立开发专门技能（类似于其他多代理架构）
 - **高效扩展** - 添加数十或数百个技能而不会使上下文不堪重负
@@ -60,10 +65,13 @@ flowchart TD
 **什么是技能：** 技能（如 Claude Code 所推广）主要是基于提示的：针对特定业务任务的自包含专门指令单元。在 Claude Code 中，技能作为目录和文件系统上的文件公开，通过文件操作发现。技能通过提示指导行为，并可以提供有关工具使用的信息或包含供编码代理执行的示例代码。
 
 <Tip>
-具有渐进式披露的技能可视为 [RAG（检索增强生成）](/oss/javascript/langchain/rag) 的一种形式，其中每个技能都是一个检索单元——尽管不一定由嵌入或关键词搜索支持，而是由浏览内容的工具（如文件操作或在本教程中直接查找）支持。
+  具有渐进式披露的技能可视为
+  [RAG（检索增强生成）](/oss/javascript/langchain/rag)
+  的一种形式，其中每个技能都是一个检索单元——尽管不一定由嵌入或关键词搜索支持，而是由浏览内容的工具（如文件操作或在本教程中直接查找）支持。
 </Tip>
 
 **权衡：**
+
 - **延迟**：按需加载技能需要额外的工具调用，这会增加首次需要每个技能的请求的延迟
 - **工作流控制**：基本实现依赖于提示来指导技能使用——您无法在没有自定义逻辑的情况下强制执行硬性约束，例如“始终在技能 B 之前尝试技能 A”
 
@@ -78,6 +86,7 @@ flowchart TD
 - **副作用**：定义技能加载时发生的情况，例如公开与该技能关联的工具（在第 8 节中介绍）
 
 此灵活性使您可以根据性能、存储和工作流控制的具体要求进行优化。
+
 </Tip>
 
 ## 设置
@@ -87,15 +96,8 @@ flowchart TD
 本教程需要 `langchain` 包：
 
 <CodeGroup>
-```bash npm
-npm install langchain
-```
-```bash yarn
-yarn add langchain
-```
-```bash pnpm
-pnpm add langchain
-```
+  ```bash npm npm install langchain ``` ```bash yarn yarn add langchain ```
+  ```bash pnpm pnpm add langchain ```
 </CodeGroup>
 
 有关更多详细信息，请参阅我们的 [安装指南](/oss/javascript/langchain/install)。
@@ -105,14 +107,9 @@ pnpm add langchain
 设置 [LangSmith](https://smith.langchain.com) 以检查代理内部发生的情况。然后设置以下环境变量：
 
 <CodeGroup>
-```bash bash
-export LANGSMITH_TRACING="true"
-export LANGSMITH_API_KEY="..."
-```
-```typescript typescript
-process.env.LANGSMITH_TRACING = "true";
-process.env.LANGSMITH_API_KEY = "...";
-```
+  ```bash bash export LANGSMITH_TRACING="true" export LANGSMITH_API_KEY="..."
+  ``` ```typescript typescript process.env.LANGSMITH_TRACING = "true";
+  process.env.LANGSMITH_API_KEY = "..."; ```
 </CodeGroup>
 
 ### 选择 LLM
@@ -129,10 +126,11 @@ process.env.LANGSMITH_API_KEY = "...";
 import { z } from "zod";
 
 // 一个可以逐步披露给代理的技能
-const SkillSchema = z.object({  // [!code highlight]
-  name: z.string(),  // 技能的唯一标识符
-  description: z.string(),  // 1-2 句描述，显示在系统提示中
-  content: z.string(),  // 包含详细说明的完整技能内容
+const SkillSchema = z.object({
+  // [!code highlight]
+  name: z.string(), // 技能的唯一标识符
+  description: z.string(), // 1-2 句描述，显示在系统提示中
+  content: z.string(), // 包含详细说明的完整技能内容
 });
 
 type Skill = z.infer<typeof SkillSchema>;
@@ -294,12 +292,13 @@ const SKILLS: Skill[] = [
 import { tool } from "langchain";
 import { z } from "zod";
 
-const loadSkill = tool(  // [!code highlight]
+const loadSkill = tool(
+  // [!code highlight]
   async ({ skillName }) => {
     // 查找并返回请求的技能
     const skill = SKILLS.find((s) => s.name === skillName);
     if (skill) {
-      return `Loaded skill: ${skillName}\n\n${skill.content}`;  // [!code highlight]
+      return `Loaded skill: ${skillName}\n\n${skill.content}`; // [!code highlight]
     }
 
     // 未找到技能
@@ -314,7 +313,7 @@ const loadSkill = tool(  // [!code highlight]
     schema: z.object({
       skillName: z.string().describe("要加载的技能名称"),
     }),
-  }
+  },
 );
 ```
 
@@ -325,7 +324,8 @@ const loadSkill = tool(  // [!code highlight]
 创建自定义中间件，将技能描述注入系统提示。此中间件使技能可发现，而无需预先加载其完整内容。
 
 <Note>
-本指南演示如何创建自定义中间件。有关中间件概念和模式的综合指南，请参阅 [自定义中间件文档](/oss/javascript/langchain/middleware/custom)。
+  本指南演示如何创建自定义中间件。有关中间件概念和模式的综合指南，请参阅
+  [自定义中间件文档](/oss/javascript/langchain/middleware/custom)。
 </Note>
 
 ```typescript
@@ -333,17 +333,18 @@ import { createMiddleware } from "langchain";
 
 // 从 SKILLS 列表构建技能提示
 const skillsPrompt = SKILLS.map(
-  (skill) => `- **${skill.name}**: ${skill.description}`
+  (skill) => `- **${skill.name}**: ${skill.description}`,
 ).join("\n");
 
-const skillMiddleware = createMiddleware({  // [!code highlight]
+const skillMiddleware = createMiddleware({
+  // [!code highlight]
   name: "skillMiddleware",
-  tools: [loadSkill],  // [!code highlight]
+  tools: [loadSkill], // [!code highlight]
   wrapModelCall: async (request, handler) => {
     // 构建技能附录
-    const skillsAddendum =  // [!code highlight]
-      `\n\n## 可用技能\n\n${skillsPrompt}\n\n` +  // [!code highlight]
-      "当您需要有关处理特定类型请求的详细信息时，使用 load_skill 工具。";  // [!code highlight]
+    const skillsAddendum = // [!code highlight]
+      `\n\n## 可用技能\n\n${skillsPrompt}\n\n` + // [!code highlight]
+      "当您需要有关处理特定类型请求的详细信息时，使用 load_skill 工具。"; // [!code highlight]
 
     // 附加到系统提示
     const newSystemPrompt = request.systemPrompt + skillsAddendum;
@@ -359,7 +360,11 @@ const skillMiddleware = createMiddleware({  // [!code highlight]
 中间件将技能描述附加到系统提示，使代理了解可用技能，而无需加载其完整内容。`load_skill` 工具注册为类变量，使其对代理可用。
 
 <Note>
-**生产考虑**：本教程为简单起见，在 `__init__` 中加载技能列表。在生产系统中，您可能希望在 `before_agent` 钩子中加载技能，以便定期刷新以反映最新更改（例如，添加新技能或修改现有技能）。有关详细信息，请参阅 [before_agent 钩子文档](/oss/javascript/langchain/middleware/custom#node-style-hooks)。
+  **生产考虑**：本教程为简单起见，在 `__init__`
+  中加载技能列表。在生产系统中，您可能希望在 `before_agent`
+  钩子中加载技能，以便定期刷新以反映最新更改（例如，添加新技能或修改现有技能）。有关详细信息，请参阅
+  [before_agent
+  钩子文档](/oss/javascript/langchain/middleware/custom#node-style-hooks)。
 </Note>
 
 ## 4. 创建支持技能的代理
@@ -373,10 +378,8 @@ import { MemorySaver } from "@langchain/langgraph";
 // 创建支持技能的代理
 const agent = createAgent({
   model,
-  systemPrompt:
-    "您是一个 SQL 查询助手，帮助用户 " +
-    "针对业务数据库编写查询。",
-  middleware: [skillMiddleware],  // [!code highlight]
+  systemPrompt: "您是一个 SQL 查询助手，帮助用户 " + "针对业务数据库编写查询。",
+  middleware: [skillMiddleware], // [!code highlight]
   checkpointer: new MemorySaver(),
 });
 ```
@@ -395,7 +398,8 @@ const threadId = uuidv4();
 const config = { configurable: { thread_id: threadId } };
 
 // 请求 SQL 查询
-const result = await agent.invoke(  // [!code highlight]
+const result = await agent.invoke(
+  // [!code highlight]
   {
     messages: [
       {
@@ -405,7 +409,7 @@ const result = await agent.invoke(  // [!code highlight]
       },
     ],
   },
-  config
+  config,
 );
 
 // 打印对话
@@ -416,7 +420,7 @@ for (const message of result.messages) {
 
 预期输出：
 
-```
+````
 ================================ Human Message =================================
 
 编写一个 SQL 查询，查找上个月订单金额超过 1000 美元的所有客户
@@ -474,16 +478,15 @@ WHERE o.total_amount > 1000
   AND o.status = 'completed'
   AND o.order_date >= CURRENT_DATE - INTERVAL '1 month'
 ORDER BY c.customer_id;
-```
+````
 
 此查询：
+
 - 将客户与其订单连接
 - 使用 total_amount 字段过滤高价值订单（>1000 美元）
 - 仅包括已完成订单（根据业务逻辑）
 - 限制为上个月的订单
 - 返回不同的客户，以避免同一客户多次符合条件的订单时出现重复
-
-```
 
 代理在其系统提示中看到轻量级技能描述，识别出问题需要销售数据库知识，调用 `load_skill("sales_analytics")` 获取完整的模式和业务逻辑，然后使用该信息编写遵循数据库约定的正确查询。
 
@@ -502,7 +505,7 @@ import { StateSchema } from "@langchain/langgraph";
 import { z } from "zod";
 
 const CustomState = new StateSchema({
-  skillsLoaded: z.array(z.string()).optional(),  // 跟踪已加载的技能  // [!code highlight]
+  skillsLoaded: z.array(z.string()).optional(), // 跟踪已加载的技能  // [!code highlight]
 });
 ```
 
@@ -512,10 +515,11 @@ const CustomState = new StateSchema({
 
 ```typescript
 import { tool, ToolMessage, type ToolRuntime } from "langchain";
-import { Command } from "@langchain/langgraph";  // [!code highlight]
+import { Command } from "@langchain/langgraph"; // [!code highlight]
 import { z } from "zod";
 
-const loadSkill = tool(  // [!code highlight]
+const loadSkill = tool(
+  // [!code highlight]
   async ({ skillName }, runtime: ToolRuntime<typeof CustomState.State>) => {
     // 查找并返回请求的技能
     const skill = SKILLS.find((s) => s.name === skillName);
@@ -524,17 +528,21 @@ const loadSkill = tool(  // [!code highlight]
       const skillContent = `Loaded skill: ${skillName}\n\n${skill.content}`;
 
       // 更新状态以跟踪已加载的技能
-      return new Command({  // [!code highlight]
-        update: {  // [!code highlight]
-          messages: [  // [!code highlight]
-            new ToolMessage({  // [!code highlight]
-              content: skillContent,  // [!code highlight]
-              tool_call_id: runtime.toolCallId,  // [!code highlight]
-            }),  // [!code highlight]
-          ],  // [!code highlight]
-          skillsLoaded: [skillName],  // [!code highlight]
-        },  // [!code highlight]
-      });  // [!code highlight]
+      return new Command({
+        // [!code highlight]
+        update: {
+          // [!code highlight]
+          messages: [
+            // [!code highlight]
+            new ToolMessage({
+              // [!code highlight]
+              content: skillContent, // [!code highlight]
+              tool_call_id: runtime.toolCallId, // [!code highlight]
+            }), // [!code highlight]
+          ], // [!code highlight]
+          skillsLoaded: [skillName], // [!code highlight]
+        }, // [!code highlight]
+      }); // [!code highlight]
     }
 
     // 未找到技能
@@ -556,7 +564,7 @@ const loadSkill = tool(  // [!code highlight]
     schema: z.object({
       skillName: z.string().describe("要加载的技能名称"),
     }),
-  }
+  },
 );
 ```
 
@@ -565,17 +573,23 @@ const loadSkill = tool(  // [!code highlight]
 创建一个仅在特定技能加载后才可用的工具：
 
 ```typescript
-const writeSqlQuery = tool(  // [!code highlight]
-  async ({ query, vertical }, runtime: ToolRuntime<typeof CustomState.State>) => {
+const writeSqlQuery = tool(
+  // [!code highlight]
+  async (
+    { query, vertical },
+    runtime: ToolRuntime<typeof CustomState.State>,
+  ) => {
     // 检查是否已加载所需技能
-    const skillsLoaded = runtime.state.skillsLoaded ?? [];  // [!code highlight]
+    const skillsLoaded = runtime.state.skillsLoaded ?? []; // [!code highlight]
 
-    if (!skillsLoaded.includes(vertical)) {  // [!code highlight]
-      return (  // [!code highlight]
-        `错误：您必须先加载 '${vertical}' 技能 ` +  // [!code highlight]
-        `以了解数据库模式，然后才能编写查询。 ` +  // [!code highlight]
-        `使用 load_skill('${vertical}') 加载模式。`  // [!code highlight]
-      );  // [!code highlight]
+    if (!skillsLoaded.includes(vertical)) {
+      // [!code highlight]
+      return (
+        // [!code highlight]
+        `错误：您必须先加载 '${vertical}' 技能 ` + // [!code highlight]
+        `以了解数据库模式，然后才能编写查询。 ` + // [!code highlight]
+        `使用 load_skill('${vertical}') 加载模式。` // [!code highlight]
+      ); // [!code highlight]
     }
 
     // 验证并格式化查询
@@ -593,9 +607,11 @@ const writeSqlQuery = tool(  // [!code highlight]
 此工具帮助格式化和验证 SQL 查询。您必须先加载适当的技能以了解数据库模式。`,
     schema: z.object({
       query: z.string().describe("要编写的 SQL 查询"),
-      vertical: z.string().describe("业务垂直领域（sales_analytics 或 inventory_management）"),
+      vertical: z
+        .string()
+        .describe("业务垂直领域（sales_analytics 或 inventory_management）"),
     }),
-  }
+  },
 );
 ```
 
@@ -604,10 +620,11 @@ const writeSqlQuery = tool(  // [!code highlight]
 更新中间件以使用自定义状态模式：
 
 ```typescript
-const skillMiddleware = createMiddleware({  // [!code highlight]
+const skillMiddleware = createMiddleware({
+  // [!code highlight]
   name: "skillMiddleware",
-  stateSchema: CustomState,  // [!code highlight]
-  tools: [loadSkill, writeSqlQuery],  // [!code highlight]
+  stateSchema: CustomState, // [!code highlight]
+  tools: [loadSkill, writeSqlQuery], // [!code highlight]
   // ... 中间件实现的其余部分保持不变
 });
 ```
@@ -617,10 +634,8 @@ const skillMiddleware = createMiddleware({  // [!code highlight]
 ```typescript
 const agent = createAgent({
   model,
-  systemPrompt:
-    "您是一个 SQL 查询助手，帮助用户 " +
-    "针对业务数据库编写查询。",
-  middleware: [skillMiddleware],  // [!code highlight]
+  systemPrompt: "您是一个 SQL 查询助手，帮助用户 " + "针对业务数据库编写查询。",
+  middleware: [skillMiddleware], // [!code highlight]
   checkpointer: new MemorySaver(),
 });
 ```
@@ -819,7 +834,7 @@ const SKILLS: Skill[] = [
 
 // 从 SKILLS 列表构建技能提示
 const skillsPrompt = SKILLS.map(
-  (skill) => `- **${skill.name}**: ${skill.description}`
+  (skill) => `- **${skill.name}**: ${skill.description}`,
 ).join("\n");
 
 const skillMiddleware = createMiddleware({
@@ -849,9 +864,7 @@ const model = new ChatOpenAI({
 // 创建支持技能的代理
 const agent = createAgent({
   model,
-  systemPrompt:
-    "您是一个 SQL 查询助手，帮助用户 " +
-    "针对业务数据库编写查询。",
+  systemPrompt: "您是一个 SQL 查询助手，帮助用户 " + "针对业务数据库编写查询。",
   middleware: [skillMiddleware],
   checkpointer: new MemorySaver(),
 });
@@ -871,7 +884,7 @@ const result = await agent.invoke(
       },
     ],
   },
-  config
+  config,
 );
 
 // 打印对话
@@ -881,6 +894,7 @@ for (const message of result.messages) {
 ```
 
 此完整示例包括：
+
 - 具有完整数据库模式的技能定义
 - 用于按需加载的 `load_skill` 工具
 - 将技能描述注入系统提示的 `SkillMiddleware`
@@ -888,6 +902,7 @@ for (const message of result.messages) {
 - 显示代理如何加载技能和编写 SQL 查询的示例用法
 
 要运行此示例，您需要：
+
 1. 安装所需包：`pip install langchain langchain-openai langgraph`
 2. 设置您的 API 密钥（例如 `export OPENAI_API_KEY=...`）
 3. 将模型初始化替换为您首选的 LLM 提供商
@@ -901,23 +916,27 @@ for (const message of result.messages) {
 本教程将技能实现为通过工具调用加载的内存 Python 字典。然而，有几种方法可以使用技能实现渐进式披露：
 
 **存储后端：**
+
 - **内存中**（本教程）：技能定义为 Python 数据结构，访问速度快，无 I/O 开销
 - **文件系统**（Claude Code 方法）：技能作为目录和文件，通过文件操作（如 `read_file`）发现
 - **远程存储**：技能存储在 S3、数据库、Notion 或 API 中，按需获取
 
 **技能发现**（代理如何了解存在哪些技能）：
+
 - **系统提示列出**：技能描述在系统提示中（本教程中使用）
 - **基于文件**：通过扫描目录发现技能（Claude Code 方法）
 - **基于注册表**：查询技能注册表服务或 API 以获取可用技能
 - **动态查找**：通过工具调用列出可用技能
 
 **渐进式披露策略**（如何加载技能内容）：
+
 - **单次加载**：在一个工具调用中加载整个技能内容（本教程中使用）
 - **分页**：对于大型技能，分多个页面/块加载技能内容
 - **基于搜索**：在特定技能内容中搜索相关部分（例如，使用 grep/read 操作对技能文件进行操作）
 - **分层**：首先加载技能概述，然后深入特定子部分
 
 **大小考虑**（未校准的心理模型 - 针对您的系统进行优化）：
+
 - **小型技能**（< 1K 令牌 / ~750 词）：可以直接包含在系统提示中，并通过提示缓存进行缓存以节省成本并加快响应速度
 - **中型技能**（1-10K 令牌 / ~750-7.5K 词）：受益于按需加载以避免上下文开销（本教程）
 - **大型技能**（> 10K 令牌 / ~7.5K 词，或 > 上下文窗口的 5-10%）：应使用渐进式披露技术，如分页、基于搜索的加载或分层探索，以避免消耗过多上下文
@@ -937,6 +956,7 @@ for (const message of result.messages) {
 对于 SQL 查询用例，您可以扩展渐进式披露以动态加载与用户查询匹配的**少样本示例**：
 
 **示例方法：**
+
 1. 用户询问：“查找 6 个月内未订购的客户”
 2. 代理加载 `sales_analytics` 模式（如本教程所示）
 3. 代理还通过语义搜索或基于标签的查找加载 2-3 个相关示例查询：
@@ -961,10 +981,13 @@ for (const message of result.messages) {
 ---
 
 <div className="source-links">
-<Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/multi-agent/skills-sql-assistant.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
-</Callout>
-<Callout icon="terminal-2">
-    [连接这些文档](/use-these-docs) 到 Claude、VSCode 等，通过 MCP 获取实时答案。
-</Callout>
+  <Callout icon="edit">
+    [在 GitHub
+    上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/multi-agent/skills-sql-assistant.mdx)
+    或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
+  </Callout>
+  <Callout icon="terminal-2">
+    [连接这些文档](/use-these-docs) 到 Claude、VSCode 等，通过 MCP
+    获取实时答案。
+  </Callout>
 </div>
