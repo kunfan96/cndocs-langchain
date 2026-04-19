@@ -1,87 +1,87 @@
 ---
-title: Comparison with Claude Agent SDK
-sidebarTitle: Comparison with Claude Agent SDK
-description: Compare LangChain Deep Agents with the Claude Agent SDK to choose the right tool for your use case.
+title: LangChain 深度代理与 Claude Agent SDK 的比较
+sidebarTitle: LangChain 深度代理与 Claude Agent SDK 的比较
+description: 将 LangChain 深度代理与 Claude Agent SDK 进行对比，以选择适合您用例的正确工具。
 ---
 
-This page explains how [LangChain Deep Agents](/oss/python/deepagents/overview) compares to the [Claude Agent SDK](https://platform.anthropic.com/docs/en/agent-sdk/overview). Both are harnesses for building custom agents, but they make different tradeoffs around execution environments, deployment, and vendor coupling.
+此页面解释了 [LangChain 深度代理](/oss/python/deepagents/overview) 与 [Claude Agent SDK](https://platform.anthropic.com/docs/en/agent-sdk/overview) 的区别。两者都是构建自定义代理的框架，但它们在执行环境、部署和供应商耦合方面做出了不同的权衡。
 
 <Info>
-    Deep Agents is used in production by [OpenSWE](https://github.com/langchain-ai/open-swe) and [LangSmith Fleet](/langsmith/fleet/index).
+    深度代理已在生产环境中由 [OpenSWE](https://github.com/langchain-ai/open-swe) 和 [LangSmith Fleet](/langsmith/fleet/index) 使用。
 </Info>
 
-## At a glance
+## 一目了然
 
-| | **Deep Agents** | **Claude Agent SDK** |
+| | **深度代理** | **Claude Agent SDK** |
 | --- | --- | --- |
-| **Where the agent runs** | Inside a sandbox, or outside a sandbox executing commands remotely | Inside a sandbox |
-| **Execution backend** | Pluggable: [local, virtual filesystem, remote sandbox, or custom](/oss/python/deepagents/backends) | Local filesystem of the sandbox it runs in |
-| **Model provider** | Any (Anthropic, OpenAI, Google, 100+ others) | Claude (Anthropic, Bedrock, Vertex, Azure) |
-| **Deployment** | [LangSmith managed cloud](/oss/python/langgraph/deploy) via [`deepagents deploy`](/oss/python/deepagents/deploy), or self-host a [standalone image](/langsmith/deploy-standalone-server) via [`langgraph build`](/langsmith/cli#build) | [Self-host](https://code.claude.com/docs/en/agent-sdk/hosting). You build the server, auth, and streaming layer. [Claude managed agents](https://platform.claude.com/docs/en/managed-agents/overview) is a separate product |
-| **Multi-tenancy** | [Built-in](/oss/python/deepagents/going-to-production#multi-tenancy): scoped threads, per-user sandboxes, RBAC | Build it yourself |
-| **License** | MIT | MIT (Claude Code itself is proprietary) |
+| **代理运行的位置** | 在沙盒内，或在沙盒外远程执行命令 | 沙盒内 |
+| **执行后端** | 可插拔：[本地、虚拟文件系统、远程沙盒或自定义](/oss/python/deepagents/backends) | 执行沙盒的本地文件系统 |
+| **模型提供商** | 任何（Anthropic, OpenAI, Google 等100+） | Claude (Anthropic, Bedrock, Vertex, Azure) |
+| **部署** | [通过 LangSmith 管理云](/oss/python/langgraph/deploy) 使用 `deepagents deploy`，或自托管一个[独立镜像](/langsmith/deploy-standalone-server) 通过 `langgraph build` | 自托管。您构建服务器、认证和流式传输层。[Claude 管理代理](https://platform.claude.com/docs/en/managed-agents/overview) 是单独的产品 |
+| **多租户** | [内置](/oss/python/deepagents/going-to-production#multi-tenancy): 作用域线程、每个用户沙盒、RBAC | 自行构建 |
+| **许可证** | MIT | MIT (Claude Code 本身是专有的) |
 
-## Main differences
+## 主要差异
 
-### Agent and execution environment
+### 代理和执行环境
 
-There are [two patterns for connecting agents to sandboxes](https://www.langchain.com/blog/the-two-patterns-by-which-agents-connect-sandboxes): running the agent *inside* the sandbox, or running the agent outside and **using the sandbox as a tool**.
+有 [两种模式将代理连接到沙盒](https://www.langchain.com/blog/the-two-patterns-by-which-agents-connect-sandboxes): 将代理 *运行* 在沙盒内，或在外部运行并 **使用沙盒作为工具**。
 
-The Claude Agent SDK only supports the first. Your agent runs inside a sandbox and executes tools against the sandbox's local filesystem. Anthropic's hosted model [Claude managed agents](https://platform.claude.com/docs/en/managed-agents/overview) use a decoupled model, which reflects where production agent architectures are heading.
+Claude Agent SDK 只支持第一种。您的代理在沙盒内部运行，并执行针对沙盒本地文件系统的工具命令。Anthropic 的托管模型 [Claude 管理代理](https://platform.claude.com/docs/en/managed-agents/overview) 使用解耦模式，这反映了生产代理架构的发展方向。
 
-Deep Agents supports both, and lets you pick a [backend](/oss/python/deepagents/backends#quickstart) to wire them together. In practice, this means you can:
+深度代理支持这两种模式，并允许您选择一个 [后端](/oss/python/deepagents/backends#quickstart) 将它们连接起来。实际上这意味着您可以：
 
-- Run the agent inside a sandbox (same model as Claude Agent SDK).
-- Run the agent in a long-lived container and [use a remote sandbox as a tool](https://www.langchain.com/blog/the-two-patterns-by-which-agents-connect-sandboxes), executing commands over the network.
-- Swap in a virtual filesystem for tests, or a custom backend for your own infrastructure.
+- 在沙盒内部运行代理（与 Claude Agent SDK 相同的模型）。
+- 在长生命周期容器中运行代理并 [使用远程沙盒作为工具](https://www.langchain.com/blog/the-two-patterns-by-which-agents-connect-sandboxes)，通过网络执行命令。
+- 为测试换入虚拟文件系统，或为您的基础设施自定义后端。
 
-### Multi-tenancy
+### 多租户
 
-When you productionize your application, you generally expose it to many end users and must isolate the environtment for each user.
+当您将应用程序生产化时，通常会向许多最终用户公开它，并且必须为每个用户提供隔离的环境。
 
-In Claude Agent SDK, the SDK ties the agent to its sandbox. To give each user an isolated execution environment, you must build an API wrapper that spins up a sandbox per user, tracks which sandbox belongs to whom, and tears it down afterwards.
+在 Claude Agent SDK 中，SDK 将代理绑定到其沙盒。为了给每个用户提供一个独立的执行环境，您必须构建一个 API 包装器，每次启动一个新的沙盒，跟踪哪个沙盒属于谁，然后在其后销毁它。
 
-Deep Agents handles this directly: configure a sandbox [per user or per assistant](/oss/python/deepagents/going-to-production#lifecycle) in the harness, with scoped threads, run history, and [RBAC](/langsmith/rbac) included. If you use [LangSmith Sandbox](/langsmith/sandbox-auth-proxy), you also get an auth proxy out of the box so end users can call third-party APIs from the sandbox without you provisioning credentials per user.
+深度代理直接处理此问题：在框架中为用户或助手配置沙盒 [生命周期](/oss/python/deepagents/going-to-production#lifecycle)，包含作用域线程、运行历史记录和 [RBAC](/langsmith/rbac)。如果您使用 [LangSmith 沙盒](/langsmith/sandbox-auth-proxy)，您还可以获得一个认证代理，以便最终用户可以从沙盒调用第三方 API 而无需为每个用户提供凭证。
 
-### A production agent server
+### 生产代理服务器
 
-To expose a [self-hosted Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/hosting) app to end users, you write your own HTTP/WebSocket or SSE server that invokes the agent, streams tokens back, and manages conversation threads. That server is yours to build, operate, and secure.
+要将 [自托管 Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/hosting) 应用程序暴露给最终用户，您需要编写自己的 HTTP/WebSocket 或 SSE 服务器来调用代理、流式传输令牌并管理对话线程。该服务器是您构建、操作和保护的。
 
-Deep Agents deployments include an [agent server](/langsmith/agent-server) out of the box: streaming endpoints, thread management, run history, webhooks, and [authentication](/langsmith/auth).
+深度代理部署包括一个 [代理服务器](/langsmith/agent-server)，提供流式端点、线程管理、运行历史记录、Webhook 和 [认证](/langsmith/auth)。
 
-### Managed cloud or self-hosted
+### 管理云或自托管
 
-Claude Agent SDK deployments are [self-hosted](https://code.claude.com/docs/en/agent-sdk/hosting). The SDK and [Claude managed agents](https://platform.claude.com/docs/en/managed-agents/overview) are separate products. Code written against the SDK does not deploy directly to the managed offering.
+Claude Agent SDK 部署是 [自托管的](https://code.claude.com/docs/en/agent-sdk/hosting)。SDK 和 [Claude 管理代理](https://platform.claude.com/docs/en/managed-agents/overview) 是单独的产品。针对 SDK 编写的代码不会直接部署到管理提供程序。
 
-Deep Agents runs in two modes without code changes:
+深度代理在无需更改代码的情况下运行两种模式：
 
-- **Managed:** deploy to [LangSmith managed cloud](/oss/python/langgraph/deploy) with [`deepagents deploy`](/oss/python/deepagents/deploy).
-- **Self-hosted:** run [`langgraph build`](/langsmith/cli#build) to produce a [standalone Docker image](/langsmith/deploy-standalone-server) you can deploy anywhere.
+- **托管：** 通过 `deepagents deploy` 部署到 [LangSmith 管理云](/oss/python/langgraph/deploy)。
+- **自托管：** 运行 `langgraph build` 来生成一个您可以部署到任何地方的 [独立 Docker 镜像](/langsmith/deploy-standalone-server)。
 
-### LLM
+### 语言模型
 
-Claude Agent SDK execution bundles the model, backend, and deployment and optimizes support between all three.
+Claude Agent SDK 执行将模型、后端和部署捆绑在一起，并在三者之间优化支持。
 
-With Deep Agents, you pick the model provider, the execution backend, and the deployment target independently. By choosing this harness you retain maximum flexibility in your choice of model and infrastructure.
+使用深度代理，您可以选择模型提供商、执行后端和部署目标。通过选择此框架，您可以保留对模型和基础设施的最大灵活性。
 
-## Summary
+## 总结
 
-- **Choose Deep Agents** if you want model and infrastructure flexibility, built-in multi-tenant deployment, and the option to run managed or self-hosted without code changes.
-- **Choose Claude Agent SDK** if you're committed to Claude, and wish to self-host, and build the API, auth, and multi-tenant layers yourself.
+- **选择深度代理** 如果您希望获得模型和基础设施的灵活性、内置多租户部署选项，并且可以无需更改代码直接运行托管或自托管。
+- **选择 Claude Agent SDK** 如果您致力于使用 Claude 并希望自行构建 API、认证和多租户层。
 
 <Note>
-    **Notice a mistake?**
+    **发现错误？**
 
-    We drafted this comparison on April 16th, 2026. If products have changed, please [file an issue](https://github.com/langchain-ai/docs/issues).
+    我们于 2026 年 4 月 16 日编写了此比较。如果产品已更改，请 [提交问题](https://github.com/langchain-ai/docs/issues)。
 </Note>
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/deepagents/comparison.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    在 GitHub 上编辑此页面 ([https://github.com/langchain-ai/docs/edit/main/src/oss/deepagents/comparison.mdx](https://github.com/langchain-ai/docs/edit/main/src/oss/deepagents/comparison.mdx)) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    通过 MCP 将这些文档与 Claude、VSCode 等连接，以获得实时答案 ([/use-these-docs](/use-these-docs))。
 </Callout>
 </div>
