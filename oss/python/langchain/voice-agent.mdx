@@ -1,133 +1,145 @@
 ---
-title: 使用 LangChain 构建语音代理
-sidebarTitle: 语音代理
+title: Build a voice agent with LangChain
+sidebarTitle: Voice agent
 ---
 
-## 概览
+## Overview
 
-聊天界面一直是我们与 AI 交互的主要方式，但多模态 AI 的最新突破正在开辟令人兴奋的新可能性。高质量的生成模型和富有表现力的文本转语音（TTS）系统，使构建感觉不像工具、而更像对话伙伴的代理成为可能。
+Chat interfaces have dominated how we interact with AI, but recent breakthroughs in multimodal AI are opening up exciting new possibilities. High-quality generative models and expressive text-to-speech (TTS) systems now make it possible to build agents that feel less like tools and more like conversational partners.
 
-语音代理就是一个典型例子。你无需通过键盘和鼠标向代理输入文字，而是可以通过语言与其交互。这种方式更自然、更具吸引力，在某些特定场景中尤为实用。
+Voice agents are one example of this. Instead of relying on a keyboard and mouse to type inputs into an agent, you can use spoken words to interact with it. This can be a more natural and engaging way to interact with AI, and can be especially useful for certain contexts.
 
-### 什么是语音代理？
+### What are voice agents?
 
-语音代理是能够与用户进行自然语音对话的[代理](/oss/python/langchain/agents)。这类代理融合了语音识别、自然语言处理、生成式 AI 和文本转语音技术，打造流畅自然的对话体验。
+Voice agents are [agents](/oss/python/langchain/agents) that can engage in natural spoken conversations with users. These agents combine speech recognition, natural language processing, generative AI, and text-to-speech technologies to create seamless, natural conversations.
 
-适用的场景包括：
+They're suited for a variety of use cases, including:
 
-- 客户支持
-- 个人助理
-- 免手持交互界面
-- 辅导与培训
+- Customer support
+- Personal assistants
+- Hands-free interfaces
+- Coaching and training
 
-### 语音代理如何工作？
+### How do voice agents work?
 
-从宏观角度看，每个语音代理都需要处理三项任务：
+At a high level, every voice agent needs to handle three tasks:
 
-1. **聆听** - 捕获音频并转录
-2. **思考** - 理解意图、推理、规划
-3. **说话** - 生成音频并流式传回用户
+1. **Listen** - capture audio and transcribe it
+2. **Think** - interpret intent, reason, plan
+3. **Speak** - generate audio and stream it back to the user
 
-区别在于这些步骤的排列和耦合方式。在实践中，生产级代理通常遵循以下两种主要架构之一：
+The difference lies in how these steps are sequenced and coupled. In practice, production agents follow one of two main architectures:
 
-#### 1. STT > 代理 > TTS 架构（"三明治"架构）
+#### 1. STT > Agent > TTS architecture (The "Sandwich")
 
-三明治架构由三个独立组件组成：语音转文本（STT）、基于文本的 LangChain 代理，以及文本转语音（TTS）。
-
-```mermaid
-flowchart LR
-    A[用户音频] --> B[语音转文本]
-    B --> C[LangChain 代理]
-    C --> D[文本转语音]
-    D --> E[音频输出]
-```
-
-**优点：**
-- 对每个组件拥有完全控制权（可按需更换 STT/TTS 提供商）
-- 可利用现代文本模态模型的最新能力
-- 组件边界清晰，行为透明
-
-**缺点：**
-- 需要协调多个服务
-- 管理流水线增加了额外复杂度
-- 语音转文字过程中会丢失部分信息（如语气、情绪）
-
-#### 2. 语音到语音架构（S2S）
-
-语音到语音架构使用一个多模态模型，原生处理音频输入并生成音频输出。
+The Sandwich architecture composes three distinct components: speech-to-text (STT), a text-based LangChain agent, and text-to-speech (TTS).
 
 ```mermaid
 flowchart LR
-    A[用户音频] --> B[多模态模型]
-    B --> C[音频输出]
+    A[User Audio] --> B[Speech-to-Text]
+    B --> C[LangChain Agent]
+    C --> D[Text-to-Speech]
+    D --> E[Audio Output]
+
+    classDef trigger fill:#DCFCE7,stroke:#16A34A,stroke-width:2px,color:#14532D
+    classDef process fill:#DBEAFE,stroke:#2563EB,stroke-width:2px,color:#1E3A8A
+
+    class A,E trigger
+    class B,C,D process
 ```
 
-**优点：**
-- 架构更简单，组成部件更少
-- 对于简单交互，延迟通常更低
-- 直接处理音频，能捕捉语气等语音细微特征
+**Pros:**
+- Full control over each component (swap STT/TTS providers as needed)
+- Access to latest capabilities from modern text-modality models
+- Transparent behavior with clear boundaries between components
 
-**缺点：**
-- 可选模型有限，提供商锁定风险较高
-- 功能可能落后于文本模态模型
-- 音频处理过程透明度较低
-- 可控性和自定义选项有限
+**Cons:**
+- Requires orchestrating multiple services
+- Additional complexity in managing the pipeline
+- Conversion from speech to text loses information (e.g., tone, emotion)
 
-本指南演示**三明治架构**，以平衡性能、可控性和对现代模型能力的利用。在某些 STT 和 TTS 提供商的配合下，三明治架构可实现低于 700ms 的延迟，同时保持对各模块组件的控制。
+#### 2. Speech-to-Speech architecture (S2S)
 
-### 示例应用概览
+Speech-to-speech uses a multimodal model that processes audio input and generates audio output natively.
 
-我们将演示如何使用三明治架构构建一个基于语音的代理。该代理将管理一家三明治店的订单。应用将展示三明治架构的所有三个组件，使用 [AssemblyAI](https://www.assemblyai.com/) 进行 STT，使用 [Cartesia](https://cartesia.ai/) 进行 TTS（也可以为大多数提供商构建适配器）。
+```mermaid
+flowchart LR
+    A[User Audio] --> B[Multimodal Model]
+    B --> C[Audio Output]
 
-完整的端到端参考应用可在 [voice-sandwich-demo](https://github.com/langchain-ai/voice-sandwich-demo) 仓库中找到，我们将在本文中逐步讲解。
+    classDef trigger fill:#DCFCE7,stroke:#16A34A,stroke-width:2px,color:#14532D
+    classDef process fill:#DBEAFE,stroke:#2563EB,stroke-width:2px,color:#1E3A8A
 
-该 Demo 使用 WebSocket 实现浏览器与服务器之间的实时双向通信。同样的架构可适配其他传输协议，如电话系统（Twilio、Vonage）或 WebRTC 连接。
+    class A,C trigger
+    class B process
+```
 
-### 架构
+**Pros:**
+- Simpler architecture with fewer moving parts
+- Typically lower latency for simple interactions
+- Direct audio processing captures tone and other nuances of speech
 
-该 Demo 实现了一个流式处理流水线，每个阶段异步处理数据：
+**Cons:**
+- Limited model options, greater risk of provider lock-in
+- Features may lag behind text-modality models
+- Less transparency in how audio is processed
+- Reduced controllability and customization options
 
-**客户端（浏览器）**
-- 捕获麦克风音频并编码为 PCM 格式
-- 与后端服务器建立 WebSocket 连接
-- 实时将音频块流式传输到服务器
-- 接收并播放合成的语音音频
+This guide demonstrates the **sandwich architecture** to balance performance, controllability, and access to modern model capabilities. The sandwich can achieve sub-700ms latency with some STT and TTS providers while maintaining control over modular components.
 
-**服务端（Python）**
+### Demo Application overview
+
+We'll walk through building a voice-based agent using the sandwich architecture. The agent will manage orders for a sandwich shop. The application will demonstrate all three components of the sandwich architecture, using [AssemblyAI](https://www.assemblyai.com/) for STT and [Cartesia](https://cartesia.ai/) for TTS (although adapters can be built for most providers).
+
+An end-to-end reference application is available in the [voice-sandwich-demo](https://github.com/langchain-ai/voice-sandwich-demo) repository. We will walk through that application here.
+
+The demo uses WebSockets for real-time bidirectional communication between the browser and server. The same architecture can be adapted for other transports like telephony systems (Twilio, Vonage) or WebRTC connections.
+
+### Architecture
+
+The demo implements a streaming pipeline where each stage processes data asynchronously:
+
+**Client (Browser)**
+- Captures microphone audio and encodes it as PCM
+- Establishes WebSocket connection to the backend server
+- Streams audio chunks to the server in real-time
+- Receives and plays back synthesized speech audio
+
+**Server (Python)**
 
 
 
-- 接受来自客户端的 WebSocket 连接
-- 协调三步流水线：
-  - [语音转文字（STT）](#1-speech-to-text)：将音频转发给 STT 提供商（如 AssemblyAI），接收转录事件
-  - [代理](#2-langchain-agent)：通过 LangChain 代理处理转录文本，流式传输响应 token
-  - [文本转语音（TTS）](#3-text-to-speech)：将代理响应发送给 TTS 提供商（如 Cartesia），接收音频块
+- Accepts WebSocket connections from clients
+- Orchestrates the three-step pipeline:
+  - [Speech-to-text (STT)](#1-speech-to-text): Forwards audio to the STT provider (e.g., AssemblyAI), receives transcript events
+  - [Agent](#2-langchain-agent): Processes transcripts with LangChain agent, streams response tokens
+  - [Text-to-speech (TTS)](#3-text-to-speech): Sends agent responses to the TTS provider (e.g., Cartesia), receives audio chunks
 
-- 将合成音频返回客户端播放
+- Returns synthesized audio to the client for playback
 
-流水线使用异步生成器实现每个阶段的流式处理，允许下游组件在上游阶段完成之前就开始处理，从而最大限度地降低端到端延迟。
+The pipeline uses async generators to enable streaming at each stage. This allows downstream components to begin processing before upstream stages complete, minimizing end-to-end latency.
 
 
 
-## 准备工作
+## Setup
 
-详细的安装说明和配置，请参阅[仓库 README](https://github.com/langchain-ai/voice-sandwich-demo#readme)。
+For detailed installation instructions and setup, see the [repository README](https://github.com/langchain-ai/voice-sandwich-demo#readme).
 
-## 1. 语音转文字
+## 1. Speech-to-text
 
-STT 阶段将传入的音频流转换为文本转录。该实现使用生产者-消费者模式并发处理音频流式传输和转录接收。
+The STT stage transforms an incoming audio stream into text transcripts. The implementation uses a producer-consumer pattern to handle audio streaming and transcript reception concurrently.
 
-### 关键概念
+### Key concepts
 
-**生产者-消费者模式**：音频块的发送与转录事件的接收并发进行，允许在所有音频到达之前就开始转录。
+**Producer-Consumer Pattern**: Audio chunks are sent to the STT service concurrently with receiving transcript events. This allows transcription to begin before all audio has arrived.
 
-**事件类型**：
-- `stt_chunk`：STT 服务处理音频时提供的部分转录
-- `stt_output`：触发代理处理的最终格式化转录
+**Event Types**:
+- `stt_chunk`: Partial transcripts provided as the STT service processes audio
+- `stt_output`: Final, formatted transcripts that trigger agent processing
 
-**WebSocket 连接**：与 AssemblyAI 实时 STT API 维持持久连接，配置为 16kHz PCM 音频并启用自动轮次格式化。
+**WebSocket Connection**: Maintains a persistent connection to AssemblyAI's real-time STT API, configured for 16kHz PCM audio with automatic turn formatting.
 
-### 实现
+### Implementation
 
 ```python
 from typing import AsyncIterator
@@ -174,9 +186,9 @@ async def stt_stream(
 
 
 
-应用实现了一个 AssemblyAI 客户端来管理 WebSocket 连接和消息解析。详见下方实现；类似的适配器也可以为其他 STT 提供商构建。
+The application implements an AssemblyAI client to manage the WebSocket connection and message parsing. See below for implementations; similar adapters can be constructed for other STT providers.
 
-<Accordion title="AssemblyAI 客户端">
+<Accordion title="AssemblyAI Client">
 
 ```python
 class AssemblyAISTT:
@@ -219,20 +231,20 @@ class AssemblyAISTT:
 
 </Accordion>
 
-## 2. LangChain 代理
+## 2. LangChain agent
 
-代理阶段通过 LangChain [代理](/oss/python/langchain/agents)处理文本转录并流式传输响应 token。在本例中，我们流式传输代理生成的所有[文本内容块](/oss/python/langchain/messages#textcontentblock)。
+The agent stage processes text transcripts through a LangChain [agent](/oss/python/langchain/agents) and streams the response tokens. In this case, we stream all [text content blocks](/oss/python/langchain/messages#content-block-reference) generated by the agent.
 
-### 关键概念
+### Key concepts
 
-**流式响应**：代理使用 [`stream_mode="messages"`](/oss/python/langchain/streaming#llm-tokens) 在生成时即时发出响应 token，而非等待完整响应。这使 TTS 阶段可以立即开始合成。
+**Streaming Responses**: The agent uses [`stream_mode="messages"`](/oss/python/langchain/streaming#llm-tokens) to emit response tokens as they're generated, rather than waiting for the complete response. This enables the TTS stage to begin synthesis immediately.
 
-**对话记忆**：[检查点](/oss/python/langchain/short-term-memory)通过唯一线程 ID 跨轮次维护对话状态，允许代理在对话中引用先前的交流内容。
+**Conversation Memory**: A [checkpointer](/oss/python/langchain/short-term-memory) maintains conversation state across turns using a unique thread ID. This allows the agent to reference previous exchanges in the conversation.
 
-### 实现
+### Implementation
 
 ```python
-from uuid import uuid4
+from langchain_core.utils.uuid import uuid7
 from langchain.agents import create_agent
 from langchain.messages import HumanMessage
 from langgraph.checkpoint.memory import InMemorySaver
@@ -267,7 +279,7 @@ async def agent_stream(
     when processing STT transcripts.
     """
     # Generate unique thread ID for conversation memory
-    thread_id = str(uuid4())
+    thread_id = str(uuid7())
 
     async for event in event_stream:
         # Pass through all upstream events
@@ -291,21 +303,21 @@ async def agent_stream(
 
 
 
-## 3. 文本转语音
+## 3. Text-to-speech
 
-TTS 阶段将代理响应文本合成为音频并流式传回客户端。与 STT 阶段类似，它使用生产者-消费者模式并发处理文本发送和音频接收。
+The TTS stage synthesizes agent response text into audio and streams it back to the client. Like the STT stage, it uses a producer-consumer pattern to handle concurrent text sending and audio reception.
 
-### 关键概念
+### Key concepts
 
-**并发处理**：该实现合并了两个异步流：
-- **上游处理**：传递所有事件并将代理文本块发送给 TTS 提供商
-- **音频接收**：从 TTS 提供商接收合成的音频块
+**Concurrent Processing**: The implementation merges two async streams:
+- **Upstream processing**: Passes through all events and sends agent text chunks to the TTS provider
+- **Audio reception**: Receives synthesized audio chunks from the TTS provider
 
-**流式 TTS**：部分提供商（如 [Cartesia](https://cartesia.ai/)）在收到文本后立即开始合成音频，使音频播放可以在代理完成整个响应生成之前就开始。
+**Streaming TTS**: Some providers (such as [Cartesia](https://cartesia.ai/)) begin synthesizing audio as soon as it receives text, enabling audio playback to start before the agent finishes generating its complete response.
 
-**事件透传**：所有上游事件原封不动地流过，允许客户端或其他观察者追踪完整的流水线状态。
+**Event Passthrough**: All upstream events flow through unchanged, allowing the client or other observers to track the full pipeline state.
 
-### 实现
+### Implementation
 
 ```python
 from cartesia_tts import CartesiaTTS
@@ -347,9 +359,9 @@ async def tts_stream(
 
 
 
-应用实现了一个 Cartesia 客户端来管理 WebSocket 连接和音频流式传输。详见下方实现；类似的适配器也可以为其他 TTS 提供商构建。
+The application implements an Cartesia client to manage the WebSocket connection and audio streaming. See below for implementations; similar adapters can be constructed for other TTS providers.
 
-<Accordion title="Cartesia 客户端">
+<Accordion title="Cartesia Client">
 
 ```python
 import base64
@@ -431,16 +443,16 @@ class CartesiaTTS:
 
 ### LangSmith
 
-使用 LangChain 构建的许多应用会包含多个步骤和多次 LLM 调用。随着应用变得越来越复杂，能够检查链或代理内部究竟发生了什么变得至关重要。最好的方式是使用 [LangSmith](https://smith.langchain.com)。
+Many of the applications you build with LangChain will contain multiple steps with multiple invocations of LLM calls. As these applications get more complex, it becomes crucial to be able to inspect what exactly is going on inside your chain or agent. The best way to do this is with [LangSmith](https://smith.langchain.com).
 
-在上方链接注册后，设置以下环境变量以开始记录追踪：
+After you sign up at the link above, make sure to set your environment variables to start logging traces:
 
 ```shell
 export LANGSMITH_TRACING="true"
 export LANGSMITH_API_KEY="..."
 ```
 
-或者，在 Python 中设置：
+Or, set them in Python:
 
 ```python
 import getpass
@@ -451,9 +463,9 @@ os.environ["LANGSMITH_API_KEY"] = getpass.getpass()
 ```
 
 
-## 整合在一起
+## Putting it all together
 
-完整流水线将三个阶段链式组合：
+The complete pipeline chains the three stages together:
 
 ```python
 from langchain_core.runnables import RunnableGenerator
@@ -484,22 +496,22 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.send_bytes(event.audio)
 ```
 
-我们使用 [RunnableGenerators](https://reference.langchain.com/python/langchain_core/runnables/#langchain_core.runnables.base.RunnableGenerator) 组合流水线的每个步骤。这是 LangChain 内部用于管理[跨组件流式传输](https://reference.langchain.com/python/langchain_core/runnables/)的抽象。
+We use [RunnableGenerators](https://reference.langchain.com/python/langchain_core/runnables/#langchain_core.runnables.base.RunnableGenerator) to compose each step of the pipeline. This is an abstraction LangChain uses internally to manage [streaming across components](https://reference.langchain.com/python/langchain_core/runnables/).
 
 
 
 
-每个阶段独立并发处理事件：一旦音频到达就开始转录，一旦转录可用就开始推理，一旦生成代理文本就开始语音合成。这种架构可实现低于 700ms 的延迟，支持自然流畅的对话。
+Each stage processes events independently and concurrently: audio transcription begins as soon as audio arrives, the agent starts reasoning as soon as a transcript is available, and speech synthesis begins as soon as agent text is generated. This architecture can achieve sub-700ms latency to support natural conversation.
 
-了解更多关于使用 LangChain 构建代理的内容，请参阅[代理指南](/oss/python/langchain/agents)。
+For more on building agents with LangChain, see the [Agents guide](/oss/python/langchain/agents).
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/voice-agent.mdx) 或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/voice-agent.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 <Callout icon="terminal-2">
-    通过 MCP [将这些文档连接](/use-these-docs)到 Claude、VSCode 等以获取实时解答。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
 </Callout>
 </div>

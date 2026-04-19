@@ -2,37 +2,37 @@
 title: Human-in-the-loop
 ---
 
-Human-in-the-Loop (HITL) [中间件](/oss/javascript/langchain/middleware/built-in#human-in-the-loop) 允许您在 agent 工具调用中添加人工监督。
-当模型提出的操作可能需要审查时——例如，写入文件或执行 SQL——中间件可以暂停执行并等待决定。
+The Human-in-the-Loop (HITL) [middleware](/oss/javascript/langchain/middleware/built-in#human-in-the-loop) lets you add human oversight to agent tool calls.
+When a model proposes an action that might require review—for example, writing to a file or executing SQL—the middleware can pause execution and wait for a decision.
 
-它通过根据可配置的策略检查每个工具调用来实现这一点。如果需要干预，中间件会发出一个 [中断](https://reference.langchain.com/javascript/langchain-langgraph/index/interrupt)，从而停止执行。图状态使用 LangGraph 的 [持久层](/oss/javascript/langgraph/persistence) 保存，因此执行可以安全地暂停并在稍后恢复。
+It does this by checking each tool call against a configurable policy. If intervention is needed, the middleware issues an [interrupt](https://reference.langchain.com/javascript/langchain-langgraph/index/interrupt) that halts execution. The graph state is saved using LangGraph's [persistence layer](/oss/javascript/langgraph/persistence), so execution can pause safely and resume later.
 
-然后，人工决策决定接下来会发生什么：操作可以原样批准 (`approve`)，在运行前修改 (`edit`)，或拒绝并提供反馈 (`reject`)。
+A human decision then determines what happens next: the action can be approved as-is (`approve`), modified before running (`edit`), or rejected with feedback (`reject`).
 
-## 中断决策类型
+## Interrupt decision types
 
-[中间件](/oss/javascript/langchain/middleware/built-in#human-in-the-loop) 定义了三种内置的人工响应中断的方式：
+The [middleware](/oss/javascript/langchain/middleware/built-in#human-in-the-loop) defines three built-in ways a human can respond to an interrupt:
 
-| 决策类型 | 描述 | 示例用例 |
-|---|---|---|
-| ✅ `approve` | 操作按原样批准并执行，不进行任何更改。 | 完全按原样发送电子邮件草稿 |
-| ✏️ `edit` | 工具调用在修改后执行。 | 发送电子邮件前更改收件人 |
-| ❌ `reject` | 工具调用被拒绝，并在对话中添加解释。 | 拒绝电子邮件草稿并解释如何重写 |
+| Decision Type | Description                                                               | Example Use Case                                    |
+|---------------|---------------------------------------------------------------------------|-----------------------------------------------------|
+| ✅ `approve`   | The action is approved as-is and executed without changes.                | Send an email draft exactly as written              |
+| ✏️ `edit`     | The tool call is executed with modifications.                             | Change the recipient before sending an email        |
+| ❌ `reject`    | The tool call is rejected, with an explanation added to the conversation. | Reject an email draft and explain how to rewrite it |
 
-每个工具可用的决策类型取决于您在 `interrupt_on` 中配置的策略。
-当多个工具调用同时暂停时，每个操作都需要单独的决策。
-决策必须按照中断请求中操作出现的顺序提供。
+The available decision types for each tool depend on the policy you configure in `interrupt_on`.
+When multiple tool calls are paused at the same time, each action requires a separate decision.
+Decisions must be provided in the same order as the actions appear in the interrupt request.
 
 <Tip>
-**编辑** 工具参数时，请谨慎更改。对原始参数的重大修改可能会导致模型重新评估其方法，并可能多次执行工具或采取意外行动。
+When **editing** tool arguments, make changes conservatively. Significant modifications to the original arguments may cause the model to re-evaluate its approach and potentially execute the tool multiple times or take unexpected actions.
 </Tip>
 
 
-## 配置中断
+## Configuring interrupts
 
-要使用 HITL，请在创建 agent 时将 [中间件](/oss/javascript/langchain/middleware/built-in#human-in-the-loop) 添加到 agent 的 `middleware` 列表中。
+To use HITL, add the [middleware](/oss/javascript/langchain/middleware/built-in#human-in-the-loop) to the agent's `middleware` list when creating the agent.
 
-您可以使用工具操作与每个操作允许的决策类型的映射来配置它。当工具调用与映射中的操作匹配时，中间件将中断执行。
+You configure it with a mapping of tool actions to the decision types that are allowed for each action. The middleware will interrupt execution when a tool call matches an action in the mapping.
 
 
 
@@ -70,41 +70,41 @@ const agent = createAgent({
 
 
 <Info>
-    您必须配置一个检查点保存器 (checkpointer) 以在中断期间持久化图状态。
-    在生产环境中，请使用像 [`AsyncPostgresSaver`](https://reference.langchain.com/javascript/classes/_langchain_langgraph-checkpoint-postgres.AsyncPostgresSaver.html) 这样的持久化检查点保存器。对于测试或原型设计，请使用 [`InMemorySaver`](https://reference.langchain.com/javascript/classes/_langchain_langgraph-checkpoint.MemorySaver.html)。
+    You must configure a checkpointer to persist the graph state across interrupts.
+    In production, use a persistent checkpointer like [`AsyncPostgresSaver`](https://reference.langchain.com/javascript/classes/_langchain_langgraph-checkpoint-postgres.AsyncPostgresSaver.html). For testing or prototyping, use [`InMemorySaver`](https://reference.langchain.com/javascript/classes/_langchain_langgraph-checkpoint.MemorySaver.html).
 
-    调用 agent 时，传递一个包含 **thread ID** 的 `config`，以将执行与对话线程关联。
-    有关详细信息，请参阅 [LangGraph 中断文档](/oss/javascript/langgraph/interrupts)。
+    When invoking the agent, pass a `config` that includes the **thread ID** to associate execution with a conversation thread.
+    See the [LangGraph interrupts documentation](/oss/javascript/langgraph/interrupts) for details.
 </Info>
 
-<Accordion title="配置选项">
+<Accordion title="Configuration options">
 
 
 
 <ParamField body="interruptOn" type="object" required>
-    工具名称到批准配置的映射
+    Mapping of tool names to approval configs
 </ParamField>
 
-**工具批准配置选项：**
+**Tool approval config options:**
 
 <ParamField body="allowAccept" type="boolean" default="false">
-    是否允许批准
+    Whether approval is allowed
 </ParamField>
 
 <ParamField body="allowEdit" type="boolean" default="false">
-    是否允许编辑
+    Whether editing is allowed
 </ParamField>
 
 <ParamField body="allowRespond" type="boolean" default="false">
-    是否允许响应/拒绝
+    Whether responding/rejection is allowed
 </ParamField>
 
 
 </Accordion>
 
-## 响应中断
+## Responding to interrupts
 
-当您调用 agent 时，它会一直运行直到完成或引发中断。当工具调用与您在 `interrupt_on` 中配置的策略匹配时，将触发中断。在这种情况下，调用结果将包含一个 `__interrupt__` 字段，其中包含需要审查的操作。然后，您可以将这些操作呈现给审查者，并在提供决策后恢复执行。
+When you invoke the agent, it runs until it either completes or an interrupt is raised. An interrupt is triggered when a tool call matches the policy you configured in `interrupt_on`. With `version="v2"`, the result is a `GraphOutput` with an `interrupts` attribute containing the actions that require review. You can then present those actions to a reviewer and resume execution once decisions are provided.
 
 
 
@@ -134,7 +134,7 @@ console.log(result.__interrupt__);
 // >          action_requests: [
 // >             {
 // >                name: 'execute_sql',
-// >                arguments: { query: 'DELETE FROM records WHERE created_at < NOW() - INTERVAL '30 days';' },
+// >                arguments: { query: 'DELETE FROM records WHERE created_at < NOW() - INTERVAL \'30 days\';' },
 // >                description: 'Tool execution pending approval\n\nTool: execute_sql\nArgs: {...}'
 // >             }
 // >          ],
@@ -158,11 +158,11 @@ await agent.invoke(
 ```
 
 
-### 决策类型
+### Decision types
 
 <Tabs>
 <Tab title="✅ approve">
-使用 `approve` 按原样批准工具调用并在不更改的情况下执行它。
+Use `approve` to approve the tool call as-is and execute it without changes.
 
 
 
@@ -171,7 +171,7 @@ await agent.invoke(
     new Command({
         // Decisions are provided as a list, one per action under review.
         // The order of decisions must match the order of actions
-        // listed in the `__interrupt__` request.
+        // in the interrupt request.
         resume: {
             decisions: [
                 {
@@ -186,8 +186,8 @@ await agent.invoke(
 
 </Tab>
 <Tab title="✏️ edit">
-    使用 `edit` 在执行前修改工具调用。
-    提供带有新工具名称和参数的已编辑操作。
+    Use `edit` to modify the tool call before execution.
+    Provide the edited action with the new tool name and arguments.
 
 
 
@@ -196,7 +196,7 @@ await agent.invoke(
         new Command({
             // Decisions are provided as a list, one per action under review.
             // The order of decisions must match the order of actions
-            // listed in the `__interrupt__` request.
+            // in the interrupt request.
             resume: {
                 decisions: [
                     {
@@ -219,13 +219,13 @@ await agent.invoke(
 
 
     <Tip>
-        **编辑** 工具参数时，请谨慎更改。对原始参数的重大修改可能会导致模型重新评估其方法，并可能多次执行工具或采取意外行动。
+        When **editing** tool arguments, make changes conservatively. Significant modifications to the original arguments may cause the model to re-evaluate its approach and potentially execute the tool multiple times or take unexpected actions.
     </Tip>
 
 </Tab>
 
 <Tab title="❌ reject">
-    使用 `reject` 拒绝工具调用并提供反馈而不是执行。
+    Use `reject` to reject the tool call and provide feedback instead of execution.
 
 
 
@@ -234,7 +234,7 @@ await agent.invoke(
         new Command({
             // Decisions are provided as a list, one per action under review.
             // The order of decisions must match the order of actions
-            // listed in the `__interrupt__` request.
+            // in the interrupt request.
             resume: {
                 decisions: [
                     {
@@ -250,13 +250,13 @@ await agent.invoke(
     ```
 
 
-`message` 被添加到对话中作为反馈，以帮助 agent 理解为什么该操作被拒绝以及它应该做什么。
+The `message` is added to the conversation as feedback to help the agent understand why the action was rejected and what it should do instead.
 
 ---
 
-### 多个决策
+### Multiple decisions
 
-当多个操作正在审查时，请按照它们在中断中出现的相同顺序为每个操作提供决策：
+When multiple actions are under review, provide a decision for each action in the same order as they appear in the interrupt:
 
 
 
@@ -283,9 +283,9 @@ await agent.invoke(
 </Tab>
 </Tabs>
 
-## 人机介入流式传输
+## Streaming with human-in-the-loop
 
-您可以使用 `stream()` 代替 `invoke()` 来获取实时更新，同时 agent 运行并处理中断。使用 `stream_mode=['updates', 'messages']` 来流式传输 agent 进度和 LLM token。
+You can use `stream()` instead of `invoke()` to get real-time updates while the agent runs and handles interrupts. Use `stream_mode=['updates', 'messages']` with `version="v2"` to stream both agent progress and LLM tokens in the unified v2 format.
 
 
 
@@ -328,33 +328,33 @@ for await (const [mode, chunk] of await agent.stream(
 ```
 
 
-有关流模式的更多详细信息，请参阅 [流式传输 (Streaming)](/oss/javascript/langchain/streaming) 指南。
+See the [Streaming](/oss/javascript/langchain/streaming) guide for more details on stream modes.
 
-## 执行生命周期
+## Execution lifecycle
 
-中间件定义了一个 `after_model` 钩子，它在模型生成响应之后但在任何工具调用执行之前运行：
+The middleware defines an `after_model` hook that runs after the model generates a response but before any tool calls are executed:
 
-1. Agent 调用模型生成响应。
-2. 中间件检查响应中的工具调用。
-3. 如果任何调用需要人工输入，中间件构建一个包含 `action_requests` 和 `review_configs` 的 `HITLRequest` 并调用 [中断](https://reference.langchain.com/javascript/langchain-langgraph/index/interrupt)。
-4. Agent 等待人工决策。
-5. 基于 `HITLResponse` 决策，中间件执行已批准或编辑的调用，为拒绝的调用合成 [ToolMessage](https://reference.langchain.com/javascript/langchain-core/messages/ToolMessage)，并恢复执行。
+1. The agent invokes the model to generate a response.
+2. The middleware inspects the response for tool calls.
+3. If any calls require human input, the middleware builds a `HITLRequest` with `action_requests` and `review_configs` and calls [interrupt](https://reference.langchain.com/javascript/langchain-langgraph/index/interrupt).
+4. The agent waits for human decisions.
+5. Based on the `HITLResponse` decisions, the middleware executes approved or edited calls, synthesizes [ToolMessage](https://reference.langchain.com/javascript/langchain-core/messages/ToolMessage)'s for rejected calls, and resumes execution.
 
 
 
-## 自定义 HITL 逻辑
+## Custom HITL logic
 
-对于更专业的工作流，您可以直接使用 [中断](https://reference.langchain.com/javascript/langchain-langgraph/index/interrupt) 原语和 [中间件](/oss/javascript/langchain/middleware) 抽象来构建自定义 HITL 逻辑。
+For more specialized workflows, you can build custom HITL logic directly using the [interrupt](https://reference.langchain.com/javascript/langchain-langgraph/index/interrupt) primitive and [middleware](/oss/javascript/langchain/middleware) abstraction.
 
-查看上面的 [执行生命周期](#execution-lifecycle) 以了解如何将中断集成到 agent 的操作中。
+Review the [execution lifecycle](#execution-lifecycle) above to understand how to integrate interrupts into the agent's operation.
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/human-in-the-loop.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/human-in-the-loop.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 <Callout icon="terminal-2">
-    [将这些文档连接](/use-these-docs) 到 Claude、VSCode 等，通过 MCP 获得实时解答。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
 </Callout>
 </div>

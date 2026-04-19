@@ -1,17 +1,17 @@
 ---
-title: "Amazon DocumentDB 集成"
-description: "使用 LangChain Python 集成 Amazon DocumentDB 向量存储。"
+title: "Amazon DocumentDB integration"
+description: "Integrate with the Amazon DocumentDB vector store using LangChain Python."
 ---
 
->[Amazon DocumentDB（兼容 MongoDB）](https://docs.aws.amazon.com/documentdb/) 使您可以轻松地在云中设置、操作和扩展兼容 MongoDB 的数据库。
-> 使用 Amazon DocumentDB，您可以运行与 MongoDB 相同的应用程序代码，并使用与 MongoDB 相同的驱动程序和工具。
-> Amazon DocumentDB 的向量搜索将基于 JSON 的文档数据库的灵活性和丰富查询能力与向量搜索的强大功能相结合。
+>[Amazon DocumentDB (with MongoDB Compatibility)](https://docs.aws.amazon.com/documentdb/) makes it easy to set up, operate, and scale MongoDB-compatible databases in the cloud.
+> With Amazon DocumentDB, you can run the same application code and use the same drivers and tools that you use with MongoDB.
+> Vector search for Amazon DocumentDB combines the flexibility and rich querying capability of a JSON-based document database with the power of vector search.
 
-本 Notebook 展示如何使用 [Amazon DocumentDB 向量搜索](https://docs.aws.amazon.com/documentdb/latest/developerguide/vector-search.html) 在集合中存储文档、创建索引，并使用近似最近邻算法（如"cosine"、"euclidean"和"dotProduct"）执行向量搜索查询。默认情况下，DocumentDB 会创建层次可导航小世界（HNSW）索引。要了解其他支持的向量索引类型，请参阅上方链接的文档。
+This notebook shows you how to use [Amazon Document DB Vector Search](https://docs.aws.amazon.com/documentdb/latest/developerguide/vector-search.html) to store documents in collections, create indicies and perform vector search queries using approximate nearest neighbor algorithms such "cosine", "euclidean", and "dotProduct". By default, DocumentDB creates Hierarchical Navigable Small World (HNSW) indexes. To learn about other supported vector index types, please refer to the document linked above.
 
-要使用 DocumentDB，您必须首先部署一个集群。请参阅[开发者指南](https://docs.aws.amazon.com/documentdb/latest/developerguide/what-is.html)了解更多详情。
+To use DocumentDB, you must first deploy a cluster. Please refer to the [Developer Guide](https://docs.aws.amazon.com/documentdb/latest/developerguide/what-is.html) for more details.
 
-[免费注册](https://aws.amazon.com/free/)，立即开始使用。
+[Sign Up](https://aws.amazon.com/free/) for free to get started today.
 
 ```python
 !pip install pymongo
@@ -20,33 +20,33 @@ description: "使用 LangChain Python 集成 Amazon DocumentDB 向量存储。"
 ```python
 import getpass
 
-# DocumentDB 连接字符串
-# 例如："mongodb://{username}:{pass}@{cluster_endpoint}:{port}/?{params}"
-CONNECTION_STRING = getpass.getpass("DocumentDB 集群 URI:")
+# DocumentDB connection string
+# i.e., "mongodb://{username}:{pass}@{cluster_endpoint}:{port}/?{params}"
+CONNECTION_STRING = getpass.getpass("DocumentDB Cluster URI:")
 
 INDEX_NAME = "izzy-test-index"
 NAMESPACE = "izzy_test_db.izzy_test_collection"
 DB_NAME, COLLECTION_NAME = NAMESPACE.split(".")
 ```
 
-我们希望使用 `OpenAIEmbeddings`，因此需要设置 OpenAI 环境变量。
+We want to use `OpenAIEmbeddings` so we need to set up our OpenAI environment variables.
 
 ```python
 import getpass
 import os
 
-# 设置 OpenAI 环境变量
+# Set up the OpenAI environment variables
 if "OPENAI_API_KEY" not in os.environ:
     os.environ["OPENAI_API_KEY"] = getpass.getpass("OpenAI API Key:")
 os.environ["OPENAI_EMBEDDINGS_DEPLOYMENT"] = (
-    "smart-agent-embedding-ada"  # 嵌入模型的部署名称
+    "smart-agent-embedding-ada"  # the deployment name for the embedding model
 )
-os.environ["OPENAI_EMBEDDINGS_MODEL_NAME"] = "text-embedding-ada-002"  # 模型名称
+os.environ["OPENAI_EMBEDDINGS_MODEL_NAME"] = "text-embedding-ada-002"  # the model name
 ```
 
-现在，我们将文档加载到集合中，创建索引，然后对索引执行查询。
+Now, we will load the documents into the collection, create the index, and then perform queries against the index.
 
-如果您对某些参数有疑问，请参阅[文档](https://docs.aws.amazon.com/documentdb/latest/developerguide/vector-search.html)。
+Please refer to the [documentation](https://docs.aws.amazon.com/documentdb/latest/developerguide/vector-search.html) if you have questions about certain parameters
 
 ```python
 from langchain.vectorstores.documentdb import (
@@ -64,14 +64,14 @@ documents = loader.load()
 text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
 docs = text_splitter.split_documents(documents)
 
-# OpenAI 设置
+# OpenAI Settings
 model_deployment = os.getenv(
     "OPENAI_EMBEDDINGS_DEPLOYMENT", "smart-agent-embedding-ada"
 )
 model_name = os.getenv("OPENAI_EMBEDDINGS_MODEL_NAME", "text-embedding-ada-002")
 
 
-openai_embeddings: [`OpenAIEmbeddings`](https://reference.langchain.com/python/langchain-openai/embeddings/base/OpenAIEmbeddings) = OpenAIEmbeddings(
+openai_embeddings: @[`OpenAIEmbeddings`] = OpenAIEmbeddings(
     deployment=model_deployment, model=model_name
 )
 ```
@@ -98,11 +98,11 @@ vectorstore = DocumentDBVectorSearch.from_documents(
     index_name=INDEX_NAME,
 )
 
-# 上述模型使用的维度数
+# number of dimensions used by model above
 dimensions = 1536
 
-# 指定相似度算法，有效选项为：
-#   cosine (COS)、euclidean (EUC)、dotProduct (DOT)
+# specify similarity algorithm, valid options are:
+#   cosine (COS), euclidean (EUC), dotProduct (DOT)
 similarity_algorithm = DocumentDBSimilarityType.COS
 
 vectorstore.create_index(dimensions, similarity_algorithm)
@@ -117,7 +117,7 @@ vectorstore.create_index(dimensions, similarity_algorithm)
 ```
 
 ```python
-# 在查询的嵌入与文档的嵌入之间执行相似度搜索
+# perform a similarity search between the embedding of the query and the embeddings of the documents
 query = "What did the President say about Ketanji Brown Jackson"
 docs = vectorstore.similarity_search(query)
 ```
@@ -127,16 +127,16 @@ print(docs[0].page_content)
 ```
 
 ```text
-Tonight. I call on the Senate to: Pass the Freedom to Vote Act. Pass the John Lewis Voting Rights Act. And while you're at it, pass the Disclose Act so Americans can know who is funding our elections.
+Tonight. I call on the Senate to: Pass the Freedom to Vote Act. Pass the John Lewis Voting Rights Act. And while you’re at it, pass the Disclose Act so Americans can know who is funding our elections.
 
-Tonight, I'd like to honor someone who has dedicated his life to serve this country: Justice Stephen Breyer—an Army veteran, Constitutional scholar, and retiring Justice of the United States Supreme Court. Justice Breyer, thank you for your service.
+Tonight, I’d like to honor someone who has dedicated his life to serve this country: Justice Stephen Breyer—an Army veteran, Constitutional scholar, and retiring Justice of the United States Supreme Court. Justice Breyer, thank you for your service.
 
 One of the most serious constitutional responsibilities a President has is nominating someone to serve on the United States Supreme Court.
 
-And I did that 4 days ago, when I nominated Circuit Court of Appeals Judge Ketanji Brown Jackson. One of our nation's top legal minds, who will continue Justice Breyer's legacy of excellence.
+And I did that 4 days ago, when I nominated Circuit Court of Appeals Judge Ketanji Brown Jackson. One of our nation’s top legal minds, who will continue Justice Breyer’s legacy of excellence.
 ```
 
-文档加载并创建索引后，您现在可以直接实例化向量存储并对索引执行查询。
+Once the documents have been loaded and the index has been created, you can now instantiate the vector store directly and run queries against the index
 
 ```python
 vectorstore = DocumentDBVectorSearch.from_connection_string(
@@ -146,7 +146,7 @@ vectorstore = DocumentDBVectorSearch.from_connection_string(
     index_name=INDEX_NAME,
 )
 
-# 在查询与已导入文档之间执行相似度搜索
+# perform a similarity search between a query and the ingested documents
 query = "What did the president say about Ketanji Brown Jackson"
 docs = vectorstore.similarity_search(query)
 ```
@@ -156,17 +156,17 @@ print(docs[0].page_content)
 ```
 
 ```text
-Tonight. I call on the Senate to: Pass the Freedom to Vote Act. Pass the John Lewis Voting Rights Act. And while you're at it, pass the Disclose Act so Americans can know who is funding our elections.
+Tonight. I call on the Senate to: Pass the Freedom to Vote Act. Pass the John Lewis Voting Rights Act. And while you’re at it, pass the Disclose Act so Americans can know who is funding our elections.
 
-Tonight, I'd like to honor someone who has dedicated his life to serve this country: Justice Stephen Breyer—an Army veteran, Constitutional scholar, and retiring Justice of the United States Supreme Court. Justice Breyer, thank you for your service.
+Tonight, I’d like to honor someone who has dedicated his life to serve this country: Justice Stephen Breyer—an Army veteran, Constitutional scholar, and retiring Justice of the United States Supreme Court. Justice Breyer, thank you for your service.
 
 One of the most serious constitutional responsibilities a President has is nominating someone to serve on the United States Supreme Court.
 
-And I did that 4 days ago, when I nominated Circuit Court of Appeals Judge Ketanji Brown Jackson. One of our nation's top legal minds, who will continue Justice Breyer's legacy of excellence.
+And I did that 4 days ago, when I nominated Circuit Court of Appeals Judge Ketanji Brown Jackson. One of our nation’s top legal minds, who will continue Justice Breyer’s legacy of excellence.
 ```
 
 ```python
-# 在查询与已导入文档之间执行相似度搜索
+# perform a similarity search between a query and the ingested documents
 query = "Which stats did the President share about the U.S. economy"
 docs = vectorstore.similarity_search(query)
 ```
@@ -183,14 +183,14 @@ And it worked. It created jobs. Lots of jobs.
 In fact—our economy created over 6.5 Million new jobs just last year, more jobs created in one year
 than ever before in the history of America.
 
-Our economy grew at a rate of 5.7% last year, the strongest growth in nearly 40 years, the first step in bringing fundamental change to an economy that hasn't worked for the working people of this nation for too long.
+Our economy grew at a rate of 5.7% last year, the strongest growth in nearly 40 years, the first step in bringing fundamental change to an economy that hasn’t worked for the working people of this nation for too long.
 
 For the past 40 years we were told that if we gave tax breaks to those at the very top, the benefits would trickle down to everyone else.
 
 But that trickle-down theory led to weaker economic growth, lower wages, bigger deficits, and the widest gap between those at the top and everyone else in nearly a century.
 ```
 
-## 问答
+## Question answering
 
 ```python
 qa_retriever = vectorstore.as_retriever(
@@ -235,9 +235,9 @@ print(docs["source_documents"])
 
 <div className="source-links">
 <Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/vectorstores/documentdb.mdx) 或[提交 Issue](https://github.com/langchain-ai/docs/issues/new/choose)。
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/vectorstores/documentdb.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 <Callout icon="terminal-2">
-    通过 MCP [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，获取实时答案。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
 </Callout>
 </div>

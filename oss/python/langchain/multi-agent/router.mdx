@@ -1,39 +1,45 @@
 ---
-title: 路由器
+title: Router
 ---
 
-在**路由器**架构中，路由步骤对输入进行分类并将其定向到专业[代理](/oss/python/langchain/agents)。当你拥有不同的**垂直领域**——各自需要独立代理的分离知识域——时，这种方式非常有用。
+In the **router** architecture, a routing step classifies input and directs it to specialized [agents](/oss/python/langchain/agents). This is useful when you have distinct **verticals** (separate knowledge domains that each require their own agent).
 
 ```mermaid
 graph LR
-    A([查询]) --> B[路由器]
-    B --> C[代理 A]
-    B --> D[代理 B]
-    B --> E[代理 C]
-    C --> F[合并]
+    A([Query]) --> B[Router]
+    B --> C[Agent A]
+    B --> D[Agent B]
+    B --> E[Agent C]
+    C --> F[Synthesize]
     D --> F
     E --> F
-    F --> G([综合答案])
+    F --> G([Combined answer])
+
+    classDef trigger fill:#DCFCE7,stroke:#16A34A,stroke-width:2px,color:#14532D
+    classDef process fill:#DBEAFE,stroke:#2563EB,stroke-width:2px,color:#1E3A8A
+
+    class A,G trigger
+    class B,C,D,E,F process
 ```
 
-## 关键特征
+## Key characteristics
 
-* 路由器分解查询
-* 零个或多个专业代理并行调用
-* 结果合并为连贯的响应
+* Router decomposes the query
+* Zero or more specialized agents are invoked in parallel
+* Results are synthesized into a coherent response
 
-## 适用场景
+## When to use
 
-当你拥有不同的垂直领域（各自需要独立代理的分离知识域）、需要并行查询多个来源，并希望将结果合并为综合响应时，请使用路由器模式。
+Use the router pattern when you have distinct verticals (separate knowledge domains that each require their own agent), need to query multiple sources in parallel, and want to synthesize results into a combined response.
 
-## 基本实现
+## Basic implementation
 
-路由器对查询进行分类并将其定向到合适的代理。使用 [`Command`](/oss/python/langgraph/graph-api#command) 进行单代理路由，或使用 [`Send`](/oss/python/langgraph/graph-api#send) 并行扇出到多个代理。
+The router classifies the query and directs it to the appropriate agent(s). Use [`Command`](/oss/python/langgraph/graph-api#command) for single-agent routing or [`Send`](/oss/python/langgraph/graph-api#send) for parallel fan-out to multiple agents.
 
 <Tabs>
-<Tab title="单个代理">
+<Tab title="Single agent">
 
-使用 `Command` 路由到单个专业代理：
+Use `Command` to route to a single specialized agent:
 
 ```python
 from langgraph.types import Command
@@ -54,9 +60,9 @@ def route_query(state: State) -> Command:
 
 
 </Tab>
-<Tab title="多个代理（并行）">
+<Tab title="Multiple agents (parallel)">
 
-使用 `Send` 并行扇出到多个专业代理：
+Use `Send` to fan out to multiple specialized agents in parallel:
 
 ```python
 from typing import TypedDict
@@ -87,39 +93,39 @@ def route_query(state: State):
 </Tab>
 </Tabs>
 
-完整实现请参阅下方教程。
+For a complete implementation, see the tutorial below.
 
-<Card title="教程：使用路由构建多源知识库" icon="book" href="/oss/python/langchain/multi-agent/router-knowledge-base">
-构建一个并行查询 GitHub、Notion 和 Slack 的路由器，然后将结果合并为连贯的答案。涵盖状态定义、专业代理、使用 `Send` 并行执行以及结果合并。
+<Card title="Tutorial: Build a multi-source knowledge base with routing" icon="book" href="/oss/python/langchain/multi-agent/router-knowledge-base">
+Build a router that queries GitHub, Notion, and Slack in parallel, then synthesizes results into a coherent answer. Covers state definition, specialized agents, parallel execution with `Send`, and result synthesis.
 </Card>
 
-## 无状态与有状态
+## Stateless vs. stateful
 
-两种方式：
-* [**无状态路由器**](#stateless) 独立处理每次请求
-* [**有状态路由器**](#stateful) 在请求间维护对话历史
+Two approaches:
+* [**Stateless routers**](#stateless) address each request independently
+* [**Stateful routers**](#stateful) maintain conversation history across requests
 
-## 无状态
+## Stateless
 
-每次请求独立路由——调用之间无记忆。对于多轮对话，请参阅[有状态路由器](#stateful)。
+Each request is routed independently—no memory between calls. For multi-turn conversations, see [Stateful routers](#stateful).
 
 <Tip>
-**路由器 vs. 子代理**：两种模式都可以将工作分派给多个代理，但它们在路由决策的方式上有所不同：
+**Router vs. Subagents**: Both patterns can dispatch work to multiple agents, but they differ in how routing decisions are made:
 
-- **路由器**：专用的路由步骤（通常是单次 LLM 调用或基于规则的逻辑），对输入进行分类并分派给代理。路由器本身通常不维护对话历史或执行多轮编排——它是一个预处理步骤。
-- **子代理**：主监督代理在持续对话中动态决定调用哪些[子代理](/oss/python/langchain/multi-agent/subagents)。主代理维护上下文，可以跨轮次调用多个子代理，并编排复杂的多步骤工作流。
+- **Router**: A dedicated routing step (often a single LLM call or rule-based logic) that classifies the input and dispatches to agents. The router itself typically doesn't maintain conversation history or perform multi-turn orchestration—it's a preprocessing step.
+- **Subagents**: An main supervisor agent dynamically decides which [subagents](/oss/python/langchain/multi-agent/subagents) to call as part of an ongoing conversation. The main agent maintains context, can call multiple subagents across turns, and orchestrates complex multi-step workflows.
 
-当你有明确的输入类别并希望进行确定性或轻量级分类时，使用**路由器**。当你需要灵活的、感知对话的编排（LLM 根据不断演变的上下文决定下一步行动）时，使用**监督器**。
+Use a **router** when you have clear input categories and want deterministic or lightweight classification. Use a **supervisor** when you need flexible, conversation-aware orchestration where the LLM decides what to do next based on evolving context.
 </Tip>
 
 
-## 有状态
+## Stateful
 
-对于多轮对话，你需要在调用之间维护上下文。
+For multi-turn conversations, you need to maintain context across invocations.
 
-### 工具包装器
+### Tool wrapper
 
-最简单的方式：将无状态路由器包装为对话代理可以调用的工具。对话代理负责记忆和上下文管理；路由器保持无状态。这避免了在多个并行代理间管理对话历史的复杂性。
+The simplest approach: wrap the stateless router as a tool that a conversational agent can call. The conversational agent handles memory and context; the router stays stateless. This avoids the complexity of managing conversation history across multiple parallel agents.
 
 ```python
 @tool
@@ -138,21 +144,21 @@ conversational_agent = create_agent(
 
 
 
-### 完整持久化
+### Full persistence
 
-如果你需要路由器本身维护状态，请使用[持久化](/oss/python/langchain/short-term-memory)来存储消息历史。在路由到代理时，从状态中获取之前的消息并选择性地将其包含在代理的上下文中——这是进行[上下文工程](/oss/python/langchain/context-engineering)的一个杠杆。
+If you need the router itself to maintain state, use [persistence](/oss/python/langchain/short-term-memory) to store message history. When routing to an agent, fetch previous messages from state and selectively include them in the agent's context—this is a lever for [context engineering](/oss/python/langchain/context-engineering).
 
 <Warning>
-**有状态路由器需要自定义历史管理。** 如果路由器在轮次之间切换代理，当代理具有不同的语气或提示词时，终端用户可能感觉对话不够流畅。使用并行调用时，你需要在路由器层面维护历史（输入和合并后的输出），并在路由逻辑中利用这些历史。建议考虑[移交模式](/oss/python/langchain/multi-agent/handoffs)或[子代理模式](/oss/python/langchain/multi-agent/subagents)——两者都为多轮对话提供了更清晰的语义。
+**Stateful routers require custom history management.** If the router switches between agents across turns, conversations may not feel fluid to end users when agents have different tones or prompts. With parallel invocation, you'll need to maintain history at the router level (inputs and synthesized outputs) and leverage this history in routing logic. Consider the [handoffs pattern](/oss/python/langchain/multi-agent/handoffs) or [subagents pattern](/oss/python/langchain/multi-agent/subagents) instead—both provide clearer semantics for multi-turn conversations.
 </Warning>
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/multi-agent/router.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/multi-agent/router.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 <Callout icon="terminal-2">
-    通过 MCP [将这些文档接入](/use-these-docs) Claude、VSCode 等工具以获取实时答案。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
 </Callout>
 </div>

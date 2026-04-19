@@ -1,15 +1,15 @@
 ---
-title: "Geopandas 集成"
-description: "使用 LangChain Python 集成 Geopandas 文档加载器。"
+title: "Geopandas integration"
+description: "Integrate with the Geopandas document loader using LangChain Python."
 ---
 
-[Geopandas](https://geopandas.org/en/stable/index.html) 是一个开源项目，旨在使 Python 中的地理空间数据处理更加便捷。
+[Geopandas](https://geopandas.org/en/stable/index.html) is an open-source project to make working with geospatial data in python easier.
 
-GeoPandas 扩展了 pandas 使用的数据类型，以支持对几何类型进行空间操作。
+GeoPandas extends the datatypes used by pandas to allow spatial operations on geometric types.
 
-几何操作由 shapely 库执行。Geopandas 还依赖 fiona 进行文件访问，以及 matplotlib 进行绘图。
+Geometric operations are performed by shapely. Geopandas further depends on fiona for file access and matplotlib for plotting.
 
-利用地理空间数据的 LLM 应用（聊天、问答）是一个值得探索的有趣领域。
+LLM applications (chat, QA) that utilize geospatial data are an interesting area for exploration.
 
 ```python
 pip install -qU  sodapy
@@ -25,29 +25,29 @@ import pandas as pd
 from langchain_community.document_loaders import OpenCityDataLoader
 ```
 
-以[`Open City Data`](/oss/python/integrations/document_loaders/open_city_data)创建 GeoPandas 数据框作为示例输入。
+Create a GeoPandas dataframe from [`Open City Data`](/oss/python/integrations/document_loaders/open_city_data) as an example input.
 
 ```python
-# 加载 Open City Data
-dataset = "tmnf-yvry"  # 旧金山犯罪数据
+# Load Open City Data
+dataset = "tmnf-yvry"  # San Francisco crime data
 loader = OpenCityDataLoader(city_id="data.sfgov.org", dataset_id=dataset, limit=5000)
 docs = loader.load()
 ```
 
 ```python
-# 将字典列表转换为 DataFrame
+# Convert list of dictionaries to DataFrame
 df = pd.DataFrame([ast.literal_eval(d.page_content) for d in docs])
 
-# 提取纬度和经度
+# Extract latitude and longitude
 df["Latitude"] = df["location"].apply(lambda loc: loc["coordinates"][1])
 df["Longitude"] = df["location"].apply(lambda loc: loc["coordinates"][0])
 
-# 创建 geopandas 数据框
+# Create geopandas DF
 gdf = gpd.GeoDataFrame(
     df, geometry=gpd.points_from_xy(df.Longitude, df.Latitude), crs="EPSG:4326"
 )
 
-# 仅保留旧金山范围内有效的经纬度
+# Only keep valid longitudes and latitudes for San Francisco
 gdf = gdf[
     (gdf["Longitude"] >= -123.173825)
     & (gdf["Longitude"] <= -122.281780)
@@ -56,26 +56,26 @@ gdf = gdf[
 ]
 ```
 
-旧金山犯罪数据样本的可视化展示。
+Visualization of the sample of SF crime data.
 
 ```python
 import matplotlib.pyplot as plt
 
-# 加载旧金山地图数据
+# Load San Francisco map data
 sf = gpd.read_file("https://data.sfgov.org/resource/3psu-pn9h.geojson")
 
-# 绘制旧金山地图及数据点
+# Plot the San Francisco map and the points
 fig, ax = plt.subplots(figsize=(10, 10))
 sf.plot(ax=ax, color="white", edgecolor="black")
 gdf.plot(ax=ax, color="red", markersize=5)
 plt.show()
 ```
 
-将 GeoPandas 数据框加载为 [`Document`](https://reference.langchain.com/python/langchain-core/documents/base/Document) 以进行下游处理（嵌入、聊天等）。
+Load GeoPandas dataframe as a [`Document`](https://reference.langchain.com/python/langchain-core/documents/base/Document) for downstream processing (embedding, chat, etc).
 
-`geometry` 列将作为默认的 `page_content` 列，所有其他列将置于 `metadata` 中。
+The `geometry` will be the default `page_content` columns, and all other columns are placed in `metadata`.
 
-您也可以通过 `page_content_column` 指定其他列作为页面内容。
+You can specify the `page_content_column`.
 
 ```python
 from langchain_community.document_loaders import GeoDataFrameLoader

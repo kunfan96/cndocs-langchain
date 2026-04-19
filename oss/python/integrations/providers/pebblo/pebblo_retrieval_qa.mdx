@@ -1,48 +1,49 @@
 ---
-title: "使用 PebbloRetrievalQA 实现身份感知 RAG 集成"
-description: "使用 LangChain Python 与 PebbloRetrievalQA 实现身份感知 RAG 集成。"
+title: "Identity-enabled RAG using pebbloretrievalqa integrations"
+description: "Integrate with Identity-enabled RAG using pebbloretrievalqa using LangChain Python."
 ---
 
-> PebbloRetrievalQA 是一个针对向量数据库的带有身份和语义强制执行的检索问答链。
+> PebbloRetrievalQA is a Retrieval chain with Identity & Semantic Enforcement for question-answering
+against a vector database.
 
-本 notebook 介绍如何使用身份和语义强制执行（拒绝主题/实体）检索文档。
-有关 Pebblo 及其 SafeRetriever 功能的更多详情，请访问 [Pebblo 文档](https://daxa-ai.github.io/pebblo/retrieval_chain/)
+This notebook covers how to retrieve documents using Identity & Semantic Enforcement (Deny Topics/Entities).
+For more details on Pebblo and its SafeRetriever feature visit [Pebblo documentation](https://daxa-ai.github.io/pebblo/retrieval_chain/)
 
-### 步骤
+### Steps
 
-1. **加载文档：**
-我们将把带有授权和语义元数据的文档加载到内存中的 Qdrant 向量存储。该向量存储将用作 PebbloRetrievalQA 中的检索器。
+1. **Loading Documents:**
+We will load documents with authorization and semantic metadata into an in-memory Qdrant vectorstore. This vectorstore will be used as a retriever in PebbloRetrievalQA.
 
-> **注意：** 建议在摄取侧使用 [PebbloSafeLoader](https://daxa-ai.github.io/pebblo/rag) 作为带有认证和语义元数据的文档加载对应组件。`PebbloSafeLoader` 保证在维护元数据完整性的同时安全高效地加载文档。
+> **Note:** It is recommended to use [PebbloSafeLoader](https://daxa-ai.github.io/pebblo/rag) as the counterpart for loading documents with authentication and semantic metadata on the ingestion side. `PebbloSafeLoader` guarantees the secure and efficient loading of documents while maintaining the integrity of the metadata.
 
-2. **测试强制执行机制**：
-   我们将分别测试身份和语义强制执行。对于每个用例，我们将定义一个具有所需上下文（*auth_context* 和 *semantic_context*）的特定"ask"函数，然后提出问题。
+2. **Testing Enforcement Mechanisms**:
+   We will test Identity and Semantic Enforcement separately. For each use case, we will define a specific "ask" function with the required contexts (*auth_context* and *semantic_context*) and then pose our questions.
 
-## 设置
+## Setup
 
-### 依赖项
+### Dependencies
 
-在本演示中，我们将使用 OpenAI LLM、OpenAI 嵌入和 Qdrant 向量数据库。
+We'll use an OpenAI LLM, OpenAI embeddings and a Qdrant vector store in this walkthrough.
 
 ```python
 pip install -qU langchain langchain_core langchain-community langchain-openai qdrant_client
 ```
 
-### 身份感知数据摄取
+### Identity-aware data ingestion
 
-这里我们使用 Qdrant 作为向量数据库；但是，您可以使用任何受支持的向量数据库。
+Here we are using Qdrant as a vector database; however, you can use any of the supported vector databases.
 
-**PebbloRetrievalQA 链支持以下向量数据库：**
+**PebbloRetrievalQA chain supports the following vector databases:**
 
 - Qdrant
 - Pinecone
-- Postgres（使用 pgvector 扩展）
+- Postgres(utilizing the pgvector extension)
 
-**将授权和语义信息加载到向量数据库的元数据中：**
+**Load vector database with authorization and semantic information in metadata:**
 
-在此步骤中，我们将源文档的授权和语义信息捕获到每个块的 VectorDB 条目元数据中的 `authorized_identities`、`pebblo_semantic_topics` 和 `pebblo_semantic_entities` 字段中。
+In this step, we capture the authorization and semantic information of the source document into the `authorized_identities`, `pebblo_semantic_topics`, and `pebblo_semantic_entities` fields within the metadata of the VectorDB entry for each chunk.
 
-*注意：要使用 PebbloRetrievalQA 链，必须始终将授权和语义元数据放在指定字段中。这些字段必须包含字符串列表。*
+*NOTE: To use the PebbloRetrievalQA chain, you must always place authorization and semantic metadata in the specified fields. These fields must contain a list of strings.*
 
 ```python
 from langchain_community.vectorstores.qdrant import Qdrant
@@ -109,19 +110,20 @@ print("Vectordb loaded.")
 Vectordb loaded.
 ```
 
-## 带有身份强制执行的检索
+## Retrieval with identity enforcement
 
-PebbloRetrievalQA 链使用 SafeRetrieval 来确保用于上下文的片段仅从用户被授权的文档中检索。
-为此，Gen-AI 应用程序需要为此检索链提供授权上下文。
-此 *auth_context* 应填充访问 Gen-AI 应用的用户的身份和授权组。
+PebbloRetrievalQA chain uses a SafeRetrieval to enforce that the snippets used for in-context are retrieved only from the documents authorized for the user.
+To achieve this, the Gen-AI application needs to provide an authorization context for this retrieval chain.
+This *auth_context* should be filled with the identity and authorization groups of the user accessing the Gen-AI app.
 
-以下是 `PebbloRetrievalQA` 的示例代码，其中 `user_auth`（用户授权列表，可能包括其用户 ID 和所属组）从访问 RAG 应用的用户中传入 `auth_context`。
+Here is the sample code for the `PebbloRetrievalQA` with `user_auth`(List of user authorizations, which may include their User ID and
+    the groups they are part of) from the user accessing the RAG application, passed in `auth_context`.
 
 ```python
 from langchain_community.chains import PebbloRetrievalQA
 from langchain_community.chains.pebblo_retrieval.models import AuthContext, ChainInput
 
-# 初始化 PebbloRetrievalQA 链
+# Initialize PebbloRetrievalQA chain
 qa_chain = PebbloRetrievalQA.from_chain_type(
     llm=llm,
     retriever=vectordb.as_retriever(),
@@ -133,16 +135,16 @@ qa_chain = PebbloRetrievalQA.from_chain_type(
 
 def ask(question: str, auth_context: dict):
     """
-    向 PebbloRetrievalQA 链提问
+    Ask a question to the PebbloRetrievalQA chain
     """
     auth_context_obj = AuthContext(**auth_context) if auth_context else None
     chain_input_obj = ChainInput(query=question, auth_context=auth_context_obj)
     return qa_chain.invoke(chain_input_obj.dict())
 ```
 
-### 1. 授权用户提问
+### 1. Questions by authorized user
 
-我们为授权身份 `["finance-team", "exec-leadership"]` 摄取了数据，因此具有授权身份/组 `finance-team` 的用户应该能收到正确答案。
+We ingested data for authorized identities `["finance-team", "exec-leadership"]`, so a user with the authorized identity/group `finance-team` should receive the correct answer.
 
 ```python
 auth = {
@@ -167,9 +169,9 @@ Total assets: $80 million (20% growth)
 Debt-to-equity ratio: 0.5
 ```
 
-### 2. 未授权用户提问
+### 2. Questions by unauthorized user
 
-由于用户的授权身份/组 `eng-support` 不包含在授权身份 `["finance-team", "exec-leadership"]` 中，我们不应该收到答案。
+Since the user's authorized identity/group `eng-support` is not included in the authorized identities `["finance-team", "exec-leadership"]`, we should not receive an answer.
 
 ```python
 auth = {
@@ -190,9 +192,9 @@ Question: Share the financial performance of ACME Corp for the year 2020
 Answer:  I don't know.
 ```
 
-### 3. 使用 PromptTemplate 提供额外指令
+### 3. Using PromptTemplate to provide additional instructions
 
-您可以使用 PromptTemplate 向 LLM 提供额外指令以生成自定义响应。
+You can use PromptTemplate to provide additional instructions to the LLM for generating a custom response.
 
 ```python
 from langchain_core.prompts import PromptTemplate
@@ -210,7 +212,7 @@ question = "Share the financial performance of ACME Corp for the year 2020"
 prompt = prompt_template.format(question=question)
 ```
 
-#### 3.1 授权用户提问
+#### 3.1 questions by authorized user
 
 ```python
 auth = {
@@ -230,7 +232,7 @@ Answer:
 Revenue soared to $50 million, marking a 15% increase from the previous year, and net profit reached $12 million, showcasing a healthy margin of 24%. Total assets also grew by 20% to $80 million, and the company maintained a conservative debt-to-equity ratio of 0.5.
 ```
 
-#### 3.2 未授权用户提问
+#### 3.2 questions by unauthorized users
 
 ```python
 auth = {
@@ -250,13 +252,14 @@ Answer:
 I'm sorry, but that information is unavailable, or Access to it is restricted.
 ```
 
-## 带有语义强制执行的检索
+## Retrieval with Semantic enforcement
 
-PebbloRetrievalQA 链使用 SafeRetrieval 来确保用于上下文的片段仅从符合提供的语义上下文的文档中检索。
-为此，Gen-AI 应用程序必须为此检索链提供语义上下文。
-此 `semantic_context` 应包含应对访问 Gen-AI 应用的用户拒绝的主题和实体。
+The PebbloRetrievalQA chain uses SafeRetrieval to ensure that the snippets used in context are retrieved only from documents that comply with the
+provided semantic context.
+To achieve this, the Gen-AI application must provide a semantic context for this retrieval chain.
+This `semantic_context` should include the topics and entities that should be denied for the user accessing the Gen-AI app.
 
-以下是 PebbloRetrievalQA 的示例代码，其中 `topics_to_deny` 和 `entities_to_deny` 通过 `semantic_context` 传入链输入。
+Below is a sample code for PebbloRetrievalQA with `topics_to_deny` and `entities_to_deny`. These are passed in `semantic_context` to the chain input.
 
 ```python
 from typing import List, Optional
@@ -267,7 +270,7 @@ from langchain_community.chains.pebblo_retrieval.models import (
     SemanticContext,
 )
 
-# 初始化 PebbloRetrievalQA 链
+# Initialize PebbloRetrievalQA chain
 qa_chain = PebbloRetrievalQA.from_chain_type(
     llm=llm,
     retriever=vectordb.as_retriever(),
@@ -283,7 +286,7 @@ def ask(
     entities_to_deny: Optional[List[str]] = None,
 ):
     """
-    向 PebbloRetrievalQA 链提问
+    Ask a question to the PebbloRetrievalQA chain
     """
     semantic_context = dict()
     if topics_to_deny:
@@ -298,9 +301,9 @@ def ask(
     return qa_chain.invoke(chain_input_obj.dict())
 ```
 
-### 1. 不使用语义强制执行
+### 1. Without semantic enforcement
 
-由于未应用语义强制执行，系统应在不因语义标签排除任何上下文的情况下返回答案。
+Since no semantic enforcement is applied, the system should return the answer without excluding any context due to the semantic labels associated with the context.
 
 ```python
 topic_to_deny = []
@@ -321,10 +324,10 @@ Answer:
 Revenue for ACME Corp increased by 15% to $50 million in 2020, with a net profit of $12 million and a strong asset base of $80 million. The company also maintained a conservative debt-to-equity ratio of 0.5.
 ```
 
-### 2. 拒绝 financial-report 主题
+### 2. Deny financial-report topic
 
-数据以主题 `["financial-report"]` 摄取。
-因此，拒绝 `financial-report` 主题的应用程序不应收到答案。
+Data has been ingested with the topics: `["financial-report"]`.
+Therefore, an app that denies the `financial-report` topic should not receive an answer.
 
 ```python
 topic_to_deny = ["financial-report"]
@@ -346,9 +349,9 @@ Answer:
 Unfortunately, I do not have access to the financial performance of ACME Corp for the year 2020.
 ```
 
-### 3. 拒绝 us-bank-account-number 实体
+### 3. Deny us-bank-account-number entity
 
-由于实体 `us-bank-account-number` 被拒绝，系统不应返回答案。
+Since the entity `us-bank-account-number` is denied, the system should not return the answer.
 
 ```python
 topic_to_deny = []
@@ -372,9 +375,9 @@ Answer:  I don't have information about ACME Corp's financial performance for 20
 
 <div className="source-links">
 <Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/providers/pebblo/pebblo_retrieval_qa.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/providers/pebblo/pebblo_retrieval_qa.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 <Callout icon="terminal-2">
-    [将这些文档连接](/use-these-docs) 到 Claude、VSCode 等，通过 MCP 获取实时答案。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
 </Callout>
 </div>

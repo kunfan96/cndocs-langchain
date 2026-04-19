@@ -1,60 +1,153 @@
 ---
-title: LangGraph v1 迁移指南
+title: LangGraph v1 migration guide
 sidebarTitle: LangGraph v1
 ---
 
-LangGraph v1 是针对代理运行时的稳定性发布，保留了核心图 API 与执行模型，同时改进了类型安全、文档与开发 ergonomics（开发体验）。
+This guide outlines changes in LangGraph v1 and how to migrate from previous versions. For a high-level overview of what's new, see the [release notes](/oss/javascript/releases/langgraph-v1).
 
-它与 [LangChain v1](/oss/javascript/releases/langchain-v1) 无缝协作（LangChain 的 `createAgent` 即运行在 LangGraph 之上），你可以先使用 LangChain 快速上手，在需要时再降到 LangGraph 进行精细编排。
-
-要升级：
+To upgrade,
 
 <CodeGroup>
 ```bash npm
-npm install @langchain/langgraph @langchain/core
+npm install @langchain/langgraph@latest @langchain/core@latest
 ```
 ```bash pnpm
-pnpm add @langchain/langgraph @langchain/core
+pnpm add @langchain/langgraph@latest @langchain/core@latest
 ```
 ```bash yarn
-yarn add @langchain/langgraph @langchain/core
+yarn add @langchain/langgraph@latest @langchain/core@latest
 ```
 ```bash bun
-bun add @langchain/langgraph @langchain/core
+bun add @langchain/langgraph@latest @langchain/core@latest
 ```
 </CodeGroup>
 
-有关完整变更列表，请参见 [迁移指南](/oss/javascript/migrate/langgraph-v1)。
+## Summary of changes
 
-## `createReactAgent` 的弃用
+| Area | What changed |
+|------|--------------|
+| React prebuilt | `createReactAgent` deprecated; use LangChain `createAgent` |
+| Interrupts | Typed interrupts supported via `interrupts` config |
+| `toLangGraphEventStream` removed | Use `graph.stream` with the desired `encoding` format |
+| `useStream` | Supports custom transports |
 
-LangGraph 的 `createReactAgent` 预构建已弃用，推荐使用 LangChain 的 `createAgent`。新 API 更简洁并通过 middleware 提供更强的自定义能力。
+---
 
-## 类型化中断（Typed interrupts）
+## Deprecation: `createReactAgent` → `createAgent`
 
-`StateGraph` 构造函数现在接受中断类型的映射，可更精确地约束图中可使用的中断类型（示例见原文）。
+LangGraph v1 deprecates the `createReactAgent` prebuilt. Use LangChain's `createAgent`, which runs on LangGraph and adds a flexible middleware system.
 
-## 前端 SDK 增强
+See the LangChain v1 docs for details:
 
-### 事件流编码
+- [Release notes](/oss/javascript/releases/langchain-v1#createagent)
+- [Migration guide](/oss/javascript/migrate/langchain-v1#createagent)
 
-底层 `toLangGraphEventStream` 辅助已移除。SDK 原生处理流式响应，你可以通过向 `graph.stream` 传入 `encoding` 参数选择传输格式，方便在 SSE 与普通 JSON 间切换而无需修改 UI 逻辑。
+<CodeGroup>
+```typescript v1 (new)
+import { createAgent } from "langchain";
 
-### `useStream` 的自定义传输
+const agent = createAgent({
+  model,
+  tools,
+  systemPrompt: "You are a helpful assistant.", // [!code highlight]
+});
+```
+```typescript v0 (old)
+import { createReactAgent } from "@langchain/langgraph/prebuilts";
 
-React 的 `useStream` 钩子现在支持可插拔的传输层，便于在不改动 UI 代码情况下自定义网络层（示例见原文）。
+const agent = createReactAgent({
+  model,
+  tools,
+  prompt: "You are a helpful assistant.", // [!code highlight]
+});
+```
+</CodeGroup>
+---
 
-## 报告问题
+## Typed interrupts
 
-若在 v1 中发现任何问题，请在 GitHub 上以 `v1` 标签报告。
+You can now define interrupt types at graph construction to strictly type the values passed to and received from interrupts.
+
+<CodeGroup>
+```typescript v1 (new)
+import { StateGraph, interrupt } from "@langchain/langgraph";
+import * as z from "zod";
+
+const State = z.object({ foo: z.string() });
+
+const graphConfig = {
+  interrupts: {
+    approve: interrupt<{ reason: string }, { messages: string[] }>(),
+  },
+}
+
+const graph = new StateGraph(State, graphConfig)
+  .addNode("node", async (state, runtime) => {
+    const value = runtime.interrupt.approve({ reason: "review" }); // [!code highlight]
+    return { foo: value };
+  })
+  .compile();
+```
+```typescript v0 (old)
+import { StateGraph } from "@langchain/langgraph";
+
+const graph = new StateGraph(State)
+  .addNode("node", async (state, runtime) => {
+    const value = runtime.interrupt.approve({ reason: "review" }); // [!code highlight]
+    return state;
+  })
+  .compile();
+```
+</CodeGroup>
+
+See [Interrupts](/oss/javascript/langgraph/interrupts) to learn more.
+
+---
+
+## Event stream encoding
+
+The low-level `toLangGraphEventStream` helper is removed. Streaming responses are handled by the SDK; when using low-level clients, select the wire format via an `encoding` option passed to `graph.stream`.
+
+<CodeGroup>
+```typescript v1 (new)
+const stream = await graph.stream(input, {
+  encoding: "text/event-stream",
+  streamMode: ["values", "messages"],
+});
+
+return new Response(stream, {
+  headers: { "Content-Type": "text/event-stream" }, // [!code highlight]
+});
+```
+```typescript v0 (old)
+return toLangGraphEventStreamResponse({
+  stream: graph.streamEvents(input, {
+    version: "v2",
+    streamMode: ["values", "messages"],
+  }),
+});
+```
+</CodeGroup>
+
+---
+
+## Breaking changes
+
+### Dropped Node 18 support
+
+All LangGraph packages now require **Node.js 20 or higher**. Node.js 18 reached [end of life](https://nodejs.org/en/about/releases/) in March 2025.
+
+### New build outputs
+
+Builds for all langgraph packages now use a bundler based approach instead of using raw typescript outputs. If you were importing files from the `dist/` directory (which is not recommended), you will need to update your imports to use the new module system.
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/javascript/migrate/langgraph-v1.mdx) 或 [提交 issue](https://github.com/langchain-ai/docs/issues/new/choose)。
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/javascript/migrate/langgraph-v1.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 <Callout icon="terminal-2">
-    [将这些文档连接到 MCP 以实现实时答案](/use-these-docs)。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
 </Callout>
 </div>

@@ -1,19 +1,20 @@
 ---
-title: 结构化输出
+title: Structured output
 ---
 
 
-结构化输出允许 agents 以特定的、可预测的格式返回数据。您将获得类型化的结构化数据，而不是解析自然语言响应。
+Structured output allows agents to return data in a specific, predictable format. Instead of parsing natural language responses, you get typed structured data.
 
 <Tip>
-本页涵盖了使用 `createAgent` 的 agents 的结构化输出。要直接在模型上使用结构化输出（在 agents 之外），请参阅 [模型 - 结构化输出](/oss/javascript/langchain/models#structured-output)。
+This page covers structured output with agents using `createAgent`. To use structured output directly on a model (outside of agents), see [Models - Structured output](/oss/javascript/langchain/models#structured-output).
 </Tip>
 
-LangChain 的预构建 ReAct agent `createAgent` 自动处理结构化输出。用户设置他们期望的结构化输出模式，当模型生成结构化数据时，它会被捕获、验证并在 agent 状态的 `structuredResponse` 键中返回。
+LangChain's prebuilt ReAct agent `createAgent` handles structured output automatically. The user sets their desired structured output schema, and when the model generates the structured data, it's captured, validated, and returned in the `structuredResponse` key of the agent's state.
 
 ```ts
 type ResponseFormat = (
     | ZodSchema<StructuredResponseT> // a Zod schema
+    | StandardSchema<StructuredResponseT> // any Standard Schema library
     | Record<string, unknown> // a JSON Schema
 )
 
@@ -23,11 +24,11 @@ const agent = createAgent({
 })
 ```
 
-## 响应格式
+## Response format
 
-控制 agent 如何返回结构化数据。您可以提供 Zod 对象或 JSON schema。默认情况下，agent 使用工具调用策略，其中输出由附加的工具调用创建。某些模型支持原生结构化输出，在这种情况下，agent 将改为使用该策略。
+Controls how the agent returns structured data. You can provide a Zod schema, any [Standard Schema](https://standardschema.dev/)-compatible schema, or a JSON Schema object. By default, the agent uses a tool calling strategy, in which the output is created by an additional tool call. Certain models support native structured output, in which case the agent will use that strategy instead.
 
-您可以通过将 `ResponseFormat` 包装在 `toolStrategy` 或 `providerStrategy` 函数调用中来控制行为：
+You can control the behavior by wrapping `ResponseFormat` in a `toolStrategy` or `providerStrategy` function call:
 
 ```ts
 import { toolStrategy, providerStrategy } from "langchain";
@@ -40,10 +41,10 @@ const agent = createAgent({
 })
 ```
 
-结构化响应在 agent 最终状态的 `structuredResponse` 键中返回。
+The structured response is returned in the `structuredResponse` key of the agent's final state.
 
 <Tip>
-    如果使用 `langchain>=1.1`，对原生结构化输出功能的支持将从模型的 [配置文件数据](/oss/javascript/langchain/models#model-profiles) 中动态读取。如果数据不可用，请使用其他条件或手动指定：
+    Support for native structured output features is read dynamically from the model's [profile data](/oss/javascript/langchain/models#model-profiles) if using `langchain>=1.1`. If data are not available, use another condition or specify manually:
     ```typescript
     const customProfile: ModelProfile = {
         structuredOutput: true,
@@ -51,30 +52,31 @@ const agent = createAgent({
     }
     const model = await initChatModel("...", { profile: customProfile });
     ```
-    如果指定了工具，模型必须支持同时使用工具和结构化输出。
+    If tools are specified, the model must support simultaneous use of tools and structured output.
 </Tip>
 
 
-## 提供者策略 (Provider strategy)
+## Provider strategy
 
-一些模型提供者通过其 API 原生支持结构化输出（例如 OpenAI, xAI (Grok), Gemini, Anthropic (Claude)）。当可用时，这是最可靠的方法。
+Some model providers support structured output natively through their APIs (e.g. OpenAI, xAI (Grok), Gemini, Anthropic (Claude)). This is the most reliable method when available.
 
-要使用此策略，请配置 `ProviderStrategy`：
+To use this strategy, configure a `ProviderStrategy`:
 
 
 ```ts
 function providerStrategy<StructuredResponseT>(
-    schema: ZodSchema<StructuredResponseT> | JsonSchemaFormat
+    schema: ZodSchema<StructuredResponseT> | SerializableSchema | JsonSchemaFormat
 ): ProviderStrategy<StructuredResponseT>
 ```
 
 <ParamField path="schema" required>
-    定义结构化输出格式的模式。支持：
-    - **Zod Schema**: 一个 zod 模式
-    - **JSON Schema**: 一个 JSON 模式对象
+    The schema defining the structured output format. Supports:
+    - **Zod Schema**: A zod schema
+    - **Standard Schema**: Any schema implementing the [Standard Schema](https://standardschema.dev/) spec
+    - **JSON Schema**: A JSON schema object
 </ParamField>
 
-当您将模式类型直接传递给 `createAgent.responseFormat` 并且模型支持原生结构化输出时，LangChain 会自动使用 `ProviderStrategy`：
+LangChain automatically uses `ProviderStrategy` when you pass a schema type directly to `createAgent.responseFormat` and the model supports native structured output:
 
 <CodeGroup>
     ```ts Zod Schema
@@ -86,6 +88,33 @@ function providerStrategy<StructuredResponseT>(
         email: z.string().describe("The email address of the person"),
         phone: z.string().describe("The phone number of the person"),
     });
+
+    const agent = createAgent({
+        model: "gpt-5",
+        tools: [],
+        responseFormat: providerStrategy(ContactInfo)
+    });
+
+    const result = await agent.invoke({
+        messages: [{"role": "user", "content": "Extract contact info from: John Doe, john@example.com, (555) 123-4567"}]
+    });
+
+    console.log(result.structuredResponse);
+    // { name: "John Doe", email: "john@example.com", phone: "(555) 123-4567" }
+    ```
+
+    ```ts Standard Schema
+    import * as v from "valibot";
+    import { toStandardJsonSchema } from "@valibot/to-json-schema";
+    import { createAgent, providerStrategy } from "langchain";
+
+    const ContactInfo = toStandardJsonSchema(
+        v.object({
+            name: v.pipe(v.string(), v.description("The name of the person")),
+            email: v.pipe(v.string(), v.description("The email address of the person")),
+            phone: v.pipe(v.string(), v.description("The phone number of the person")),
+        })
+    );
 
     const agent = createAgent({
         model: "gpt-5",
@@ -131,21 +160,21 @@ function providerStrategy<StructuredResponseT>(
 </CodeGroup>
 
 
-提供者原生的结构化输出提供了高可靠性和严格的验证，因为模型提供者强制执行模式。尽量使用它。
+Provider-native structured output provides high reliability and strict validation because the model provider enforces the schema. Use it when available.
 
 
 <Note>
-    如果提供者原生支持您选择的模型的结构化输出，则编写 `responseFormat: contactInfoSchema` 与 `responseFormat: providerStrategy(contactInfoSchema)` 在功能上是等效的。
+    If the provider natively supports structured output for your model choice, it is functionally equivalent to write `responseFormat: contactInfoSchema` instead of `responseFormat: providerStrategy(contactInfoSchema)`.
 
-    在任何一种情况下，如果不支持结构化输出，agent 将回退到工具调用策略。
+    In either case, if structured output is not supported, the agent will fall back to a tool calling strategy.
 </Note>
 
 
-## 工具调用策略 (Tool calling strategy)
+## Tool calling strategy
 
-对于不支持原生结构化输出的模型，LangChain 使用工具调用来实现相同的结果。这适用于所有支持工具调用的模型（大多数现代模型）。
+For models that don't support native structured output, LangChain uses tool calling to achieve the same result. This works with all models that support tool calling (most modern models).
 
-要使用此策略，请配置 `ToolStrategy`：
+To use this strategy, configure a `ToolStrategy`:
 
 
 ```ts
@@ -153,28 +182,30 @@ function toolStrategy<StructuredResponseT>(
     responseFormat:
         | JsonSchemaFormat
         | ZodSchema<StructuredResponseT>
-        | (ZodSchema<StructuredResponseT> | JsonSchemaFormat)[]
+        | SerializableSchema
+        | (ZodSchema<StructuredResponseT> | SerializableSchema | JsonSchemaFormat)[]
     options?: ToolStrategyOptions
 ): ToolStrategy<StructuredResponseT>
 ```
 
 <ParamField path="schema" required>
-    定义结构化输出格式的模式。支持：
-    - **Zod Schema**: 一个 zod 模式
-    - **JSON Schema**: 一个 JSON 模式对象
+    The schema defining the structured output format. Supports:
+    - **Zod Schema**: A zod schema
+    - **Standard Schema**: Any schema implementing the [Standard Schema](https://standardschema.dev/) spec
+    - **JSON Schema**: A JSON schema object
 </ParamField>
 
 <ParamField path="options.toolMessageContent">
-    生成结构化输出时返回的工具消息的自定义内容。
-    如果未提供，则默认为显示结构化响应数据的消息。
+    Custom content for the tool message returned when structured output is generated.
+    If not provided, defaults to a message showing the structured response data.
 </ParamField>
 
 <ParamField path="options.handleError">
-    Options 参数，包含一个可选的 `handleError` 参数，用于自定义错误处理策略。
+    Options parameter containing an optional `handleError` parameter for customizing the error handling strategy.
 
-    - **`true`**: 使用默认错误模板捕获所有错误（默认）
-    - **`False`**: 不重试，让异常传播
-    - **`(error: ToolStrategyError) => string | Promise<string>`**: 使用提供的消息重试或抛出错误
+    - **`true`**: Catch all errors with default error template (default)
+    - **`False`**: No retry, let exceptions propagate
+    - **`(error: ToolStrategyError) => string | Promise<string>`**: retry with the provided message or throw the error
 </ParamField>
 
 <CodeGroup>
@@ -196,6 +227,33 @@ function toolStrategy<StructuredResponseT>(
 
     const result = await agent.invoke({
         "messages": [{"role": "user", "content": "Analyze this review: 'Great product: 5 out of 5 stars. Fast shipping, but expensive'"}]
+    })
+
+    console.log(result.structuredResponse);
+    // { "rating": 5, "sentiment": "positive", "keyPoints": ["fast shipping", "expensive"] }
+    ```
+
+    ```ts Standard Schema
+    import * as v from "valibot";
+    import { toStandardJsonSchema } from "@valibot/to-json-schema";
+    import { createAgent, toolStrategy } from "langchain";
+
+    const ProductReview = toStandardJsonSchema(
+        v.object({
+            rating: v.optional(v.pipe(v.number(), v.minValue(1), v.maxValue(5))),
+            sentiment: v.picklist(["positive", "negative"]),
+            keyPoints: v.pipe(v.array(v.string()), v.description("The key points of the review. Lowercase, 1-3 words each.")),
+        })
+    );
+
+    const agent = createAgent({
+        model: "gpt-5",
+        tools: [],
+        responseFormat: toolStrategy(ProductReview)
+    })
+
+    const result = await agent.invoke({
+        messages: [{"role": "user", "content": "Analyze this review: 'Great product: 5 out of 5 stars. Fast shipping, but expensive'"}]
     })
 
     console.log(result.structuredResponse);
@@ -274,9 +332,9 @@ function toolStrategy<StructuredResponseT>(
     ```
 </CodeGroup>
 
-### 自定义工具消息内容
+### Custom tool message content
 
-`toolMessageContent` 参数允许您自定义在生成结构化输出时出现在对话历史记录中的消息：
+The `toolMessageContent` parameter allows you to customize the message that appears in the conversation history when structured output is generated:
 
 ```ts
 import * as z from "zod";
@@ -313,7 +371,7 @@ console.log(result);
  */
 ```
 
-如果没有 `toolMessageContent`，我们会看到：
+Without `toolMessageContent`, we'd see:
 
 ```ts
 # console.log(result);
@@ -329,13 +387,13 @@ console.log(result);
 ```
 
 
-### 错误处理
+### Error handling
 
-通过工具调用生成结构化输出时，模型可能会犯错。LangChain 提供了智能重试机制来自动处理这些错误。
+Models can make mistakes when generating structured output via tool calling. LangChain provides intelligent retry mechanisms to handle these errors automatically.
 
-#### 多个结构化输出错误
+#### Multiple structured outputs error
 
-当模型错误地调用多个结构化输出工具时，agent 在 [`ToolMessage`](https://reference.langchain.com/javascript/langchain-core/messages/ToolMessage) 中提供错误反馈并提示模型重试：
+When a model incorrectly calls multiple structured output tools, the agent provides error feedback in a [`ToolMessage`](https://reference.langchain.com/javascript/langchain-core/messages/ToolMessage) and prompts the model to retry:
 
 
 ```ts
@@ -386,9 +444,9 @@ console.log(result);
 ```
 
 
-#### 模式验证错误
+#### Schema validation error
 
-当结构化输出与预期模式不匹配时，agent 会提供具体的错误反馈：
+When structured output doesn't match the expected schema, the agent provides specific error feedback:
 
 
 ```ts
@@ -431,11 +489,11 @@ console.log(result);
  */
 ```
 
-#### 错误处理策略
+#### Error handling strategies
 
-您可以使用 `handleErrors` 参数自定义错误的处理方式：
+You can customize how errors are handled using the `handleErrors` parameter:
 
-**自定义错误消息：**
+**Custom error message:**
 
 ```ts
 const responseFormat = toolStrategy(ProductRating, {
@@ -446,7 +504,7 @@ const responseFormat = toolStrategy(ProductRating, {
 // { role: "tool", content: "Please provide a valid rating between 1-5 and include a comment." }
 ```
 
-**仅处理特定异常：**
+**Handle specific exceptions only:**
 
 ```ts
 import { ToolInputParsingException } from "@langchain/core/tools";
@@ -464,7 +522,7 @@ const responseFormat = toolStrategy(ProductRating, {
 // { role: "tool", content: "Error: Failed to parse structured output for tool 'ProductRating': ...\n Please fix your mistakes." }
 ```
 
-**处理多种异常类型：**
+**Handle multiple exception types:**
 
 ```ts
 const responseFormat = toolStrategy(ProductRating, {
@@ -480,21 +538,21 @@ const responseFormat = toolStrategy(ProductRating, {
 )
 ```
 
-**无错误处理：**
+**No error handling:**
 
 ```ts
 const responseFormat = toolStrategy(ProductRating, {
     handleError: false  // All errors raised
-})
+)
 ```
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/structured-output.mdx) 或 [提交 issue](https://github.com/langchain-ai/docs/issues/new/choose)。
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/structured-output.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 <Callout icon="terminal-2">
-    [将这些文档连接](/use-these-docs) 到 Claude、VSCode 等，通过 MCP 获得实时解答。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
 </Callout>
 </div>

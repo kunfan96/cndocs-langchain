@@ -1,18 +1,18 @@
 ---
-title: "Postgres 集成"
-description: "使用 LangChain Python 与 Postgres 向量存储集成。"
+title: "Postgres integration"
+description: "Integrate with the Postgres vector store using LangChain Python."
 ---
 
-> [Postgres Embedding](https://github.com/neondatabase/pg_embedding) 是 `Postgres` 的开源向量相似性搜索扩展，使用 `分层可导航小世界（HNSW）` 进行近似最近邻搜索。
+> [Postgres Embedding](https://github.com/neondatabase/pg_embedding) is an open-source vector similarity search for `Postgres` that uses  `Hierarchical Navigable Small Worlds (HNSW)` for approximate nearest neighbor search.
 
->它支持：
+>It supports:
 >
->- 使用 HNSW 的精确与近似最近邻搜索
->- L2 距离
+>- exact and approximate nearest neighbor search using HNSW
+>- L2 distance
 
-本笔记本展示如何使用 Postgres 向量数据库（`PGEmbedding`）。
+This notebook shows how to use the Postgres vector database (`PGEmbedding`).
 
-> PGEmbedding 集成会为你创建 pg_embedding 扩展，但你需要运行以下 Postgres 查询来添加它：
+> The PGEmbedding integration creates the pg_embedding extension for you, but you run the following Postgres query to add it:
 
 ```sql
 CREATE EXTENSION embedding;
@@ -25,7 +25,7 @@ pip install -qU  psycopg2-binary
 pip install -qU  tiktoken
 ```
 
-将 OpenAI API 密钥添加到环境变量中，以使用 `OpenAIEmbeddings`。
+Add the OpenAI API Key to the environment variables to use `OpenAIEmbeddings`.
 
 ```python
 import getpass
@@ -92,9 +92,9 @@ for doc, score in docs_with_score:
     print("-" * 80)
 ```
 
-## 在 Postgres 中使用向量存储
+## Working with vectorstore in Postgres
 
-### 在 PG 中上传向量存储
+### Uploading a vectorstore in PG
 
 ```python
 db = PGEmbedding.from_documents(
@@ -106,9 +106,9 @@ db = PGEmbedding.from_documents(
 )
 ```
 
-### 创建 HNSW 索引
+### Create HNSW index
 
-默认情况下，扩展执行顺序扫描搜索，召回率为 100%。你可以考虑创建 HNSW 索引用于近似最近邻（ANN）搜索，以加速 `similarity_search_with_score` 的执行时间。要在向量列上创建 HNSW 索引，请使用 `create_hnsw_index` 函数：
+By default, the extension performs a sequential scan search, with 100% recall. You might consider creating an HNSW index for approximate nearest neighbor (ANN) search to speed up `similarity_search_with_score` execution time. To create the HNSW index on your vector column, use a `create_hnsw_index` function:
 
 ```python
 PGEmbedding.create_hnsw_index(
@@ -116,24 +116,24 @@ PGEmbedding.create_hnsw_index(
 )
 ```
 
-上述函数等价于运行以下 SQL 查询：
+The function above is equivalent to running the below SQL query:
 
 ```sql
 CREATE INDEX ON vectors USING hnsw(vec) WITH (maxelements=10000, dims=1536, m=3, efconstruction=16, efsearch=16);
 ```
 
-上述语句中使用的 HNSW 索引选项包括：
+The HNSW index options used in the statement above include:
 
-- maxelements：定义索引的最大元素数。这是一个必需参数。上面示例中的值为 3。实际场景中的值会大得多，例如 1000000。"元素"指数据集中的数据点（向量），在 HNSW 图中表示为节点。通常，你应将此选项设置为能容纳数据集中行数的值。
-- dims：定义向量数据中的维度数。这是一个必需参数。上面示例中使用了较小的值。如果你存储的是使用 OpenAI 的 text-embedding-ada-002 模型生成的数据（该模型支持 1536 维），则应定义值 1536。
-- m：定义图构建期间为每个节点创建的最大双向链接（也称为"边"）数。
-还支持以下附加索引选项：
+- maxelements: Defines the maximum number of elements indexed. This is a required parameter. The example shown above has a value of 3. A real-world example would have a much large value, such as 1000000. An "element" refers to a data point (a vector) in the dataset, which is represented as a node in the HNSW graph. Typically, you would set this option to a value able to accommodate the number of rows in your in your dataset.
+- dims: Defines the number of dimensions in your vector data. This is a required parameter. A small value is used in the example above. If you are storing data generated using OpenAI's text-embedding-ada-002 model, which supports 1536 dimensions, you would define a value of 1536, for example.
+- m: Defines the maximum number of bi-directional links (also referred to as "edges") created for each node during graph construction.
+The following additional index options are supported:
 
-- efConstruction：定义索引构建期间考虑的最近邻数量。默认值为 32。
-- efsearch：定义索引搜索期间考虑的最近邻数量。默认值为 32。
-有关如何配置这些选项以影响 HNSW 算法的信息，请参阅[调整 HNSW 算法](https://neon.tech/docs/extensions/pg_embedding#tuning-the-hnsw-algorithm)。
+- efConstruction: Defines the number of nearest neighbors considered during index construction. The default value is 32.
+- efsearch: Defines the number of nearest neighbors considered during index search. The default value is 32.
+For information about how you can configure these options to influence the HNSW algorithm, refer to [Tuning the HNSW algorithm](https://neon.tech/docs/extensions/pg_embedding#tuning-the-hnsw-algorithm).
 
-### 在 PG 中检索向量存储
+### Retrieving a vectorstore in PG
 
 ```python
 store = PGEmbedding(

@@ -1,25 +1,25 @@
 ---
-title: "Google Memorystore for Redis 集成"
-description: "使用 LangChain Python 集成 Google Memorystore for Redis 文档加载器。"
+title: "Google memorystore for Redis integration"
+description: "Integrate with the Google memorystore for Redis document loader using LangChain Python."
 ---
 
-> [Google Memorystore for Redis](https://cloud.google.com/memorystore/docs/redis/memorystore-for-redis-overview) 是一种完全托管的服务，由 Redis 内存数据存储提供支持，用于构建提供亚毫秒级数据访问的应用缓存。利用 Memorystore for Redis 的 LangChain 集成，扩展您的数据库应用，构建 AI 驱动的体验。
+> [Google Memorystore for Redis](https://cloud.google.com/memorystore/docs/redis/memorystore-for-redis-overview) is a fully-managed service that is powered by the Redis in-memory data store to build application caches that provide sub-millisecond data access. Extend your database application to build AI-powered experiences leveraging Memorystore for Redis's LangChain integrations.
 
-本 notebook 介绍如何使用 [Memorystore for Redis](https://cloud.google.com/memorystore/docs/redis/memorystore-for-redis-overview) 通过 `MemorystoreDocumentLoader` 和 `MemorystoreDocumentSaver` 来[保存、加载和删除 LangChain 文档](/oss/python/integrations/document_loaders)。
+This notebook goes over how to use [Memorystore for Redis](https://cloud.google.com/memorystore/docs/redis/memorystore-for-redis-overview) to [save, load and delete langchain documents](/oss/python/integrations/document_loaders) with `MemorystoreDocumentLoader` and `MemorystoreDocumentSaver`.
 
-在 [GitHub](https://github.com/googleapis/langchain-google-memorystore-redis-python/) 上了解更多关于该软件包的信息。
+Learn more about the package on [GitHub](https://github.com/googleapis/langchain-google-memorystore-redis-python/).
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/googleapis/langchain-google-memorystore-redis-python/blob/main/docs/document_loader.ipynb)
 
-## 开始之前
+## Before you begin
 
-要运行本 notebook，您需要完成以下步骤：
+To run this notebook, you will need to do the following:
 
-* [创建一个 Google Cloud 项目](https://developers.google.com/workspace/guides/create-project)
-* [启用 Memorystore for Redis API](https://console.cloud.google.com/flows/enableapi?apiid=redis.googleapis.com)
-* [创建一个 Memorystore for Redis 实例](https://cloud.google.com/memorystore/docs/redis/create-instance-console)。确保版本大于或等于 5.0。
+* [Create a Google Cloud Project](https://developers.google.com/workspace/guides/create-project)
+* [Enable the Memorystore for Redis API](https://console.cloud.google.com/flows/enableapi?apiid=redis.googleapis.com)
+* [Create a Memorystore for Redis instance](https://cloud.google.com/memorystore/docs/redis/create-instance-console). Ensure that the version is greater than or equal to 5.0.
 
-在本 notebook 的运行环境中确认可以访问数据库后，填写以下值并在运行示例脚本前先运行该单元格。
+After confirmed access to database in the runtime environment of this notebook, filling the following values and run the cell before running example scripts.
 
 ```python
 # @markdown Please specify an endpoint associated with the instance and a key prefix for demo purpose.
@@ -27,15 +27,15 @@ ENDPOINT = "redis://127.0.0.1:6379"  # @param {type:"string"}
 KEY_PREFIX = "doc:"  # @param {type:"string"}
 ```
 
-### 🦜🔗 安装库
+### 🦜🔗 Library installation
 
-该集成位于独立的 `langchain-google-memorystore-redis` 包中，需要单独安装。
+The integration lives in its own `langchain-google-memorystore-redis` package, so we need to install it.
 
 ```python
 pip install -upgrade --quiet langchain-google-memorystore-redis
 ```
 
-**仅限 Colab**：取消注释以下单元格以重启内核，或使用按钮重启内核。对于 Vertex AI Workbench，可以使用顶部的按钮重启终端。
+**Colab only**: Uncomment the following cell to restart the kernel or use the button to restart the kernel. For Vertex AI Workbench you can restart the terminal using the button on top.
 
 ```python
 # # Automatically restart kernel after installs so that your environment can access the new packages
@@ -45,15 +45,15 @@ pip install -upgrade --quiet langchain-google-memorystore-redis
 # app.kernel.do_shutdown(True)
 ```
 
-### ☁ 设置您的 Google Cloud 项目
+### ☁ Set your Google cloud project
 
-设置您的 Google Cloud 项目，以便在本 notebook 中使用 Google Cloud 资源。
+Set your Google Cloud project so that you can leverage Google Cloud resources within this notebook.
 
-如果您不知道项目 ID，请尝试以下方法：
+If you don't know your project ID, try the following:
 
-* 运行 `gcloud config list`。
-* 运行 `gcloud projects list`。
-* 查看支持页面：[查找项目 ID](https://support.google.com/googleapi/answer/7014113)。
+* Run `gcloud config list`.
+* Run `gcloud projects list`.
+* See the support page: [Locate the project ID](https://support.google.com/googleapi/answer/7014113).
 
 ```python
 # @markdown Please fill in the value below with your Google Cloud project ID and then run the cell.
@@ -64,12 +64,12 @@ PROJECT_ID = "my-project-id"  # @param {type:"string"}
 !gcloud config set project {PROJECT_ID}
 ```
 
-### 🔐 身份验证
+### 🔐 Authentication
 
-以登录本 notebook 的 IAM 用户身份对 Google Cloud 进行身份验证，以访问您的 Google Cloud 项目。
+Authenticate to Google Cloud as the IAM user logged into this notebook in order to access your Google Cloud Project.
 
-* 如果您使用 Colab 运行本 notebook，请使用下面的单元格并继续。
-* 如果您使用 Vertex AI Workbench，请查看[此处](https://github.com/GoogleCloudPlatform/generative-ai/tree/main/setup-env)的设置说明。
+* If you are using Colab to run this notebook, use the cell below and continue.
+* If you are using Vertex AI Workbench, check out the [Vertex AI Workbench setup instructions](https://github.com/GoogleCloudPlatform/generative-ai/tree/main/setup-env).
 
 ```python
 from google.colab import auth
@@ -77,16 +77,16 @@ from google.colab import auth
 auth.authenticate_user()
 ```
 
-## 基本用法
+## Basic usage
 
-### 保存文档
+### Save documents
 
-使用 `MemorystoreDocumentSaver.add_documents(<documents>)` 保存 LangChain 文档。要初始化 `MemorystoreDocumentSaver` 类，您需要提供以下两项：
+Save langchain documents with `MemorystoreDocumentSaver.add_documents(<documents>)`. To initialize `MemorystoreDocumentSaver` class you need to provide 2 things:
 
-1. `client` - 一个 `redis.Redis` 客户端对象。
-1. `key_prefix` - 用于在 Redis 中存储文档的键前缀。
+1. `client` - A `redis.Redis` client object.
+1. `key_prefix` - A prefix for the keys to store Documents in Redis.
 
-文档将以指定的 `key_prefix` 前缀和随机生成的键进行存储。您也可以通过在 `add_documents` 方法中指定 `ids` 来自定义键的后缀。
+The Documents will be stored into randomly generated keys with the specified prefix of `key_prefix`. Alternatively, you can designate the suffixes of the keys by specifying `ids` in the `add_documents` method.
 
 ```python
 import redis
@@ -118,14 +118,14 @@ saver = MemorystoreDocumentSaver(
 saver.add_documents(test_docs, ids=doc_ids)
 ```
 
-### 加载文档
+### Load documents
 
-初始化一个加载器，加载存储在 Memorystore for Redis 实例中具有特定前缀的所有文档。
+Initialize a loader that loads all documents stored in the Memorystore for Redis instance with a specific prefix.
 
-使用 `MemorystoreDocumentLoader.load()` 或 `MemorystoreDocumentLoader.lazy_load()` 加载 LangChain 文档。`lazy_load` 返回一个生成器，仅在迭代时查询数据库。要初始化 `MemorystoreDocumentLoader` 类，您需要提供：
+Load langchain documents with `MemorystoreDocumentLoader.load()` or `MemorystoreDocumentLoader.lazy_load()`. `lazy_load` returns a generator that only queries database during the iteration. To initialize `MemorystoreDocumentLoader` class you need to provide:
 
-1. `client` - 一个 `redis.Redis` 客户端对象。
-1. `key_prefix` - 用于在 Redis 中存储文档的键前缀。
+1. `client` - A `redis.Redis` client object.
+1. `key_prefix` - A prefix for the keys to store Documents in Redis.
 
 ```python
 import redis
@@ -141,9 +141,9 @@ for doc in loader.lazy_load():
     print("Loaded documents:", doc)
 ```
 
-### 删除文档
+### Delete documents
 
-使用 `MemorystoreDocumentSaver.delete()` 删除 Memorystore for Redis 实例中所有具有指定前缀的键。如果知道键的后缀，也可以指定。
+Delete all of keys with the specified prefix in the Memorystore for Redis instance with `MemorystoreDocumentSaver.delete()`. You can also specify the suffixes of the keys if you know.
 
 ```python
 docs = loader.load()
@@ -156,13 +156,13 @@ saver.delete()
 print("Documents after delete all:", loader.load())
 ```
 
-## 高级用法
+## Advanced usage
 
-### 自定义文档页面内容和元数据
+### Customize document page content & metadata
 
-当初始化加载器时指定了多个内容字段，加载的文档的 `page_content` 将包含一个 JSON 编码的字符串，其顶层字段等于 `content_fields` 中指定的字段。
+When initializing a loader with more than 1 content field, the `page_content` of the loaded Documents will contain a JSON-encoded string with top level fields equal to the specified fields in `content_fields`.
 
-如果指定了 `metadata_fields`，加载的文档的 `metadata` 字段将只包含等于指定 `metadata_fields` 的顶层字段。如果元数据字段的任何值以 JSON 编码字符串存储，则在加载到元数据字段之前会先进行解码。
+If the `metadata_fields` are specified, the `metadata` field of the loaded Documents will only have the top level fields equal to the specified `metadata_fields`. If any of the values of the metadata fields is stored as a JSON-encoded string, it will be decoded prior to being loaded to the metadata fields.
 
 ```python
 loader = MemorystoreDocumentLoader(

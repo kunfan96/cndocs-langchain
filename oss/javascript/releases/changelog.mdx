@@ -1,27 +1,40 @@
 ---
-title: 更新日志（Changelog）
-sidebarTitle: 更新日志
-description: JavaScript/TypeScript 包的更新与改进记录
+title: Changelog
+sidebarTitle: Changelog
+description: Log of updates and improvements to our JavaScript/TypeScript packages
 rss: true
 ---
 
-<Callout icon="rss" color="#504B5F" iconType="regular">
-**订阅**：我们的更新日志包含 [RSS 订阅](https://docs.langchain.com/oss/javascript/releases/changelog/rss.xml)，可与 Slack、邮件、Discord 机器人等集成。
+<Callout icon="rss" color="#4F46E5" iconType="regular">
+**Subscribe**: Our changelog includes an [RSS feed](https://docs.langchain.com/oss/javascript/releases/changelog/rss.xml) that can integrate with [Slack](https://slack.com/help/articles/218688467-Add-RSS-feeds-to-Slack), [email](https://zapier.com/apps/email/integrations/rss/1441/send-new-rss-feed-entries-via-email), Discord bots like [Readybot](https://readybot.io/) or [RSS Feeds to Discord Bot](https://rss.app/en/bots/rssfeeds-discord-bot), and other subscription tools.
 </Callout>
 
+<Update label="Mar 24, 2026" tags={["deepagents"]} rss={{ title: "Mar 24, 2026 - deepagents" }}>
+    ## `deepagents` v1.9.0-alpha.0
+
+    Alpha release of `deepagents` v1.9.0.
+
+    - **[Async subagents](/oss/javascript/deepagents/async-subagents)**: Deep Agents can launch non-blocking background tasks, so users can continue interacting with the agent while subagents work concurrently. Requires [LangSmith Deployment](/langsmith/deployment) for sub-agents.
+
+    - **[Backend](/oss/javascript/deepagents/backends) protocol v2**: We've introduced a new v2 backend protocol (`BackendProtocolV2`) with backward-compatible changes to the Deep Agents backend interface. Key changes:
+      - **Structured result types**: All methods now return structured `Result` objects (e.g., `ReadResult`, `LsResult`, `GrepResult`, `GlobResult`) with consistent error handling via an `error` field, instead of returning raw values or throwing exceptions.
+      - **Multi-modal file support**: `read()` returns a `ReadResult` with a `.content` field instead of a plain string. For binary files (images, PDFs, audio, video), the full raw `Uint8Array` content is returned via `readRaw()`, enabling agents to work with multi-modal files natively.
+      - **Simplified method names**: `lsInfo` -> `ls`, `grepRaw` -> `grep`, `globInfo` -> `glob`.
+      - **Backward compatible**: Existing v1 backends can be adapted to the v2 interface using `adaptBackendProtocol`. The v1 interfaces (`BackendProtocolV1`, `SandboxBackendProtocolV1`) are deprecated but retained for compatibility.
+</Update>
 <Update label="Jan 14, 2026" tags={["langgraph"]} rss={{ title: "Jan 14, 2026 - langgraph" }}>
     ## v1.1.0
 
     ### `@langchain/langgraph`
 
-    引入 **StateSchema** —— 一种更清晰、与库无关的方式来定义图状态，适用于任何兼容 Standard Schema 规范的验证库。
+    Introducing **StateSchema** - a cleaner, library-agnostic way to define graph state that works with any [Standard Schema](https://github.com/standard-schema/standard-schema)-compliant validation library.
 
-    ### 支持标准 JSON Schema
+    ### Standard JSON Schema support
 
-    LangGraph 现在支持 [Standard JSON Schema](https://standardschema.dev/json-schema)，该规范被 Zod 4、Valibot、ArkType 等实现。你可以使用你偏好的验证库而不被绑定：
+    LangGraph now supports [Standard JSON Schema](https://standardschema.dev/json-schema), an open specification implemented by Zod 4, Valibot, ArkType, and other schema libraries. This means you can use your preferred validation library without lock-in:
 
     ```typescript
-    import { z } from "zod"; // 或 valibot、arktype 等
+    import { z } from "zod"; // or valibot, arktype, etc.
     import { StateSchema, ReducedValue, MessagesValue } from "@langchain/langgraph";
 
     const AgentState = new StateSchema({
@@ -36,62 +49,113 @@ rss: true
         }
       ),
     });
+
+    // Type-safe state and update types
+    type State = typeof AgentState.State;
+    type Update = typeof AgentState.Update;
+
+    const graph = new StateGraph(AgentState)
+      .addNode("agent", (state) => ({ count: state.count + 1 }))
+      .addEdge(START, "agent")
+      .addEdge("agent", END)
+      .compile();
     ```
 
-    ### 新的状态值原语
+    ### New state value primitives
 
-    * **ReducedValue**：定义具有自定义 reducer 的字段以进行累积。
-    * **UntrackedValue**：定义在执行期间存在但不会被检查点持久化的瞬态状态（用于数据库连接、缓存或仅运行时配置）。
-    * **MessagesValue**：用于聊天消息的预构建 ReducedValue，含标准消息 reducer。
+    * **ReducedValue**: Define fields with custom reducers for accumulating values. Supports separate input and output schemas for type-safe reducer inputs.
+    * **UntrackedValue**: Define transient state that exists during execution but is never checkpointed - useful for database connections, caches, or runtime-only configuration.
+    * **MessagesValue**: A prebuilt `ReducedValue` for chat messages with the standard messages reducer.
 
-    ### 类型辅助导出
+    ### Type helper exports
 
-    新增导出类型工具用于在图构建器之外为函数添加类型：例如 `GraphNode`、`ConditionalEdgeRouter` 等（示例见原文）。
+    New exported type utilities for typing functions outside the graph builder:
 
+    * `GraphNode<Schema, Nodes?, Config?>` - Type node functions with full inference
+    * `ConditionalEdgeRouter<Schema, Nodes?>` - Type conditional edge routers
+
+    ```typescript
+    // Type standalone node functions
+    const myNode: GraphNode<typeof AgentState> = (state, config) => {
+      return { count: state.count + 1 };
+    };
+
+    // Use schema type helpers directly
+    const processState = (state: typeof AgentState.State) => {
+      console.log(state.count);
+    };
+    ```
+
+    The existing `Annotation` and zod-based API continues to work unchanged - `StateSchema` is an additional option for those who prefer schema-first definitions.
+
+    <Card title="Learn more about StateSchema" icon="book" href="/oss/javascript/langgraph/graph-api#schema">
+      See the full documentation for defining graph state with StateSchema, ReducedValue, and UntrackedValue.
+    </Card>
+    <Card title="Learn about type utilities" icon="code" href="/oss/javascript/langgraph/graph-api#type-utilities">
+      Use GraphNode and ConditionalEdgeRouter to type functions outside the graph builder.
+    </Card>
 </Update>
-
-<Update label="Dec 12, 2025" tags={["langchain","@langchain/openai","@langchain/anthropic","@langchain/ollama","@langchain/community","@langchain/xai","@langchain/tavily","@langchain/mongodb","@langchain/mcp-adapters","@langchain/google-common","@langchain/core"]} rss={{ title: "Dec 12, 2025 - langchain" }}>
+<Update label="Dec 12, 2025" tags={["langchain", "@langchain/openai", "@langchain/anthropic", "@langchain/ollama", "@langchain/community", "@langchain/xai", "@langchain/tavily", "@langchain/mongodb", "@langchain/mcp-adapters", "@langchain/google-common", "@langchain/core"]} rss={{ title: "Dec 12, 2025 - langchain" }}>
     ## v1.2.0
     ### `langchain`
-    * [结构化输出](/oss/javascript/langchain/structured-output)：为 `providerStrategy` 添加手动设置 `strict` 模式的能力。
+    * [Structured output](/oss/javascript/langchain/structured-output): Added ability to manually set `strict` mode when using `providerStrategy` for structured output.
 
     ### `@langchain/openai`
-    * **新的内置提供者工具**：支持文件搜索、网页搜索、代码解释器、图像生成、计算机操作、Shell 和 MCP 连接器等工具。
-    * **内容审核**：为 `ChatOpenAI` 添加 `moderateContent` 选项以检测并处理不安全内容。
+    * **New provider built-in tools:** Support for file search, web search, code interpreter, image generation, computer use, shell, and MCP connector tools executed server-side by the provider. See [Server-side tool use](/oss/javascript/langchain/tools#server-side-tool-use) and the [OpenAI](/oss/javascript/integrations/chat/openai) chat integration.
+    * **Content moderation:** New `moderateContent` option on `ChatOpenAI` for detecting and handling unsafe content.
+    * Prefer responses API for GPT-5.2 Pro model.
 
     ## v1.3.0
     ### `@langchain/anthropic`
-    * **新内置工具**：支持文本编辑器、网页抓取、计算机操作、工具搜索及 MCP 工具集。
-    * 暴露 `ChatAnthropicInput` 类型以提高类型安全。
+    * **New provider built-in tools:** Support for text editor, web fetch, computer use, tool search, and MCP toolset tools executed server-side by the provider. See [Server-side tool use](/oss/javascript/langchain/tools#server-side-tool-use) and the [Anthropic](/oss/javascript/integrations/chat/anthropic) chat integration.
+    * Exposed `ChatAnthropicInput` type for improved type safety.
 
-    ## 其他包更新（节选）
-    * `@langchain/ollama`：原生结构化输出支持、可自定义 `baseUrl`。
-    * `@langchain/community`、`@langchain/xai`、`@langchain/mongodb` 等包的若干改进和修复。
+    ## v1.1.0
+    ### `@langchain/ollama`
+    * **Native structured outputs:** Added support for native structured output via `withStructuredOutput`.
+    * Support for custom `baseUrl` configuration.
 
+    ## v1.0.0
+    ### `@langchain/community`
+    * Jira document loader updated to use v3 API.
+    * LanceDB: Added `similaritySearch()` and `similaritySearchWithScore()` support.
+    * Elasticsearch hybrid search support.
+    * New `GoogleCalendarDeleteTool`.
+    * Various bug fixes for LlamaCppEmbeddings, PrismaVectorStore, IBM WatsonX, and security improvements.
+
+    ### Other packages
+    * **@langchain/xai:** Native Live Search support.
+    * **@langchain/tavily:** Added Tavily's research endpoint.
+    * **@langchain/mongodb:** New MongoDB LLM cache.
+    * **@langchain/mcp-adapters:** Added `onConnectionError` option.
+    * **@langchain/google-common:** `jsonSchema` method support in `withStructuredOutput`.
+    * **@langchain/core:** Security fixes, better subgraph nesting in Mermaid graphs, UUID7 for run IDs.
 </Update>
-
 <Update label="Nov 25, 2025" tags={["langchain"]} rss={{ title: "Nov 25, 2025 - langchain" }}>
     ## v1.1.0
 
-    * [模型配置文件]( /oss/javascript/langchain/models#model-profiles )：聊天模型现在通过 `.profile` 暴露支持的特性和能力。
-    * [模型重试中间件](/oss/javascript/langchain/middleware/built-in#model-retry)：用于自动重试失败的模型调用。
-    * [内容审核中间件](/oss/javascript/langchain/middleware/built-in#content-moderation)：用于检测并处理不安全内容。
-    * 更多改进与修复（详见原文）。
+    * [Model profiles](/oss/javascript/langchain/models#model-profiles): Chat models now expose supported features and capabilities through a `.profile` getter. These data are derived from [models.dev](https://models.dev), an open source project providing model capability data.
+    * [Model retry middleware](/oss/javascript/langchain/middleware/built-in#model-retry): New middleware for automatically retrying failed model calls with configurable exponential backoff, improving agent reliability.
+    * [Content moderation middleware](/oss/javascript/langchain/middleware/built-in#provider-specific-middleware): OpenAI content moderation middleware for detecting and handling unsafe content in agent interactions. Supports checking user input, model output, and tool results.
+    * [Summarization middleware](/oss/javascript/langchain/middleware/built-in#summarization): Updated to support flexible trigger points using model profiles for context-aware summarization.
+    * [Structured output](/oss/javascript/langchain/structured-output): `ProviderStrategy` support (native structured output) can now be inferred from model profiles.
+    * [`SystemMessage` for `createAgent`](/oss/javascript/langchain/middleware/custom#dynamic-prompt): Support for passing `SystemMessage` instances directly to `createAgent`'s `systemPrompt` parameter and a new `concat` method for extending system messages. Enables advanced features like cache control and structured content blocks.
+    * [Dynamic system prompt middleware](/oss/javascript/langchain/agents#dynamic-system-prompt): Return values from `dynamicSystemPromptMiddleware` are now purely additive. When returning a [`SystemMessage`](https://reference.langchain.com/javascript/langchain-core/messages/SystemMessage) or `string`, they are merged with existing system messages rather than replacing them, making it easier to compose multiple middleware that modify the prompt.
+    * **Compatibility improvements:** Fixed error handling for Zod v4 validation errors in structured output and tool schemas, ensuring detailed error messages are properly displayed.
 </Update>
-
-<Update label="Oct 20, 2025" tags={["langchain","langgraph"]} rss={{ title: "Oct 20, 2025 - langchain" }}>
+<Update label="Oct 20, 2025" tags={["langchain", "langgraph"]} rss={{ title: "Oct 20, 2025 - langchain" }}>
     ## v1.0.0
 
     ### `langchain`
-    * [发行说明](/oss/javascript/releases/langchain-v1)
-    * [迁移指南](/oss/javascript/migrate/langchain-v1)
+    * [Release notes](/oss/javascript/releases/langchain-v1)
+    * [Migration guide](/oss/javascript/migrate/langchain-v1)
 
     ### `langgraph`
-    * [发行说明](/oss/javascript/releases/langgraph-v1)
-    * [迁移指南](/oss/javascript/migrate/langgraph-v1)
+    * [Release notes](/oss/javascript/releases/langgraph-v1)
+    * [Migration guide](/oss/javascript/migrate/langgraph-v1)
 
-    <Callout icon="speakerphone" color="#504B5F" iconType="regular">
-    如果遇到问题或有反馈，请在 GitHub 提交 issue。要查看 v0.x 文档，请访问存档内容。
+    <Callout icon="speakerphone" color="#4F46E5" iconType="regular">
+    If you encounter any issues or have feedback, please [open an issue](https://github.com/langchain-ai/docs/issues/new?template=01-langchain.yml) so we can improve. To view v0.x documentation, [go to the archived content](https://github.com/langchain-ai/langchainjs/tree/v0.3/docs/core_docs/docs).
     </Callout>
 </Update>
 
@@ -99,9 +163,9 @@ rss: true
 
 <div className="source-links">
 <Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/javascript/releases/changelog.mdx) 或 [提交 issue](https://github.com/langchain-ai/docs/issues/new/choose)。
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/javascript/releases/changelog.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 <Callout icon="terminal-2">
-    [将这些文档连接到 MCP 以实现实时答案](/use-these-docs)。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
 </Callout>
 </div>

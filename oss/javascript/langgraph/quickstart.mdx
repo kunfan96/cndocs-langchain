@@ -1,26 +1,33 @@
 ---
-title: 快速入门
+title: Quickstart
 ---
 
 
 
-本快速入门演示如何使用 LangGraph Graph API 或 Functional API 构建计算器代理。
+This quickstart demonstrates how to build a calculator agent using the LangGraph Graph API or the Functional API.
 
-- 如果你喜欢将代理定义为节点和边的图，请[使用 Graph API](#use-the-graph-api)。
-- 如果你喜欢将代理定义为单个函数，请[使用 Functional API](#use-the-functional-api)。
+<Tip>
+    **Using an AI coding assistant?**
 
-有关概念信息，请参阅 [Graph API 概述](/oss/javascript/langgraph/graph-api)和 [Functional API 概述](/oss/javascript/langgraph/functional-api)。
+    - Install the [LangChain Docs MCP server](/use-these-docs) to give your agent access to up-to-date LangChain documentation and examples.
+    - Install [LangChain Skills](https://github.com/langchain-ai/langchain-skills) to improve your agent's performance on LangChain ecosystem tasks.
+</Tip>
+
+- [Use the Graph API](#use-the-graph-api) if you prefer to define your agent as a graph of nodes and edges.
+- [Use the Functional API](#use-the-functional-api) if you prefer to define your agent as a single function.
+
+For conceptual information, see [Graph API overview](/oss/javascript/langgraph/graph-api) and [Functional API overview](/oss/javascript/langgraph/functional-api).
 
 <Info>
-对于此示例，你需要设置一个 [Claude (Anthropic)](https://www.anthropic.com/) 帐户并获取 API 密钥。然后，在终端中设置 `ANTHROPIC_API_KEY` 环境变量。
+For this example, you will need to set up a [Claude (Anthropic)](https://www.anthropic.com/) account and get an API key. Then, set the `ANTHROPIC_API_KEY` environment variable in your terminal.
 </Info>
 
 <Tabs>
-<Tab title="使用 Graph API">
+<Tab title="Use the Graph API">
 
-## 1. 定义工具和模型
+## 1. Define tools and model
 
-在这个例子中，我们将使用 Claude Sonnet 4.5 模型并定义加法、乘法和除法工具。
+In this example, we'll use the Claude Sonnet 4.5 model and define tools for addition, multiplication, and division.
 
 
 
@@ -34,7 +41,7 @@ const model = new ChatAnthropic({
   temperature: 0,
 });
 
-// 定义工具
+// Define tools
 const add = tool(({ a, b }) => a + b, {
   name: "add",
   description: "Add two numbers",
@@ -62,7 +69,7 @@ const divide = tool(({ a, b }) => a / b, {
   }),
 });
 
-// 将工具绑定到 LLM
+// Augment the LLM with tools
 const toolsByName = {
   [add.name]: add,
   [multiply.name]: multiply,
@@ -73,16 +80,16 @@ const modelWithTools = model.bindTools(tools);
 ```
 
 
-## 2. 定义状态
+## 2. Define state
 
-图的状态用于存储消息和 LLM 调用的次数。
+The graph's state is used to store the messages and the number of LLM calls.
 
 
 
 <Tip>
-    LangGraph 中的状态在代理执行期间持续存在。
+    State in LangGraph persists throughout the agent's execution.
 
-    `MessagesValue` 提供了一个内置的 reducer 用于追加消息。`llmCalls` 字段使用带有 `(x, y) => x + y` 的 `ReducedValue` 来累积计数。
+    The `MessagesValue` provides a built-in reducer for appending messages. The `llmCalls` field uses a `ReducedValue` with `(x, y) => x + y` to accumulate the count.
 </Tip>
 
 
@@ -112,9 +119,9 @@ const MessagesState = new StateSchema({
 ```
 
 
-## 3. 定义模型节点
+## 3. Define model node
 
-模型节点用于调用 LLM 并决定是否调用工具。
+The model node is used to call the LLM and decide whether to call a tool or not.
 
 
 
@@ -136,9 +143,9 @@ const llmCall: GraphNode<typeof MessagesState> = async (state) => {
 ```
 
 
-## 4. 定义工具节点
+## 4. Define tool node
 
-工具节点用于调用工具并返回结果。
+The tool node is used to call the tools and return the results.
 
 
 
@@ -164,9 +171,9 @@ const toolNode: GraphNode<typeof MessagesState> = async (state) => {
 ```
 
 
-## 5. 定义结束逻辑
+## 5. Define end logic
 
-条件边函数用于根据 LLM 是否进行工具调用来路由到工具节点或结束。
+The conditional edge function is used to route to the tool node or end based upon whether the LLM made a tool call.
 
 
 
@@ -174,25 +181,25 @@ const toolNode: GraphNode<typeof MessagesState> = async (state) => {
 const shouldContinue: ConditionalEdgeRouter<typeof MessagesState, "toolNode"> = (state) => {
   const lastMessage = state.messages.at(-1);
 
-  // 在访问 tool_calls 之前检查是否为 AIMessage
+  // Check if it's an AIMessage before accessing tool_calls
   if (!lastMessage || !AIMessage.isInstance(lastMessage)) {
     return END;
   }
 
-  // 如果 LLM 进行了工具调用，则执行操作
+  // If the LLM makes a tool call, then perform an action
   if (lastMessage.tool_calls?.length) {
     return "toolNode";
   }
 
-  // 否则，停止（回复用户）
+  // Otherwise, we stop (reply to the user)
   return END;
 };
 ```
 
 
-## 6. 构建和编译代理
+## 6. Build and compile the agent
 
-代理使用 [`StateGraph`](https://reference.langchain.com/javascript/langchain-langgraph/index/StateGraph) 类构建，并使用 [`compile`](https://reference.langchain.com/javascript/classes/_langchain_langgraph.index.StateGraph.html#compile) 方法编译。
+The agent is built using the [`StateGraph`](https://reference.langchain.com/javascript/langchain-langgraph/index/StateGraph) class and compiled using the [`compile`](https://reference.langchain.com/javascript/classes/_langchain_langgraph.index.StateGraph.html#compile) method.
 
 
 
@@ -205,7 +212,7 @@ const agent = new StateGraph(MessagesState)
   .addEdge("toolNode", "llmCall")
   .compile();
 
-// 调用
+// Invoke
 import { HumanMessage } from "@langchain/core/messages";
 const result = await agent.invoke({
   messages: [new HumanMessage("Add 3 and 4.")],
@@ -218,16 +225,16 @@ for (const message of result.messages) {
 
 
 <Tip>
-    要了解如何使用 LangSmith 跟踪你的代理，请参阅 [LangSmith 文档](/langsmith/trace-with-langgraph)。
+    To learn how to trace your agent with LangSmith, see the [LangSmith documentation](/langsmith/trace-with-langgraph).
 </Tip>
 
-恭喜！你已经使用 LangGraph Graph API 构建了你的第一个代理。
+Congratulations! You've built your first agent using the LangGraph Graph API.
 
-<Accordion title="完整代码示例">
+<Accordion title="Full code example">
 
 
 ```typescript
-// 第一步：定义工具和模型
+// Step 1: Define tools and model
 
 import { ChatAnthropic } from "@langchain/anthropic";
 import { tool } from "@langchain/core/tools";
@@ -238,7 +245,7 @@ const model = new ChatAnthropic({
   temperature: 0,
 });
 
-// 定义工具
+// Define tools
 const add = tool(({ a, b }) => a + b, {
   name: "add",
   description: "Add two numbers",
@@ -266,7 +273,7 @@ const divide = tool(({ a, b }) => a / b, {
   }),
 });
 
-// 将工具绑定到 LLM
+// Augment the LLM with tools
 const toolsByName = {
   [add.name]: add,
   [multiply.name]: multiply,
@@ -276,7 +283,7 @@ const tools = Object.values(toolsByName);
 const modelWithTools = model.bindTools(tools);
 ```
 ```typescript
-// 第二步：定义状态
+// Step 2: Define state
 
 import {
   StateGraph,
@@ -299,7 +306,7 @@ const MessagesState = new StateSchema({
 });
 ```
 ```typescript
-// 第三步：定义模型节点
+// Step 3: Define model node
 
 import { SystemMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
 
@@ -315,7 +322,7 @@ const llmCall: GraphNode<typeof MessagesState> = async (state) => {
   };
 };
 
-// 第四步：定义工具节点
+// Step 4: Define tool node
 
 const toolNode: GraphNode<typeof MessagesState> = async (state) => {
   const lastMessage = state.messages.at(-1);
@@ -335,28 +342,28 @@ const toolNode: GraphNode<typeof MessagesState> = async (state) => {
 };
 ```
 ```typescript
-// 第五步：定义决定是否结束的逻辑
+// Step 5: Define logic to determine whether to end
 import { ConditionalEdgeRouter, END } from "@langchain/langgraph";
 
 const shouldContinue: ConditionalEdgeRouter<typeof MessagesState, "toolNode"> = (state) => {
   const lastMessage = state.messages.at(-1);
 
-  // 在访问 tool_calls 之前检查是否为 AIMessage
+  // Check if it's an AIMessage before accessing tool_calls
   if (!lastMessage || !AIMessage.isInstance(lastMessage)) {
     return END;
   }
 
-  // 如果 LLM 进行了工具调用，则执行操作
+  // If the LLM makes a tool call, then perform an action
   if (lastMessage.tool_calls?.length) {
     return "toolNode";
   }
 
-  // 否则，停止（回复用户）
+  // Otherwise, we stop (reply to the user)
   return END;
 };
 ```
 ```typescript
-// 第六步：构建并编译代理
+// Step 6: Build and compile the agent
 import { HumanMessage } from "@langchain/core/messages";
 import { StateGraph, START, END } from "@langchain/langgraph";
 
@@ -368,7 +375,7 @@ const agent = new StateGraph(MessagesState)
   .addEdge("toolNode", "llmCall")
   .compile();
 
-// 调用
+// Invoke
 const result = await agent.invoke({
   messages: [new HumanMessage("Add 3 and 4.")],
 });
@@ -381,11 +388,11 @@ for (const message of result.messages) {
 </Accordion>
 </Tab>
 
-<Tab title="使用 Functional API">
+<Tab title="Use the Functional API">
 
-## 1. 定义工具和模型
+## 1. Define tools and model
 
-在这个例子中，我们将使用 Claude Sonnet 4.5 模型并定义加法、乘法和除法工具。
+In this example, we'll use the Claude Sonnet 4.5 model and define tools for addition, multiplication, and division.
 
 
 
@@ -399,7 +406,7 @@ const model = new ChatAnthropic({
   temperature: 0,
 });
 
-// 定义工具
+// Define tools
 const add = tool(({ a, b }) => a + b, {
   name: "add",
   description: "Add two numbers",
@@ -427,7 +434,7 @@ const divide = tool(({ a, b }) => a / b, {
   }),
 });
 
-// 将工具绑定到 LLM
+// Augment the LLM with tools
 const toolsByName = {
   [add.name]: add,
   [multiply.name]: multiply,
@@ -435,12 +442,13 @@ const toolsByName = {
 };
 const tools = Object.values(toolsByName);
 const modelWithTools = model.bindTools(tools);
+
 ```
 
 
-## 2. 定义模型节点
+## 2. Define model node
 
-模型节点用于调用 LLM 并决定是否调用工具。
+The model node is used to call the LLM and decide whether to call a tool or not.
 
 
 
@@ -459,9 +467,9 @@ const callLlm = task({ name: "callLlm" }, async (messages: BaseMessage[]) => {
 ```
 
 
-## 3. 定义工具节点
+## 3. Define tool node
 
-工具节点用于调用工具并返回结果。
+The tool node is used to call the tools and return the results.
 
 
 
@@ -475,7 +483,7 @@ const callTool = task({ name: "callTool" }, async (toolCall: ToolCall) => {
 ```
 
 
-## 4. 定义代理
+## 4. Define agent
 
 
 
@@ -491,7 +499,7 @@ const agent = entrypoint({ name: "agent" }, async (messages: BaseMessage[]) => {
       break;
     }
 
-    // 执行工具
+    // Execute tools
     const toolResults = await Promise.all(
       modelResponse.tool_calls.map((toolCall) => callTool(toolCall))
     );
@@ -502,7 +510,7 @@ const agent = entrypoint({ name: "agent" }, async (messages: BaseMessage[]) => {
   return messages;
 });
 
-// 调用
+// Invoke
 import { HumanMessage } from "@langchain/core/messages";
 
 const result = await agent.invoke([new HumanMessage("Add 3 and 4.")]);
@@ -514,12 +522,12 @@ for (const message of result) {
 
 
 <Tip>
-    要了解如何使用 LangSmith 跟踪你的代理，请参阅 [LangSmith 文档](/langsmith/trace-with-langgraph)。
+    To learn how to trace your agent with LangSmith, see the [LangSmith documentation](/langsmith/trace-with-langgraph).
 </Tip>
 
-恭喜！你已经使用 LangGraph Functional API 构建了你的第一个代理。
+Congratulations! You've built your first agent using the LangGraph Functional API.
 
-<Accordion title="完整代码示例" icon="code">
+<Accordion title="Full code example" icon="code">
 
 
 ```typescript
@@ -538,14 +546,14 @@ import {
 import type { ToolCall } from "@langchain/core/messages/tool";
 import * as z from "zod";
 
-// 第一步：定义工具和模型
+// Step 1: Define tools and model
 
 const model = new ChatAnthropic({
   model: "claude-sonnet-4-6",
   temperature: 0,
 });
 
-// 定义工具
+// Define tools
 const add = tool(({ a, b }) => a + b, {
   name: "add",
   description: "Add two numbers",
@@ -573,7 +581,7 @@ const divide = tool(({ a, b }) => a / b, {
   }),
 });
 
-// 将工具绑定到 LLM
+// Augment the LLM with tools
 const toolsByName = {
   [add.name]: add,
   [multiply.name]: multiply,
@@ -582,7 +590,7 @@ const toolsByName = {
 const tools = Object.values(toolsByName);
 const modelWithTools = model.bindTools(tools);
 
-// 第二步：定义模型节点
+// Step 2: Define model node
 
 const callLlm = task({ name: "callLlm" }, async (messages: BaseMessage[]) => {
   return modelWithTools.invoke([
@@ -593,14 +601,14 @@ const callLlm = task({ name: "callLlm" }, async (messages: BaseMessage[]) => {
   ]);
 });
 
-// 第三步：定义工具节点
+// Step 3: Define tool node
 
 const callTool = task({ name: "callTool" }, async (toolCall: ToolCall) => {
   const tool = toolsByName[toolCall.name];
   return tool.invoke(toolCall);
 });
 
-// 第四步：定义代理
+// Step 4: Define agent
 
 const agent = entrypoint({ name: "agent" }, async (messages: BaseMessage[]) => {
   let modelResponse = await callLlm(messages);
@@ -610,7 +618,7 @@ const agent = entrypoint({ name: "agent" }, async (messages: BaseMessage[]) => {
       break;
     }
 
-    // 执行工具
+    // Execute tools
     const toolResults = await Promise.all(
       modelResponse.tool_calls.map((toolCall) => callTool(toolCall))
     );
@@ -621,7 +629,7 @@ const agent = entrypoint({ name: "agent" }, async (messages: BaseMessage[]) => {
   return messages;
 });
 
-// 调用
+// Invoke
 
 const result = await agent.invoke([new HumanMessage("Add 3 and 4.")]);
 
@@ -638,9 +646,9 @@ for (const message of result) {
 
 <div className="source-links">
 <Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/quickstart.mdx) 或 [提交 issue](https://github.com/langchain-ai/docs/issues/new/choose)。
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/quickstart.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 <Callout icon="terminal-2">
-    [将这些文档连接](/use-these-docs) 到 Claude、VSCode 等，通过 MCP 获取实时解答。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
 </Callout>
 </div>

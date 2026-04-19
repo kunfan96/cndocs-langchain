@@ -1,36 +1,44 @@
 ---
-title: 技能
+title: Skills
 ---
 
-在**技能**架构中，专业能力被打包为可调用的"技能"，用于增强[代理](/oss/python/langchain/agents)的行为。技能主要是由提示词驱动的专业化能力，代理可以按需调用。
-如需了解内置技能支持，请参阅 [Deep Agents](/oss/python/deepagents/skills)。
+In the **skills** architecture, specialized capabilities are packaged as invocable "skills" that augment an [agent's](/oss/python/langchain/agents) behavior. Skills are primarily prompt-driven specializations that an agent can invoke on-demand.
+For built-in skill support, see [Deep Agents](/oss/python/deepagents/skills).
 
 <Tip>
-此模式在概念上与 [Agent Skills](https://agentskills.io/) 和 [llms.txt](https://llmstxt.org/)（由 Jeremy Howard 提出）相同，后者使用工具调用实现文档的渐进式披露。技能模式将渐进式披露应用于专业提示词和领域知识，而不仅仅是文档页面。
+This pattern is conceptually identical to [Agent Skills](https://agentskills.io/) and [llms.txt](https://llmstxt.org/) (introduced by Jeremy Howard), which uses tool calling for progressive disclosure of documentation. The skills pattern applies progressive disclosure to specialized prompts and domain knowledge rather than just documentation pages.
+
+For ready-to-use skills that improve your agent's performance on LangChain ecosystem tasks, see the [LangChain Skills](https://github.com/langchain-ai/langchain-skills) repository.
 </Tip>
 
 ```mermaid
 graph LR
-    A[用户] --> B[代理]
-    B --> C[技能 A]
-    B --> D[技能 B]
-    B --> E[技能 C]
+    A[User] --> B[Agent]
+    B --> C[Skill A]
+    B --> D[Skill B]
+    B --> E[Skill C]
     B --> A
+
+    classDef trigger fill:#DCFCE7,stroke:#16A34A,stroke-width:2px,color:#14532D
+    classDef process fill:#DBEAFE,stroke:#2563EB,stroke-width:2px,color:#1E3A8A
+
+    class A trigger
+    class B,C,D,E process
 ```
 
-## 关键特征
+## Key characteristics
 
-* 提示词驱动的专业化：技能主要由专业提示词定义
-* 渐进式披露：技能根据上下文或用户需求按需提供
-* 团队分布：不同团队可以独立开发和维护技能
-* 轻量级组合：技能比完整的子代理更简单
-* 资源感知：技能可以引用脚本、模板和其他资源
+* Prompt-driven specialization: Skills are primarily defined by specialized prompts
+* Progressive disclosure: Skills become available based on context or user needs
+* Team distribution: Different teams can develop and maintain skills independently
+* Lightweight composition: Skills are simpler than full sub-agents
+* Reference awareness: Skills can reference scripts, templates, and other resources
 
-## 适用场景
+## When to use
 
-当你希望单个[代理](/oss/python/langchain/agents)具备多种专业化能力、不需要在技能之间强制执行特定约束，或者不同团队需要独立开发能力时，请使用技能模式。常见示例包括编程助手（针对不同语言或任务的技能）、知识库（针对不同领域的技能）和创意助手（针对不同格式的技能）。
+Use the skills pattern when you want a single [agent](/oss/python/langchain/agents) with many possible specializations, you don't need to enforce specific constraints between skills, or different teams need to develop capabilities independently. Common examples include coding assistants (skills for different languages or tasks), knowledge bases (skills for different domains), and creative assistants (skills for different formats).
 
-## 基本实现
+## Basic implementation
 
 ```python
 from langchain.tools import tool
@@ -63,34 +71,36 @@ agent = create_agent(
 
 
 
-完整实现请参阅下方教程。
+For a complete implementation, see the tutorial below.
 
 <Card
-    title="教程：使用按需技能构建 SQL 助手"
+    title="Tutorial: Build a SQL assistant with on-demand skills"
     icon="wand"
     href="/oss/python/langchain/multi-agent/skills-sql-assistant"
-    arrow cta="了解更多"
+    arrow cta="Learn more"
 >
-    了解如何通过渐进式披露实现技能，代理按需加载专业提示词和模式，而不是在启动时一次性加载。
+    Learn how to implement skills with progressive disclosure, where the agent loads specialized prompts and schemas on-demand rather than upfront.
 </Card>
 
-## 扩展模式
+## Extending the pattern
 
-在编写自定义实现时，你可以通过多种方式扩展基本技能模式：
+When writing custom implementations, you can extend the basic skills pattern in several ways:
 
-- **动态工具注册**：将渐进式披露与状态管理结合，在技能加载时注册新的[工具](/oss/python/langchain/tools)。例如，加载"database_admin"技能可以同时添加专业上下文并注册数据库专用工具（备份、恢复、迁移）。这使用了多代理模式中相同的工具与状态机制——通过工具更新状态来动态改变代理能力。
+- **Dynamic tool registration**: Combine progressive disclosure with state management to register new [tools](/oss/python/langchain/tools) as skills load. For example, loading a "database_admin" skill could both add specialized context and register database-specific tools (backup, restore, migrate). This uses the same tool-and-state mechanisms used across multi-agent patterns—tools updating state to dynamically change agent capabilities.
 
-- **分层技能**：技能可以以树状结构定义其他技能，创建嵌套专业化。例如，加载"data_science"技能可能会提供"pandas_expert"、"visualization"和"statistical_analysis"等子技能。每个子技能可以根据需要独立加载，从而实现对领域知识的细粒度渐进式披露。这种分层方式通过将能力组织成可发现、可按需加载的逻辑分组，有助于管理大型知识库。
+- **Hierarchical skills**: Skills can define other skills in a tree structure, creating nested specializations. For instance, loading a "data_science" skill might make available sub-skills like "pandas_expert", "visualization", and "statistical_analysis". Each sub-skill can be loaded independently as needed, allowing for fine-grained progressive disclosure of domain knowledge. This hierarchical approach helps manage large knowledge bases by organizing capabilities into logical groupings that can be discovered and loaded on-demand.
 
-- **资源感知**：虽然每个技能只有一个提示词，但这个提示词可以引用其他资源的位置，并提供代理应何时使用这些资源的信息。当这些资源变得相关时，代理将知道这些文件的存在，并根据需要将其读入内存以完成任务。这同样遵循渐进式披露模式，并限制了上下文窗口中的信息量。
+- **Reference awareness**: While each skill only has one prompt, this prompt can reference the location of other assets and provide information on when the agent should use those assets.
+When those assets become relevant, the agent will know that those files exist and read them into memory as needed to complete tasks.
+This also follows the progressive disclosure pattern and limits the information in the context window.
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/multi-agent/skills.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/multi-agent/skills.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 <Callout icon="terminal-2">
-    通过 MCP [将这些文档接入](/use-these-docs) Claude、VSCode 等工具以获取实时答案。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
 </Callout>
 </div>

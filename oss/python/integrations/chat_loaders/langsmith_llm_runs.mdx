@@ -1,22 +1,22 @@
 ---
-title: "LangSmith LLM 运行集成"
-description: "使用 LangChain Python 集成 LangSmith LLM 运行聊天加载器。"
+title: "LangSmith LLM runs integration"
+description: "Integrate with the LangSmith LLM runs chat loader using LangChain Python."
 ---
 
-本 notebook 演示如何直接从 LangSmith 的 LLM 运行中加载数据并对模型进行微调。
-整个过程简单，包含 3 个步骤。
+This notebook demonstrates how to directly load data from LangSmith's LLM runs and fine-tune a model on that data.
+The process is simple and comprises 3 steps.
 
-1. 选择要训练的 LLM 运行。
-2. 使用 LangSmithRunChatLoader 将运行加载为聊天会话。
-3. 微调您的模型。
+1. Select the LLM runs to train on.
+2. Use the LangSmithRunChatLoader to load runs as chat sessions.
+3. Fine-tune your model.
 
-然后您可以在 LangChain 应用中使用经过微调的模型。
+Then you can use the fine-tuned model in your LangChain app.
 
-开始之前，先安装必要的前提条件。
+Before diving in, let's install our prerequisites.
 
-## 前提条件
+## Prerequisites
 
-确保已安装 langchain >= 0.0.311 并已使用您的 LangSmith API key 配置环境。
+Ensure you've installed langchain >= 0.0.311 and have configured your environment with your LangSmith API key.
 
 ```python
 pip install -qU  langchain langchain-openai
@@ -33,11 +33,13 @@ os.environ["LANGSMITH_API_KEY"] = "YOUR API KEY"
 os.environ["LANGSMITH_PROJECT"] = project_name
 ```
 
-## 1. 选择运行
+## 1. Select runs
 
-第一步是选择要微调的运行。常见的情况是选择收到用户正面反馈的 LLM 运行。您可以在 [LangSmith Cookbook](https://github.com/langchain-ai/langsmith-cookbook/blob/main/exploratory-data-analysis/exporting-llm-runs-and-feedback/llm_run_etl.ipynb) 和[文档](https://docs.smith.langchain.com/tracing/use-cases/export-runs/local)中找到相关示例。
+The first step is selecting which runs to fine-tune on. A common case would be to select LLM runs within
+traces that have received positive user feedback. You can find examples of this in the[LangSmith Cookbook](https://github.com/langchain-ai/langsmith-cookbook/blob/main/exploratory-data-analysis/exporting-llm-runs-and-feedback/llm_run_etl.ipynb) and in the [docs](https://docs.smith.langchain.com/tracing/use-cases/export-runs/local).
 
-为了本教程，我们将生成一些运行供您使用。让我们尝试微调一个简单的函数调用链。
+For the sake of this tutorial, we will generate some runs for you to use here. Let's try fine-tuning a
+simple function-calling chain.
 
 ```python
 from enum import Enum
@@ -57,7 +59,7 @@ class Calculator(BaseModel):
 
     num1: float
     num2: float
-    operation: Operation = Field(..., description="+,-,*,/")
+    operation: Operation = Field(description="+,-,*,/")
 
     def calculate(self):
         if self.operation == Operation.add:
@@ -147,9 +149,9 @@ math_questions = [
 results = chain.batch([{"input": q} for q in math_questions], return_exceptions=True)
 ```
 
-#### 加载未发生错误的运行
+#### Load runs that did not error
 
-现在我们可以选择成功的运行来进行微调。
+Now we can select the successful runs to fine-tune on.
 
 ```python
 from langsmith.client import Client
@@ -177,9 +179,9 @@ llm_runs = [
 ]
 ```
 
-## 2. 准备数据
+## 2. Prepare data
 
-现在我们可以创建 LangSmithRunChatLoader 实例，并使用其 lazy_load() 方法加载聊天会话。
+Now we can create an instance of LangSmithRunChatLoader and load the chat sessions using its lazy_load() method.
 
 ```python
 from langchain_community.chat_loaders.langsmith import LangSmithRunChatLoader
@@ -189,7 +191,7 @@ loader = LangSmithRunChatLoader(runs=llm_runs)
 chat_sessions = loader.lazy_load()
 ```
 
-#### 加载聊天会话后，将其转换为适合微调的格式
+#### With the chat sessions loaded, convert them into a format suitable for fine-tuning
 
 ```python
 from langchain_community.adapters.openai import convert_messages_for_finetuning
@@ -197,9 +199,9 @@ from langchain_community.adapters.openai import convert_messages_for_finetuning
 training_data = convert_messages_for_finetuning(chat_sessions)
 ```
 
-## 3. 微调模型
+## 3. Fine-tune the model
 
-现在，使用 OpenAI 库启动微调过程。
+Now, initiate the fine-tuning process using the OpenAI library.
 
 ```python
 import json
@@ -235,9 +237,9 @@ while status != "succeeded":
 Status=[running]... 349.84s. 17.72s
 ```
 
-## 4. 在 LangChain 中使用
+## 4. Use in LangChain
 
-微调完成后，在您的 LangChain 应用中使用 ChatOpenAI 模型类结合生成的模型 ID。
+After fine-tuning, use the resulting model ID with the ChatOpenAI model class in your LangChain app.
 
 ```python
 # Get the fine-tuned model ID
@@ -261,15 +263,15 @@ model = ChatOpenAI(
 AIMessage(content='Let me calculate that for you.')
 ```
 
-您已成功使用 LangSmith LLM 运行数据对模型进行了微调！
+Now you have successfully fine-tuned a model using data from LangSmith LLM runs!
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/chat_loaders/langsmith_llm_runs.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/chat_loaders/langsmith_llm_runs.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 <Callout icon="terminal-2">
-    通过 MCP [将这些文档连接](/use-these-docs)到 Claude、VSCode 等以获得实时解答。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
 </Callout>
 </div>

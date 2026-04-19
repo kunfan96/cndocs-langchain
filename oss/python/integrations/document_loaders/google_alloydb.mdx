@@ -1,35 +1,35 @@
 ---
-title: "Google AlloyDB for PostgreSQL 集成"
-description: "使用 LangChain Python 集成 Google AlloyDB for PostgreSQL 文档加载器。"
+title: "Google alloydb for postgresql integration"
+description: "Integrate with the Google alloydb for postgresql document loader using LangChain Python."
 ---
 
-> [AlloyDB](https://cloud.google.com/alloydb) 是一项全托管的关系型数据库服务，提供高性能、无缝集成和卓越的可扩展性。AlloyDB 与 PostgreSQL 100% 兼容。通过 AlloyDB 的 LangChain 集成，扩展您的数据库应用，构建 AI 驱动的体验。
+> [AlloyDB](https://cloud.google.com/alloydb) is a fully managed relational database service that offers high performance, seamless integration, and impressive scalability. AlloyDB is 100% compatible with PostgreSQL. Extend your database application to build AI-powered experiences leveraging AlloyDB's LangChain integrations.
 
-本 notebook 介绍如何使用 `AlloyDB for PostgreSQL` 通过 `AlloyDBLoader` 类加载文档。
+This notebook goes over how to use `AlloyDB for PostgreSQL` to load Documents with the `AlloyDBLoader` class.
 
-在 [GitHub](https://github.com/googleapis/langchain-google-alloydb-pg-python/) 上了解更多关于该软件包的信息。
+Learn more about the package on [GitHub](https://github.com/googleapis/langchain-google-alloydb-pg-python/).
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/googleapis/langchain-google-alloydb-pg-python/blob/main/docs/document_loader.ipynb)
 
-## 开始之前
+## Before you begin
 
-要运行本 notebook，您需要完成以下准备工作：
+To run this notebook, you will need to do the following:
 
-* [创建一个 Google Cloud 项目](https://developers.google.com/workspace/guides/create-project)
-* [启用 AlloyDB API](https://console.cloud.google.com/flows/enableapi?apiid=alloydb.googleapis.com)
-* [创建 AlloyDB 集群和实例](https://cloud.google.com/alloydb/docs/cluster-create)
-* [创建 AlloyDB 数据库](https://cloud.google.com/alloydb/docs/quickstart/create-and-connect)
-* [向数据库添加用户](https://cloud.google.com/alloydb/docs/database-users/about)
+* [Create a Google Cloud Project](https://developers.google.com/workspace/guides/create-project)
+* [Enable the AlloyDB API](https://console.cloud.google.com/flows/enableapi?apiid=alloydb.googleapis.com)
+* [Create a AlloyDB cluster and instance.](https://cloud.google.com/alloydb/docs/cluster-create)
+* [Create a AlloyDB database.](https://cloud.google.com/alloydb/docs/quickstart/create-and-connect)
+* [Add a User to the database.](https://cloud.google.com/alloydb/docs/database-users/about)
 
-### 🦜🔗 安装库
+### 🦜🔗 Library installation
 
-安装集成库 `langchain-google-alloydb-pg`。
+Install the integration library, `langchain-google-alloydb-pg`.
 
 ```python
 pip install -qU  langchain-google-alloydb-pg
 ```
 
-**仅限 Colab：** 取消注释以下单元格以重启内核，或使用按钮重启内核。在 Vertex AI Workbench 中，可使用顶部的按钮重启终端。
+**Colab only:** Uncomment the following cell to restart the kernel or use the button to restart the kernel. For Vertex AI Workbench you can restart the terminal using the button on top.
 
 ```python
 # # Automatically restart kernel after installs so that your environment can access the new packages
@@ -39,12 +39,12 @@ pip install -qU  langchain-google-alloydb-pg
 # app.kernel.do_shutdown(True)
 ```
 
-### 🔐 身份验证
+### 🔐 Authentication
 
-以登录本 notebook 的 IAM 用户身份向 Google Cloud 进行身份验证，以访问您的 Google Cloud 项目。
+Authenticate to Google Cloud as the IAM user logged into this notebook in order to access your Google Cloud Project.
 
-* 如果您在 Colab 中运行本 notebook，请使用下方单元格并继续。
-* 如果您在 Vertex AI Workbench 中运行，请参阅[此处](https://github.com/GoogleCloudPlatform/generative-ai/tree/main/setup-env)的设置说明。
+* If you are using Colab to run this notebook, use the cell below and continue.
+* If you are using Vertex AI Workbench, check out the [Vertex AI Workbench setup instructions](https://github.com/GoogleCloudPlatform/generative-ai/tree/main/setup-env).
 
 ```python
 from google.colab import auth
@@ -52,15 +52,15 @@ from google.colab import auth
 auth.authenticate_user()
 ```
 
-### ☁ 设置 Google Cloud 项目
+### ☁ Set your Google cloud project
 
-设置您的 Google Cloud 项目，以便在本 notebook 中使用 Google Cloud 资源。
+Set your Google Cloud project so that you can leverage Google Cloud resources within this notebook.
 
-如果您不知道项目 ID，请尝试以下方法：
+If you don't know your project ID, try the following:
 
-* 运行 `gcloud config list`。
-* 运行 `gcloud projects list`。
-* 参阅支持页面：[查找项目 ID](https://support.google.com/googleapi/answer/7014113)。
+* Run `gcloud config list`.
+* Run `gcloud projects list`.
+* See the support page: [Locate the project ID](https://support.google.com/googleapi/answer/7014113).
 
 ```python
 # @title Project { display-mode: "form" }
@@ -70,11 +70,11 @@ PROJECT_ID = "gcp_project_id"  # @param {type:"string"}
 ! gcloud config set project {PROJECT_ID}
 ```
 
-## 基本用法
+## Basic usage
 
-### 设置 AlloyDB 数据库变量
+### Set AlloyDB database variables
 
-在 [AlloyDB 实例页面](https://console.cloud.google.com/alloydb/clusters)中查找您的数据库相关值。
+Find your database values, in the [AlloyDB Instances page](https://console.cloud.google.com/alloydb/clusters).
 
 ```python
 # @title Set Your Values Here { display-mode: "form" }
@@ -85,26 +85,26 @@ DATABASE = "my-database"  # @param {type: "string"}
 TABLE_NAME = "vector_store"  # @param {type: "string"}
 ```
 
-### AlloyDBEngine 连接池
+### AlloyDBEngine connection pool
 
-将 AlloyDB 用作向量存储的必要条件之一是提供一个 `AlloyDBEngine` 对象。`AlloyDBEngine` 负责配置连接池以连接到您的 AlloyDB 数据库，确保应用程序成功连接并遵循行业最佳实践。
+One of the requirements and arguments to establish AlloyDB as a vector store is a `AlloyDBEngine` object. The `AlloyDBEngine`  configures a connection pool to your AlloyDB database, enabling successful connections from your application and following industry best practices.
 
-使用 `AlloyDBEngine.from_instance()` 创建 `AlloyDBEngine` 时，您只需提供以下 5 个参数：
+To create a `AlloyDBEngine` using `AlloyDBEngine.from_instance()` you need to provide only 5 things:
 
-1. `project_id`：AlloyDB 实例所在 Google Cloud 项目的项目 ID。
-1. `region`：AlloyDB 实例所在的区域。
-1. `cluster`：AlloyDB 集群的名称。
-1. `instance`：AlloyDB 实例的名称。
-1. `database`：要连接到的 AlloyDB 数据库名称。
+1. `project_id` : Project ID of the Google Cloud Project where the AlloyDB instance is located.
+1. `region` : Region where the AlloyDB instance is located.
+1. `cluster`: The name of the AlloyDB cluster.
+1. `instance` : The name of the AlloyDB instance.
+1. `database` : The name of the database to connect to on the AlloyDB instance.
 
-默认情况下，将使用 [IAM 数据库身份验证](https://cloud.google.com/alloydb/docs/connect-iam)作为数据库身份验证方式。此库使用属于[应用默认凭据 (ADC)](https://cloud.google.com/docs/authentication/application-default-credentials) 的 IAM 主体（从环境中获取）。
+By default, [IAM database authentication](https://cloud.google.com/alloydb/docs/connect-iam) will be used as the method of database authentication. This library uses the IAM principal belonging to the [Application Default Credentials (ADC)](https://cloud.google.com/docs/authentication/application-default-credentials) sourced from the environment.
 
-您也可以选择使用[内置数据库身份验证](https://cloud.google.com/alloydb/docs/database-users/about)，即通过用户名和密码访问 AlloyDB 数据库。只需向 `AlloyDBEngine.from_instance()` 提供可选参数 `user` 和 `password`：
+Optionally, [built-in database authentication](https://cloud.google.com/alloydb/docs/database-users/about) using a username and password to access the AlloyDB database can also be used. Just provide the optional `user` and `password` arguments to `AlloyDBEngine.from_instance()`:
 
-* `user`：用于内置数据库身份验证和登录的数据库用户名
-* `password`：用于内置数据库身份验证和登录的数据库密码。
+* `user` : Database user to use for built-in database authentication and login
+* `password` : Database password to use for built-in database authentication and login.
 
-**注意**：本教程演示异步接口。所有异步方法都有对应的同步方法。
+**Note**: This tutorial demonstrates the async interface. All async methods have corresponding sync methods.
 
 ```python
 from langchain_google_alloydb_pg import AlloyDBEngine
@@ -118,7 +118,7 @@ engine = await AlloyDBEngine.afrom_instance(
 )
 ```
 
-### 创建 AlloyDBLoader
+### Create AlloyDBLoader
 
 ```python
 from langchain_google_alloydb_pg import AlloyDBLoader
@@ -127,16 +127,17 @@ from langchain_google_alloydb_pg import AlloyDBLoader
 loader = await AlloyDBLoader.create(engine, table_name=TABLE_NAME)
 ```
 
-### 通过默认表加载文档
+### Load documents via default table
 
-加载器以列表形式返回表中的文档，使用第一列作为 page_content，其余所有列作为元数据。默认表将使用第一列作为 page_content，第二列作为元数据（JSON）。每一行对应一个文档。
+The loader returns a list of Documents from the table using the first column as page_content and all other columns as metadata. The default table will have the first column as
+page_content and the second column as metadata (JSON). Each row becomes a document.
 
 ```python
 docs = await loader.aload()
 print(docs)
 ```
 
-### 通过自定义表/元数据或自定义页面内容列加载文档
+### Load documents via custom table/metadata or custom page content columns
 
 ```python
 loader = await AlloyDBLoader.create(
@@ -149,9 +150,9 @@ docs = await loader.aload()
 print(docs)
 ```
 
-### 设置页面内容格式
+### Set page content format
 
-加载器返回文档列表，每行一个文档，页面内容以指定字符串格式呈现，例如文本（空格分隔的拼接）、JSON、YAML、CSV 等。JSON 和 YAML 格式包含字段头，而文本和 CSV 格式不包含字段头。
+The loader returns a list of Documents, with one document per row, with page content in specified string format, i.e. text (space separated concatenation), JSON, YAML, CSV, etc. JSON and YAML formats include headers, while text and CSV do not include field headers.
 
 ```python
 loader = AlloyDBLoader.create(
@@ -168,9 +169,9 @@ print(docs)
 
 <div className="source-links">
 <Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/document_loaders/google_alloydb.mdx) 或 [提交 Issue](https://github.com/langchain-ai/docs/issues/new/choose)。
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/document_loaders/google_alloydb.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 <Callout icon="terminal-2">
-    通过 MCP 将[这些文档](/use-these-docs)连接到 Claude、VSCode 等工具，获取实时解答。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
 </Callout>
 </div>

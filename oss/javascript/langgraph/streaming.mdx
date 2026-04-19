@@ -1,46 +1,19 @@
 ---
-title: 流式传输 (Streaming)
+title: Streaming
 ---
 
+import NostreamTagPy from '/snippets/code-samples/nostream-tag-py.mdx';
+import NostreamTagJs from '/snippets/code-samples/nostream-tag-js.mdx';
 
+LangGraph implements a streaming system to surface real-time updates. Streaming is crucial for enhancing the responsiveness of applications built on LLMs. By displaying output progressively, even before a complete response is ready, streaming significantly improves user experience (UX), particularly when dealing with the latency of LLMs.
 
-LangGraph 实现了一个流式传输系统来展示实时更新。流式传输对于增强基于 LLM 构建的应用程序的响应能力至关重要。通过逐步显示输出，甚至在完整响应准备好之前，流式传输显着改善了用户体验 (UX)，特别是在处理 LLM 的延迟时。
+## Get started
 
-LangGraph 流式传输可以做什么：
-
-* <Icon icon="share" size={16} /> [**流式传输图状态**](#stream-graph-state) — 使用 `updates` 和 `values` 模式获取状态更新/值。
-* <Icon icon="chart-bar" size={16} /> [**流式传输子图输出**](#stream-subgraph-outputs) — 包括来自父图和任何嵌套子图的输出。
-* <Icon icon="binary" size={16} /> [**流式传输 LLM 令牌**](#messages) — 从任何地方捕获令牌流：节点、子图或工具内部。
-* <Icon icon="table" size={16} /> [**流式传输自定义数据**](#stream-custom-data) — 直接从工具函数发送自定义更新或进度信号。
-* <Icon icon="tool" size={16} /> [**流式传输工具进度**](#stream-tool-progress) — 实时跟踪工具生命周期事件（`start`、`progress`、`end`、`error`）。
-* <Icon icon="stack-push" size={16} /> [**使用多种流式传输模式**](#stream-multiple-modes) — 从 `values`（完整状态）、`updates`（状态增量）、`messages`（LLM 令牌 + 元数据）、`custom`（任意用户数据）、`tools`（工具生命周期事件）或 `debug`（详细跟踪）中进行选择。
+### Basic usage
 
 
 
-## 支持的流式传输模式
-
-
-
-将以下一个或多个流式传输模式作为列表传递给 [`stream`](https://reference.langchain.com/javascript/classes/_langchain_langgraph.index.CompiledStateGraph.html#stream) 方法：
-
-
-| 模式 | 描述 |
-| ---- | ----------- |
-| `values` | 在图的每一步之后流式传输状态的完整值。 |
-| `updates` | 在图的每一步之后流式传输对状态的更新。如果在同一步骤中进行了多次更新（例如，运行了多个节点），则这些更新将单独流式传输。 |
-| `custom` | 从图节点内部流式传输自定义数据。 |
-| `messages` | 从调用 LLM 的任何图节点流式传输 2 元组（LLM 令牌，元数据）。 |
-| `tools` | 从工具执行中流式传输工具调用生命周期事件（`on_tool_start`、`on_tool_event`、`on_tool_end`、`on_tool_error`）。 |
-| `debug` | 在图的整个执行过程中流式传输尽可能多的信息。 |
-
-
-
-
-## 基本用法示例
-
-
-
-LangGraph 图公开了 [`stream`](https://reference.langchain.com/javascript/classes/_langchain_langgraph.pregel.Pregel.html#stream) 方法以生成流式输出作为迭代器。
+LangGraph graphs expose the [`stream`](https://reference.langchain.com/javascript/classes/_langchain_langgraph.pregel.Pregel.html#stream) method to yield streamed outputs as iterators.
 
 ```typescript
 for await (const chunk of await graph.stream(inputs, {
@@ -51,70 +24,32 @@ for await (const chunk of await graph.stream(inputs, {
 ```
 
 
-<Accordion title="扩展示例：流式传输更新">
 
 
-  ```typescript
-  import { StateGraph, StateSchema, START, END } from "@langchain/langgraph";
-  import { z } from "zod/v4";
-
-  const State = new StateSchema({
-    topic: z.string(),
-    joke: z.string(),
-  });
-
-  const graph = new StateGraph(State)
-    .addNode("refineTopic", (state) => {
-      return { topic: state.topic + " and cats" };
-    })
-    .addNode("generateJoke", (state) => {
-      return { joke: `This is a joke about ${state.topic}` };
-    })
-    .addEdge(START, "refineTopic")
-    .addEdge("refineTopic", "generateJoke")
-    .addEdge("generateJoke", END)
-    .compile();
-
-  for await (const chunk of await graph.stream(
-    { topic: "ice cream" },
-    // 设置 streamMode: "updates" 以仅流式传输每个节点后对图状态的更新
-    // 其他流式传输模式也可用。有关详细信息，请参阅支持的流式传输模式
-    { streamMode: "updates" }
-  )) {
-    console.log(chunk);
-  }
-  ```
-
-
-  ```python
-  {'refineTopic': {'topic': 'ice cream and cats'}}
-  {'generateJoke': {'joke': 'This is a joke about ice cream and cats'}}
-  ```
-</Accordion>
-
-## 流式传输多种模式
+## Stream modes
 
 
 
-您可以传递一个数组作为 `streamMode` 参数以一次流式传输多种模式。
+Pass one or more of the following stream modes as a list to the [`stream`](https://reference.langchain.com/javascript/classes/_langchain_langgraph.index.CompiledStateGraph.html#stream) method:
 
-流式传输的输出将是 `[mode, chunk]` 的元组，其中 `mode` 是流式传输模式的名称，`chunk` 是该模式流式传输的数据。
+| Mode | Description |
+| :--- | :---------- |
+| [values](#graph-state) | Full state after each step. |
+| [updates](#graph-state) | State updates after each step. Multiple updates in the same step are streamed separately. |
+| [messages](#llm-tokens) | 2-tuples of (LLM token, metadata) from LLM calls. |
+| [custom](#custom-data) | Custom data emitted from nodes via the `writer` config parameter. |
+| [tools](#tool-progress) | Tool-call lifecycle events (`on_tool_start`, `on_tool_event`, `on_tool_end`, `on_tool_error`). |
+| [debug](#debug) | All available info throughout graph execution. |
 
-```typescript
-for await (const [mode, chunk] of await graph.stream(inputs, {
-  streamMode: ["updates", "custom"],
-})) {
-  console.log(chunk);
-}
-```
 
+<a id="messages"></a>
 
-## 流式传输图状态
+### Graph state
 
-使用流式传输模式 `updates` 和 `values` 在图执行时流式传输图的状态。
+Use the stream modes `updates` and `values` to stream the state of the graph as it executes.
 
-* `updates` 在图的每一步之后流式传输对状态的 **更新**。
-* `values` 在图的每一步之后流式传输状态的 **完整值**。
+* `updates` streams the **updates** to the state after each step of the graph.
+* `values` streams the **full value** of the state after each step of the graph.
 
 
 
@@ -143,7 +78,7 @@ const graph = new StateGraph(State)
 
 <Tabs>
     <Tab title="updates">
-    使用此模式仅流式传输每个步骤后节点返回的 **状态更新**。流式传输的输出包括节点的名称以及更新。
+    Use this to stream only the **state updates** returned by the nodes after each step. The streamed outputs include the name of the node as well as the update.
 
 
 
@@ -152,13 +87,15 @@ const graph = new StateGraph(State)
       { topic: "ice cream" },
       { streamMode: "updates" }
     )) {
-      console.log(chunk);
+      for (const [nodeName, state] of Object.entries(chunk)) {
+        console.log(`Node ${nodeName} updated:`, state);
+      }
     }
     ```
 
     </Tab>
     <Tab title="values">
-    使用此模式流式传输每个步骤后图的 **完整状态**。
+    Use this to stream the **full state** of the graph after each step.
 
 
 
@@ -167,129 +104,25 @@ const graph = new StateGraph(State)
       { topic: "ice cream" },
       { streamMode: "values" }
     )) {
-      console.log(chunk);
+      console.log(`topic: ${chunk.topic}, joke: ${chunk.joke}`);
     }
     ```
 
     </Tab>
 </Tabs>
 
-## 流式传输子图输出
+### LLM tokens
+
+Use the `messages` streaming mode to stream Large Language Model (LLM) outputs **token by token** from any part of your graph, including nodes, tools, subgraphs, or tasks.
 
 
 
-要在流式传输输出中包含来自 [子图](/oss/javascript/langgraph/use-subgraphs) 的输出，您可以在父图的 `.stream()` 方法中设置 `subgraphs: true`。这将流式传输来自父图和任何子图的输出。
+The streamed output from [`messages` mode](#stream-modes) is a tuple `[message_chunk, metadata]` where:
 
-输出将作为元组 `[namespace, data]` 流式传输，其中 `namespace` 是一个元组，包含调用子图的节点的路径，例如 `["parent_node:<task_id>", "child_node:<task_id>"]`。
+* `message_chunk`: the token or message segment from the LLM.
+* `metadata`: a dictionary containing details about the graph node and LLM invocation.
 
-```typescript
-for await (const chunk of await graph.stream(
-  { foo: "foo" },
-  {
-    // 设置 subgraphs: true 以流式传输来自子图的输出
-    subgraphs: true,
-    streamMode: "updates",
-  }
-)) {
-  console.log(chunk);
-}
-```
-
-
-<Accordion title="扩展示例：从子图流式传输">
-
-
-  ```typescript
-  import { StateGraph, StateSchema, START } from "@langchain/langgraph";
-  import { z } from "zod/v4";
-
-  // 定义子图
-  const SubgraphState = new StateSchema({
-    foo: z.string(), // 请注意，此键与父图状态共享
-    bar: z.string(),
-  });
-
-  const subgraphBuilder = new StateGraph(SubgraphState)
-    .addNode("subgraphNode1", (state) => {
-      return { bar: "bar" };
-    })
-    .addNode("subgraphNode2", (state) => {
-      return { foo: state.foo + state.bar };
-    })
-    .addEdge(START, "subgraphNode1")
-    .addEdge("subgraphNode1", "subgraphNode2");
-  const subgraph = subgraphBuilder.compile();
-
-  // 定义父图
-  const ParentState = new StateSchema({
-    foo: z.string(),
-  });
-
-  const builder = new StateGraph(ParentState)
-    .addNode("node1", (state) => {
-      return { foo: "hi! " + state.foo };
-    })
-    .addNode("node2", subgraph)
-    .addEdge(START, "node1")
-    .addEdge("node1", "node2");
-  const graph = builder.compile();
-
-  for await (const chunk of await graph.stream(
-    { foo: "foo" },
-    {
-      streamMode: "updates",
-      // 设置 subgraphs: true 以流式传输来自子图的输出
-      subgraphs: true,
-    }
-  )) {
-    console.log(chunk);
-  }
-  ```
-
-
-
-
-  ```
-  [[], {'node1': {'foo': 'hi! foo'}}]
-  [['node2:dfddc4ba-c3c5-6887-5012-a243b5b377c2'], {'subgraphNode1': {'bar': 'bar'}}]
-  [['node2:dfddc4ba-c3c5-6887-5012-a243b5b377c2'], {'subgraphNode2': {'foo': 'hi! foobar'}}]
-  [[], {'node2': {'foo': 'hi! foobar'}}]
-  ```
-
-
-  **注意** 我们不仅接收节点更新，还接收命名空间，这告诉我们正在从哪个图（或子图）流式传输。
-</Accordion>
-
-<a id="debug"></a>
-### 调试
-
-使用 `debug` 流式传输模式在图的整个执行过程中流式传输尽可能多的信息。流式传输的输出包括节点的名称以及完整状态。
-
-
-
-```typescript
-for await (const chunk of await graph.stream(
-  { topic: "ice cream" },
-  { streamMode: "debug" }
-)) {
-  console.log(chunk);
-}
-```
-
-
-<a id="messages"></a>
-## LLM 令牌
-
-使用 `messages` 流式传输模式从图的任何部分（包括节点、工具、子图或任务）**逐个令牌** 地流式传输大型语言模型 (LLM) 输出。
-
-
-
-[`messages` 模式](#supported-stream-modes) 的流式输出是一个元组 `[message_chunk, metadata]`，其中：
-
-* `message_chunk`：来自 LLM 的令牌或消息段。
-* `metadata`：包含有关图节点和 LLM 调用的详细信息的字典。
-
-> 如果您的 LLM 不作为 LangChain 集成提供，您可以使用 `custom` 模式来流式传输其输出。有关详细信息，请参阅 [与任何 LLM 一起使用](#use-with-any-llm)。
+> If your LLM is not available as a LangChain integration, you can stream its outputs using `custom` mode instead. See [use with any LLM](#use-with-any-llm) for details.
 
 ```typescript
 import { ChatOpenAI } from "@langchain/openai";
@@ -304,8 +137,8 @@ const MyState = new StateSchema({
 const model = new ChatOpenAI({ model: "gpt-4.1-mini" });
 
 const callModel: GraphNode<typeof MyState> = async (state) => {
-  // 调用 LLM 以生成关于主题的笑话
-  // 请注意，即使使用 .invoke 而不是 .stream 运行 LLM，也会发出消息事件
+  // Call the LLM to generate a joke about a topic
+  // Note that message events are emitted even when the LLM is run using .invoke rather than .stream
   const modelResponse = await model.invoke([
     { role: "user", content: `Generate a joke about ${state.topic}` },
   ]);
@@ -317,9 +150,9 @@ const graph = new StateGraph(MyState)
   .addEdge(START, "callModel")
   .compile();
 
-// "messages" 流式传输模式返回元组 [messageChunk, metadata] 的迭代器
-// 其中 messageChunk 是 LLM 流式传输的令牌，metadata 是一个字典
-// 包含有关调用 LLM 的图节点的信息和其他信息
+// The "messages" stream mode returns an iterator of tuples [messageChunk, metadata]
+// where messageChunk is the token streamed by the LLM and metadata is a dictionary
+// with information about the graph node where the LLM was called and other information
 for await (const [messageChunk, metadata] of await graph.stream(
   { topic: "ice cream" },
   { streamMode: "messages" }
@@ -331,21 +164,21 @@ for await (const [messageChunk, metadata] of await graph.stream(
 ```
 
 
-#### 按 LLM 调用过滤
+#### Filter by LLM invocation
 
-您可以将 `tags` 与 LLM 调用相关联，以按 LLM 调用过滤流式传输的令牌。
+You can associate `tags` with LLM invocations to filter the streamed tokens by LLM invocation.
 
 
 
 ```typescript
 import { ChatOpenAI } from "@langchain/openai";
 
-// model1 标记为 "joke"
+// model1 is tagged with "joke"
 const model1 = new ChatOpenAI({
   model: "gpt-4.1-mini",
   tags: ['joke']
 });
-// model2 标记为 "poem"
+// model2 is tagged with "poem"
 const model2 = new ChatOpenAI({
   model: "gpt-4.1-mini",
   tags: ['poem']
@@ -353,14 +186,14 @@ const model2 = new ChatOpenAI({
 
 const graph = // ... define a graph that uses these LLMs
 
-// streamMode 设置为 "messages" 以流式传输 LLM 令牌
-// metadata 包含有关 LLM 调用的信息，包括 tags
+// The streamMode is set to "messages" to stream LLM tokens
+// The metadata contains information about the LLM invocation, including the tags
 for await (const [msg, metadata] of await graph.stream(
   { topic: "cats" },
   { streamMode: "messages" }
 )) {
-  // 按 metadata 中的 tags 字段过滤流式传输的令牌，仅包括
-  // 带有 "joke" 标签的 LLM 调用的令牌
+  // Filter the streamed tokens by the tags field in the metadata to only include
+  // the tokens from the LLM invocation with the "joke" tag
   if (metadata.tags?.includes("joke")) {
     console.log(msg.content + "|");
   }
@@ -368,7 +201,7 @@ for await (const [msg, metadata] of await graph.stream(
 ```
 
 
-<Accordion title="扩展示例：按标签过滤">
+<Accordion title="Extended example: filtering by tags">
 
 
   ```typescript
@@ -376,12 +209,12 @@ for await (const [msg, metadata] of await graph.stream(
   import { StateGraph, StateSchema, GraphNode, START } from "@langchain/langgraph";
   import * as z from "zod";
 
-  // jokeModel 标记为 "joke"
+  // The jokeModel is tagged with "joke"
   const jokeModel = new ChatOpenAI({
     model: "gpt-4.1-mini",
     tags: ["joke"]
   });
-  // poemModel 标记为 "poem"
+  // The poemModel is tagged with "poem"
   const poemModel = new ChatOpenAI({
     model: "gpt-4.1-mini",
     tags: ["poem"]
@@ -417,14 +250,14 @@ for await (const [msg, metadata] of await graph.stream(
     .addEdge(START, "callModel")
     .compile();
 
-  // streamMode 设置为 "messages" 以流式传输 LLM 令牌
-  // metadata 包含有关 LLM 调用的信息，包括 tags
+  // The streamMode is set to "messages" to stream LLM tokens
+  // The metadata contains information about the LLM invocation, including the tags
   for await (const [msg, metadata] of await graph.stream(
     { topic: "cats" },
     { streamMode: "messages" }
   )) {
-    // 按 metadata 中的 tags 字段过滤流式传输的令牌，仅包括
-    // 带有 "joke" 标签的 LLM 调用的令牌
+    // Filter the streamed tokens by the tags field in the metadata to only include
+    // the tokens from the LLM invocation with the "joke" tag
     if (metadata.tags?.includes("joke")) {
       console.log(msg.content + "|");
     }
@@ -433,22 +266,37 @@ for await (const [msg, metadata] of await graph.stream(
 
 </Accordion>
 
-#### 按节点过滤
+#### Omit messages from the stream
 
-要仅从特定节点流式传输令牌，请使用 `stream_mode="messages"` 并通过流式传输元数据中的 `langgraph_node` 字段过滤输出：
+Use the `nostream` tag to exclude LLM output from the stream entirely. Invocations tagged with `nostream` still run and produce output; their tokens are simply not emitted in `messages` mode.
+
+This is useful when:
+
+- You need LLM output for internal processing (for example structured output) but do not want to stream it to the client
+- You stream the same content through a different channel (for example custom UI messages) and want to avoid duplicate output in the `messages` stream
+
+
+
+<NostreamTagJs />
+
+
+
+#### Filter by node
+
+To stream tokens only from specific nodes, use `stream_mode="messages"` and filter the outputs by the `langgraph_node` field in the streamed metadata:
 
 
 
 ```typescript
-// "messages" 流式传输模式返回 [messageChunk, metadata] 的元组
-// 其中 messageChunk 是 LLM 流式传输的令牌，metadata 是一个字典
-// 包含有关调用 LLM 的图节点的信息和其他信息
+// The "messages" stream mode returns a tuple of [messageChunk, metadata]
+// where messageChunk is the token streamed by the LLM and metadata is a dictionary
+// with information about the graph node where the LLM was called and other information
 for await (const [msg, metadata] of await graph.stream(
   inputs,
   { streamMode: "messages" }
 )) {
-  // 按 metadata 中的 langgraph_node 字段过滤流式传输的令牌
-  // 仅包括来自指定节点的令牌
+  // Filter the streamed tokens by the langgraph_node field in the metadata
+  // to only include the tokens from the specified node
   if (msg.content && metadata.langgraph_node === "some_node_name") {
     // ...
   }
@@ -456,7 +304,7 @@ for await (const [msg, metadata] of await graph.stream(
 ```
 
 
-<Accordion title="扩展示例：从特定节点流式传输 LLM 令牌">
+<Accordion title="Extended example: streaming LLM tokens from specific nodes">
 
 
   ```typescript
@@ -491,20 +339,20 @@ for await (const [msg, metadata] of await graph.stream(
   const graph = new StateGraph(State)
     .addNode("writeJoke", writeJoke)
     .addNode("writePoem", writePoem)
-    // 同时写入笑话和诗歌
+    // write both the joke and the poem concurrently
     .addEdge(START, "writeJoke")
     .addEdge(START, "writePoem")
     .compile();
 
-  // "messages" 流式传输模式返回 [messageChunk, metadata] 的元组
-  // 其中 messageChunk 是 LLM 流式传输的令牌，metadata 是一个字典
-  // 包含有关调用 LLM 的图节点的信息和其他信息
+  // The "messages" stream mode returns a tuple of [messageChunk, metadata]
+  // where messageChunk is the token streamed by the LLM and metadata is a dictionary
+  // with information about the graph node where the LLM was called and other information
   for await (const [msg, metadata] of await graph.stream(
     { topic: "cats" },
     { streamMode: "messages" }
   )) {
-    // 按 metadata 中的 langgraph_node 字段过滤流式传输的令牌
-    // 仅包括来自 writePoem 节点的令牌
+    // Filter the streamed tokens by the langgraph_node field in the metadata
+    // to only include the tokens from the writePoem node
     if (msg.content && metadata.langgraph_node === "writePoem") {
       console.log(msg.content + "|");
     }
@@ -513,17 +361,17 @@ for await (const [msg, metadata] of await graph.stream(
 
 </Accordion>
 
-## 流式传输自定义数据
+### Custom data
 
 
 
-要从 LangGraph 节点或工具内部发送 **自定义用户定义数据**，请按照以下步骤操作：
+To send **custom user-defined data** from inside a LangGraph node or tool, follow these steps:
 
-1. 使用 `LangGraphRunnableConfig` 中的 `writer` 参数发出自定义数据。
-2. 调用 `.stream()` 时设置 `streamMode: "custom"` 以在流中获取自定义数据。您可以组合多种模式（例如 `["updates", "custom"]`），但必须至少包含一个 `"custom"`。
+1. Use the `writer` parameter from the `LangGraphRunnableConfig` to emit custom data.
+2. Set `streamMode: "custom"` when calling `.stream()` to get the custom data in the stream. You can combine multiple modes (e.g., `["updates", "custom"]`), but at least one must be `"custom"`.
 
 <Tabs>
-    <Tab title="节点">
+    <Tab title="node">
     ```typescript
     import { StateGraph, StateSchema, GraphNode, START, LangGraphRunnableConfig } from "@langchain/langgraph";
     import * as z from "zod";
@@ -534,7 +382,7 @@ for await (const [msg, metadata] of await graph.stream(
     });
 
     const node: GraphNode<typeof State> = async (state, config) => {
-      // 使用 writer 发出自定义键值对（例如，进度更新）
+      // Use the writer to emit a custom key-value pair (e.g., progress update)
       config.writer({ custom_key: "Generating custom data inside node" });
       return { answer: "some data" };
     };
@@ -546,13 +394,13 @@ for await (const [msg, metadata] of await graph.stream(
 
     const inputs = { query: "example" };
 
-    // 设置 streamMode: "custom" 以在流中接收自定义数据
+    // Set streamMode: "custom" to receive the custom data in the stream
     for await (const chunk of await graph.stream(inputs, { streamMode: "custom" })) {
       console.log(chunk);
     }
     ```
     </Tab>
-    <Tab title="工具">
+    <Tab title="tool">
     ```typescript
     import { tool } from "@langchain/core/tools";
     import { LangGraphRunnableConfig } from "@langchain/langgraph";
@@ -560,10 +408,10 @@ for await (const [msg, metadata] of await graph.stream(
 
     const queryDatabase = tool(
       async (input, config: LangGraphRunnableConfig) => {
-        // 使用 writer 发出自定义键值对（例如，进度更新）
+        // Use the writer to emit a custom key-value pair (e.g., progress update)
         config.writer({ data: "Retrieved 0/100 records", type: "progress" });
-        // 执行查询
-        // 发出另一个自定义键值对
+        // perform query
+        // Emit another custom key-value pair
         config.writer({ data: "Retrieved 100/100 records", type: "progress" });
         return "some-answer";
       },
@@ -578,7 +426,7 @@ for await (const [msg, metadata] of await graph.stream(
 
     const graph = // ... define a graph that uses this tool
 
-    // 设置 streamMode: "custom" 以在流中接收自定义数据
+    // Set streamMode: "custom" to receive the custom data in the stream
     for await (const chunk of await graph.stream(inputs, { streamMode: "custom" })) {
       console.log(chunk);
     }
@@ -587,22 +435,22 @@ for await (const [msg, metadata] of await graph.stream(
 </Tabs>
 
 
-## 流式传输工具进度
+### Tool progress
 
-使用 `tools` 流式传输模式来接收工具执行的实时生命周期事件。这对于在工具运行时在 UI 中显示进度指示器、部分结果和错误状态非常有用。
+Use the `tools` stream mode to receive real-time lifecycle events for tool executions. This is useful for showing progress indicators, partial results, and error states in your UI while tools are running.
 
-`tools` 流式传输模式发出四种事件类型：
+The `tools` stream mode emits four event types:
 
-| 事件 | 何时 | 载荷 |
+| Event | When | Payload |
 |-------|------|---------|
-| `on_tool_start` | 工具调用开始 | `name`，`input`，`toolCallId` |
-| `on_tool_event` | 工具产生中间数据 | `name`，`data`，`toolCallId` |
-| `on_tool_end` | 工具返回其最终结果 | `name`，`output`，`toolCallId` |
-| `on_tool_error` | 工具抛出错误 | `name`，`error`，`toolCallId` |
+| `on_tool_start` | Tool invocation begins | `name`, `input`, `toolCallId` |
+| `on_tool_event` | Tool yields intermediate data | `name`, `data`, `toolCallId` |
+| `on_tool_end` | Tool returns its final result | `name`, `output`, `toolCallId` |
+| `on_tool_error` | Tool throws an error | `name`, `error`, `toolCallId` |
 
-### 定义流式传输进度的工具
+#### Define tools that stream progress
 
-要发出 `on_tool_event` 事件，请将您的工具函数定义为 **异步生成器** (`async function*`)。每个 `yield` 将中间数据发送到流，`return` 值用作工具的最终结果。
+To emit `on_tool_event` events, define your tool function as an **async generator** (`async function*`). Each `yield` sends intermediate data to the stream, and the `return` value is used as the tool's final result.
 
 ```typescript
 import { tool } from "@langchain/core/tools";
@@ -617,7 +465,7 @@ const searchFlights = tool(
       await new Promise((r) => setTimeout(r, 500));
       completed.push(airlines[i]);
 
-      // 每个 yield 向流发出一个 on_tool_event
+      // Each yield emits an on_tool_event to the stream
       yield {
         message: `Searching ${airlines[i]}...`,
         progress: (i + 1) / airlines.length,
@@ -625,7 +473,7 @@ const searchFlights = tool(
       };
     }
 
-    // 返回值成为工具结果 (ToolMessage.content)
+    // The return value becomes the tool result (ToolMessage.content)
     return JSON.stringify({
       flights: [
         { airline: "United", price: 450, duration: "5h 30m" },
@@ -645,12 +493,12 @@ const searchFlights = tool(
 ```
 
 <Note>
-返回 `Promise` 的现有工具完全兼容。它们发出 `on_tool_start` 和 `on_tool_end` 事件，但不发出 `on_tool_event` 事件。
+Existing tools that return a `Promise` are fully compatible. They emit `on_tool_start` and `on_tool_end` events but no `on_tool_event` events.
 </Note>
 
-### 在服务器端使用工具事件
+#### Consume tool events server-side
 
-将 `streamMode: ["tools"]`（或与其他模式组合）传递给 `graph.stream()`：
+Pass `streamMode: ["tools"]` (or combine with other modes) to `graph.stream()`:
 
 ```typescript
 for await (const [mode, chunk] of await graph.stream(
@@ -676,19 +524,19 @@ for await (const [mode, chunk] of await graph.stream(
 }
 ```
 
-### 在 React 中使用 `useStream` 获得工具进度
+#### Use tool progress in React with `useStream`
 
-来自 `@langchain/langgraph-sdk/react` 的 `useStream` 钩子在您的流式传输模式中包含 `"tools"` 时公开一个 `toolProgress` 数组。每个条目都是一个跟踪运行工具当前状态的 `ToolProgress` 对象：
+The `useStream` hook from `@langchain/langgraph-sdk/react` exposes a `toolProgress` array when you include `"tools"` in your stream modes. Each entry is a `ToolProgress` object that tracks the current state of a running tool:
 
-| 字段 | 描述 |
+| Field | Description |
 |-------|-------------|
-| `name` | 工具名称 |
-| `state` | 当前生命周期状态：`"starting"`、`"running"`、`"completed"` 或 `"error"` |
-| `toolCallId` | 来自 LLM 的工具调用 ID |
-| `input` | 工具的输入参数 |
-| `data` | 来自 `on_tool_event` 的最新产生的数据 |
-| `result` | 最终结果，在 `on_tool_end` 上设置 |
-| `error` | 错误，在 `on_tool_error` 上设置 |
+| `name` | The tool name |
+| `state` | Current lifecycle state: `"starting"`, `"running"`, `"completed"`, or `"error"` |
+| `toolCallId` | The tool call ID from the LLM |
+| `input` | The tool's input arguments |
+| `data` | The most recent yielded data from `on_tool_event` |
+| `result` | The final result, set on `on_tool_end` |
+| `error` | The error, set on `on_tool_error` |
 
 ```typescript
 import { useStream } from "@langchain/langgraph-sdk/react";
@@ -699,7 +547,7 @@ function Chat() {
     streamMode: ["values", "tools"],
   });
 
-  // 过滤正在运行的工具
+  // Filter for actively running tools
   const activeTools = stream.toolProgress.filter(
     (t) => t.state === "starting" || t.state === "running"
   );
@@ -710,7 +558,7 @@ function Chat() {
         <MessageBubble key={msg.id} message={msg} />
       ))}
 
-      {/* 显示正在运行的工具的进度卡 */}
+      {/* Show progress cards for running tools */}
       {activeTools.map((tool) => (
         <ToolProgressCard
           key={tool.toolCallId ?? tool.name}
@@ -724,11 +572,11 @@ function Chat() {
 }
 ```
 
-<Accordion title="扩展示例：带有工具进度的旅行计划代理">
+<Accordion title="Extended example: travel planning agent with tool progress">
 
-此示例显示了一个完整的代理，该代理具有异步生成器工具，可将搜索进度流式传输到 React UI。
+This example shows a complete agent with async-generator tools that stream search progress to a React UI.
 
-**代理定义：**
+**Agent definition:**
 
 ```typescript
 import { tool } from "@langchain/core/tools";
@@ -809,7 +657,7 @@ export const agent = createAgent({
 });
 ```
 
-**带有进度卡的 React 组件：**
+**React component with progress cards:**
 
 ```typescript
 import { useStream } from "@langchain/langgraph-sdk/react";
@@ -865,22 +713,148 @@ function TravelPlanner() {
 ```
 </Accordion>
 
-### `tools` vs `custom` 流式传输模式
+#### `tools` vs `custom` stream mode
 
-这两种流式传输模式都可以显示工具进度，但它们服务于不同的目的：
+Both stream modes can surface tool progress, but they serve different purposes:
 
-* **`tools`** — 自动发出结构化的生命周期事件（`on_tool_start`、`on_tool_event`、`on_tool_end`、`on_tool_error`），除了使用 `async function*` 外，无需在工具中更改代码。`useStream` 钩子开箱即用地提供反应式 `toolProgress` 数组。
-* **`custom`** — 让您完全控制发出的数据以及何时使用 `config.writer()`。当您需要不映射到工具生命周期的自由格式数据时，或者当您想要从节点（不仅仅是工具）进行流式传输时，请使用此模式。
-
-
-
-## 与任何 LLM 一起使用
+* **`tools`**—automatically emits structured lifecycle events (`on_tool_start`, `on_tool_event`, `on_tool_end`, `on_tool_error`) with no code changes needed in your tools beyond using `async function*`. The `useStream` hook provides the reactive `toolProgress` array out of the box.
+* **`custom`**—gives you full control over what data is emitted and when using `config.writer()`. Use this when you need freeform data that doesn't map to the tool lifecycle, or when you want to stream from nodes (not just tools).
 
 
 
-您可以使用 `streamMode: "custom"` 从 **任何 LLM API** 流式传输数据 — 即使该 API **未** 实现 LangChain 聊天模型接口。
+### Subgraph outputs
 
-这使您可以集成原始 LLM 客户端或提供其自己的流式传输接口的外部服务，使 LangGraph 对于自定义设置具有高度的灵活性。
+
+
+To include outputs from [subgraphs](/oss/javascript/langgraph/use-subgraphs) in the streamed outputs, you can set `subgraphs: true` in the `.stream()` method of the parent graph. This will stream outputs from both the parent graph and any subgraphs.
+
+The outputs will be streamed as tuples `[namespace, data]`, where `namespace` is a tuple with the path to the node where a subgraph is invoked, e.g. `["parent_node:<task_id>", "child_node:<task_id>"]`.
+
+```typescript
+for await (const chunk of await graph.stream(
+  { foo: "foo" },
+  {
+    // Set subgraphs: true to stream outputs from subgraphs
+    subgraphs: true,
+    streamMode: "updates",
+  }
+)) {
+  console.log(chunk);
+}
+```
+
+
+<Accordion title="Extended example: streaming from subgraphs">
+
+
+  ```typescript
+  import { StateGraph, StateSchema, START } from "@langchain/langgraph";
+  import { z } from "zod/v4";
+
+  // Define subgraph
+  const SubgraphState = new StateSchema({
+    foo: z.string(), // note that this key is shared with the parent graph state
+    bar: z.string(),
+  });
+
+  const subgraphBuilder = new StateGraph(SubgraphState)
+    .addNode("subgraphNode1", (state) => {
+      return { bar: "bar" };
+    })
+    .addNode("subgraphNode2", (state) => {
+      return { foo: state.foo + state.bar };
+    })
+    .addEdge(START, "subgraphNode1")
+    .addEdge("subgraphNode1", "subgraphNode2");
+  const subgraph = subgraphBuilder.compile();
+
+  // Define parent graph
+  const ParentState = new StateSchema({
+    foo: z.string(),
+  });
+
+  const builder = new StateGraph(ParentState)
+    .addNode("node1", (state) => {
+      return { foo: "hi! " + state.foo };
+    })
+    .addNode("node2", subgraph)
+    .addEdge(START, "node1")
+    .addEdge("node1", "node2");
+  const graph = builder.compile();
+
+  for await (const chunk of await graph.stream(
+    { foo: "foo" },
+    {
+      streamMode: "updates",
+      // Set subgraphs: true to stream outputs from subgraphs
+      subgraphs: true,
+    }
+  )) {
+    console.log(chunk);
+  }
+  ```
+
+
+
+
+  ```
+  [[], {'node1': {'foo': 'hi! foo'}}]
+  [['node2:dfddc4ba-c3c5-6887-5012-a243b5b377c2'], {'subgraphNode1': {'bar': 'bar'}}]
+  [['node2:dfddc4ba-c3c5-6887-5012-a243b5b377c2'], {'subgraphNode2': {'foo': 'hi! foobar'}}]
+  [[], {'node2': {'foo': 'hi! foobar'}}]
+  ```
+
+
+  **Note** that we are receiving not just the node updates, but we also the namespaces which tell us what graph (or subgraph) we are streaming from.
+</Accordion>
+
+
+
+<a id="debug"></a>
+### Debug
+
+Use the `debug` streaming mode to stream as much information as possible throughout the execution of the graph. The streamed outputs include the name of the node as well as the full state.
+
+
+
+```typescript
+for await (const chunk of await graph.stream(
+  { topic: "ice cream" },
+  { streamMode: "debug" }
+)) {
+  console.log(chunk);
+}
+```
+
+
+
+
+### Multiple modes at once
+
+
+
+You can pass an array as the `streamMode` parameter to stream multiple modes at once.
+
+The streamed outputs will be tuples of `[mode, chunk]` where `mode` is the name of the stream mode and `chunk` is the data streamed by that mode.
+
+```typescript
+for await (const [mode, chunk] of await graph.stream(inputs, {
+  streamMode: ["updates", "custom"],
+})) {
+  console.log(chunk);
+}
+```
+
+
+## Advanced
+
+### Use with any LLM
+
+
+
+You can use `streamMode: "custom"` to stream data from **any LLM API**—even if that API does **not** implement the LangChain chat model interface.
+
+This lets you integrate raw LLM clients or external services that provide their own streaming interfaces, making LangGraph highly flexible for custom setups.
 
 ```typescript
 import { StateGraph, GraphNode, StateSchema } from "@langchain/langgraph";
@@ -889,11 +863,11 @@ import * as z from "zod";
 const State = new StateSchema({ result: z.string() });
 
 const callArbitraryModel: GraphNode<typeof State> = async (state, config) => {
-  // 调用任意模型并流式传输输出的示例节点
-  // 假设您有一个产生块的流式客户端
-  // 使用您的自定义流式客户端生成 LLM 令牌
+  // Example node that calls an arbitrary model and streams the output
+  // Assume you have a streaming client that yields chunks
+  // Generate LLM tokens using your custom streaming client
   for await (const chunk of yourCustomStreamingClient(state.topic)) {
-    // 使用 writer 将自定义数据发送到流
+    // Use the writer to send custom data to the stream
     config.writer({ custom_llm_chunk: chunk });
   }
   return { result: "completed" };
@@ -901,21 +875,21 @@ const callArbitraryModel: GraphNode<typeof State> = async (state, config) => {
 
 const graph = new StateGraph(State)
   .addNode("callArbitraryModel", callArbitraryModel)
-  // 根据需要添加其他节点和边
+  // Add other nodes and edges as needed
   .compile();
 
-// 设置 streamMode: "custom" 以在流中接收自定义数据
+// Set streamMode: "custom" to receive the custom data in the stream
 for await (const chunk of await graph.stream(
   { topic: "cats" },
   { streamMode: "custom" }
 )) {
-  // 该块将包含从 LLM 流式传输的自定义数据
+  // The chunk will contain the custom data streamed from the llm
   console.log(chunk);
 }
 ```
 
 
-<Accordion title="扩展示例：流式传输任意聊天模型">
+<Accordion title="Extended example: streaming arbitrary chat model">
 
 
   ```typescript
@@ -948,7 +922,7 @@ for await (const chunk of await graph.stream(
     }
   }
 
-  // 这是我们的工具
+  // this is our tool
   const getItems = tool(
     async (input, config: LangGraphRunnableConfig) => {
       let response = "";
@@ -1002,13 +976,13 @@ for await (const chunk of await graph.stream(
   };
 
   const graph = new StateGraph(State)
-    // 这是工具调用图节点
+    // this is the tool-calling graph node
     .addNode("callTool", callTool)
     .addEdge(START, "callTool")
     .compile();
   ```
 
-  让我们使用包含工具调用的 [`AIMessage`](https://reference.langchain.com/javascript/langchain-core/messages/AIMessage) 调用该图：
+  Let's invoke the graph with an [`AIMessage`](https://reference.langchain.com/javascript/langchain-core/messages/AIMessage) that includes a tool call:
 
   ```typescript
   const inputs = {
@@ -1040,20 +1014,21 @@ for await (const chunk of await graph.stream(
 
 </Accordion>
 
-## 禁用特定聊天模型的流式传输
+### Disable streaming for specific chat models
 
-如果您的应用程序混合使用了支持流式传输和不支持流式传输的模型，您可能需要为不支持流式传输的模型显式禁用流式传输。
+If your application mixes models that support streaming with those that do not, you may need to explicitly disable streaming for
+models that do not support it.
 
 
 
-初始化模型时设置 `streaming: false`。
+Set `streaming: false` when initializing the model.
 
 ```typescript
 import { ChatOpenAI } from "@langchain/openai";
 
 const model = new ChatOpenAI({
   model: "o1-preview",
-  // 设置 streaming: false 以禁用聊天模型的流式传输
+  // Set streaming: false to disable streaming for the chat model
   streaming: false,
 });
 ```
@@ -1062,16 +1037,16 @@ const model = new ChatOpenAI({
 
 
 <Note>
-并非所有聊天模型集成都支持 `streaming` 参数。如果您的模型不支持，请改用 `disableStreaming: true`。该参数通过基类在所有聊天模型上可用。
+Not all chat model integrations support the `streaming` parameter. If your model doesn't support it, use `disableStreaming: true` instead. This parameter is available on all chat models via the base class.
 </Note>
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/streaming.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/streaming.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 <Callout icon="terminal-2">
-    通过 MCP [将这些文档连接](/use-these-docs) 到 Claude、VSCode 等以获取实时解答。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
 </Callout>
 </div>

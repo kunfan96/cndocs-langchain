@@ -1,11 +1,11 @@
 ---
-title: "Upstash 速率限制集成"
-description: "使用 LangChain JavaScript 集成 Upstash 速率限制回调。"
+title: "Upstash rate limit integration"
+description: "Integrate with the Upstash rate limit callback using LangChain JavaScript."
 ---
 
-在本指南中，我们将介绍如何使用 `UpstashRatelimitHandler` 根据请求数或令牌数添加速率限制。此处理程序使用 [Upstash 的速率限制库](https://github.com/upstash/ratelimit-js/)，该库利用了 [Upstash Redis](https://upstash.com/docs/redis/overall/getstarted)。
+In this guide, we will go over how to add rate limiting based on number of requests or the number of tokens using `UpstashRatelimitHandler`. This handler uses [Upstash's ratelimit library](https://github.com/upstash/ratelimit-js/), which utilizes [Upstash Redis](https://upstash.com/docs/redis/overall/getstarted).
 
-Upstash Ratelimit 的工作原理是每次调用 `limit` 方法时向 Upstash Redis 发送 HTTP 请求。检查并更新用户的剩余令牌/请求。根据剩余令牌，我们可以停止执行昂贵的操作，例如调用 LLM 或查询向量存储：
+Upstash Ratelimit works by sending an HTTP request to Upstash Redis every time the `limit` method is called. Remaining tokens/requests of the user are checked and updated. Based on the remaining tokens, we can stop the execution of costly operations, like invoking an LLM or querying a vector store:
 
 ```tsx
 const response = await ratelimit.limit();
@@ -14,31 +14,31 @@ if (response.success) {
 }
 ```
 
-`UpstashRatelimitHandler` 允许你在几分钟内将此速率限制逻辑合并到你的链中。
+`UpstashRatelimitHandler` allows you to incorporate this ratelimit logic into your chain in a few minutes.
 
-## 设置
+## Setup
 
-首先，你需要前往 [Upstash 控制台](https://console.upstash.com/login) 并创建一个 redis 数据库（[请参阅我们的文档](https://upstash.com/docs/redis/overall/getstarted)）。创建数据库后，你需要设置环境变量：
+First, you will need to go to [the Upstash Console](https://console.upstash.com/login) and create a redis database ([see our docs](https://upstash.com/docs/redis/overall/getstarted)). After creating a database, you will need to set the environment variables:
 
 ```
 UPSTASH_REDIS_REST_URL="****"
 UPSTASH_REDIS_REST_TOKEN="****"
 ```
 
-接下来，你需要安装 Upstash Ratelimit 和 `@langchain/community`：
+Next, you will need to install Upstash Ratelimit and `@langchain/community`:
 
 <Tip>
-请参阅 [此部分以获取有关安装 LangChain 包的通用说明](/oss/javascript/langchain/install)。
+See [this section for general instructions on installing LangChain packages](/oss/javascript/langchain/install).
 </Tip>
 
 ```bash npm
 npm install @upstash/ratelimit @langchain/community @langchain/core
 ```
-现在你已准备好向你的链添加速率限制！
+You are now ready to add rate limiting to your chain!
 
-## 每个请求的速率限制
+## Ratelimiting per request
 
-假设我们要允许我们的用户每分钟调用我们的链 10 次。实现这一点很简单：
+Let's imagine that we want to allow our users to invoke our chain 10 times per minute. Achieving this is as simple as:
 
 ```tsx
 const UPSTASH_REDIS_REST_URL = "****";
@@ -82,30 +82,30 @@ try {
   }
 }
 ```
-请注意，我们将处理程序传递给 `invoke` 方法，而不是在定义链时传递处理程序。
+Note that we pass the handler to the `invoke` method instead of passing the handler when defining the chain.
 
-对于除 `FixedWindow` 之外的速率限制算法，请参阅 [upstash-ratelimit 文档](https://upstash.com/docs/oss/sdks/ts/ratelimit/algorithms)。
+For rate limiting algorithms other than `FixedWindow`, see [upstash-ratelimit docs](https://upstash.com/docs/oss/sdks/ts/ratelimit/algorithms).
 
-在执行我们管道中的任何步骤之前，ratelimit 将检查用户是否已通过请求限制。如果是，则引发 `UpstashRatelimitError`。
+Before executing any steps in our pipeline, ratelimit will check whether the user has passed the request limit. If so, `UpstashRatelimitError` is raised.
 
-## 每个令牌的速率限制
+## Ratelimiting per token
 
-另一个选项是根据以下内容限制链调用：
+Another option is to rate limit chain invocations based on:
 
-1. 提示中的令牌数
-2. 提示和 LLM 补全中的令牌数
+1. number of tokens in prompt
+2. number of tokens in prompt and LLM completion
 
-这仅在你链中有 LLM 时才有效。另一个要求是你使用的 LLM 应在其 `LLMOutput` 中返回令牌使用情况。返回的令牌使用字典的格式取决于 LLM。要了解如何根据你的 LLM 配置处理程序，请参阅下面“配置”部分的末尾。
+This only works if you have an LLM in your chain. Another requirement is that the LLM you are using should return the token usage in it's `LLMOutput`. The format of the token usage dictionary returned depends on the LLM. To learn about how you should configure the handler depending on your LLM, see the end of the Configuration section below.
 
-### 工作原理
+### How it works
 
-处理程序将在调用 LLM 之前获取剩余令牌。如果剩余令牌大于 0，则将调用 LLM。否则将引发 `UpstashRatelimitError`。
+The handler will get the remaining tokens before calling the LLM. If the remaining tokens is more than 0, LLM will be called. Otherwise `UpstashRatelimitError` will be raised.
 
-在调用 LLM 后，令牌使用信息将用于从用户的剩余令牌中减去。在此阶段的链中不会引发错误。
+After LLM is called, token usage information will be used to subtracted from the remaining tokens of the user. No error is raised at this stage of the chain.
 
-### 配置
+### Configuration
 
-对于第一种配置，只需像这样初始化处理程序：
+For the first configuration, simply initialize the handler like this:
 
 ```tsx
 const user_id = "user_id"; // should be a method which gets the user id
@@ -113,7 +113,7 @@ const handler = new UpstashRatelimitHandler(user_id, {
   requestRatelimit: ratelimit,
 });
 ```
-对于第二种配置，这是初始化处理程序的方法：
+For the second configuration, here is how to initialize the handler:
 
 ```tsx
 const user_id = "user_id"; // should be a method which gets the user id
@@ -121,9 +121,9 @@ const handler = new UpstashRatelimitHandler(user_id, {
   tokenRatelimit: ratelimit,
 });
 ```
-你还可以通过同时传递 `request_ratelimit` 和 `token_ratelimit` 参数来同时采用基于请求和令牌的速率限制。
+You can also employ ratelimiting based on requests and tokens at the same time, simply by passing both `request_ratelimit` and `token_ratelimit` parameters.
 
-为了使令牌使用正常工作，LangChain.js 中的 LLM 步骤应以以下格式返回令牌使用字段：
+For token usage to work correctly, the LLM step in LangChain.js should return a token usage field in the following format:
 
 ```json
 {
@@ -135,7 +135,7 @@ const handler = new UpstashRatelimitHandler(user_id, {
   "otherFields: "..."
 }
 ```
-但是，并非 LangChain.js 中的所有 LLM 都符合此格式。如果你的 LLM 返回具有不同键的相同值，你可以通过将参数 `llmOutputTokenUsageField`、`llmOutputTotalTokenField` 和 `llmOutputPromptTokenField` 传递给处理程序来使用它们：
+Not all LLMs in LangChain.js comply with this format however. If your LLM returns the same values with different keys, you can use the parameters `llmOutputTokenUsageField`, `llmOutputTotalTokenField` and `llmOutputPromptTokenField` by passing them to the handler:
 
 ```tsx
 const handler = new UpstashRatelimitHandler(
@@ -148,7 +148,7 @@ const handler = new UpstashRatelimitHandler(
   }
 )
 ```
-这是一个使用 LLM 的链的示例：
+Here is an example with a chain utilizing an LLM:
 
 ```tsx
 const UPSTASH_REDIS_REST_URL = "****";
@@ -204,9 +204,9 @@ try {
 
 <div className="source-links">
 <Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/javascript/integrations/callbacks/upstash_ratelimit_callback.mdx) 或 [提交 issue](https://github.com/langchain-ai/docs/issues/new/choose)。
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/javascript/integrations/callbacks/upstash_ratelimit_callback.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 <Callout icon="terminal-2">
-    [将这些文档连接](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
 </Callout>
 </div>

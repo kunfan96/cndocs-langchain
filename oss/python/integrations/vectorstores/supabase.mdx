@@ -1,24 +1,24 @@
 ---
-title: "Supabase (Postgres) 集成"
-description: "使用 LangChain Python 集成 Supabase (Postgres) 向量存储。"
+title: "Supabase (Postgres) integration"
+description: "Integrate with the Supabase (Postgres) vector store using LangChain Python."
 ---
 
->[Supabase](https://supabase.com/docs) 是一个开源的 Firebase 替代品。`Supabase` 基于 `PostgreSQL` 构建，提供强大的 SQL 查询能力，并与现有工具和框架无缝集成。
+>[Supabase](https://supabase.com/docs) is an open-source Firebase alternative. `Supabase` is built on top of `PostgreSQL`, which offers strong SQL querying capabilities and enables a simple interface with already-existing tools and frameworks.
 
->[PostgreSQL](https://en.wikipedia.org/wiki/PostgreSQL)（也称为 `Postgres`）是一个免费开源的关系型数据库管理系统（RDBMS），以其可扩展性和 SQL 合规性著称。
+>[PostgreSQL](https://en.wikipedia.org/wiki/PostgreSQL) also known as `Postgres`, is a free and open-source relational database management system (RDBMS) emphasizing extensibility and SQL compliance.
 
-本笔记本演示如何将 `Supabase` 和 `pgvector` 用作向量存储。
+This notebook shows how to use `Supabase` and `pgvector` as your VectorStore.
 
-使用此集成需要先通过 `pip install -qU langchain-community` 安装 `langchain-community`。
+You'll need to install `langchain-community` with `pip install -qU langchain-community` to use this integration
 
-运行本笔记本前，请确保：
+To run this notebook, please ensure:
 
-- 已启用 `pgvector` 扩展
-- 已安装 `supabase-py` 包
-- 已在数据库中创建 `match_documents` 函数
-- 在 `public` 模式中有一个类似下方示例的 `documents` 表
+- the `pgvector` extension is enabled
+- you have installed the `supabase-py` package
+- that you have created a `match_documents` function in your database
+- that you have a `documents` table in your `public` schema similar to the one below.
 
-以下函数计算余弦相似度，你可以根据需要进行调整。
+The following function determines cosine similarity, but you can adjust to your needs.
 
 ```sql
 -- Enable the pgvector extension to work with embedding vectors
@@ -66,7 +66,7 @@ pip install -qU  supabase
 # !conda install -c conda-forge supabase
 ```
 
-我们要使用 `OpenAIEmbeddings`，因此需要获取 OpenAI API 密钥。
+We want to use `OpenAIEmbeddings` so we have to get the OpenAI API Key.
 
 ```python
 import getpass
@@ -93,7 +93,7 @@ from dotenv import load_dotenv
 load_dotenv()
 ```
 
-首先创建一个 Supabase 客户端并实例化 OpenAI 嵌入类。
+First we'll create a Supabase client and instantiate a OpenAI embeddings class.
 
 ```python
 import os
@@ -109,7 +109,7 @@ supabase: Client = create_client(supabase_url, supabase_key)
 embeddings = OpenAIEmbeddings()
 ```
 
-接下来加载并解析一些数据用于我们的向量存储（如果数据库中已有带嵌入的文档，可跳过此步骤）。
+Next we'll load and parse some data for our vector store (skip if you already have documents with embeddings stored in your DB).
 
 ```python
 from langchain_community.document_loaders import TextLoader
@@ -121,7 +121,7 @@ text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
 docs = text_splitter.split_documents(documents)
 ```
 
-将上述文档插入数据库。每个文档的嵌入将自动生成。你可以根据文档数量调整 chunk_size，默认值为 500，但在某些情况下可能需要降低该值。
+Insert the above documents into the database. Embeddings will automatically be generated for each document. You can adjust the chunk_size based on the amount of documents you have. The default is 500 but lowering it may be necessary.
 
 ```python
 vector_store = SupabaseVectorStore.from_documents(
@@ -134,7 +134,7 @@ vector_store = SupabaseVectorStore.from_documents(
 )
 ```
 
-如果数据库中已有带嵌入的文档，也可以直接实例化一个新的 `SupabaseVectorStore`：
+Alternatively if you already have documents with embeddings in your database, simply instantiate a new `SupabaseVectorStore` directly:
 
 ```python
 vector_store = SupabaseVectorStore(
@@ -145,7 +145,7 @@ vector_store = SupabaseVectorStore(
 )
 ```
 
-最后，通过执行相似度搜索进行测试：
+Finally, test it out by performing a similarity search:
 
 ```python
 query = "What did the president say about Ketanji Brown Jackson"
@@ -166,9 +166,9 @@ One of the most serious constitutional responsibilities a President has is nomin
 And I did that 4 days ago, when I nominated Circuit Court of Appeals Judge Ketanji Brown Jackson. One of our nation’s top legal minds, who will continue Justice Breyer’s legacy of excellence.
 ```
 
-## 带分数的相似度搜索
+## Similarity search with score
 
-返回的距离分数为余弦距离，因此分数越低越好。
+The returned score is cosine similarity. Therefore, a higher score is better.
 
 ```python
 matched_docs = vector_store.similarity_search_with_relevance_scores(query)
@@ -183,13 +183,13 @@ matched_docs[0]
  0.802509746274066)
 ```
 
-## 检索器选项
+## Retriever options
 
-本节介绍将 SupabaseVectorStore 用作检索器的不同选项。
+This section goes over different options for how to use SupabaseVectorStore as a retriever.
 
-### 最大边际相关性搜索
+### Maximal marginal relevance searches
 
-除了在检索器对象中使用相似度搜索外，你还可以使用 `mmr`。
+In addition to using similarity search in the retriever object, you can also use `mmr`.
 
 ```python
 retriever = vector_store.as_retriever(search_type="mmr")
@@ -292,6 +292,6 @@ I know what works: Investing in crime prevention and community police officers w
     [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/vectorstores/supabase.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 <Callout icon="terminal-2">
-    通过 MCP 将这些文档[连接](/use-these-docs)到 Claude、VSCode 等工具，获取实时解答。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
 </Callout>
 </div>

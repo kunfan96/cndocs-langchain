@@ -1,33 +1,33 @@
 ---
-title: "ApertureDB 集成"
-description: "使用 LangChain Python 与 ApertureDB 向量存储集成。"
+title: "ApertureDB integration"
+description: "Integrate with the ApertureDB vector store using LangChain Python."
 ---
 
-[ApertureDB](https://docs.aperturedata.io) 是一个数据库，用于存储、索引和管理多模态数据，包括文本、图像、视频、边界框和嵌入向量，以及与之关联的元数据。
+[ApertureDB](https://docs.aperturedata.io) is a database that stores, indexes, and manages multi-modal data like text, images, videos, bounding boxes, and embeddings, together with their associated metadata.
 
-本 notebook 介绍如何使用 ApertureDB 的嵌入向量功能。
+This notebook explains how to use the embeddings functionality of ApertureDB.
 
-## 安装 ApertureDB Python SDK
+## Install ApertureDB Python SDK
 
-安装用于编写 ApertureDB 客户端代码的 [Python SDK](https://docs.aperturedata.io/category/aperturedb-python-sdk)。
+This installs the [Python SDK](https://docs.aperturedata.io/category/aperturedb-python-sdk) used to write client code for ApertureDB.
 
 ```python
 pip install -qU aperturedb
 ```
 
-## 运行 ApertureDB 实例
+## Run an ApertureDB instance
 
-要继续操作，您需要[启动并运行一个 ApertureDB 实例](https://docs.aperturedata.io/HowToGuides/start/Setup)，并配置您的环境以使用它。
-有多种方式可以实现，例如：
+To continue, you should have an [ApertureDB instance up and running](https://docs.aperturedata.io/HowToGuides/start/Setup) and configure your environment to use it.
+There are various ways to do that, for example:
 
 ```bash
 docker run --publish 55555:55555 aperturedata/aperturedb-standalone
 adb config create local --active --no-interactive
 ```
 
-## 下载网络文档
+## Download some web documents
 
-我们将对一个网页进行小规模爬取。
+We're going to do a mini-crawl here of one web page.
 
 ```python
 # For loading documents from web
@@ -41,11 +41,11 @@ docs = loader.load()
 USER_AGENT environment variable not set, consider setting it to identify your requests.
 ```
 
-## 选择嵌入模型
+## Select embeddings model
 
-我们将使用 OllamaEmbeddings，因此需要导入必要的模块。
+We want to use OllamaEmbeddings so we have to import the necessary modules.
 
-Ollama 可以作为 Docker 容器运行，详见[文档](https://hub.docker.com/r/ollama/ollama)，例如：
+Ollama can be set up as a docker container as described in the [documentation](https://hub.docker.com/r/ollama/ollama), for example:
 
 ```bash
 # Run server
@@ -60,9 +60,9 @@ from langchain_community.embeddings import OllamaEmbeddings
 embeddings = OllamaEmbeddings()
 ```
 
-## 将文档拆分为片段
+## Split documents into segments
 
-我们希望将单个文档拆分为多个片段。
+We want to turn our single document into multiple segments.
 
 ```python
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -71,11 +71,11 @@ text_splitter = RecursiveCharacterTextSplitter()
 documents = text_splitter.split_documents(docs)
 ```
 
-## 从文档和嵌入向量创建向量存储
+## Create vectorstore from documents and embeddings
 
-此代码在 ApertureDB 实例中创建一个向量存储。
-在实例中，该向量存储以"[描述符集（descriptor set）](https://docs.aperturedata.io/category/descriptorset-commands)"的形式表示。
-默认情况下，描述符集名为 `langchain`。以下代码将为每个文档生成嵌入向量，并将其作为描述符存储到 ApertureDB 中。由于嵌入向量正在生成，此过程需要几秒钟。
+This code creates a vectorstore in the ApertureDB instance.
+Within the instance, this vectorstore is represented as a "[descriptor set](https://docs.aperturedata.io/category/descriptorset-commands)".
+By default, the descriptor set is named `langchain`.  The following code will generate embeddings for each document and store them in ApertureDB as descriptors.  This will take a few seconds as the embeddings are bring generated.
 
 ```python
 from langchain_community.vectorstores import ApertureDB
@@ -83,9 +83,9 @@ from langchain_community.vectorstores import ApertureDB
 vector_db = ApertureDB.from_documents(documents, embeddings)
 ```
 
-## 选择大语言模型
+## Select a large language model
 
-我们再次使用之前配置好的 Ollama 服务器进行本地处理。
+Again, we use the Ollama server we set up for local processing.
 
 ```python
 from langchain_community.llms import Ollama
@@ -93,14 +93,14 @@ from langchain_community.llms import Ollama
 llm = Ollama(model="llama2")
 ```
 
-## 构建 RAG 链
+## Build a RAG chain
 
-现在我们拥有了创建 RAG（检索增强生成）链所需的全部组件。该链执行以下操作：
+Now we have all the components we need to create a RAG (Retrieval-Augmented Generation) chain.  This chain does the following:
 
-1. 为用户查询生成嵌入描述符
-2. 使用向量存储查找与用户查询相似的文本片段
-3. 使用提示模板将用户查询和上下文文档传递给 LLM
-4. 返回 LLM 的答案
+1. Generate embedding descriptor for user query
+2. Find text segments that are similar to the user query using the vector store
+3. Pass user query and context documents to the LLM using a prompt template
+4. Return the LLM's answer
 
 ```python
 # Create prompt
@@ -135,9 +135,9 @@ retrieval_chain = create_retrieval_chain(retriever, document_chain)
 Based on the provided context, ApertureDB can store images. In fact, it is specifically designed to manage multimodal data such as images, videos, documents, embeddings, and associated metadata including annotations. So, ApertureDB has the capability to store and manage images.
 ```
 
-## 运行 RAG 链
+## Run the RAG chain
 
-最后，我们向链传入一个问题并获取答案。由于 LLM 需要根据查询和上下文文档生成答案，此过程需要几秒钟。
+Finally we pass a question to the chain and get our answer.  This will take a few seconds to run as the LLM generates an answer from the query and context documents.
 
 ```python
 user_query = "How can ApertureDB store images?"

@@ -1,9 +1,9 @@
 ---
-title: "OpenAPI 工具包集成"
-description: "使用 LangChain Python 集成 OpenAPI 工具包。"
+title: "OpenAPI toolkit integration"
+description: "Integrate with the OpenAPI toolkit using LangChain Python."
 ---
 
-我们可以构建 Agent 来调用任意 API，这里指符合 `OpenAPI`/`Swagger` 规范的 API。
+We can construct agents to consume arbitrary APIs, here APIs conformant to the `OpenAPI`/`Swagger` specification.
 
 ```python
 # NOTE: In this example. We must set `allow_dangerous_request=True` to enable the OpenAPI Agent to automatically use the Request Tool.
@@ -11,17 +11,17 @@ description: "使用 LangChain Python 集成 OpenAPI 工具包。"
 ALLOW_DANGEROUS_REQUEST = True
 ```
 
-## 第一个示例：分层规划 Agent
+## 1st example: hierarchical planning agent
 
-在本示例中，我们将考虑一种称为分层规划的方法，这种方法在机器人技术中很常见，也出现在 LLM × 机器人技术的最新研究中。我们将看到，这是一种可行的方法，既能处理大规模 API 规范，又能协助用户完成需要多步骤 API 调用的查询。
+In this example, we'll consider an approach called hierarchical planning, common in robotics and appearing in recent works for LLMs X robotics. We'll see it's a viable approach to start working with a massive API spec AND to assist with user queries that require multiple steps against the API.
 
-思路很简单：为了在长序列行为中获得连贯的 Agent 行为并节省 token，我们将关注点分离：「规划器」负责决定调用哪些端点，「控制器」负责如何调用它们。
+The idea is simple: to get coherent agent behavior over long sequences behavior & to save on tokens, we'll separate concerns: a "planner" will be responsible for what endpoints to call and a "controller" will be responsible for how to call them.
 
-在初始实现中，规划器是一个 LLM 链，上下文中包含每个端点的名称和简短描述。控制器是一个 LLM Agent，它只使用特定计划中端点的文档进行实例化。要使其非常稳健地运行，还有很多工作要做 :)
+In the initial implementation, the planner is an LLM chain that has the name and a short description for each endpoint in context. The controller is an LLM agent that is instantiated with documentation for only the endpoints for a particular plan. There's a lot left to get this working very robustly :)
 
 ---
 
-### 首先，收集一些 OpenAPI 规范
+### To start, let's collect some OpenAPI specs
 
 ```python
 import os
@@ -29,7 +29,7 @@ import os
 import yaml
 ```
 
-您可以从这里获取 OpenAPI 规范：[APIs-guru/openapi-directory](https://github.com/APIs-guru/openapi-directory)
+You will be able to get OpenAPI specs from here: [APIs-guru/openapi-directory](https://github.com/APIs-guru/openapi-directory)
 
 ```python
 !wget https://raw.githubusercontent.com/openai/openai-openapi/master/openapi.yaml -O openai_openapi.yaml
@@ -92,10 +92,10 @@ spotify_api_spec = reduce_openapi_spec(raw_spotify_api_spec)
 
 ---
 
-我们将以 Spotify API 为例，作为一个较为复杂的 API 示例。如果您想复现此示例，需要进行一些与身份验证相关的设置。
+We'll work with the Spotify API as one of the examples of a somewhat complex API. There's a bit of auth-related setup to do if you want to replicate this.
 
-- 您需要在 Spotify 开发者控制台中设置一个应用程序（说明文档在[此处](https://developer.spotify.com/documentation/general/guides/authorization/)），以获取凭据：`CLIENT_ID`、`CLIENT_SECRET` 和 `REDIRECT_URI`。
-- 要获取访问令牌（并保持其有效性），您可以实现 OAuth 流程，或者使用 `spotipy`。如果您已将 Spotify 凭据设置为环境变量 `SPOTIPY_CLIENT_ID`、`SPOTIPY_CLIENT_SECRET` 和 `SPOTIPY_REDIRECT_URI`，则可以使用以下辅助函数：
+- You'll have to set up an application in the Spotify developer console, documented in the [Spotify authorization guide](https://developer.spotify.com/documentation/general/guides/authorization/), to get credentials: `CLIENT_ID`, `CLIENT_SECRET`, and `REDIRECT_URI`.
+- To get an access tokens (and keep them fresh), you can implement the oauth flows, or you can use `spotipy`. If you've set your Spotify creedentials as environment variables `SPOTIPY_CLIENT_ID`, `SPOTIPY_CLIENT_SECRET`, and `SPOTIPY_REDIRECT_URI`, you can use the helper functions below:
 
 ```python
 import spotipy.util as util
@@ -117,7 +117,7 @@ headers = construct_spotify_auth_headers(raw_spotify_api_spec)
 requests_wrapper = RequestsWrapper(headers=headers)
 ```
 
-### 这个规范有多大？
+### How big is this spec?
 
 ```python
 endpoints = [
@@ -150,9 +150,9 @@ count_tokens(yaml.dump(raw_spotify_api_spec))
 80326
 ```
 
-### 让我们看一些示例
+### Let's see some examples
 
-从 GPT-4 开始。（GPT-3 系列的稳健性迭代正在进行中。）
+Starting with GPT-4. (Some robustness iterations under way for GPT-3 family.)
 
 ```python
 from langchain_community.agent_toolkits.openapi import planner
@@ -287,7 +287,7 @@ Final Answer: The recommended blues song for you is "Get Away Jordan" with the t
 'The recommended blues song for you is "Get Away Jordan" with the track ID: 03lXHmokj9qsXspNsPoirR.'
 ```
 
-#### 尝试另一个 API
+#### Try another API
 
 ```python
 headers = {"Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}"}
@@ -391,11 +391,11 @@ Final Answer: A short piece of advice for improving communication skills is to m
 'A short piece of advice for improving communication skills is to make sure to listen.'
 ```
 
-需要一段时间才能得到结果！
+Takes awhile to get there!
 
-## 第二个示例："json 探索器" Agent
+## 2nd example: "json explorer" agent
 
-这是一个不太实用但很有趣的 Agent！该 Agent 可以访问 2 个工具包。其中一个包含与 JSON 交互的工具：一个用于列出 JSON 对象键的工具，另一个用于获取指定键的值。另一个工具包包含用于发送 GET 和 POST 请求的 `requests` 封装器。该 Agent 会消耗大量语言模型调用，但表现出奇地不错。
+Here's an agent that's not particularly practical, but neat! The agent has access to 2 toolkits. One comprises tools to interact with json: one tool to list the keys of a json object and another tool to get the value for a given key. The other toolkit comprises `requests` wrappers to send GET and POST requests. This agent consumes a lot calls to the language model, but does a surprisingly decent job.
 
 ```python
 from langchain_community.agent_toolkits import OpenAPIToolkit, create_openapi_agent

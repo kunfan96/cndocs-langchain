@@ -1,254 +1,300 @@
 ---
-title: 使用时间旅行
-sidebarTitle: 时间旅行
+title: Use time-travel
+sidebarTitle: Time travel
+description: Replay past executions and fork to explore alternative paths in LangGraph
 ---
 
+## Overview
 
+LangGraph supports time travel through [checkpoints](/oss/javascript/langgraph/persistence#checkpoints):
 
-在处理基于模型做出决策的非确定性系统（例如，由 LLM 驱动的代理）时，详细检查其决策过程可能会很有用：
+- **[Replay](#replay)**: Retry from a prior checkpoint.
+- **[Fork](#fork)**: Branch from a prior checkpoint with modified state to explore an alternative path.
 
-1. <Icon icon="bulb" size={16} /> **理解推理**：分析导致成功结果的步骤。
-2. <Icon icon="bug" size={16} /> **调试错误**：确定错误发生的位置和原因。
-3. <Icon icon="search" size={16} /> **探索替代方案**：测试不同的路径以发现更好的解决方案。
+Both work by resuming from a prior checkpoint. Nodes before the checkpoint are not re-executed (results are already saved). Nodes after the checkpoint re-execute, including any LLM calls, API requests, and [interrupts](/oss/javascript/langgraph/interrupts) (which may produce different results).
 
-LangGraph 提供时间旅行功能来支持这些用例。具体来说，您可以从之前的检查点恢复执行——既可以重放相同的状态，也可以修改状态以探索替代方案。在所有情况下，恢复过去的执行都会在历史记录中产生一个新的分支。
+## Replay
 
-要在 LangGraph 中使用时间旅行：
+Invoke the graph with a prior checkpoint's config to replay from that point.
 
+<Warning>
 
+Replay re-executes nodes—it doesn't just read from cache. LLM calls, API requests, and [interrupts](/oss/javascript/langgraph/interrupts) fire again and may return different results. Replaying from the final checkpoint (no `next` nodes) is a no-op.
 
-1. 使用 [`invoke`](https://reference.langchain.com/javascript/classes/_langchain_langgraph.index.CompiledStateGraph.html#invoke) 或 [`stream`](https://reference.langchain.com/javascript/classes/_langchain_langgraph.index.CompiledStateGraph.html#stream) 方法以初始输入 [运行图](#1-run-the-graph)。
-2. [在现有线程中识别检查点](#2-identify-a-checkpoint)：使用 [`getStateHistory`](https://reference.langchain.com/javascript/classes/_langchain_langgraph.pregel.Pregel.html#getStateHistory) 方法检索特定 `thread_id` 的执行历史并找到所需的 `checkpoint_id`。
-  或者，在您希望暂停执行的节点之前设置 [断点](/oss/javascript/langgraph/interrupts)。然后，您可以找到该断点之前记录的最近检查点。
-3. [更新图状态（可选）](#3-update-the-state-optional)：使用 [`updateState`](https://reference.langchain.com/javascript/classes/_langchain_langgraph.pregel.Pregel.html#updateState) 方法修改检查点处的图状态，并从替代状态恢复执行。
-4. [从检查点恢复执行](#4-resume-execution-from-the-checkpoint)：使用 `invoke` 或 `stream` 方法，输入为 `null`，配置包含适当的 `thread_id` 和 `checkpoint_id`。
+</Warning>
 
-
-## 在工作流中
-
-本示例构建了一个简单的 LangGraph 工作流，该工作流生成一个笑话主题并使用 LLM 编写笑话。它演示了如何运行图、检索过去的执行检查点、可选地修改状态，并从选定的检查点恢复执行以探索替代结果。
-
-### 设置
-
-要在本示例中构建此工作流，您需要设置 Anthropic LLM 并安装所需的依赖项：
+![Replay](/oss/images/re_play.png)
 
 
 
-1. 安装依赖项
-<CodeGroup>
-```bash npm
-npm install @langchain/langgraph @langchain/core
-```
-
-```bash pnpm
-pnpm add @langchain/langgraph @langchain/core
-```
-
-```bash yarn
-yarn add @langchain/langgraph @langchain/core
-```
-
-```bash bun
-bun add @langchain/langgraph @langchain/core
-```
-</CodeGroup>
-
-2. 初始化 LLM：
+Use [`getStateHistory`](https://reference.langchain.com/javascript/classes/_langchain_langgraph.pregel.Pregel.html#getStateHistory) to find the checkpoint you want to replay from, then call [`invoke`](https://reference.langchain.com/javascript/classes/_langchain_langgraph.index.CompiledStateGraph.html#invoke) with that checkpoint's config:
 
 ```typescript
-import { ChatAnthropic } from "@langchain/anthropic";
+import { v7 as uuid7 } from "uuid";
+import { StateGraph, MemorySaver, START } from "@langchain/langgraph";
 
-const llm = new ChatAnthropic({
-  model: "claude-sonnet-4-6",
-  apiKey: "<your_anthropic_key>"
-});
-```
-
-
-<Tip>
-    注册 [LangSmith](https://smith.langchain.com) 以快速发现问题并提高 LangGraph 项目的性能。LangSmith 允许您使用跟踪数据来调试、测试和监控使用 LangGraph 构建的 LLM 应用程序。您还可以 [从 LangSmith 获取跟踪](/langsmith/export-traces#fetch-a-single-run-by-id) 以在本地重放和调试生产问题。
-</Tip>
-
-3. 实现工作流
-工作流的实现是一个简单的图，包含两个节点，一个用于生成笑话主题，另一个用于编写笑话本身，以及一个用于存储中间值的状态。
-
-
-
-```typescript
-import { v4 as uuidv4 } from "uuid";
-import * as z from "zod";
-import { StateGraph, StateSchema, GraphNode, START, END, MemorySaver } from "@langchain/langgraph";
-import { ChatAnthropic } from "@langchain/anthropic";
-
-const State = new StateSchema({
-  topic: z.string().optional(),
-  joke: z.string().optional(),
+const StateAnnotation = Annotation.Root({
+  topic: Annotation<string>(),
+  joke: Annotation<string>(),
 });
 
-const model = new ChatAnthropic({
-  model: "claude-sonnet-4-6",
-  temperature: 0,
-});
+function generateTopic(state: typeof StateAnnotation.State) {
+  return { topic: "socks in the dryer" };
+}
 
-const generateTopic: GraphNode<typeof State> = async (state) => {
-  // LLM 调用以生成笑话的主题
-  const msg = await model.invoke("Give me a funny topic for a joke");
-  return { topic: msg.content };
-};
+function writeJoke(state: typeof StateAnnotation.State) {
+  return { joke: `Why do ${state.topic} disappear? They elope!` };
+}
 
-const writeJoke: GraphNode<typeof State> = async (state) => {
-  // LLM 调用以根据主题编写笑话
-  const msg = await model.invoke(`Write a short joke about ${state.topic}`);
-  return { joke: msg.content };
-};
-
-// 构建工作流
-const workflow = new StateGraph(State)
-  // 添加节点
+const checkpointer = new MemorySaver();
+const graph = new StateGraph(StateAnnotation)
   .addNode("generateTopic", generateTopic)
   .addNode("writeJoke", writeJoke)
-  // 添加边以连接节点
   .addEdge(START, "generateTopic")
   .addEdge("generateTopic", "writeJoke")
-  .addEdge("writeJoke", END);
+  .compile({ checkpointer });
 
-// 编译
-const checkpointer = new MemorySaver();
-const graph = workflow.compile({ checkpointer });
-```
+// Step 1: Run the graph
+const config = { configurable: { thread_id: uuid7() } };
+const result = await graph.invoke({}, config);
 
-
-### 1. 运行图
-要启动工作流，在没有任何输入的情况下调用 [`invoke`](https://reference.langchain.com/javascript/classes/_langchain_langgraph.index.CompiledStateGraph.html#invoke)。请记下 `thread_id` 以便跟踪此执行并在以后检索其检查点。
-
-
-
-```typescript
-const config = {
-  configurable: {
-    thread_id: uuidv4(),
-  },
-};
-
-const state = await graph.invoke({}, config);
-
-console.log(state.topic);
-console.log();
-console.log(state.joke);
-```
-
-
-**输出:**
-
-```
-How about "The Secret Life of Socks in the Dryer"? You know, exploring the mysterious phenomenon of how socks go into the laundry as pairs but come out as singles. Where do they go? Are they starting new lives elsewhere? Is there a sock paradise we don't know about? There's a lot of comedic potential in the everyday mystery that unites us all!
-
-# The Secret Life of Socks in the Dryer
-
-I finally discovered where all my missing socks go after the dryer. Turns out they're not missing at all—they've just eloped with someone else's socks from the laundromat to start new lives together.
-
-My blue argyle is now living in Bermuda with a red polka dot, posting vacation photos on Sockstagram and sending me lint as alimony.
-```
-
-### 2. 识别检查点
-要从图运行中的前一个点继续，请使用 [`get_state_history`](https://reference.langchain.com/javascript/classes/_langchain_langgraph.pregel.Pregel.html#getStateHistory) 检索所有状态，并选择您要从中恢复执行的状态。
-
-
-
-```typescript
-// 状态按时间倒序返回。
+// Step 2: Find a checkpoint to replay from
 const states = [];
 for await (const state of graph.getStateHistory(config)) {
   states.push(state);
 }
 
-for (const state of states) {
-  console.log(state.next);
-  console.log(state.config.configurable?.checkpoint_id);
-  console.log();
+// Step 3: Replay from a specific checkpoint
+const beforeJoke = states.find((s) => s.next.includes("writeJoke"));
+const replayResult = await graph.invoke(null, beforeJoke.config);
+// writeJoke re-executes (runs again), generateTopic does not
+```
+
+
+## Fork
+
+Fork creates a new branch from a past checkpoint with modified state. Call [`update_state`](https://reference.langchain.com/javascript/classes/_langchain_langgraph.pregel.Pregel.html#updateState) on a prior checkpoint to create the fork, then [`invoke`](https://reference.langchain.com/javascript/classes/_langchain_langgraph.index.CompiledStateGraph.html#invoke) with `None` to continue execution.
+
+![Fork](/oss/images/checkpoints_full_story.jpg)
+
+<Warning>
+
+`update_state` does **not** roll back a thread. It creates a new checkpoint that branches from the specified point. The original execution history remains intact.
+
+</Warning>
+
+
+
+```typescript
+// Find checkpoint before writeJoke
+const states = [];
+for await (const state of graph.getStateHistory(config)) {
+  states.push(state);
 }
+const beforeJoke = states.find((s) => s.next.includes("writeJoke"));
+
+// Fork: update state to change the topic
+const forkConfig = await graph.updateState(
+  beforeJoke.config,
+  { topic: "chickens" },
+);
+
+// Resume from the fork — writeJoke re-executes with the new topic
+const forkResult = await graph.invoke(null, forkConfig);
+console.log(forkResult.joke); // A joke about chickens, not socks
 ```
 
-**输出:**
 
-```
-[]
-1f02ac4a-ec9f-6524-8002-8f7b0bbeed0e
+### From a specific node
 
-['writeJoke']
-1f02ac4a-ce2a-6494-8001-cb2e2d651227
+When you call [`update_state`](https://reference.langchain.com/javascript/classes/_langchain_langgraph.pregel.Pregel.html#updateState), values are applied using the specified node's writers (including [reducers](/oss/javascript/langgraph/graph-api#reducers)). The checkpoint records that node as having produced the update, and execution resumes from that node's successors.
 
-['generateTopic']
-1f02ac4a-a4e0-630d-8000-b73c254ba748
+By default, LangGraph infers `as_node` from the checkpoint's version history. When forking from a specific checkpoint, this inference is almost always correct.
 
-['__start__']
-1f02ac4a-a4dd-665e-bfff-e6c8c44315d9
-```
+Specify `as_node` explicitly when:
 
+- **Parallel branches**: Multiple nodes updated state in the same step, and LangGraph can't determine which was last (`InvalidUpdateError`).
+- **No execution history**: Setting up state on a fresh thread (common in [testing](/oss/javascript/langgraph/test)).
+- **Skipping nodes**: Set `as_node` to a later node to make the graph think that node already ran.
 
 
 
 ```typescript
-// 这是倒数第二个状态（状态按时间顺序列出）
-const selectedState = states[1];
-console.log(selectedState.next);
-console.log(selectedState.values);
-```
+// graph: generateTopic -> writeJoke
 
-**输出:**
-
-```
-['writeJoke']
-{'topic': 'How about "The Secret Life of Socks in the Dryer"? You know, exploring the mysterious phenomenon of how socks go into the laundry as pairs but come out as singles. Where do they go? Are they starting new lives elsewhere? Is there a sock paradise we don\'t know about? There\'s a lot of comedic potential in the everyday mystery that unites us all!'}
-```
-
-
-<a id="optional"></a>
-### 3. 更新状态（可选）
-
-
-
-`updateState` 将创建一个新的检查点。新的检查点将关联到同一个线程，但具有新的检查点 ID。
-
-```typescript
-const newConfig = await graph.updateState(selectedState.config, {
-  topic: "chickens",
-});
-console.log(newConfig);
-```
-
-**输出:**
-
-```
-{'configurable': {'thread_id': 'c62e2e03-c27b-4cb6-8cea-ea9bfedae006', 'checkpoint_ns': '', 'checkpoint_id': '1f02ac4a-ecee-600b-8002-a1d21df32e4c'}}
+// Treat this update as if generateTopic produced it.
+// Execution resumes at writeJoke (the successor of generateTopic).
+const forkConfig = await graph.updateState(
+  beforeJoke.config,
+  { topic: "chickens" },
+  { asNode: "generateTopic" },
+);
 ```
 
 
-### 4. 从检查点恢复执行
-要从选定的检查点恢复执行，请使用指向新检查点的配置调用 [`invoke`](https://reference.langchain.com/javascript/classes/_langchain_langgraph.index.CompiledStateGraph.html#invoke)。
+## Interrupts
+
+If your graph uses [`interrupt`](https://reference.langchain.com/javascript/langchain-langgraph/index/interrupt) for [human-in-the-loop](/oss/javascript/langgraph/interrupts) workflows, interrupts are always re-triggered during time travel. The node containing the interrupt re-executes, and `interrupt()` pauses for a new `Command(resume=...)`.
 
 
 
 ```typescript
-await graph.invoke(null, newConfig);
-```
+import { interrupt, Command } from "@langchain/langgraph";
 
-**输出:**
-
-```typescript
-{
-  'topic': 'chickens',
-  'joke': 'Why did the chicken join a band?\n\nBecause it had excellent drumsticks!'
+function askHuman(state: { value: string[] }) {
+  const answer = interrupt("What is your name?");
+  return { value: [`Hello, ${answer}!`] };
 }
+
+function finalStep(state: { value: string[] }) {
+  return { value: ["Done"] };
+}
+
+// ... build graph with checkpointer ...
+
+// First run: hits interrupt
+await graph.invoke({ value: [] }, config);
+// Resume with answer
+await graph.invoke(new Command({ resume: "Alice" }), config);
+
+// Replay from before askHuman
+const states = [];
+for await (const state of graph.getStateHistory(config)) {
+  states.push(state);
+}
+const beforeAsk = states.filter((s) => s.next.includes("askHuman")).pop();
+
+const replayResult = await graph.invoke(null, beforeAsk.config);
+// Pauses at interrupt — waiting for new Command({ resume: ... })
+
+// Fork from before askHuman
+const forkConfig = await graph.updateState(beforeAsk.config, { value: ["forked"] });
+const forkResult = await graph.invoke(null, forkConfig);
+// Pauses at interrupt — waiting for new Command({ resume: ... })
+
+// Resume the forked interrupt with a different answer
+await graph.invoke(new Command({ resume: "Bob" }), forkConfig);
+// Result: { value: ["forked", "Hello, Bob!", "Done"] }
 ```
+
+
+### Multiple interrupts
+
+If your graph collects input at several points (for example, a multi-step form), you can fork from between the interrupts to change a later answer without re-asking earlier questions.
+
+
+
+```typescript
+// Fork from BETWEEN the two interrupts (after askName, before askAge)
+const states = [];
+for await (const state of graph.getStateHistory(config)) {
+  states.push(state);
+}
+const between = states.filter((s) => s.next.includes("askAge")).pop();
+
+const forkConfig = await graph.updateState(between.config, { value: ["modified"] });
+const result = await graph.invoke(null, forkConfig);
+// askName result preserved ("name:Alice")
+// askAge pauses at interrupt — waiting for new answer
+```
+
+
+## Subgraphs
+
+Time travel with [subgraphs](/oss/javascript/langgraph/use-subgraphs) depends on whether the subgraph has its own checkpointer. This determines the granularity of checkpoints you can time travel from.
+
+<Tabs>
+<Tab title="Inherited checkpointer (default)">
+
+By default, a subgraph inherits the parent's checkpointer. The parent treats the entire subgraph as a **single super-step** — there is only one parent-level checkpoint for the whole subgraph execution. Time traveling from before the subgraph re-executes it from scratch.
+
+You cannot time travel to a point *between* nodes in a default subgraph — you can only time travel from the parent level.
+
+
+
+```typescript
+// Subgraph without its own checkpointer (default)
+const subgraph = new StateGraph(StateAnnotation)
+  .addNode("stepA", stepA)       // Has interrupt()
+  .addNode("stepB", stepB)       // Has interrupt()
+  .addEdge(START, "stepA")
+  .addEdge("stepA", "stepB")
+  .compile();  // No checkpointer — inherits from parent
+
+const graph = new StateGraph(StateAnnotation)
+  .addNode("subgraphNode", subgraph)
+  .addEdge(START, "subgraphNode")
+  .compile({ checkpointer });
+
+// Complete both interrupts
+await graph.invoke({ value: [] }, config);
+await graph.invoke(new Command({ resume: "Alice" }), config);
+await graph.invoke(new Command({ resume: "30" }), config);
+
+// Time travel from before the subgraph
+const states = [];
+for await (const state of graph.getStateHistory(config)) {
+  states.push(state);
+}
+const beforeSub = states.filter((s) => s.next.includes("subgraphNode")).pop();
+
+const forkConfig = await graph.updateState(beforeSub.config, { value: ["forked"] });
+const result = await graph.invoke(null, forkConfig);
+// The entire subgraph re-executes from scratch
+// You cannot time travel to a point between stepA and stepB
+```
+
+
+</Tab>
+<Tab title="Subgraph checkpointer">
+
+Set `checkpointer=True` on the subgraph to give it its own checkpoint history. This creates checkpoints at each step **within** the subgraph, allowing you to time travel from a specific point inside it — for example, between two interrupts.
+
+Use [`get_state`](https://reference.langchain.com/javascript/classes/_langchain_langgraph.pregel.Pregel.html#getState) with `subgraphs=True` to access the subgraph's own checkpoint config, then fork from it:
+
+
+
+```typescript
+// Subgraph with its own checkpointer
+const subgraph = new StateGraph(StateAnnotation)
+  .addNode("stepA", stepA)       // Has interrupt()
+  .addNode("stepB", stepB)       // Has interrupt()
+  .addEdge(START, "stepA")
+  .addEdge("stepA", "stepB")
+  .compile({ checkpointer: true });  // Own checkpoint history
+
+const graph = new StateGraph(StateAnnotation)
+  .addNode("subgraphNode", subgraph)
+  .addEdge(START, "subgraphNode")
+  .compile({ checkpointer });
+
+// Run until stepA interrupt, then resume -> hits stepB interrupt
+await graph.invoke({ value: [] }, config);
+await graph.invoke(new Command({ resume: "Alice" }), config);
+
+// Get the subgraph's own checkpoint (between stepA and stepB)
+const parentState = await graph.getState(config, { subgraphs: true });
+const subConfig = parentState.tasks[0].state.config;
+
+// Fork from the subgraph checkpoint
+const forkConfig = await graph.updateState(subConfig, { value: ["forked"] });
+const result = await graph.invoke(null, forkConfig);
+// stepB re-executes, stepA's result is preserved
+```
+
+
+</Tab>
+</Tabs>
+
+See [subgraph persistence](/oss/javascript/langgraph/use-subgraphs#subgraph-persistence) for more on configuring subgraph checkpointers.
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/use-time-travel.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/use-time-travel.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 <Callout icon="terminal-2">
-    通过 MCP [将这些文档连接](/use-these-docs) 到 Claude、VSCode 等以获取实时解答。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
 </Callout>
 </div>

@@ -1,34 +1,36 @@
 ---
-title: 运行时 (Runtime)
+title: Runtime
 ---
 
-## 概述
+## Overview
 
 
-LangChain 的 `createAgent` 在底层运行于 LangGraph 的运行时之上。
+LangChain's `createAgent` runs on LangGraph's runtime under the hood.
 
-LangGraph 暴露了一个 [`Runtime`](https://reference.langchain.com/javascript/langchain/index/Runtime) 对象，其中包含以下信息：
+LangGraph exposes a [`Runtime`](https://reference.langchain.com/javascript/langchain/index/Runtime) object with the following information:
 
-1. **Context (上下文)**：静态信息，如用户 ID、数据库连接，或代理调用的其他依赖项
-2. **Store (存储)**：一个 [BaseStore](https://reference.langchain.com/javascript/langchain-core/stores/BaseStore) 实例，用于 [长期记忆](/oss/javascript/langchain/long-term-memory)
-3. **Stream writer (流写入器)**：一个对象，用于通过 `"custom"` 流模式流式传输信息
+1. **Context**: static information like user id, db connections, or other dependencies for an agent invocation
+2. **Store**: a [BaseStore](https://reference.langchain.com/javascript/langchain-core/stores/BaseStore) instance used for [long-term memory](/oss/javascript/langchain/long-term-memory)
+3. **Stream writer**: an object used for streaming information via the `"custom"` stream mode
+4. **Execution info**: identity and retry information for the current execution (thread ID, run ID, attempt number)
+5. **Server info**: server-specific metadata when running on LangGraph Server (assistant ID, graph ID, authenticated user)
 
 
 
 <Tip>
-运行时上下文是您将数据穿针引线通过代理的方式。您可以将值（如数据库连接、用户会话或配置）附加到上下文，并在工具和中间件中访问它们，而不是将事物存储在全局状态中。这保持了事物的无状态、可测试和可重用性。
+The runtime context is how you thread data through your agent. Rather than storing things in global state, you can attach values—like a database connection, user session, or configuration—to the context and access them inside tools and middleware. This keeps things stateless, testable, and reusable.
 </Tip>
 
 
-您可以在 [工具](#inside-tools) 和 [中间件](#inside-middleware) 中访问运行时信息。
+You can access the runtime information within [tools](#inside-tools) and [middleware](#inside-middleware).
 
-## 访问
-
-
-使用 `createAgent` 创建代理时，您可以指定 `contextSchema` 来定义存储在代理 [`Runtime`](https://reference.langchain.com/javascript/langchain/index/Runtime) 中的 `context` 结构。
+## Access
 
 
-调用代理时，传递带有相关运行配置的 `context` 参数：
+When creating an agent with `createAgent`, you can specify a `contextSchema` to define the structure of the `context` stored in the agent [`Runtime`](https://reference.langchain.com/javascript/langchain/index/Runtime).
+
+
+When invoking the agent, pass the `context` argument with the relevant configuration for the run:
 
 
 ```ts
@@ -54,16 +56,16 @@ const result = await agent.invoke(
 ```
 
 
-### 在工具内部
+### Inside tools
 
-您可以在工具内部访问运行时信息以：
+You can access the runtime information inside tools to:
 
-* 访问上下文
-* 读取或写入长期记忆
-* 写入 [自定义流](/oss/javascript/langchain/streaming#custom-updates)（例如，工具进度/更新）
+* Access the context
+* Read or write long-term memory
+* Write to the [custom stream](/oss/javascript/langchain/streaming#custom-updates) (ex, tool progress / updates)
 
 
-使用 `runtime` 参数在工具内部访问 [`Runtime`](https://reference.langchain.com/javascript/langchain/index/Runtime) 对象。
+Use the `runtime` parameter to access the [`Runtime`](https://reference.langchain.com/javascript/langchain/index/Runtime) object inside a tool.
 
 ```ts
 import * as z from "zod";
@@ -99,12 +101,57 @@ const fetchUserEmailPreferences = tool(
 ```
 
 
-### 在中间件内部
-
-您可以在中间件中访问运行时信息，以根据用户上下文创建动态提示、修改消息或控制代理行为。
+### Execution info and server info inside tools
 
 
-使用 `runtime` 参数在中间件内部访问 [`Runtime`](https://reference.langchain.com/javascript/langchain/index/Runtime) 对象。
+
+Access execution identity (thread ID, run ID) via `runtime.executionInfo`, and server-specific metadata (assistant ID, authenticated user) via `runtime.serverInfo` when running on LangGraph Server:
+
+```ts
+import { tool } from "langchain";
+import * as z from "zod";
+
+const contextAwareTool = tool(
+  async (_input, runtime) => {
+    // Access thread and run IDs
+    const info = runtime.executionInfo;
+    console.log(`Thread: ${info.threadId}, Run: ${info.runId}`);  // [!code highlight]
+
+    // Access server info (only available on LangGraph Server)
+    const server = runtime.serverInfo;
+    if (server != null) {
+      console.log(`Assistant: ${server.assistantId}`);  // [!code highlight]
+      if (server.user != null) {
+        console.log(`User: ${server.user.identity}`);  // [!code highlight]
+      }
+    }
+
+    return "done";
+  },
+  {
+    name: "context_aware_tool",
+    description: "A tool that uses execution and server info.",
+    schema: z.object({}),
+  }
+);
+```
+
+`serverInfo` is `null` when not running on LangGraph Server (e.g., during local development).
+
+
+
+
+<Note>
+Requires `deepagents>=1.9.0` (or `@langchain/langgraph>=1.2.8`) for `runtime.executionInfo` and `runtime.serverInfo`.
+</Note>
+
+
+### Inside middleware
+
+You can access runtime information in middleware to create dynamic prompts, modify messages, or control agent behavior based on user context.
+
+
+Use the `runtime` parameter to access the [`Runtime`](https://reference.langchain.com/javascript/langchain/index/Runtime) object inside middleware.
 
 ```ts
 import * as z from "zod";
@@ -161,13 +208,43 @@ const result = await agent.invoke(
 
 ```
 
+
+### Execution info and server info inside middleware
+
+
+
+Middleware hooks can also access `runtime.executionInfo` and `runtime.serverInfo`:
+
+```ts
+import { createMiddleware } from "langchain";
+
+const authGate = createMiddleware({
+  name: "AuthGate",
+  beforeModel: (state, runtime) => {
+    const server = runtime.serverInfo;
+    if (server != null && server.user == null) {  // [!code highlight]
+      throw new Error("Authentication required");
+    }
+    console.log(`Thread: ${runtime.executionInfo.threadId}`);  // [!code highlight]
+    return;
+  },
+});
+```
+
+
+
+
+<Note>
+Requires `deepagents>=1.9.0` (or `@langchain/langgraph>=1.2.8`).
+</Note>
+
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/runtime.mdx) 或 [提交 issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/runtime.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 <Callout icon="terminal-2">
-    [将这些文档连接](/use-these-docs) 到 Claude、VSCode 等，通过 MCP 获取实时解答。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
 </Callout>
 </div>

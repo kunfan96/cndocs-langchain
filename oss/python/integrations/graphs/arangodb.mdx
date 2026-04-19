@@ -1,33 +1,35 @@
 ---
-title: "ArangoDB 集成"
-description: "使用 LangChain Python 集成 ArangoDB 图数据库。"
+title: "ArangoDB integration"
+description: "Integrate with the ArangoDB graph using LangChain Python."
 ---
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/arangodb/interactive_tutorials/blob/master/notebooks/LangChain.ipynb)
 
->[ArangoDB](https://github.com/arangodb/arangodb) 是一个可扩展的图数据库系统，可以更快地从关联数据中挖掘价值。它通过单一查询语言支持原生图、集成搜索引擎和 JSON。`ArangoDB` 支持本地部署或云端部署。
+>[ArangoDB](https://github.com/arangodb/arangodb) is a scalable graph database system to drive value from
+>connected data, faster. Native graphs, an integrated search engine, and JSON support, via
+>a single query language. `ArangoDB` runs on-prem or in the cloud.
 
-本 notebook 展示了如何使用 LLM 为 [ArangoDB](https://github.com/arangodb/arangodb#readme) 数据库提供自然语言接口。
+This notebook shows how to use LLMs to provide a natural language interface to an [ArangoDB](https://github.com/arangodb/arangodb#readme) database.
 
-## 环境准备
+## Setting up
 
-您可以通过 [ArangoDB Docker 镜像](https://hub.docker.com/_/arangodb) 在本地运行 `ArangoDB` 实例：
+You can get a local `ArangoDB` instance running via the [ArangoDB Docker image](https://hub.docker.com/_/arangodb):
 
 ```
 docker run -p 8529:8529 -e ARANGO_ROOT_PASSWORD= arangodb/arangodb
 ```
 
-另一种选择是使用 [ArangoDB Cloud Connector 包](https://github.com/arangodb/adb-cloud-connector#readme) 来获取一个临时云实例：
+An alternative is to use the [ArangoDB Cloud Connector package](https://github.com/arangodb/adb-cloud-connector#readme) to get a temporary cloud instance running:
 
 ```shell
-pip install -qU  python-arango # ArangoDB Python 驱动
-pip install -qU  adb-cloud-connector # ArangoDB 云实例配置器
+pip install -qU  python-arango # The ArangoDB Python Driver
+pip install -qU  adb-cloud-connector # The ArangoDB Cloud Instance provisioner
 pip install -qU  langchain-openai
 pip install -qU  langchain
 ```
 
 ```python
-# 实例化 ArangoDB 数据库
+# Instantiate ArangoDB Database
 import json
 
 from adb_cloud_connector import get_temp_credentials
@@ -44,7 +46,7 @@ print(json.dumps(con, indent=2))
 
 ```text
 Log: requesting new credentials...
-Succcess: new credentials acquired
+Success: new credentials acquired
 {
   "dbName": "TUT3sp29s3pjf1io0h4cfdsq",
   "username": "TUTo6nkwgzkizej3kysgdyeo8",
@@ -56,15 +58,15 @@ Succcess: new credentials acquired
 ```
 
 ```python
-# 实例化 ArangoDB-LangChain 图
+# Instantiate the ArangoDB-LangChain Graph
 from langchain_community.graphs import ArangoGraph
 
 graph = ArangoGraph(db)
 ```
 
-## 填充数据库
+## Populating database
 
-我们将使用 `Python Driver` 将 [GameOfThrones](https://github.com/arangodb/example-datasets/tree/master/GameOfThrones) 数据导入数据库。
+We will rely on the `Python Driver` to import our [GameOfThrones](https://github.com/arangodb/example-datasets/tree/master/GameOfThrones) data into our database.
 
 ```python
 if db.has_graph("GameOfThrones"):
@@ -137,13 +139,13 @@ db.collection("ChildOf").import_bulk(edges)
  'details': []}
 ```
 
-## 获取和设置 ArangoDB 模式
+## Getting and setting the ArangoDB schema
 
-在实例化 `ArangoDBGraph` 对象时会生成初始的 `ArangoDB Schema`。以下是模式的 getter 和 setter 方法，供您查看或修改模式时使用：
+An initial `ArangoDB Schema` is generated upon instantiating the `ArangoDBGraph` object. Below are the schema's getter & setter methods should you be interested in viewing or modifying the schema:
 
 ```python
-# 此处模式应为空，
-# 因为 `graph` 在 ArangoDB 数据摄取之前初始化（见上文）。
+# The schema should be empty here,
+# since `graph` was initialized prior to ArangoDB Data ingestion (see above).
 
 import json
 
@@ -162,7 +164,7 @@ graph.set_schema()
 ```
 
 ```python
-# 现在可以查看生成的模式
+# We can now view the generated schema
 
 import json
 
@@ -273,9 +275,9 @@ print(json.dumps(graph.schema, indent=4))
 }
 ```
 
-## 查询 ArangoDB 数据库
+## Querying the ArangoDB database
 
-现在我们可以使用 `ArangoDB Graph` QA 链查询数据
+We can now use the `ArangoDB Graph` QA Chain to inquire about our data
 
 ```python
 import os
@@ -380,26 +382,26 @@ AQL Result:
 'Yes, Arya Stark has a dead parent. The parent is Catelyn Stark.'
 ```
 
-## 链修饰符
+## Chain modifiers
 
-您可以修改以下 `ArangoDBGraphQAChain` 类变量的值来改变链的结果行为
+You can alter the values of the following `ArangoDBGraphQAChain` class variables to modify the behaviour of your chain results
 
 ```python
-# 指定要返回的最大 AQL 查询结果数
+# Specify the maximum number of AQL Query Results to return
 chain.top_k = 10
 
-# 指定是否在输出字典中返回 AQL 查询
+# Specify whether or not to return the AQL Query in the output dictionary
 chain.return_aql_query = True
 
-# 指定是否在输出字典中返回 AQL JSON 结果
+# Specify whether or not to return the AQL JSON Result in the output dictionary
 chain.return_aql_result = True
 
-# 指定最大 AQL 生成尝试次数
+# Specify the maximum amount of AQL Generation attempts that should be made
 chain.max_aql_generation_attempts = 5
 
-# 指定一组 AQL 查询示例，这些示例传递给
-# AQL 生成提示模板以促进少样本学习。
-# 默认为空字符串。
+# Specify a set of AQL Query Examples, which are passed to
+# the AQL Generation Prompt Template to promote few-shot-learning.
+# Defaults to an empty string.
 chain.aql_examples = """
 # Is Ned Stark alive?
 RETURN DOCUMENT('Characters/NedStark').alive
@@ -414,7 +416,7 @@ FOR e IN ChildOf
 ```python
 chain.run("Is Ned Stark alive?")
 
-# chain("Is Ned Stark alive?") # 返回包含 AQL 查询和 AQL 结果的字典
+# chain("Is Ned Stark alive?") # Returns a dictionary with the AQL Query & AQL Result
 ```
 
 ```text
@@ -457,9 +459,9 @@ AQL Result:
 
 <div className="source-links">
 <Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/graphs/arangodb.mdx) 或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/graphs/arangodb.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 <Callout icon="terminal-2">
-    通过 MCP 将[这些文档](/use-these-docs)连接到 Claude、VSCode 等工具，获取实时解答。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
 </Callout>
 </div>

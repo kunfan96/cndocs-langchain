@@ -1,18 +1,18 @@
 ---
-title: 护栏
-description: 为你的代理实施安全检查和内容过滤
+title: Guardrails
+description: Implement safety checks and content filtering for your agents
 ---
 
-护栏通过在代理执行的关键点验证和过滤内容，帮助你构建安全、合规的 AI 应用程序。它们可以在问题发生之前检测敏感信息、执行内容策略、验证输出并防止不安全行为。
+Guardrails help you build safe, compliant AI applications by validating and filtering content at key points in your agent's execution. They can detect sensitive information, enforce content policies, validate outputs, and prevent unsafe behaviors before they cause problems.
 
-常见用例包括：
-- 防止 PII 泄露
-- 检测并阻止提示注入攻击
-- 阻止不当或有害内容
-- 执行业务规则和合规性要求
-- 验证输出质量和准确性
+Common use cases include:
+- Preventing PII leakage
+- Detecting and blocking prompt injection attacks
+- Blocking inappropriate or harmful content
+- Enforcing business rules and compliance requirements
+- Validating output quality and accuracy
 
-你可以使用 [中间件](/oss/javascript/langchain/middleware) 来实施护栏，以拦截策略点上的执行——在代理启动之前、完成之后，或在模型和工具调用周围。
+You can implement guardrails using [middleware](/oss/javascript/langchain/middleware) to intercept execution at strategic points - before the agent starts, after it completes, or around model and tool calls.
 
 <div style={{ display: "flex", justifyContent: "center" }}>
     <img
@@ -22,35 +22,37 @@ description: 为你的代理实施安全检查和内容过滤
     />
 </div>
 
-可以使用两种互补的方法来实施护栏：
+Guardrails can be implemented using two complementary approaches:
 
 <CardGroup cols={2}>
-    <Card title="确定性护栏" icon="list-check">
-        使用基于规则的逻辑，如正则表达式模式、关键字匹配或显式检查。快速、可预测且具有成本效益，但可能会错过细微的违规行为。
+    <Card title="Deterministic guardrails" icon="list-check">
+        Use rule-based logic like regex patterns, keyword matching, or explicit checks. Fast, predictable, and cost-effective, but may miss nuanced violations.
     </Card>
-    <Card title="基于模型的护栏" icon="brain">
-        使用 LLM 或分类器通过语义理解评估内容。捕捉规则错过的细微问题，但速度较慢且成本较高。
+    <Card title="Model-based guardrails" icon="brain">
+        Use LLMs or classifiers to evaluate content with semantic understanding. Catch subtle issues that rules miss, but are slower and more expensive.
     </Card>
 </CardGroup>
 
-LangChain 提供内置护栏（例如，[PII 检测](#pii-detection)、[人机交互](#human-in-the-loop)）和灵活的中间件系统，用于使用任一方法构建自定义护栏。
+LangChain provides both built-in guardrails (e.g., [PII detection](#pii-detection), [human-in-the-loop](#human-in-the-loop)) and a flexible middleware system for building custom guardrails using either approach.
 
-## 内置护栏
+## Built-in guardrails
 
-### PII 检测
+### PII detection
 
-LangChain 提供内置中间件，用于检测和处理对话中的个人身份信息 (PII)。此中间件可以检测常见的 PII 类型，如电子邮件、信用卡、IP 地址等。
+LangChain provides built-in middleware for detecting and handling Personally Identifiable Information (PII) in conversations. This middleware can detect common PII types like emails, credit cards, IP addresses, and more.
 
-PII 检测中间件对于有合规性要求的医疗保健和金融应用程序、需要清理日志的客户服务代理以及通常处理敏感用户数据的任何应用程序都很有帮助。
+PII detection middleware is helpful for cases such as health care and financial applications with compliance requirements, customer service agents that need to sanitize logs, and generally any application handling sensitive user data.
 
-PII 中间件支持多种处理检测到的 PII 的策略：
+The PII middleware supports multiple strategies for handling detected PII:
 
-| 策略 | 描述 | 示例 |
+| Strategy | Description | Example |
 |----------|-------------|---------|
-| `redact` | 替换为 `[REDACTED_{PII_TYPE}]` | `[REDACTED_EMAIL]` |
-| `mask` | 部分遮盖（例如，最后 4 位数字） | `****-****-****-1234` |
-| `hash` | 替换为确定性哈希 | `a8f5f167...` |
-| `block` | 检测到时引发异常 | 抛出错误 |
+| `redact` | Replace with `[REDACTED_{PII_TYPE}]` | `[REDACTED_EMAIL]` |
+| `mask` | Partially obscure (e.g., last 4 digits) | `****-****-****-1234` |
+| `hash` | Replace with deterministic hash | `a8f5f167...` |
+| `block` | Raise exception when detected | Error thrown |
+
+
 
 ```typescript
 import { createAgent, piiRedactionMiddleware } from "langchain";
@@ -59,19 +61,19 @@ const agent = createAgent({
   model: "gpt-4.1",
   tools: [customerServiceTool, emailTool],
   middleware: [
-    // 在发送给模型之前，编辑用户输入中的电子邮件
+    // Redact emails in user input before sending to model
     piiRedactionMiddleware({
       piiType: "email",
       strategy: "redact",
       applyToInput: true,
     }),
-    // 遮盖用户输入中的信用卡
+    // Mask credit cards in user input
     piiRedactionMiddleware({
       piiType: "credit_card",
       strategy: "mask",
       applyToInput: true,
     }),
-    // 阻止 API 密钥 - 如果检测到则引发错误
+    // Block API keys - raise error if detected
     piiRedactionMiddleware({
       piiType: "api_key",
       detector: /sk-[a-zA-Z0-9]{32}/,
@@ -81,7 +83,7 @@ const agent = createAgent({
   ],
 });
 
-// 当用户提供 PII 时，将根据策略进行处理
+// When user provides PII, it will be handled according to the strategy
 const result = await agent.invoke({
   messages: [{
     role: "user",
@@ -91,36 +93,40 @@ const result = await agent.invoke({
 ```
 
 
-<Accordion title="内置 PII 类型和配置">
+<Accordion title="Built-in PII types and configuration">
 
-**内置 PII 类型：**
-- `email` - 电子邮件地址
-- `credit_card` - 信用卡号码（Luhn 验证）
-- `ip` - IP 地址
-- `mac_address` - MAC 地址
-- `url` - URL
+**Built-in PII types:**
+- `email` - Email addresses
+- `credit_card` - Credit card numbers (Luhn validated)
+- `ip` - IP addresses
+- `mac_address` - MAC addresses
+- `url` - URLs
 
-**配置选项：**
+**Configuration options:**
 
-参数 | 描述 | 默认值
+
+
+Parameter | Description | Default
 -----------|-------------|---------
-`piiType` | 要检测的 PII 类型（内置或自定义） | 必需
-`strategy` | 如何处理检测到的 PII (`"block"`, `"redact"`, `"mask"`, `"hash"`) | `"redact"`
-`detector` | 自定义检测器正则表达式模式 | `undefined`（使用内置）
-`applyToInput` | 在模型调用之前检查用户消息 | `true`
-`applyToOutput` | 在模型调用之后检查 AI 消息 | `false`
-`applyToToolResults` | 在执行后检查工具结果消息 | `false`
+`piiType` | Type of PII to detect (built-in or custom) | Required
+`strategy` | How to handle detected PII (`"block"`, `"redact"`, `"mask"`, `"hash"`) | `"redact"`
+`detector` | Custom detector regex pattern | `undefined` (uses built-in)
+`applyToInput` | Check user messages before model call | `true`
+`applyToOutput` | Check AI messages after model call | `false`
+`applyToToolResults` | Check tool result messages after execution | `false`
 
 
 </Accordion>
 
-有关 PII 检测功能的完整详细信息，请参阅 [中间件文档](/oss/javascript/langchain/middleware#pii-detection)。
+See the [middleware documentation](/oss/javascript/langchain/middleware#pii-detection) for complete details on PII detection capabilities.
 
-### 人机交互
+### Human-in-the-loop
 
-LangChain 提供内置中间件，要求在执行敏感操作之前获得人工批准。这是针对高风险决策的最有效护栏之一。
+LangChain provides built-in middleware for requiring human approval before executing sensitive operations. This is one of the most effective guardrails for high-stakes decisions.
 
-人机交互中间件对于金融交易和转账、删除或修改生产数据、向外部方发送通信以及任何具有重大业务影响的操作都很有帮助。
+Human-in-the-loop middleware is helpful for cases such as financial transactions and transfers, deleting or modifying production data, sending communications to external parties, and any operation with significant business impact.
+
+
 
 ```typescript
 import { createAgent, humanInTheLoopMiddleware } from "langchain";
@@ -132,10 +138,10 @@ const agent = createAgent({
   middleware: [
     humanInTheLoopMiddleware({
       interruptOn: {
-        // 要求批准敏感操作
+        // Require approval for sensitive operations
         send_email: { allowAccept: true, allowEdit: true, allowRespond: true },
         delete_database: { allowAccept: true, allowEdit: true, allowRespond: true },
-        // 自动批准安全操作
+        // Auto-approve safe operations
         search: false,
       }
     }),
@@ -143,10 +149,10 @@ const agent = createAgent({
   checkpointer: new MemorySaver(),
 });
 
-// 人机交互需要线程 ID 以确保持久性
+// Human-in-the-loop requires a thread ID for persistence
 const config = { configurable: { thread_id: "some_id" } };
 
-// 代理将在执行敏感工具之前暂停并等待批准
+// Agent will pause and wait for approval before executing sensitive tools
 let result = await agent.invoke(
   { messages: [{ role: "user", content: "Send an email to the team" }] },
   config
@@ -154,22 +160,24 @@ let result = await agent.invoke(
 
 result = await agent.invoke(
   new Command({ resume: { decisions: [{ type: "approve" }] } }),
-  config  // 相同的线程 ID 以恢复暂停的对话
+  config  // Same thread ID to resume the paused conversation
 );
 ```
 
 
 <Tip>
-    请参阅 [人机交互文档](/oss/javascript/langchain/human-in-the-loop) 以获取有关实施审批工作流程的完整详细信息。
+    See the [human-in-the-loop documentation](/oss/javascript/langchain/human-in-the-loop) for complete details on implementing approval workflows.
 </Tip>
 
-## 自定义护栏
+## Custom guardrails
 
-对于更复杂的护栏，你可以创建在代理执行之前或之后运行的自定义中间件。这使你可以完全控制验证逻辑、内容过滤和安全检查。
+For more sophisticated guardrails, you can create custom middleware that runs before or after the agent executes. This gives you full control over validation logic, content filtering, and safety checks.
 
-### 代理前护栏
+### Before agent guardrails
 
-使用“代理前”挂钩在每次调用开始时验证请求。这对于会话级检查很有用，例如身份验证、速率限制或在任何处理开始之前阻止不当请求。
+Use "before agent" hooks to validate requests once at the start of each invocation. This is useful for session-level checks like authentication, rate limiting, or blocking inappropriate requests before any processing begins.
+
+
 
 ```typescript
 import { createMiddleware, AIMessage } from "langchain";
@@ -181,7 +189,7 @@ const contentFilterMiddleware = (bannedKeywords: string[]) => {
     name: "ContentFilterMiddleware",
     beforeAgent: {
       hook: (state) => {
-        // 获取第一条用户消息
+        // Get the first user message
         if (!state.messages || state.messages.length === 0) {
           return;
         }
@@ -193,10 +201,10 @@ const contentFilterMiddleware = (bannedKeywords: string[]) => {
 
         const content = firstMessage.content.toString().toLowerCase();
 
-        // 检查被禁用的关键字
+        // Check for banned keywords
         for (const keyword of keywords) {
           if (content.includes(keyword)) {
-            // 在任何处理之前阻止执行
+            // Block execution before any processing
             return {
               messages: [
                 new AIMessage(
@@ -215,7 +223,7 @@ const contentFilterMiddleware = (bannedKeywords: string[]) => {
   });
 };
 
-// 使用自定义护栏
+// Use the custom guardrail
 import { createAgent } from "langchain";
 
 const agent = createAgent({
@@ -226,16 +234,18 @@ const agent = createAgent({
   ],
 });
 
-// 此请求将在任何处理之前被阻止
+// This request will be blocked before any processing
 const result = await agent.invoke({
   messages: [{ role: "user", content: "How do I hack into a database?" }]
 });
 ```
 
 
-### 代理后护栏
+### After agent guardrails
 
-使用“代理后”挂钩在返回给用户之前验证最终输出。这对于基于模型的安全检查、质量验证或对完整代理响应的最终合规性扫描很有用。
+Use "after agent" hooks to validate final outputs once before returning to the user. This is useful for model-based safety checks, quality validation, or final compliance scans on the complete agent response.
+
+
 
 ```typescript
 import { createMiddleware, AIMessage, initChatModel } from "langchain";
@@ -247,7 +257,7 @@ const safetyGuardrailMiddleware = () => {
     name: "SafetyGuardrailMiddleware",
     afterAgent: {
       hook: async (state) => {
-        // 获取最终 AI 响应
+        // Get the final AI response
         if (!state.messages || state.messages.length === 0) {
           return;
         }
@@ -257,7 +267,7 @@ const safetyGuardrailMiddleware = () => {
           return;
         }
 
-        // 使用模型评估安全性
+        // Use a model to evaluate safety
         const safetyPrompt = `Evaluate if this response is safe and appropriate.
         Respond with only 'SAFE' or 'UNSAFE'.
 
@@ -285,7 +295,7 @@ const safetyGuardrailMiddleware = () => {
   });
 };
 
-// 使用安全护栏
+// Use the safety guardrail
 import { createAgent } from "langchain";
 
 const agent = createAgent({
@@ -300,9 +310,11 @@ const result = await agent.invoke({
 ```
 
 
-### 组合多个护栏
+### Combine multiple guardrails
 
-你可以通过将多个护栏添加到中间件数组来堆叠它们。它们按顺序执行，允许你构建分层保护：
+You can stack multiple guardrails by adding them to the middleware array. They execute in order, allowing you to build layered protection:
+
+
 
 ```typescript
 import { createAgent, piiRedactionMiddleware, humanInTheLoopMiddleware } from "langchain";
@@ -311,10 +323,10 @@ const agent = createAgent({
   model: "gpt-4.1",
   tools: [searchTool, sendEmailTool],
   middleware: [
-    // 第 1 层：确定性输入过滤器（代理前）
+    // Layer 1: Deterministic input filter (before agent)
     contentFilterMiddleware(["hack", "exploit"]),
 
-    // 第 2 层：PII 保护（模型前后）
+    // Layer 2: PII protection (before and after model)
     piiRedactionMiddleware({
       piiType: "email",
       strategy: "redact",
@@ -326,34 +338,34 @@ const agent = createAgent({
       applyToOutput: true,
     }),
 
-    // 第 3 层：敏感工具的人工批准
+    // Layer 3: Human approval for sensitive tools
     humanInTheLoopMiddleware({
       interruptOn: {
         send_email: { allowAccept: true, allowEdit: true, allowRespond: true },
       }
     }),
 
-    // 第 4 层：基于模型的安全检查（代理后）
+    // Layer 4: Model-based safety check (after agent)
     safetyGuardrailMiddleware(),
   ],
 });
 ```
 
 
-## 其他资源
+## Additional resources
 
-- [中间件文档](/oss/javascript/langchain/middleware) - 自定义中间件完整指南
-- [中间件 API 参考](https://reference.langchain.com/python/langchain/middleware/) - 自定义中间件完整指南
-- [人机交互](/oss/javascript/langchain/human-in-the-loop) - 为敏感操作添加人工审核
-- [测试代理](/oss/javascript/langchain/test) - 测试安全机制的策略
+- [Middleware documentation](/oss/javascript/langchain/middleware) - Complete guide to custom middleware
+- [Middleware API reference](https://reference.langchain.com/python/langchain/middleware/) - Complete guide to custom middleware
+- [Human-in-the-loop](/oss/javascript/langchain/human-in-the-loop) - Add human review for sensitive operations
+- [Testing agents](/oss/javascript/langchain/test/) - Strategies for testing safety mechanisms
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/guardrails.mdx) 或 [提交 issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/guardrails.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 <Callout icon="terminal-2">
-    通过 MCP 将 [这些文档](/use-these-docs) 连接到 Claude、VSCode 等，以获得实时解答。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
 </Callout>
 </div>

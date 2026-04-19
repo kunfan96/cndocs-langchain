@@ -1,26 +1,26 @@
 ---
-title: "Azure Cosmos DB for NoSQL 集成"
-description: "使用 LangChain JavaScript 集成 Azure Cosmos DB for NoSQL 向量存储。"
+title: "Azure Cosmos DB for NoSQL integration"
+description: "Integrate with the Azure Cosmos DB for NoSQL vector store using LangChain JavaScript."
 ---
 
-> [Azure Cosmos DB for NoSQL](https://learn.microsoft.com/azure/cosmos-db/nosql/) 支持查询具有灵活模式的项目，并原生支持 JSON。它现在提供向量索引和搜索。此功能旨在处理高维向量，从而实现任何规模的高效且准确的向量搜索。您现在可以将向量直接存储在文档中，与您的数据一起。数据库中的每个文档不仅可以包含传统的无模式数据，还可以包含作为文档其他属性的高维向量。
+> [Azure Cosmos DB for NoSQL](https://learn.microsoft.com/azure/cosmos-db/nosql/) provides support for querying items with flexible schemas and native support for JSON. It now offers vector indexing and search. This feature is designed to handle high-dimensional vectors, enabling efficient and accurate vector search at any scale. You can now store vectors directly in the documents alongside your data. Each document in your database can contain not only traditional schema-free data, but also high-dimensional vectors as other properties of the documents.
 
-从 [此页面](https://learn.microsoft.com/azure/cosmos-db/nosql/vector-search) 了解如何利用 Azure Cosmos DB for NoSQL 的向量搜索功能。如果您没有 Azure 帐户，您可以 [创建一个免费帐户](https://azure.microsoft.com/free/) 以开始使用。
+Learn how to leverage the vector search capabilities of Azure Cosmos DB for NoSQL from [this page](https://learn.microsoft.com/azure/cosmos-db/nosql/vector-search). If you don't have an Azure account, you can [create a free account](https://azure.microsoft.com/free/) to get started.
 
-## 设置
+## Setup
 
-您首先需要安装 [`@langchain/azure-cosmosdb`](https://www.npmjs.com/package/@langchain/azure-cosmosdb) 包：
+You'll first need to install the [`@langchain/azure-cosmosdb`](https://www.npmjs.com/package/@langchain/azure-cosmosdb) package:
 
 <Tip>
-请参阅 [此部分](/oss/javascript/langchain/install) 以获取有关安装 LangChain 包的一般说明。
+See [this section for general instructions on installing LangChain packages](/oss/javascript/langchain/install).
 </Tip>
 
 ```bash npm
 npm install @langchain/azure-cosmosdb @langchain/core
 ```
-您还需要运行 Azure Cosmos DB for NoSQL 实例。您可以按照 [本指南](https://learn.microsoft.com/azure/cosmos-db/nosql/quickstart-portal) 在 Azure 门户上免费部署免费版本。
+You'll also need to have an Azure Cosmos DB for NoSQL instance running. You can deploy a free version on Azure Portal without any cost, following [this guide](https://learn.microsoft.com/azure/cosmos-db/nosql/quickstart-portal).
 
-一旦您的实例运行，请确保您拥有连接字符串。您可以在 Azure 门户的实例的“Settings / Keys”部分下找到它们。然后，您需要设置以下环境变量：
+Once you have your instance running, make sure you have the connection string. You can find them in the Azure Portal, under the "Settings / Keys" section of your instance. Then you need to set the following environment variables:
 
 ```bash .env example
 # Use connection string to authenticate
@@ -30,9 +30,9 @@ AZURE_COSMOSDB_NOSQL_CONNECTION_STRING=
 AZURE_COSMOSDB_NOSQL_ENDPOINT=
 ```
 
-### 使用 Azure 托管标识
+### Using Azure Managed identity
 
-如果您使用的是 Azure 托管标识，则可以按如下方式配置凭据：
+If you're using Azure Managed Identity, you can configure the credentials like this:
 
 ```typescript
 import { AzureCosmosDBNoSQLVectorStore } from "@langchain/azure-cosmosdb";
@@ -50,22 +50,22 @@ const store = new AzureCosmosDBNoSQLVectorStore(new OpenAIEmbeddings(), {
 ```
 
 <Info>
-**当使用 Azure 托管标识和基于角色的访问控制时，必须确保已预先创建数据库和容器。RBAC 不提供创建数据库和容器的权限。您可以在 [Azure Cosmos DB 文档](https://learn.microsoft.com/azure/cosmos-db/how-to-setup-rbac#permission-model) 中获取有关权限模型的更多信息。**
+**When using Azure Managed Identity and role-based access control, you must ensure that the database and container have been created beforehand. RBAC does not provide permissions to create databases and containers. You can get more information about the permission model in the [Azure Cosmos DB documentation](https://learn.microsoft.com/azure/cosmos-db/how-to-setup-rbac#permission-model).**
 
 
 </Info>
 
-### 使用过滤器时的安全注意事项
+### Security considerations when using filters
 
 <Warning>
-**如果未正确清理数据，使用带有用户提供的输入的过滤器可能会带来安全风险。请遵循以下建议以防止潜在的安全问题。**
+**Using filters with user-provided input can be a security risk if the data is not sanitized properly. Follow the recommendation below to prevent potential security issues.**
 
 
 </Warning>
 
-允许将原始用户输入连接到类似 SQL 的子句中 - 例如 `WHERE ${userFilter}` - 会引入 SQL 注入攻击的严重风险，可能会暴露意外数据或损害系统的完整性。为了减轻这种情况，请始终使用 Azure Cosmos DB 的参数化查询机制，传入 `@param` 占位符，这将查询逻辑与用户提供的输入完全分开。
+Allowing raw user input to be concatenated into SQL-like clauses - such as `WHERE ${userFilter}` - introduces a critical risk of SQL injection attacks, potentially exposing unintended data or compromising your system's integrity. To mitigate this, always use Azure Cosmos DB's parameterized query mechanism, passing in `@param` placeholders, which cleanly separates the query logic from user-provided input.
 
-这是一个不安全代码的示例：
+Here is an example of unsafe code:
 
 ```typescript
 import { AzureCosmosDBNoSQLVectorStore } from "@langchain/azure-cosmosdb";
@@ -80,9 +80,9 @@ const unsafeQuerySpec = {
 
 await store.delete({ filter: unsafeQuerySpec });
 ```
-如果攻击者提供 `123 OR 1=1`，那么查询将变为 `SELECT * FROM c WHERE c.metadata.userId = '123' OR 1=1`，这将强制条件始终为真，从而导致它绕过预期的过滤器并删除所有文档。
+If the attacker provides `123 OR 1=1`, then the query becomes `SELECT * FROM c WHERE c.metadata.userId = '123' OR 1=1`, which forces the condition to always be true, causing it to bypass the intended filter and delete all documents.
 
-为了防止这种注入风险，您定义一个像 `@userId` 这样的占位符，Cosmos DB 将用户输入作为参数单独绑定，确​​保它被严格视为数据而不是可执行的查询逻辑，如下所示。
+To prevent this injection risk, you define a placeholder like `@userId` and Cosmos DB binds the user input separately as a parameter, ensuring it is treated strictly as data and not executable query logic as shown below.
 
 ```typescript
 import { SqlQuerySpec } from "@azure/cosmos";
@@ -95,13 +95,14 @@ const safeQuerySpec: SqlQuerySpec = {
 await store.delete({ filter: safeQuerySpec });
 ```
 
-现在，如果攻击者输入 `123 OR 1=1`，输入将被视为要匹配的文字字符串值，而不是查询结构的一部分。
+Now, if the attacker enters `123 OR 1=1`, the input will be treated as a literal string value to match, and not as part of the query structure.
 
-请参阅有关 [Azure Cosmos DB for NoSQL 中的参数化查询](https://learn.microsoft.com/azure/cosmos-db/nosql/query/parameterized-queries) 的官方文档，以获取更多使用示例和最佳实践。
+Please refer to the official documentation on [parameterized queries in Azure Cosmos DB for NoSQL](https://learn.microsoft.com/azure/cosmos-db/nosql/query/parameterized-queries) for more usage examples and best practices.
 
-## 使用示例
+## Usage example
 
-下面是一个示例，它在 Azure Cosmos DB for NoSQL 中索引文件中的文档，运行向量搜索查询，最后使用链根据检索到的文档以自然语言回答问题。
+Below is an example that indexes documents from a file in Azure Cosmos DB for NoSQL, runs a vector search query, and finally uses a chain to answer a question in natural language
+based on the retrieved documents.
 
 ```typescript
 import { AzureCosmosDBNoSQLVectorStore } from "@langchain/azure-cosmosdb";
@@ -182,10 +183,207 @@ console.log(res.answer);
 await store.delete();
 ```
 
-## 相关
+## Advanced search options
 
-- 向量存储 [概念指南](/oss/javascript/integrations/vectorstores)
-- 向量存储 [操作指南](/oss/javascript/integrations/vectorstores)
+All search types are accessed through the unified `similaritySearch` and `similaritySearchWithScore` methods using the `searchType` parameter in the filter options. Search types are available as constants from `AzureCosmosDBNoSQLSearchType`:
+
+Available search types:
+
+- `AzureCosmosDBNoSQLSearchType.Vector` (default): Standard vector similarity search
+- `AzureCosmosDBNoSQLSearchType.VectorScoreThreshold`: Vector search with minimum score filter
+- `AzureCosmosDBNoSQLSearchType.FullTextSearch`: Full-text search using FullTextContains (preview)
+- `AzureCosmosDBNoSQLSearchType.FullTextRanking`: Full-text search with BM25 ranking (preview)
+- `AzureCosmosDBNoSQLSearchType.Hybrid`: Hybrid vector + full-text search using RRF (preview)
+- `AzureCosmosDBNoSQLSearchType.HybridScoreThreshold`: Hybrid search with score threshold (preview)
+
+You can also set a default search type when creating the store using the `defaultSearchType` configuration option, so you don't have to specify it in every query:
+
+```typescript
+import {
+  AzureCosmosDBNoSQLVectorStore,
+  AzureCosmosDBNoSQLSearchType,
+} from "@langchain/azure-cosmosdb";
+import { OpenAIEmbeddings } from "@langchain/openai";
+
+const store = new AzureCosmosDBNoSQLVectorStore(new OpenAIEmbeddings(), {
+  databaseName: "langchain",
+  containerName: "documents",
+  defaultSearchType: AzureCosmosDBNoSQLSearchType.VectorScoreThreshold,
+});
+```
+
+### Vector search with score threshold
+
+Filter results based on a minimum similarity score:
+
+```typescript
+import {
+  AzureCosmosDBNoSQLVectorStore,
+  AzureCosmosDBNoSQLSearchType,
+} from "@langchain/azure-cosmosdb";
+import { OpenAIEmbeddings } from "@langchain/openai";
+
+const store = new AzureCosmosDBNoSQLVectorStore(new OpenAIEmbeddings(), {
+  databaseName: "langchain",
+  containerName: "documents",
+});
+
+// Only return results with similarity score >= 0.8
+const results = await store.similaritySearchWithScore(
+  "What is the capital of France?",
+  10,
+  {
+    searchType: AzureCosmosDBNoSQLSearchType.VectorScoreThreshold,
+    threshold: 0.8,
+  }
+);
+
+for (const [doc, score] of results) {
+  console.log(`Score: ${score}, Content: ${doc.pageContent}`);
+}
+```
+
+### Maximal Marginal Relevance (MMR) search
+
+MMR search balances relevance with diversity in the results:
+
+```typescript
+import { AzureCosmosDBNoSQLVectorStore } from "@langchain/azure-cosmosdb";
+import { OpenAIEmbeddings } from "@langchain/openai";
+
+const store = new AzureCosmosDBNoSQLVectorStore(new OpenAIEmbeddings(), {
+  databaseName: "langchain",
+  containerName: "documents",
+});
+
+const results = await store.maxMarginalRelevanceSearch("machine learning", {
+  k: 5, // Number of results to return
+  fetchK: 20, // Number of candidates to consider
+  lambda: 0.5, // 0 = max diversity, 1 = max relevance
+});
+```
+
+## Full-text and hybrid search (preview)
+
+<Warning>
+Full-text and hybrid search are preview features in Azure Cosmos DB. You need to configure your container with a full-text policy and appropriate indexing to use these features. See the [Azure Cosmos DB documentation](https://learn.microsoft.com/azure/cosmos-db/gen-ai/full-text-search) for setup instructions.
+</Warning>
+
+To use full-text or hybrid search, enable it when creating the store:
+
+```typescript
+import {
+  AzureCosmosDBNoSQLVectorStore,
+  AzureCosmosDBNoSQLSearchType,
+} from "@langchain/azure-cosmosdb";
+import { OpenAIEmbeddings } from "@langchain/openai";
+
+const store = new AzureCosmosDBNoSQLVectorStore(new OpenAIEmbeddings(), {
+  databaseName: "langchain",
+  containerName: "documents",
+  fullTextSearchEnabled: true,
+  fullTextPolicy: {
+    defaultLanguage: "en-US",
+    fullTextPaths: [{ path: "/text", language: "en-US" }],
+  },
+  indexingPolicy: {
+    indexingMode: "consistent",
+    automatic: true,
+    includedPaths: [{ path: "/*" }],
+    excludedPaths: [{ path: "/_etag/?" }],
+    vectorIndexes: [{ path: "/vector", type: "quantizedFlat" }],
+    fullTextIndexes: [{ path: "/text" }],
+  },
+});
+```
+
+### Full-text search
+
+```typescript
+// Full-text search using FullTextContains in the filter clause
+const fullTextResults = await store.similaritySearch("", 10, {
+  searchType: AzureCosmosDBNoSQLSearchType.FullTextSearch,
+  filterClause: "WHERE FullTextContains(c.text, 'artificial intelligence')",
+});
+```
+
+### Full-text ranking
+
+```typescript
+// Full-text ranking with BM25 scoring
+const rankingResults = await store.similaritySearch("", 10, {
+  searchType: AzureCosmosDBNoSQLSearchType.FullTextRanking,
+  fullTextRankFilter: [
+    { searchField: "text", searchText: "artificial intelligence" },
+  ],
+});
+```
+
+### Hybrid search
+
+Hybrid search combines vector similarity with full-text search using Reciprocal Rank Fusion (RRF):
+
+```typescript
+// Hybrid search combining vector and full-text results
+const hybridResults = await store.similaritySearchWithScore(
+  "machine learning",
+  10,
+  {
+    searchType: AzureCosmosDBNoSQLSearchType.Hybrid,
+    fullTextRankFilter: [
+      { searchField: "text", searchText: "machine learning" },
+    ],
+  }
+);
+
+// Hybrid search with score threshold
+const filteredResults = await store.similaritySearchWithScore(
+  "machine learning",
+  10,
+  {
+    searchType: AzureCosmosDBNoSQLSearchType.HybridScoreThreshold,
+    fullTextRankFilter: [
+      { searchField: "text", searchText: "machine learning" },
+    ],
+    threshold: 0.5,
+  }
+);
+```
+
+## Utility methods
+
+### Delete documents
+
+```typescript
+// Delete specific documents by ID
+await store.delete({ ids: ["document-id-123"] });
+
+// Delete documents matching a filter
+await store.delete({
+  filter: {
+    query: "SELECT * FROM c WHERE c.metadata.category = @category",
+    parameters: [{ name: "@category", value: "old" }],
+  },
+});
+
+// Delete all documents
+await store.delete();
+```
+
+### Access the underlying container
+
+```typescript
+// Get direct access to the Cosmos DB container for advanced operations
+const container = store.getContainer();
+const { resources } = await container.items
+  .query("SELECT * FROM c WHERE c.metadata.category = 'tech'")
+  .fetchAll();
+```
+
+## Related
+
+- Vector store [conceptual guide](/oss/javascript/integrations/vectorstores)
+- Vector store [how-to guides](/oss/javascript/integrations/vectorstores)
 
 ---
 

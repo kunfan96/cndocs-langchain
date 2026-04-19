@@ -1,132 +1,142 @@
 ---
-title: 检索 (Retrieval)
+title: Retrieval
 ---
 
-大型语言模型 (LLM) 功能强大，但它们有两个关键限制：
+Large Language Models (LLMs) are powerful, but they have two key limitations:
 
-* **有限的上下文** — 它们无法一次摄取整个语料库。
-* **静态知识** — 它们的训练数据冻结在某个时间点。
+* **Finite context**—they can’t ingest entire corpora at once.
+* **Static knowledge**—their training data is frozen at a point in time.
 
-检索通过在查询时获取相关的外部知识来解决这些问题。这是 **检索增强生成 (RAG)** 的基础：利用特定上下文的信息增强 LLM 的回答。
+Retrieval addresses these problems by fetching relevant external knowledge at query time. This is the foundation of **Retrieval-Augmented Generation (RAG)**: enhancing an LLM’s answers with context-specific information.
 
 
-## 构建知识库
+## Building a knowledge base
 
-**知识库** 是检索过程中使用的文档或结构化数据的存储库。
+A **knowledge base** is a repository of documents or structured data used during retrieval.
 
-如果您需要自定义知识库，可以使用 LangChain 的文档加载器和向量存储从您自己的数据构建一个。
+If you need a custom knowledge base, you can use LangChain’s document loaders and vector stores to build one from your own data.
 
 <Note>
-    如果您已经有知识库（例如 SQL 数据库、CRM 或内部文档系统），您**不**需要重建它。您可以：
-    - 将其作为 Agentic RAG 中代理的 **工具** 进行连接。
-    - 查询它并将检索到的内容作为上下文提供给 LLM [(2-Step RAG)](#2-step-rag)。
+    If you already have a knowledge base (e.g., a SQL database, CRM, or internal documentation system), you do **not** need to rebuild it. You can:
+    - Connect it as a **tool** for an agent in Agentic RAG.
+    - Query it and supply the retrieved content as context to the LLM [(2-Step RAG)](#2-step-rag).
 </Note>
 
-查看以下教程以构建可搜索的知识库和最小的 RAG 工作流：
+See the following tutorial to build a searchable knowledge base and minimal RAG workflow:
 
 <Card
-    title="教程：语义搜索"
+    title="Tutorial: Semantic search"
     icon="database"
     href="/oss/javascript/langchain/knowledge-base"
-    arrow cta="了解更多"
+    arrow cta="Learn more"
 >
-    了解如何使用 LangChain 的文档加载器、嵌入和向量存储从您自己的数据创建可搜索的知识库。
-    在本教程中，您将构建一个基于 PDF 的搜索引擎，实现与查询相关的段落检索。您还将在此引擎之上实现一个最小的 RAG 工作流，以查看如何将外部知识集成到 LLM 推理中。
+    Learn how to create a searchable knowledge base from your own data using LangChain’s document loaders, embeddings, and vector stores.
+    In this tutorial, you’ll build a search engine over a PDF, enabling retrieval of passages relevant to a query. You’ll also implement a minimal RAG workflow on top of this engine to see how external knowledge can be integrated into LLM reasoning.
 </Card>
 
-### 从检索到 RAG
+### From retrieval to RAG
 
-检索允许 LLM 在运行时访问相关上下文。但大多数现实世界的应用程序更进一步：它们 **将检索与生成集成** 以产生有根据的、上下文感知的答案。
+Retrieval allows LLMs to access relevant context at runtime. But most real-world applications go one step further: they **integrate retrieval with generation** to produce grounded, context-aware answers.
 
-这是 **检索增强生成 (RAG)** 的核心思想。检索管道成为结合搜索与生成的更广泛系统的基础。
+This is the core idea behind **Retrieval-Augmented Generation (RAG)**. The retrieval pipeline becomes a foundation for a broader system that combines search with generation.
 
-### 检索管道
+### Retrieval pipeline
 
-典型的检索工作流如下所示：
+A typical retrieval workflow looks like this:
 
 ```mermaid
 flowchart LR
-  S(["来源<br>(Google Drive, Slack, Notion 等)"]) --> L[文档加载器]
-  L --> A([文档])
-  A --> B[分割成块]
-  B --> C[转换为嵌入]
-  C --> D[(向量存储)]
-  Q([用户查询]) --> E[查询嵌入]
+  S(["Sources<br>(Google Drive, Slack, Notion, etc.)"]) --> L[Document Loaders]
+  L --> A([Documents])
+  A --> B[Split into chunks]
+  B --> C[Turn into embeddings]
+  C --> D[(Vector Store)]
+  Q([User Query]) --> E[Query embedding]
   E --> D
-  D --> F[检索器]
-  F --> G[LLM 使用检索到的信息]
-  G --> H([回答])
+  D --> F[Retriever]
+  F --> G[LLM uses retrieved info]
+  G --> H([Answer])
+
+  classDef trigger fill:#DCFCE7,stroke:#16A34A,stroke-width:2px,color:#14532D
+  classDef process fill:#DBEAFE,stroke:#2563EB,stroke-width:2px,color:#1E3A8A
+  classDef output fill:#F3E8FF,stroke:#9333EA,stroke-width:2px,color:#581C87
+  classDef neutral fill:#F3F4F6,stroke:#9CA3AF,stroke-width:2px,color:#374151
+
+  class S,Q trigger
+  class L,B,C,E,F,G process
+  class D output
+  class A,H neutral
 ```
 
-每个组件都是模块化的：您可以交换加载器、分割器、嵌入或向量存储，而无需重写应用程序的逻辑。
+Each component is modular: you can swap loaders, splitters, embeddings, or vector stores without rewriting the app’s logic.
 
-### 构建块
+### Building blocks
 
 <Columns cols={2}>
     <Card
-        title="文档加载器"
+        title="Document loaders"
         icon="file-import"
         href="/oss/javascript/integrations/document_loaders"
-        arrow cta="了解更多"
+        arrow cta="Learn more"
     >
-        从外部来源（Google Drive, Slack, Notion 等）摄取数据，返回标准化的 [`Document`](https://reference.langchain.com/javascript/langchain-core/documents/Document) 对象。
+        Ingest data from external sources (Google Drive, Slack, Notion, etc.), returning standardized [`Document`](https://reference.langchain.com/javascript/langchain-core/documents/Document) objects.
     </Card>
 
 
     <Card
-        title="嵌入模型"
+        title="Embedding models"
         icon="sitemap"
-        href="/oss/javascript/integrations/text_embedding"
+        href="/oss/javascript/integrations/embeddings"
         arrow
-        cta="了解更多"
+        cta="Learn more"
     >
-        嵌入模型将文本转换为数字向量，以便含义相似的文本在向量空间中彼此靠近。
+        An embedding model turns text into a vector of numbers so that texts with similar meaning land close together in that vector space.
     </Card>
 
     <Card
-        title="向量存储"
+        title="Vector stores"
         icon="database"
         href="/oss/javascript/integrations/vectorstores/"
         arrow
-        cta="了解更多"
+        cta="Learn more"
     >
-        用于存储和搜索嵌入的专用数据库。
+        Specialized databases for storing and searching embeddings.
     </Card>
 
     <Card
-        title="检索器"
+        title="Retrievers"
         icon="binoculars"
         href="/oss/javascript/integrations/retrievers/"
         arrow
-        cta="了解更多"
+        cta="Learn more"
     >
-        检索器是一个接口，它根据非结构化查询返回文档。
+        A retriever is an interface that returns documents given an unstructured query.
     </Card>
 </Columns>
 
-## RAG 架构
+## RAG architectures
 
-根据您系统的需求，RAG 可以以多种方式实现。我们在下面的部分中概述每种类型。
+RAG can be implemented in multiple ways, depending on your system's needs. We outline each type in the sections below.
 
-| 架构                    | 描述                                                                       | 控制      | 灵活性      | 延迟            | 示例用例                                           |
+| Architecture            | Description                                                                | Control   | Flexibility | Latency        | Example Use Case                                   |
 |-------------------------|----------------------------------------------------------------------------|-----------|-------------|----------------|----------------------------------------------------|
-| **2-Step RAG**          | 检索总是在生成之前发生。简单且可预测                                       | ✅ 高      | ❌ 低        | ⚡ 快           | 常见问题解答，文档机器人                           |
-| **Agentic RAG**         | LLM 驱动的代理在推理过程中决定 *何时* 以及 *如何* 进行检索                 | ❌ 低      | ✅ 高        | ⏳ 可变         | 访问多种工具的研究助理                             |
-| **Hybrid**              | 结合两种方法的特点，并增加验证步骤                                         | ⚖️ 中等   | ⚖️ 中等     | ⏳ 可变         | 具有质量验证的特定领域问答                         |
+| **2-Step RAG**          | Retrieval always happens before generation. Simple and predictable         | ✅ High    | ❌ Low       | ⚡ Fast         | FAQs, documentation bots                           |
+| **Agentic RAG**         | An LLM-powered agent decides *when* and *how* to retrieve during reasoning | ❌ Low     | ✅ High      | ⏳ Variable     | Research assistants with access to multiple tools  |
+| **Hybrid**              | Combines characteristics of both approaches with validation steps          | ⚖️ Medium | ⚖️ Medium   | ⏳ Variable     | Domain-specific Q&A with quality validation        |
 
 <Info>
-**延迟**：在 **2-Step RAG** 中，延迟通常更 **可预测**，因为 LLM 调用的最大次数是已知且有上限的。这种可预测性假设 LLM 推理时间是主要因素。然而，现实世界的延迟也可能受到检索步骤性能的影响——例如 API 响应时间、网络延迟或数据库查询——这可能会因使用的工具和基础设施而异。
+**Latency**: Latency is generally more **predictable** in **2-Step RAG**, as the maximum number of LLM calls is known and capped. This predictability assumes that LLM inference time is the dominant factor. However, real-world latency may also be affected by the performance of retrieval steps—such as API response times, network delays, or database queries—which can vary based on the tools and infrastructure in use.
 </Info>
 
 ### 2-step RAG
 
-在 **2-Step RAG** 中，检索步骤总是先于生成步骤执行。这种架构简单明了且可预测，适用于许多应用程序，其中相关文档的检索是生成答案的明确先决条件。
+In **2-Step RAG**, the retrieval step is always executed before the generation step. This architecture is straightforward and predictable, making it suitable for many applications where the retrieval of relevant documents is a clear prerequisite for generating an answer.
 
 ```mermaid
 graph LR
-    A[用户问题] --> B["检索相关文档"]
-    B --> C["生成答案"]
-    C --> D[返回答案给用户]
+    A[User Question] --> B["Retrieve Relevant Documents"]
+    B --> C["Generate Answer"]
+    C --> D[Return Answer to User]
 
     %% Styling
     classDef startend fill:#DCFCE7,stroke:#16A34A,stroke-width:2px,color:#14532D
@@ -137,35 +147,35 @@ graph LR
 ```
 
 <Card
-    title="教程：检索增强生成 (RAG)"
+    title="Tutorial: Retrieval-Augmented Generation (RAG)"
     icon="robot"
     href="/oss/javascript/langchain/rag#rag-chains"
-    arrow cta="了解更多"
+    arrow cta="Learn more"
 >
-    了解如何构建一个能够使用检索增强生成根据您的数据回答问题的问答聊天机器人。
-    本教程介绍了两种方法：
-    * **RAG 代理**，使用灵活的工具运行搜索——非常适合通用用途。
-    * **2-step RAG** 链，每个查询仅需一次 LLM 调用——对于更简单的任务快速且高效。
+    See how to build a Q&A chatbot that can answer questions grounded in your data using Retrieval-Augmented Generation.
+    This tutorial walks through two approaches:
+    * A **RAG agent** that runs searches with a flexible tool—great for general-purpose use.
+    * A **2-step RAG** chain that requires just one LLM call per query—fast and efficient for simpler tasks.
 </Card>
 
 ### Agentic RAG
 
-**Agentic 检索增强生成 (RAG)** 将检索增强生成的优势与基于代理的推理相结合。代理（由 LLM 驱动）不是在回答之前检索文档，而是逐步推理并决定在交互过程中 **何时** 以及 **如何** 检索信息。
+**Agentic Retrieval-Augmented Generation (RAG)** combines the strengths of Retrieval-Augmented Generation with agent-based reasoning. Instead of retrieving documents before answering, an agent (powered by an LLM) reasons step-by-step and decides **when** and **how** to retrieve information during the interaction.
 
 <Tip>
-代理启用 RAG 行为唯一需要的是访问一个或多个可以获取外部知识的 **工具** — 例如文档加载器、Web API 或数据库查询。
+The only thing an agent needs to enable RAG behavior is access to one or more **tools** that can fetch external knowledge—such as documentation loaders, web APIs, or database queries.
 </Tip>
 
 ```mermaid
 graph LR
-    A[用户输入 / 问题] --> B["代理 (LLM)"]
-    B --> C{需要外部信息？}
-    C -- 是 --> D["使用工具搜索"]
-    D --> H{足以回答？}
-    H -- 否 --> B
-    H -- 是 --> I[生成最终答案]
-    C -- 否 --> I
-    I --> J[返回给用户]
+    A[User Input / Question] --> B["Agent (LLM)"]
+    B --> C{Need external info?}
+    C -- Yes --> D["Search using tool(s)"]
+    D --> H{Enough to answer?}
+    H -- No --> B
+    H -- Yes --> I[Generate final answer]
+    C -- No --> I
+    I --> J[Return to user]
 
     %% Dark-mode friendly styling
     classDef startend fill:#DCFCE7,stroke:#16A34A,stroke-width:2px,color:#14532D
@@ -197,9 +207,9 @@ const agent = createAgent({
 ```
 
 
-<Expandable title="扩展示例：LangGraph llms.txt 的 Agentic RAG">
+<Expandable title="Extended example: Agentic RAG for LangGraph's llms.txt">
 
-此示例实现了一个 **Agentic RAG 系统**，以协助用户查询 LangGraph 文档。代理首先加载 [llms.txt](https://llmstxt.org/)（其中列出了可用的文档 URL），然后可以根据用户的问题动态使用 `fetch_documentation` 工具来检索和处理相关内容。
+This example implements an **Agentic RAG system** to assist users in querying LangGraph documentation. The agent begins by loading [llms.txt](https://llmstxt.org/), which lists available documentation URLs, and can then dynamically use a `fetch_documentation` tool to retrieve and process the relevant content based on the user’s question.
 
 
 ```typescript
@@ -238,8 +248,8 @@ Your primary role is to help users with questions about LangGraph and related to
 
 Instructions:
 
-1. If a user asks a question you're unsure about — or one that likely involves API usage,
-   behavior, or configuration — you MUST use the \`fetch_documentation\` tool to consult the relevant docs.
+1. If a user asks a question you're unsure about—or one that likely involves API usage,
+   behavior, or configuration—you MUST use the \`fetch_documentation\` tool to consult the relevant docs.
 2. When citing documentation, summarize clearly and include relevant context from the content.
 3. Do not use any URLs outside of the allowed domain.
 4. If a documentation fetch fails, tell the user and proceed with your best expert understanding.
@@ -279,43 +289,43 @@ console.log(response.messages.at(-1)?.content);
 </Expandable>
 
 <Card
-    title="教程：检索增强生成 (RAG)"
+    title="Tutorial: Retrieval-Augmented Generation (RAG)"
     icon="robot"
     href="/oss/javascript/langchain/rag"
-    arrow cta="了解更多"
+    arrow cta="Learn more"
 >
-    了解如何构建一个能够使用检索增强生成根据您的数据回答问题的问答聊天机器人。
-    本教程介绍了两种方法：
-    * **RAG 代理**，使用灵活的工具运行搜索——非常适合通用用途。
-    * **2-step RAG** 链，每个查询仅需一次 LLM 调用——对于更简单的任务快速且高效。
+    See how to build a Q&A chatbot that can answer questions grounded in your data using Retrieval-Augmented Generation.
+    This tutorial walks through two approaches:
+    * A **RAG agent** that runs searches with a flexible tool—great for general-purpose use.
+    * A **2-step RAG** chain that requires just one LLM call per query—fast and efficient for simpler tasks.
 </Card>
 
 ### Hybrid RAG
 
-Hybrid RAG 结合了 2-Step 和 Agentic RAG 的特点。它引入了中间步骤，例如查询预处理、检索验证和生成后检查。这些系统比固定管道提供更大的灵活性，同时保持对执行的一定控制。
+Hybrid RAG combines characteristics of both 2-Step and Agentic RAG. It introduces intermediate steps such as query preprocessing, retrieval validation, and post-generation checks. These systems offer more flexibility than fixed pipelines while maintaining some control over execution.
 
-典型组件包括：
+Typical components include:
 
-* **查询增强**：修改输入问题以提高检索质量。这可能涉及重写不清楚的查询、生成多种变体或使用附加上下文扩展查询。
-* **检索验证**：评估检索到的文档是否相关且充足。如果不足，系统可能会改进查询并再次检索。
-* **答案验证**：检查生成的答案的准确性、完整性以及与源内容的一致性。如果需要，系统可以重新生成或修改答案。
+* **Query enhancement**: Modify the input question to improve retrieval quality. This can involve rewriting unclear queries, generating multiple variations, or expanding queries with additional context.
+* **Retrieval validation**: Evaluate whether retrieved documents are relevant and sufficient. If not, the system may refine the query and retrieve again.
+* **Answer validation**: Check the generated answer for accuracy, completeness, and alignment with source content. If needed, the system can regenerate or revise the answer.
 
-该架构通常支持这些步骤之间的多次迭代：
+The architecture often supports multiple iterations between these steps:
 
 ```mermaid
 graph LR
-    A[用户问题] --> B[查询增强]
-    B --> C[检索文档]
-    C --> D{信息充足？}
-    D -- 否 --> E[改进查询]
+    A[User Question] --> B[Query Enhancement]
+    B --> C[Retrieve Documents]
+    C --> D{Sufficient Info?}
+    D -- No --> E[Refine Query]
     E --> C
-    D -- 是 --> F[生成答案]
-    F --> G{答案质量 OK？}
-    G -- 否 --> H[尝试不同方法？]
-    H -- 是 --> E
-    H -- 否 --> I[返回最佳答案]
-    G -- 是 --> I
-    I --> J[返回给用户]
+    D -- Yes --> F[Generate Answer]
+    F --> G{Answer Quality OK?}
+    G -- No --> H{Try Different Approach?}
+    H -- Yes --> E
+    H -- No --> I[Return Best Answer]
+    G -- Yes --> I
+    I --> J[Return to User]
 
     classDef startend fill:#DCFCE7,stroke:#16A34A,stroke-width:2px,color:#14532D
     classDef decision fill:#FEF3C7,stroke:#F59E0B,stroke-width:2px,color:#78350F
@@ -326,28 +336,28 @@ graph LR
     class D,G,H decision
 ```
 
-这种架构适用于：
+This architecture is suitable for:
 
-* 具有模棱两可或未充分指定查询的应用程序
-* 需要验证或质量控制步骤的系统
-* 涉及多个来源或迭代改进的工作流
+* Applications with ambiguous or underspecified queries
+* Systems that require validation or quality control steps
+* Workflows involving multiple sources or iterative refinement
 
 <Card
-    title="教程：具有自我修正功能的 Agentic RAG"
+    title="Tutorial: Agentic RAG with Self-Correction"
     icon="robot"
     href="/oss/javascript/langgraph/agentic-rag"
-    arrow cta="了解更多"
+    arrow cta="Learn more"
 >
-    一个 **Hybrid RAG** 的示例，它将代理推理与检索和自我修正相结合。
+    An example of **Hybrid RAG** that combines agentic reasoning with retrieval and self-correction.
 </Card>
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/retrieval.mdx) 或 [提交 issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/retrieval.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 <Callout icon="terminal-2">
-    [将这些文档连接](/use-these-docs) 到 Claude、VSCode 等，通过 MCP 获取实时解答。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
 </Callout>
 </div>

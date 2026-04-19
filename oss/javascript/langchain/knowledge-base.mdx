@@ -1,6 +1,6 @@
 ---
-title: 使用 LangChain 构建语义搜索引擎
-sidebarTitle: 语义搜索
+title: Build a semantic search engine with LangChain
+sidebarTitle: Semantic search
 ---
 
 import EmbeddingsTabsPy from '/snippets/embeddings-tabs-py.mdx';
@@ -8,26 +8,28 @@ import EmbeddingsTabsJS from '/snippets/embeddings-tabs-js.mdx';
 import VectorstoreTabsPy from '/snippets/vectorstore-tabs-py.mdx';
 import VectorstoreTabsJS from '/snippets/vectorstore-tabs-js.mdx';
 
-## 概述
+## Overview
 
-本教程将让您熟悉 LangChain 的 [文档加载器](/oss/javascript/langchain/retrieval#document-loaders)、[嵌入](/oss/javascript/langchain/retrieval#embedding-models) 和 [向量存储](/oss/javascript/langchain/retrieval#vector-store) 抽象。这些抽象旨在支持从（向量）数据库和其他来源检索数据，以与 LLM 工作流集成。它们对于获取数据以作为模型推理的一部分进行推理的应用程序非常重要，例如检索增强生成或 [RAG](/oss/javascript/langchain/retrieval)。
+This tutorial will familiarize you with LangChain's [document loader](/oss/javascript/integrations/document_loaders), [embedding](/oss/javascript/integrations/embeddings), and [vector store](/oss/javascript/integrations/vectorstores) abstractions. These abstractions are designed to support retrieval of data--  from (vector) databases and other sources -- for integration with LLM workflows. They are important for applications that fetch data to be reasoned over as part of model inference, as in the case of retrieval-augmented generation, or [RAG](/oss/javascript/langchain/retrieval).
 
-在这里，我们将基于 PDF 文档构建一个搜索引擎。这将允许我们检索 PDF 中与输入查询相似的段落。本指南还包括基于搜索引擎的最小 RAG 实现。
+Here we will build a search engine over a PDF document. This will allow us to retrieve passages in the PDF that are similar to an input query. The guide also includes a minimal RAG implementation on top of the search engine.
 
-### 概念
+### Concepts
 
-本指南侧重于文本数据的检索。我们将涵盖以下概念：
+This guide focuses on retrieval of text data. We will cover the following concepts:
 
-- [文档和文档加载器](/oss/javascript/integrations/document_loaders)；
-- [文本分割器](/oss/javascript/integrations/splitters)；
-- [嵌入](/oss/javascript/integrations/text_embedding)；
-- [向量存储](/oss/javascript/integrations/vectorstores) 和 [检索器](/oss/javascript/integrations/retrievers)。
+- [Documents and document loaders](/oss/javascript/integrations/document_loaders);
+- [Text splitters](/oss/javascript/integrations/splitters);
+- [Embeddings](/oss/javascript/integrations/embeddings);
+- [Vector stores](/oss/javascript/integrations/vectorstores) and [retrievers](/oss/javascript/integrations/retrievers).
 
-## 设置
+## Setup
 
-### 安装
+### Installation
 
-本指南需要 `@langchain/community` 和 `pdf-parse`：
+
+
+This guide requires `@langchain/community` and `pdf-parse`:
 
 <CodeGroup>
 ```bash npm
@@ -41,32 +43,39 @@ pnpm add @langchain/community pdf-parse
 ```
 </CodeGroup>
 
-更多详情，请参阅我们的 [安装指南](/oss/javascript/langchain/install)。
+
+
+For more details, see our [Installation guide](/oss/javascript/langchain/install).
 
 ### LangSmith
 
-您使用 LangChain 构建的许多应用程序将包含多个步骤，并多次调用 LLM。
-随着这些应用程序变得越来越复杂，能够检查链或代理内部到底发生了什么变得至关重要。
-最好的方法是使用 [LangSmith](https://smith.langchain.com)。
+Many of the applications you build with LangChain will contain multiple steps with multiple invocations of LLM calls.
+As these applications get more and more complex, it becomes crucial to be able to inspect what exactly is going on inside your chain or agent.
+The best way to do this is with [LangSmith](https://smith.langchain.com).
 
-在上面的链接注册后，请确保设置环境变量以开始记录跟踪：
+After you sign up at the link above, make sure to set your environment variables to start logging traces:
 
 ```shell
 export LANGSMITH_TRACING="true"
 export LANGSMITH_API_KEY="..."
 ```
 
-## 1. 文档和文档加载器
 
-LangChain 实现了一个 [Document](https://reference.langchain.com/javascript/langchain-core/documents/Document) 抽象，旨在表示文本单元及其关联的元数据。它有三个属性：
 
-- `pageContent`：表示内容的字符串；
-- `metadata`：包含任意元数据的字典；
-- `id`：（可选）文档的字符串标识符。
+## 1. Documents and document loaders
 
-`metadata` 属性可以捕获有关文档来源、与其他文档的关系以及其他信息的信息。请注意，单个 [`Document`](https://reference.langchain.com/javascript/langchain-core/documents/Document) 对象通常表示较大文档的一部分。
+LangChain implements a [Document](https://reference.langchain.com/javascript/langchain-core/documents/Document) abstraction, which is intended to represent a unit of text and associated metadata. It has three attributes:
 
-如果需要，我们可以生成示例文档：
+
+- `pageContent`: a string representing the content;
+- `metadata`: a dict containing arbitrary metadata;
+- `id`: (optional) a string identifier for the document.
+
+
+The `metadata` attribute can capture information about the source of the document, its relationship to other documents, and other information. Note that an individual [`Document`](https://reference.langchain.com/javascript/langchain-core/documents/Document) object often represents a chunk of a larger document.
+
+We can generate sample documents when desired:
+
 
 ```typescript
 import { Document } from "@langchain/core/documents";
@@ -84,11 +93,13 @@ const documents = [
 ];
 ```
 
-然而，LangChain 生态系统实现了 [文档加载器](/oss/javascript/langchain/retrieval#document-loaders)，可以 [与数百个常见来源集成](/oss/javascript/integrations/document_loaders/)。这使得将来自这些来源的数据合并到您的 AI 应用程序中变得容易。
 
-### 加载文档
+However, the LangChain ecosystem implements [document loaders](/oss/javascript/integrations/document_loaders) that integrate with hundreds of common sources. This makes it easy to incorporate data from these sources into your AI application.
 
-让我们将 PDF 加载到 [`Document`](https://reference.langchain.com/javascript/langchain-core/documents/Document) 对象序列中。[这是一个示例 PDF](https://github.com/langchain-ai/langchain/blob/v0.3/docs/docs/example_data/nke-10k-2023.pdf) —— 2023 年耐克的 10-k 文件。我们可以查阅 LangChain 文档以了解 [可用的 PDF 文档加载器](/oss/javascript/integrations/document_loaders/#pdfs)。
+### Loading documents
+
+Let's load a PDF into a sequence of [`Document`](https://reference.langchain.com/javascript/langchain-core/documents/Document) objects. [Here is a sample PDF](https://github.com/langchain-ai/langchain/blob/v0.3/docs/docs/example_data/nke-10k-2023.pdf) -- a 10-k filing for Nike from 2023. We can consult the LangChain documentation for [available PDF document loaders](/oss/javascript/integrations/document_loaders/#pdfs).
+
 
 ```typescript
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
@@ -102,10 +113,12 @@ console.log(docs.length);
 107
 ```
 
-`PDFLoader` 为每个 PDF 页面加载一个 [`Document`](https://reference.langchain.com/javascript/langchain-core/documents/Document) 对象。对于每一个，我们可以轻松访问：
+`PDFLoader` loads one [`Document`](https://reference.langchain.com/javascript/langchain-core/documents/Document) object per PDF page. For each, we can easily access:
 
-- 页面的字符串内容；
-- 包含文件名和页码的元数据。
+- The string content of the page;
+- Metadata containing the file name and page number.
+
+
 
 ```typescript
 console.log(docs[0].pageContent.slice(0, 200));
@@ -148,11 +161,20 @@ console.log(docs[0].metadata);
 }
 ```
 
-### 分割
 
-对于信息检索和下游问答目的，页面可能是一个太粗略的表示。我们最终的目标是检索回答输入查询的 [`Document`](https://reference.langchain.com/javascript/langchain-core/documents/Document) 对象，进一步分割我们的 PDF 将有助于确保文档相关部分的含义不会被周围的文本“冲淡”。
+### Splitting
 
-我们可以为此目的使用 [文本分割器](/oss/javascript/langchain/retrieval#text_splitters)。在这里，我们将使用一个基于字符进行分区的简单文本分割器。我们将把文档分成 1000 个字符的块，块之间有 200 个字符的重叠。重叠有助于减少将语句与其相关的重要上下文分离的可能性。我们使用 `RecursiveCharacterTextSplitter`，它将使用常见的分隔符（如换行符）递归地分割文档，直到每个块的大小合适。这是通用文本用例的推荐文本分割器。
+For both information retrieval and downstream question-answering purposes, a page may be too coarse a representation. Our goal in the end will be to retrieve [`Document`](https://reference.langchain.com/javascript/langchain-core/documents/Document) objects that answer an input query, and further splitting our PDF will help ensure that the meanings of relevant portions of the document are not "washed out" by surrounding text.
+
+We can use [text splitters](/oss/javascript/integrations/splitters) for this purpose. Here we will use a simple text splitter that partitions based on characters. We will split our documents into chunks of 1000 characters
+with 200 characters of overlap between chunks. The overlap helps
+mitigate the possibility of separating a statement from important
+context related to it. We use the
+`RecursiveCharacterTextSplitter`,
+which will recursively split the document using common separators like
+new lines until each chunk is the appropriate size. This is the
+recommended text splitter for generic text use cases.
+
 
 ```typescript
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
@@ -167,15 +189,18 @@ const allSplits = await textSplitter.splitDocuments(docs);
 console.log(allSplits.length);
 ```
 
+
 ```text
 514
 ```
 
-## 2. 嵌入
 
-向量搜索是存储和搜索非结构化数据（如非结构化文本）的一种常见方式。其思想是存储与文本关联的数值向量。给定一个查询，我们可以将其 [嵌入](/oss/javascript/langchain/retrieval#embedding_models) 为相同维度的向量，并使用向量相似度度量（如余弦相似度）来识别相关文本。
+## 2. Embeddings
 
-LangChain 支持来自 [数十个提供商](/oss/javascript/integrations/text_embedding/) 的嵌入。这些模型指定了如何将文本转换为数值向量。让我们选择一个模型：
+Vector search is a common way to store and search over unstructured data (such as unstructured text). The idea is to store numeric vectors that are associated with the text. Given a query, we can [embed](/oss/javascript/integrations/embeddings) it as a vector of the same dimension and use vector similarity metrics (such as cosine similarity) to identify related text.
+
+LangChain supports embeddings from [dozens of providers](/oss/javascript/integrations/embeddings/). These models specify how text should be converted into a numeric vector. Let's select a model:
+
 
 <EmbeddingsTabsJS />
 
@@ -188,42 +213,52 @@ console.log(`Generated vectors of length ${vector1.length}\n`);
 console.log(vector1.slice(0, 10));
 ```
 
+
 ```text
 Generated vectors of length 1536
 
 [-0.008586574345827103, -0.03341241180896759, -0.008936782367527485, -0.0036674530711025, 0.010564599186182022, 0.009598285891115665, -0.028587326407432556, -0.015824200585484505, 0.0030416189692914486, -0.012899317778646946]
 ```
-有了生成文本嵌入的模型，我们接下来可以将它们存储在一个支持高效相似度搜索的特殊数据结构中。
+Armed with a model for generating text embeddings, we can next store them in a special data structure that supports efficient similarity search.
 
-## 3. 向量存储
+## 3. Vector stores
 
-LangChain [VectorStore](https://reference.langchain.com/javascript/langchain-core/vectorstores/VectorStore) 对象包含添加文本和 [`Document`](https://reference.langchain.com/javascript/langchain-core/documents/Document) 对象到存储以及使用各种相似度度量查询它们的方法。它们通常使用 [嵌入](/oss/javascript/langchain/retrieval#embedding_models) 模型进行初始化，该模型确定如何将文本数据转换为数值向量。
+LangChain [VectorStore](https://reference.langchain.com/javascript/langchain-core/vectorstores/VectorStore) objects contain methods for adding text and [`Document`](https://reference.langchain.com/javascript/langchain-core/documents/Document) objects to the store, and querying them using various similarity metrics. They are often initialized with [embedding](/oss/javascript/integrations/embeddings) models, which determine how text data is translated to numeric vectors.
 
-LangChain 包含一套与不同向量存储技术的 [集成](/oss/javascript/integrations/vectorstores)。有些向量存储由提供商托管（例如，各种云提供商），需要特定的凭据才能使用；有些（如 [Postgres](/oss/javascript/integrations/vectorstores/pgvector)）在单独的基础设施中运行，可以在本地或通过第三方运行；其他的可以在内存中运行以进行轻量级工作负载。让我们选择一个向量存储：
+LangChain includes a suite of [integrations](/oss/javascript/integrations/vectorstores) with different vector store technologies. Some vector stores are hosted by a provider (e.g., various cloud providers) and require specific credentials to use; some (such as [Postgres](/oss/javascript/integrations/vectorstores/pgvector)) run in separate infrastructure that can be run locally or via a third-party; others can run in-memory for lightweight workloads. Let's select a vector store:
+
 
 <VectorstoreTabsJS />
 
-实例化向量存储后，我们现在可以索引文档。
+
+Having instantiated our vector store, we can now index the documents.
+
 
 ```typescript
 await vectorStore.addDocuments(allSplits);
 ```
 
-请注意，大多数向量存储实现都允许您连接到现有的向量存储——例如，通过提供客户端、索引名称或其他信息。有关更多详细信息，请参阅特定 [集成](/oss/javascript/integrations/vectorstores) 的文档。
 
-一旦我们实例化了一个包含文档的 [`VectorStore`](https://reference.langchain.com/javascript/langchain-core/vectorstores/VectorStore)，我们就可以查询它。[VectorStore](https://reference.langchain.com/javascript/langchain-core/vectorstores/VectorStore) 包含查询方法：
-- 同步和异步；
-- 按字符串查询和按向量；
-- 返回或不返回相似度分数；
-- 按相似度和 [最大边际相关性](https://reference.langchain.com/javascript/classes/_langchain_core.vectorstores.VectorStore.html#maxMarginalRelevanceSearch)（以在检索结果中平衡相似度与查询的多样性）。
+Note that most vector store implementations will allow you to connect to an existing vector store--  e.g., by providing a client, index name, or other information. See the documentation for a specific [integration](/oss/javascript/integrations/vectorstores) for more detail.
 
-这些方法通常会在输出中包含 [Document](https://reference.langchain.com/javascript/langchain-core/documents/Document) 对象列表。
 
-**用法**
 
-嵌入通常将文本表示为“密集”向量，使得具有相似含义的文本在几何上接近。这使我们能够仅通过传递问题来检索相关信息，而无需了解文档中使用的任何特定关键词。
+Once we've instantiated a [`VectorStore`](https://reference.langchain.com/javascript/langchain-core/vectorstores/VectorStore) that contains documents, we can query it. [VectorStore](https://reference.langchain.com/javascript/langchain-core/vectorstores/VectorStore) includes methods for querying:
+- Synchronously and asynchronously;
+- By string query and by vector;
+- With and without returning similarity scores;
+- By similarity and [maximum marginal relevance](https://reference.langchain.com/javascript/classes/_langchain_core.vectorstores.VectorStore.html#maxMarginalRelevanceSearch) (to balance similarity with query to diversity in retrieved results).
 
-根据与字符串查询的相似度返回文档：
+
+
+The methods will generally include a list of [Document](https://reference.langchain.com/javascript/langchain-core/documents/Document) objects in their outputs.
+
+**Usage**
+
+Embeddings typically represent text as a "dense" vector such that texts with similar meanings are geometrically close. This lets us retrieve relevant information just by passing in a question, without knowledge of any specific key-terms used in the document.
+
+Return documents based on similarity to a string query:
+
 
 ```typescript
 const results1 = await vectorStore.similaritySearch(
@@ -239,7 +274,11 @@ Document {
 }
 ```
 
-返回分数：
+
+
+
+Return scores:
+
 
 ```typescript
 const results2 = await vectorStore.similaritySearchWithScore(
@@ -257,7 +296,9 @@ Document {
 }
 ```
 
-根据与嵌入查询的相似度返回文档：
+
+Return documents based on similarity to an embedded query:
+
 
 ```typescript
 const embedding = await embeddings.embedQuery(
@@ -282,16 +323,20 @@ Document {
 }
 ```
 
-了解更多：
 
-- [API 参考](https://reference.langchain.com/javascript/langchain-core/vectorstores/VectorStore)
-- [特定集成的文档](/oss/javascript/integrations/vectorstores)
+Learn more:
 
-## 4. 检索器
+- [API Reference](https://reference.langchain.com/javascript/langchain-core/vectorstores/VectorStore)
+- [Integration-specific docs](/oss/javascript/integrations/vectorstores)
 
-LangChain [`VectorStore`](https://reference.langchain.com/javascript/langchain-core/vectorstores/VectorStore) 对象不是 [Runnable](https://reference.langchain.com/javascript/langchain-core/runnables/Runnable) 的子类。LangChain [Retrievers](https://reference.langchain.com/javascript/interfaces/_langchain_core.retrievers.BaseRetriever.html) 是 Runnables，因此它们实现了一组标准方法（例如，同步和异步 `invoke` 和 `batch` 操作）。虽然我们可以从向量存储构造检索器，但检索器也可以与非向量存储数据源（如外部 API）交互。
+## 4. Retrievers
 
-向量存储实现了一个 `as_retriever` 方法，该方法将生成一个 Retriever，特别是 [`VectorStoreRetriever`](https://python.langchain.com/api_reference/core/vectorstores/langchain_core.vectorstores.base.VectorStoreRetriever.html)。这些检索器包括特定的 `search_type` 和 `search_kwargs` 属性，用于标识要调用的底层向量存储方法以及如何参数化它们。例如，我们可以使用以下代码复制上述内容：
+LangChain [`VectorStore`](https://reference.langchain.com/javascript/langchain-core/vectorstores/VectorStore) objects do not subclass [Runnable](https://reference.langchain.com/javascript/langchain-core/runnables/Runnable). LangChain [Retrievers](https://reference.langchain.com/javascript/interfaces/_langchain_core.retrievers.BaseRetriever.html) are Runnables, so they implement a standard set of methods (e.g., synchronous and asynchronous `invoke` and `batch` operations). Although we can construct retrievers from vector stores, retrievers can interface with non-vector store sources of data, as well (such as external APIs).
+
+
+
+Vectorstores implement an `as_retriever` method that will generate a Retriever, specifically a [`VectorStoreRetriever`](https://reference.langchain.com/python/langchain-core/vectorstores/base/VectorStoreRetriever). These retrievers include specific `search_type` and `search_kwargs` attributes that identify what methods of the underlying vector store to call, and how to parameterize them. For instance, we can replicate the above with the following:
+
 
 ```typescript
 const retriever = vectorStore.asRetriever({
@@ -319,38 +364,40 @@ await retriever.batch([
 ]
 ```
 
-检索器可以轻松集成到更复杂的应用程序中，例如 [检索增强生成 (RAG)](/oss/javascript/langchain/retrieval) 应用程序，该应用程序将给定的问题与检索到的上下文结合起来作为 LLM 的提示。要了解有关构建此类应用程序的更多信息，请查看 [RAG 教程](/oss/javascript/langchain/rag)。
 
-## 后续步骤
+Retrievers can easily be incorporated into more complex applications, such as [retrieval-augmented generation (RAG)](/oss/javascript/langchain/retrieval) applications that combine a given question with retrieved context into a prompt for a LLM. To learn more about building such an application, check out the [RAG tutorial](/oss/javascript/langchain/rag) tutorial.
 
-您现在已经了解了如何基于 PDF 文档构建语义搜索引擎。
 
-关于文档加载器的更多信息：
+## Next steps
 
-- [概述](/oss/javascript/langchain/retrieval#document_loaders)
-- [可用集成](/oss/javascript/integrations/document_loaders/)
+You've now seen how to build a semantic search engine over a PDF document.
 
-关于嵌入的更多信息：
+For more on document loaders:
 
-- [概述](/oss/javascript/langchain/retrieval#embedding_models/)
-- [可用集成](/oss/javascript/integrations/text_embedding/)
+- [Overview](/oss/javascript/langchain/retrieval)
+- [Available integrations](/oss/javascript/integrations/document_loaders/)
 
-关于向量存储的更多信息：
+For more on embeddings:
 
-- [概述](/oss/javascript/langchain/retrieval#vectorstores/)
-- [可用集成](/oss/javascript/integrations/vectorstores/)
+- [Overview](/oss/javascript/langchain/retrieval)
+- [Available integrations](/oss/javascript/integrations/embeddings/)
 
-关于 RAG 的更多信息，请参阅：
+For more on vector stores:
 
-- [构建检索增强生成 (RAG) 应用](/oss/javascript/langchain/rag/)
+- [Overview](/oss/javascript/langchain/retrieval)
+- [Available integrations](/oss/javascript/integrations/vectorstores/)
+
+For more on RAG, see:
+
+- [Build a Retrieval Augmented Generation (RAG) App](/oss/javascript/langchain/rag/)
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/knowledge-base.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/knowledge-base.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 <Callout icon="terminal-2">
-    [将这些文档连接](/use-these-docs) 到 Claude、VSCode 等，通过 MCP 获取实时解答。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
 </Callout>
 </div>

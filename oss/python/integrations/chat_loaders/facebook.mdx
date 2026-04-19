@@ -1,26 +1,26 @@
 ---
-title: "Facebook Messenger 集成"
-description: "使用 LangChain Python 集成 Facebook Messenger 聊天加载器。"
+title: "Facebook messenger integration"
+description: "Integrate with the Facebook messenger chat loader using LangChain Python."
 ---
 
-本 notebook 演示如何将 Facebook 数据加载为可供微调使用的格式。整体步骤如下：
+This notebook shows how to load data from Facebook into a format you can fine-tune on. The overall steps are:
 
-1. 将您的 Messenger 数据下载到磁盘。
-2. 创建 Chat Loader 并调用 `loader.load()`（或 `loader.lazy_load()`）执行转换。
-3. 可选地使用 `merge_chat_runs` 合并同一发送者连续发送的消息，和/或使用 `map_ai_messages` 将指定发送者的消息转换为"AIMessage"类。完成后，调用 `convert_messages_for_finetuning` 准备微调数据。
+1. Download your messenger data to disk.
+2. Create the Chat Loader and call `loader.load()` (or `loader.lazy_load()`) to perform the conversion.
+3. Optionally use `merge_chat_runs` to combine message from the same sender in sequence, and/or `map_ai_messages` to convert messages from the specified sender to the "AIMessage" class. Once you've done this, call `convert_messages_for_finetuning` to prepare your data for fine-tuning.
 
-完成上述步骤后，您可以对模型进行微调。具体步骤如下：
+Once this has been done, you can fine-tune your model. To do so you would complete the following steps:
 
-4. 将您的消息上传到 OpenAI 并运行微调任务。
-6. 在您的 LangChain 应用中使用生成的模型！
+4. Upload your messages to OpenAI and run a fine-tuning job.
+6. Use the resulting model in your LangChain app!
 
-让我们开始吧。
+Let's begin.
 
-## 1. 下载数据
+## 1. Download data
 
-要下载您自己的 Messenger 数据，请按照[此处](https://www.zapptales.com/en/download-facebook-messenger-chat-history-how-to/)的说明操作。**重要提示** —— 请确保以 JSON 格式（而非 HTML）下载。
+To download your own messenger data, follow the [instructions for downloading Facebook Messenger chat history](https://www.zapptales.com/en/download-facebook-messenger-chat-history-how-to/). IMPORTANT - make sure to download them in JSON format (not HTML).
 
-我们在 [此 Google Drive 链接](https://drive.google.com/file/d/1rh1s1o2i7B-Sk1v9o8KNgivLVGwJ-osV/view?usp=sharing) 托管了一个示例转储文件，本演示将使用该文件。
+We are hosting an example dump at [this google drive link](https://drive.google.com/file/d/1rh1s1o2i7B-Sk1v9o8KNgivLVGwJ-osV/view?usp=sharing) that we will use in this walkthrough.
 
 ```python
 # This uses some example data
@@ -61,9 +61,9 @@ File file.zip downloaded.
 File file.zip has been unzipped.
 ```
 
-## 2. 创建聊天加载器
+## 2. Create chat loader
 
-我们有两个不同的 `FacebookMessengerChatLoader` 类，一个用于整个聊天目录，另一个用于加载单个文件。
+We have 2 different `FacebookMessengerChatLoader` classes, one for an entire directory of chats, and one to load individual files. We
 
 ```python
 directory_path = "./hogwarts"
@@ -108,11 +108,11 @@ len(chat_sessions)
 9
 ```
 
-## 3. 准备微调
+## 3. Prepare for fine-tuning
 
-调用 `load()` 会以人类消息的形式返回所有可提取的聊天消息。与聊天机器人对话时，对话通常遵循比真实对话更严格的交替对话模式。
+Calling `load()` returns all the chat messages we could extract as human messages. When conversing with chat bots, conversations typically follow a more strict alternating dialogue pattern relative to real conversations.
 
-您可以选择合并消息"连续块"（来自同一发送者的连续消息），并选择一个发送者代表"AI"。经过微调的 LLM 将学习生成这些 AI 消息。
+You can choose to merge message "runs" (consecutive messages from the same sender) and select a sender to represent the "AI". The fine-tuned LLM will learn to generate these AI messages.
 
 ```python
 from langchain_community.chat_loaders.utils import (
@@ -138,7 +138,7 @@ alternating_sessions[0]["messages"][:3]
  AIMessage(content="I apologize for the interruption, sir. I'll be brief. I've noticed some strange activity around the school grounds at night. I saw a cloaked figure lurking near the Forbidden Forest last night. I'm worried someone may be plotting something sinister.", additional_kwargs={'sender': 'Harry Potter'})]
 ```
 
-#### 现在我们可以将其转换为 OpenAI 格式字典
+#### Now we can convert to OpenAI format dictionaries
 
 ```python
 from langchain_community.adapters.openai import convert_messages_for_finetuning
@@ -166,10 +166,10 @@ training_data[0][:3]
   'content': "I apologize for the interruption, sir. I'll be brief. I've noticed some strange activity around the school grounds at night. I saw a cloaked figure lurking near the Forbidden Forest last night. I'm worried someone may be plotting something sinister."}]
 ```
 
-OpenAI 目前要求微调任务至少有 10 个训练示例，但建议大多数任务使用 50-100 个。由于我们只有 9 个聊天会话，我们可以将其分割（可选地设置部分重叠），使每个训练示例都包含完整对话的一部分。
+OpenAI currently requires at least 10 training examples for a fine-tuning job, though they recommend between 50-100 for most tasks. Since we only have 9 chat sessions, we can subdivide them (optionally with some overlap) so that each training example is comprised of a portion of a whole conversation.
 
-Facebook 聊天会话（每人一个）通常跨越多天和多次对话，
-因此长范围依赖关系可能并不那么重要。
+Facebook chat sessions (1 per person) often span multiple days and conversations,
+so the long-range dependencies may not be that important to model anyhow.
 
 ```python
 # Our chat is alternating, we will make each datapoint a group of 8 messages,
@@ -190,9 +190,10 @@ len(training_examples)
 100
 ```
 
-## 4. 微调模型
+## 4. Fine-tune the model
 
-现在是微调模型的时候了。请确保已安装 `openai` 并适当设置了 `OPENAI_API_KEY`。
+It's time to fine-tune the model. Make sure you have `openai` installed
+and have set your `OPENAI_API_KEY` appropriately
 
 ```python
 pip install -qU  langchain-openai
@@ -228,7 +229,7 @@ print(f"File {training_file.id} ready after {time.time() - start_time:.2f} secon
 File file-ULumAXLEFw3vB6bb9uy6DNVC ready after 0.00 seconds.
 ```
 
-文件准备好后，是时候启动训练任务了。
+With the file ready, it's time to kick off a training job.
 
 ```python
 job = openai.fine_tuning.jobs.create(
@@ -237,7 +238,7 @@ job = openai.fine_tuning.jobs.create(
 )
 ```
 
-请耐心等待，模型准备可能需要一些时间！
+Grab a cup of tea while your model is being prepared. This may take some time!
 
 ```python
 status = openai.fine_tuning.jobs.retrieve(job.id).status
@@ -261,9 +262,9 @@ print(job.fine_tuned_model)
 ft:gpt-3.5-turbo-0613:personal::8QnAzWMr
 ```
 
-## 5. 在 LangChain 中使用
+## 5. Use in LangChain
 
-您可以直接在 [`ChatOpenAI`](https://reference.langchain.com/python/langchain-openai/chat_models/base/ChatOpenAI) 模型类中使用生成的模型 ID。
+You can use the resulting model ID directly the [`ChatOpenAI`](https://reference.langchain.com/python/langchain-openai/chat_models/base/ChatOpenAI) model class.
 
 ```python
 from langchain_openai import ChatOpenAI
@@ -300,9 +301,9 @@ I'm taking Charms, Defense Against the Dark Arts, Herbology, Potions, Transfigur
 
 <div className="source-links">
 <Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/chat_loaders/facebook.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/chat_loaders/facebook.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 <Callout icon="terminal-2">
-    通过 MCP [将这些文档连接](/use-these-docs)到 Claude、VSCode 等以获得实时解答。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
 </Callout>
 </div>

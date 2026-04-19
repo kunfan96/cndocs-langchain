@@ -1,48 +1,49 @@
 ---
-title: "Azure Database for PostgreSQL - Flexible Server 集成"
-description: "使用 LangChain Python 集成 Azure Database for PostgreSQL - Flexible Server 向量存储。"
+title: "Azure database for postgresql - flexible server integration"
+description: "Integrate with the Azure database for postgresql - flexible server vector store using LangChain Python."
 ---
 
-[Azure Database for PostgreSQL - Flexible Server](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/service-overview) 是基于开源 Postgres 数据库引擎的关系型数据库服务。它是一种全托管的数据库即服务，能够以可预测的性能、安全性、高可用性和动态可扩展性处理关键业务工作负载。
+[Azure Database for PostgreSQL - Flexible Server](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/service-overview) is a relational database service based on the open-source Postgres database engine. It's a fully managed database-as-a-service that can handle mission-critical workloads with predictable performance, security, high availability, and dynamic scalability.
 
-本指南展示如何利用此集成的[向量数据库](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/how-to-use-pgvector)将文档存储到集合中、创建索引并使用近似最近邻算法（如余弦距离、L2（欧氏距离）和 IP（内积））执行向量搜索查询，以找到与查询向量相近的文档。
+This guide shows you how to leverage this integrated [vector database](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/how-to-use-pgvector) to store documents in collections, create indices and perform vector search queries using approximate nearest neighbor algorithms such as Cosine Distance, L2 (Euclidean distance), and IP (inner product) to locate documents close to the query vectors.
 
-## 向量支持
+## Vector support
 
-Azure Database for PostgreSQL - Flexible Server 使您能够在 PostgreSQL 中高效存储和查询数百万个向量嵌入，并将您的 AI 应用从 POC 扩展到生产环境：
+Azure Database for PostgreSQL - Flexible Server enables you to efficiently store and query millions of vector embeddings in PostgreSQL. As well as scale your AI use cases from POC to production:
 
-* 提供熟悉的 SQL 接口用于查询向量嵌入和关系数据。
-* 通过 [DiskANN 索引算法](https://aka.ms/pg-diskann-docs)在 1 亿个以上的向量上以更快、更精确的相似度搜索增强 `pgvector`。
-* 通过将关系型元数据、向量嵌入和时序数据集成到单一数据库中简化操作。
-* 充分利用强大的 PostgreSQL 生态系统和 Azure Cloud 的企业级功能，包括复制和高可用性。
+* Provides a familiar SQL interface for querying vector embeddings and relational data.
+* Boosts `pgvector` with a faster and more precise similarity search across 100M+ vectors using [DiskANN indexing algorithm.](https://aka.ms/pg-diskann-docs)
+* Simplifies operations by integrating relational metadata, vector embeddings, and time-series data into a single database.
+* Leverages the power of the robust PostgreSQL ecosystem and Azure Cloud for enterprise-grade features including replication, and high availability.
 
-## 身份验证
+## Authentication
 
-Azure Database for PostgreSQL - Flexible Server 支持基于密码以及 [Microsoft Entra](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/concepts-azure-ad-authentication)（前身为 Azure Active Directory）身份验证。
+Azure Database for PostgreSQL - Flexible Server supports password-based as well as [Microsoft Entra](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/concepts-azure-ad-authentication) (formerly Azure Active Directory) authentication.
 
-Entra 身份验证允许您使用 Entra 身份对 PostgreSQL 服务器进行身份验证。这消除了为数据库用户管理单独用户名和密码的需要，并允许您利用与其他 Azure 服务相同的安全机制。
+Entra authentication allows you to use Entra identity to authenticate to your PostgreSQL server. This eliminates the need to manage separate usernames and passwords for your database users, and allows
+you to leverage the same security mechanisms that you use for other Azure services.
 
-本指南设置为支持任一身份验证方式。您可以稍后在笔记本中配置是否使用 Entra 身份验证。
+This guide is set up to use either authentication method. You can configure whether or not to use Entra authentication later in the notebook.
 
-## 设置
+## Setup
 
-Azure Database for PostgreSQL 基于开源 Postgres。本集成使用专用的 [`langchain-azure-postgresql`](https://pypi.org/project/langchain-azure-postgresql/) 包，提供包括 DiskANN 索引和 Microsoft Entra 身份验证在内的优化支持。
+Azure Database for PostgreSQL is based on open-source Postgres. This integration uses the dedicated [`langchain-azure-postgresql`](https://pypi.org/project/langchain-azure-postgresql/) package, which provides optimized support including DiskANN indexing and Microsoft Entra authentication.
 
-首先下载合作伙伴包：
+First download the partner packages:
 
 ```python
 pip install -qU langchain-azure-postgresql langchain-openai azure-identity
 ```
 
-### 启用 pgvector
+### Enable pgvector
 
-请参阅 Azure Database for PostgreSQL 的[启用说明](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/how-to-use-pgvector)。
+See [enablement instructions](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/how-to-use-pgvector) for Azure Database for PostgreSQL.
 
-### 设置凭据
+### Set up credentials
 
-您需要 Azure Database for PostgreSQL 的[连接详情](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/quickstart-create-server-portal#get-the-connection-information)，并将其添加为环境变量来运行本笔记本。
+You will need your Azure Database for PostgreSQL [connection details](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/quickstart-create-server-portal#get-the-connection-information) and add them as environment variables to run this notebook.
 
-如果您想使用 Microsoft Entra 身份验证，请将 `USE_ENTRA_AUTH` 标志设置为 `True`。如果使用 Entra 身份验证，则只需提供主机和数据库名称。如果使用密码身份验证，还需要设置用户名和密码。
+Set the `USE_ENTRA_AUTH` flag to `True` if you want to use Microsoft Entra authentication. If using Entra authentication, you will only need to supply the host and database name. If using password authentication, you'll also need to set the username and password.
 
 ```python
 import getpass
@@ -61,7 +62,7 @@ if not USE_ENTRA_AUTH:
     os.environ["DBPASSWORD"] = getpass.getpass("Database Password:")
 ```
 
-### 设置 `AzureOpenAIEmbeddings`
+### Setup `AzureOpenAIEmbeddings`
 
 ```python
 os.environ["AZURE_OPENAI_ENDPOINT"] = "REPLACE_WITH_AZURE_OPENAI_ENDPOINT"
@@ -82,23 +83,23 @@ embeddings = AzureOpenAIEmbeddings(
 )
 ```
 
-## 初始化
+## Initialization
 
-### 使用 Microsoft Entra 身份验证
+### Use Microsoft entra authentication
 
-以下各节演示如何设置 LangChain 以使用 Microsoft Entra 身份验证。LangChain Azure Postgres 包中的 `AzurePGConnectionPool` 类通过使用 `azure.identity` 库中的 `DefaultAzureCredential` 来获取 Azure Database for PostgreSQL 服务的令牌。
+The following sections demonstrate how to set up LangChain to use Microsoft Entra authentication. The class `AzurePGConnectionPool` in the LangChain Azure Postgres package retrieves tokens for the Azure Database for PostgreSQL service by using `DefaultAzureCredential` from the `azure.identity` library.
 
-连接可以传入 `AzurePGVectorStore` LangChain 向量存储的 `connection` 参数中。
+The connection can be passed into the `connection` parameter of the `AzurePGVectorStore` LangChain vector store.
 
-#### 登录 Azure
+#### Sign in to Azure
 
-要登录 Azure，请确保已安装 [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli)。您需要在终端中运行以下命令：
+To log into Azure, ensure you have the [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) installed. You will need to run the following command in your terminal:
 
 ```bash
 az login
 ```
 
-登录后，以下代码将能够获取令牌。
+Once you have logged in, the below code will be able to fetch the token.
 
 ```python
 from langchain_azure_postgresql.common import (
@@ -115,9 +116,9 @@ entra_connection_pool = AzurePGConnectionPool(
 )
 ```
 
-### 密码身份验证
+### Password authentication
 
-如果您不使用 Microsoft Entra 身份验证，`BasicAuth` 类允许使用用户名和密码：
+If you're not using Microsoft Entra authentication, the `BasicAuth` class allows the use of username and password:
 
 ```python
 basic_auth_connection_pool = AzurePGConnectionPool(
@@ -132,7 +133,7 @@ basic_auth_connection_pool = AzurePGConnectionPool(
 )
 ```
 
-### 创建向量存储
+### Creating the vector store
 
 ```python
 from langchain_core.documents import Document
@@ -157,19 +158,19 @@ Embedding dimension is not specified, defaulting to 1536.
 Embedding index is not specified, defaulting to 'DiskANN' with 'vector_cosine_ops' opclass.
 ```
 
-## 配置向量存储参数
+## Configuring vector store parameters
 
-在初始化 `AzurePGVectorStore` 时，您可以覆盖元数据类型、嵌入维度、索引类型等默认参数，以便根据您的具体用例和数据定制向量存储。
+You can override the default parameters for metadata type, embedding dimension, index type, and more when initializing `AzurePGVectorStore`. This allows you to tailor the vector store to your specific use case and data.
 
-**关键配置选项：**
+**Key configuration options:**
 
-- `metadata_column_type`：元数据列的类型（默认值：`'jsonb'`）。可设置为 `'jsonb'`、`'text'` 等。
-- `embedding_column_type`：嵌入列的类型（默认值：`'vector'`）。
-- `embedding_dimension`：嵌入向量的维度（默认值：`1536`）。
-- `embedding_index_type`：向量搜索的索引类型（默认值：`'DiskANN'`）。其他选项可能包括 `'ivfflat'`、`'hnsw'` 等。
-- `embedding_index_opclass`：索引的操作符类（默认值：`'vector_cosine_ops'`）。
+- `metadata_column_type`: The type of the metadata column (default: `'jsonb'`). Set to `'jsonb'`, `'text'`, etc.
+- `embedding_column_type`: The type of the embedding column (default: `'vector'`).
+- `embedding_dimension`: The dimension of your embedding vectors (default: `1536`).
+- `embedding_index_type`: The index type for vector search (default: `'DiskANN'`). Other options may include `'ivfflat'`, `'hnsw'`, etc.
+- `embedding_index_opclass`: The operator class for the index (default: `'vector_cosine_ops'`).
 
-**示例：**
+**Example:**
 
 ```python
 vector_store = AzurePGVectorStore(
@@ -184,9 +185,9 @@ vector_store = AzurePGVectorStore(
 )
 ```
 
-## 初始化 DiskANN 向量索引以实现更高效的向量搜索
+## Initialize the DiskANN vector index for more efficient vector search
 
-[DiskANN](https://aka.ms/pg-diskann-blog) 是一种可扩展的近似最近邻搜索算法，用于在任意规模下实现高效的向量搜索。它提供高召回率、高每秒查询数和低查询延迟，即使对于十亿级数据集也是如此。这些特性使其成为处理大量数据的强大工具。
+[DiskANN](https://aka.ms/pg-diskann-blog) is a scalable approximate nearest neighbor search algorithm for efficient vector search at any scale. It offers high recall, high queries per second, and low query latency, even for billion-point datasets. Those characteristics make it a powerful tool for handling large volumes of data.
 
 ```python
 vector_store.create_index()
@@ -196,11 +197,11 @@ vector_store.create_index()
 True
 ```
 
-## 管理向量存储
+## Manage vector store
 
-### 添加条目
+### Add items
 
-请注意，通过 ID 添加文档将覆盖所有与该 ID 匹配的现有文档。
+Note that adding documents by ID will over-write any existing documents that match that ID.
 
 ```python
 docs = [
@@ -263,7 +264,7 @@ uuids
  '7d7f04fd-6fb8-4a29-8708-b9f835ef270a']
 ```
 
-### 更新条目
+### Update items
 
 ```python
 updated_docs = [
@@ -280,7 +281,7 @@ vector_store.add_documents(updated_docs, ids=[uuids[-1]], on_conflict_update=Tru
 ['7d7f04fd-6fb8-4a29-8708-b9f835ef270a']
 ```
 
-### 检索条目
+### Retrieve items
 
 ```python
 vector_store.get_by_ids([str(uuids[3])])
@@ -290,7 +291,7 @@ vector_store.get_by_ids([str(uuids[3])])
 [Document(id='1d37d282-504d-4d28-855a-8d39694b0265', metadata={'topic': 'food', 'doc_id': 4, 'location': 'market'}, page_content='the market also sells fresh oranges')]
 ```
 
-### 删除条目
+### Delete items
 
 ```python
 vector_store.delete(ids=[uuids[3]])
@@ -300,36 +301,36 @@ vector_store.delete(ids=[uuids[3]])
 True
 ```
 
-## 查询向量存储
+## Query vector store
 
-创建向量存储并添加相关文档后，您可以在链或智能体中查询向量存储。
+After you create your vector store and add the relevant documents, you can query the vector store in your chain or agent.
 
-### 过滤
+### Filtering
 
-向量存储支持通过 [LangChain Azure PostgreSQL](https://pypi.org/project/langchain-azure-postgresql/) 包中的 `FilterCondition`、`OrFilter` 和 `AndFilter` 对文档的元数据字段应用一组过滤条件：
+The vector store supports a set of filters that can be applied against the metadata fields of the documents via the `FilterCondition`, `OrFilter`, and `AndFilter` in the [LangChain Azure PostgreSQL](https://pypi.org/project/langchain-azure-postgresql/) package:
 
-| 操作符 | 含义/类别 |
+| Operator | Meaning/Category                |
 | -------- | ------------------------------- |
-| `=`      | 等于                    |
-| `!=`      | 不等于                  |
-| `<`      | 小于                    |
-| `<=`     | 小于或等于          |
-| `>`      | 大于                 |
-| `>=`     | 大于或等于      |
-| `in`      | 特殊用法（包含）              |
-| `not in`     | 特殊用法（不包含）          |
-| `is null`     | 特殊用法（为空）          |
-| `is not null`     | 特殊用法（不为空）          |
-| `between` | 特殊用法（介于之间）         |
-| `not between` | 特殊用法（不介于之间）         |
-| `like`    | 文本（like）                     |
-| `ilike`   | 文本（不区分大小写的 like）    |
-| `AND`     | 逻辑（与）                   |
-| `OR`      | 逻辑（或）                    |
+| `=`      | Equality                    |
+| `!=`      | Inequality                  |
+| `<`      | Less than                    |
+| `<=`     | Less than or equal          |
+| `>`      | Greater than                 |
+| `>=`     | Greater than or equal      |
+| `in`      | Special cased (in)              |
+| `not in`     | Special cased (not in)          |
+| `is null`     | Special cased (is null)          |
+| `is not null`     | Special cased (is not null)          |
+| `between` | Special cased (between)         |
+| `not between` | Special cased (not between)         |
+| `like`    | Text (like)                     |
+| `ilike`   | Text (case-insensitive like)    |
+| `AND`     | Logical (and)                   |
+| `OR`      | Logical (or)                    |
 
-### 直接查询
+### Query directly
 
-执行简单的相似度搜索如下：
+Performing a simple similarity search can be done as follows:
 
 ```python
 from langchain_azure_postgresql import FilterCondition, AndFilter
@@ -355,7 +356,7 @@ for doc in results:
 * the library hosts a weekly story time for kids [{'topic': 'reading', 'doc_id': 9, 'location': 'library'}]
 ```
 
-如果您想使用逻辑 `AND` 过滤，以下是一个示例：
+If you want to use logical `AND` filters, here is an example:
 
 ```python
 results = vector_store.similarity_search(
@@ -386,7 +387,7 @@ for doc in results:
 * there are cats in the pond [{'topic': 'animals', 'doc_id': 1, 'location': 'pond'}]
 ```
 
-如果您想执行相似度搜索并获取对应分数，可以运行：
+If you want to execute a similarity search and receive the corresponding scores you can run:
 
 ```python
 results = vector_store.similarity_search_with_score(query="cats", k=1)
@@ -398,9 +399,9 @@ for doc, score in results:
 * [SIM=0.528167] there are cats in the pond [{'topic': 'animals', 'doc_id': 1, 'location': 'pond'}]
 ```
 
-### 转换为检索器进行查询
+### Query by turning into retriever
 
-您还可以将向量存储转换为检索器，以便在链中更方便地使用。
+You can also transform the vector store into a retriever for easier usage in your chains.
 
 ```python
 retriever = vector_store.as_retriever(search_kwargs={"k": 1})
@@ -411,7 +412,7 @@ retriever.invoke("kitty")
 [Document(id='00e2cfe6-6e58-4733-9ebf-a708fd16488a', metadata={'topic': 'animals', 'doc_id': 1, 'location': 'pond'}, page_content='there are cats in the pond')]
 ```
 
-如果您想在向量存储上使用最大边际相关性搜索：
+If you want to use max marginal relevance search on your vector store:
 
 ```python
 results = vector_store.max_marginal_relevance_search(
@@ -436,27 +437,27 @@ for doc in results:
 * ducks are also found in the pond [{'topic': 'animals', 'doc_id': 2, 'location': 'pond'}]
 ```
 
-有关可以在 `AzurePGVectorStore` 向量存储上执行的不同搜索的完整列表，请参阅[文档](https://github.com/langchain-ai/langchain-azure/tree/main/libs/azure-postgresql)。
+For a full list of the different searches you can execute on a `AzurePGVectorStore` vector store, please refer to the [documentation](https://github.com/langchain-ai/langchain-azure/tree/main/libs/azure-postgresql).
 
-## 用于检索增强生成
+## Usage for retrieval-augmented generation
 
-有关如何将此向量存储用于检索增强生成（RAG）的指南，请参阅以下章节：
+For guides on how to use this vector store for retrieval-augmented generation (RAG), see the following sections:
 
-* [教程：使用外部知识](https://python.langchain.com/docs/tutorials/#working-with-external-knowledge)
-* [操作指南：基于 RAG 的问答](https://python.langchain.com/docs/how_to/#qa-with-rag)
-* [检索概念文档](https://python.langchain.com/docs/concepts/#retrieval)
+* [Tutorials: working with external knowledge](https://python.langchain.com/docs/tutorials/#working-with-external-knowledge)
+* [How-to: Question and answer with RAG](https://python.langchain.com/docs/how_to/#qa-with-rag)
+* [Retrieval conceptual docs](https://python.langchain.com/docs/concepts/#retrieval)
 
-## API 参考
+## API reference
 
-有关所有 AzurePGVectorStore 功能和配置的详细文档，请前往 API 参考：https://github.com/langchain-ai/langchain-azure/tree/main/libs/azure-postgresql/src/langchain_azure_postgresql/langchain
+For detailed documentation of all `AzurePGVectorStore` features and configurations head to the API reference: https://github.com/langchain-ai/langchain-azure/tree/main/libs/azure-postgresql/src/langchain_azure_postgresql/langchain
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/vectorstores/azure_db_for_postgresql.mdx) 或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/vectorstores/azure_db_for_postgresql.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 <Callout icon="terminal-2">
-    通过 MCP [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，获取实时答案。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
 </Callout>
 </div>

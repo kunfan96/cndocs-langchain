@@ -1,22 +1,22 @@
 ---
-title: "Databricks 向量搜索集成"
-description: "使用 LangChain Python 集成 Databricks 向量搜索向量存储。"
+title: "Databricks vector search integration"
+description: "Integrate with the Databricks vector search vector store using LangChain Python."
 ---
 
 
-[Databricks Vector Search](https://docs.databricks.com/en/generative-ai/vector-search.html) 是一款无服务器相似度搜索引擎，允许您将数据（包括元数据）的向量表示存储在向量数据库中。借助 Vector Search，您可以从 Unity Catalog 管理的 Delta 表创建自动更新的向量搜索索引，并通过简单的 API 查询返回最相似的向量。
+[Databricks Vector Search](https://docs.databricks.com/en/generative-ai/vector-search.html) is a serverless similarity search engine that allows you to store a vector representation of your data, including metadata, in a vector database. With Vector Search, you can create auto-updating vector search indexes from Delta tables managed by Unity Catalog and query them with a simple API to return the most similar vectors.
 
-本 notebook 展示如何在 Databricks Vector Search 中使用 LangChain。
+This notebook shows how to use LangChain with Databricks Vector Search.
 
-## 设置
+## Setup
 
-要访问 Databricks 模型，您需要创建 Databricks 账号，设置凭证（仅在 Databricks 工作空间外时需要），并安装所需包。
+To access Databricks models you'll need to create a Databricks account, set up credentials (only if you are outside Databricks workspace), and install required packages.
 
-### 凭证（仅在 Databricks 工作空间外时需要）
+### Credentials (only if you are outside databricks)
 
-如果您在 Databricks 内运行 LangChain 应用，可以跳过此步骤。
+If you are running LangChain app inside Databricks, you can skip this step.
 
-否则，您需要手动将 Databricks 工作空间主机名和个人访问令牌分别设置到 `DATABRICKS_HOST` 和 `DATABRICKS_TOKEN` 环境变量中。有关如何获取访问令牌，请参阅[认证文档](https://docs.databricks.com/en/dev-tools/auth/index.html#databricks-personal-access-tokens)。
+Otherwise, you need manually set the Databricks workspace hostname and personal access token to `DATABRICKS_HOST` and `DATABRICKS_TOKEN` environment variables, respectively. See [Authentication Documentation](https://docs.databricks.com/en/dev-tools/auth/index.html#databricks-personal-access-tokens) for how to get an access token.
 
 ```python
 import getpass
@@ -29,21 +29,21 @@ if "DATABRICKS_TOKEN" not in os.environ:
     )
 ```
 
-### 安装
+### Installation
 
-LangChain Databricks 集成位于 `databricks-langchain` 包中。
+The LangChain Databricks integration lives in the `databricks-langchain` package.
 
 ```python
 pip install -qU databricks-langchain
 ```
 
-### 创建向量搜索端点和索引（如果尚未创建）
+### Create a vector search endpoint and index (if you haven't already)
 
-本节将使用客户端 SDK 创建 Databricks Vector Search 端点和索引。
+In this section, we will create a Databricks Vector Search endpoint and an index using the client SDK.
 
-如果您已有端点和索引，可以跳过本节直接进入"实例化"部分。
+If you already have an endpoint and an index, you can skip the section and go straight to "Instantiation" section.
 
-首先，实例化 Databricks VectorSearch 客户端：
+First, instantiate the Databricks VectorSearch client:
 
 ```python
 from databricks.vector_search.client import VectorSearchClient
@@ -51,7 +51,7 @@ from databricks.vector_search.client import VectorSearchClient
 client = VectorSearchClient()
 ```
 
-接下来，创建一个新的 VectorSearch 端点。
+Next, we will create a new VectorSearch endpoint.
 
 ```python
 endpoint_name = "<your-endpoint-name>"
@@ -59,32 +59,32 @@ endpoint_name = "<your-endpoint-name>"
 client.create_endpoint(name=endpoint_name, endpoint_type="STANDARD")
 ```
 
-最后，在该端点上创建可查询的索引。Databricks Vector Search 有两种索引类型，`DatabricksVectorSearch` 类均支持：
+Lastly, we will create an index that can be queried on the endpoint. There are two types of indexes in Databricks Vector Search and the `DatabricksVectorSearch` class support both use cases.
 
-* **Delta Sync 索引** 自动与源 Delta 表同步，随着 Delta 表中数据的变化自动增量更新索引。
+* **Delta Sync Index** automatically syncs with a source Delta Table, automatically and incrementally updating the index as the underlying data in the Delta Table changes.
 
-* **Direct Vector Access 索引** 支持对向量和元数据的直接读写。用户负责通过 REST API 或 Python SDK 更新该表。
+* **Direct Vector Access Index** supports direct read and write of vectors and metadata. The user is responsible for updating this table using the REST API or the Python SDK.
 
-对于 delta-sync 索引，您可以选择使用 Databricks 托管嵌入或自托管嵌入（通过 LangChain 嵌入类）。
+Also for delta-sync index, you can choose to use Databricks-managed embeddings or self-managed embeddings (via LangChain embeddings classes).
 
-以下代码创建 **direct-access** 索引。关于其他类型索引的创建说明，请参阅 [Databricks 文档](https://docs.databricks.com/en/generative-ai/create-query-vector-search.html)。
+The following code creates a **direct-access** index. Please refer to the [Databricks documentation](https://docs.databricks.com/en/generative-ai/create-query-vector-search.html) for the instruction to create the other type of indexes.
 
 ```python
-index_name = "<your-index-name>"  # 格式："<catalog>.<schema>.<index-name>"
+index_name = "<your-index-name>"  # Format: "<catalog>.<schema>.<index-name>"
 
 index = client.create_direct_access_index(
     endpoint_name=endpoint_name,
     index_name=index_name,
     primary_key="id",
-    # 嵌入维度，请根据您使用的嵌入模型修改
+    # Dimension of the embeddings. Please change according to the embedding model you are using.
     embedding_dimension=3072,
-    # 用于存储文本数据嵌入向量的列
+    # A column to store the embedding vectors for the text data
     embedding_vector_column="text_vector",
     schema={
         "id": "string",
         "text": "string",
         "text_vector": "array<float>",
-        # 可选的元数据列
+        # Optional metadata columns
         "source": "string",
     },
 )
@@ -92,11 +92,11 @@ index = client.create_direct_access_index(
 index.describe()
 ```
 
-## 实例化
+## Instantiation
 
-`DatabricksVectorSearch` 的实例化方式因索引使用 Databricks 托管嵌入还是自托管嵌入（即您选择的 LangChain Embeddings 对象）而略有不同。
+The instantiation of `DatabricksVectorSearch` is a bit different depending on whether your index uses Databricks-managed embeddings or self-managed embeddings i.e. LangChain Embeddings object of your choice.
 
-如果您使用的是带 Databricks 托管嵌入的 delta-sync 索引：
+If you are using a delta-sync index with Databricks-managed embeddings:
 
 ```python
 from databricks_langchain import DatabricksVectorSearch
@@ -107,7 +107,9 @@ vector_store = DatabricksVectorSearch(
 )
 ```
 
-如果您使用的是 direct-access 索引或带自托管嵌入的 delta-sync 索引，还需要提供嵌入模型以及源表中用于嵌入的文本列：
+If you are using a direct-access index or a delta-sync index with self-managed embeddings,
+you also need to provide the embedding model and text column in your source table to
+use for the embeddings:
 
 <EmbeddingTabs/>
 
@@ -124,16 +126,16 @@ vector_store = DatabricksVectorSearch(
     endpoint=endpoint_name,
     index_name=index_name,
     embedding=embeddings,
-    # 索引中包含待嵌入文本数据的列名
+    # The column name in the index that contains the text data to be embedded
     text_column="document_content",
 )
 ```
 
-## 管理向量存储
+## Manage vector store
 
-### 向向量存储添加条目
+### Add items to vector store
 
-注意：通过 `add_documents` 方法向向量存储添加条目仅支持 **direct-access** 索引。
+Note: Adding items to vector store via `add_documents` method is only supported for a **direct-access** index.
 
 ```python
 from langchain_core.documents import Document
@@ -153,9 +155,9 @@ vector_store.add_documents(documents=documents, ids=["1", "2", "3"])
 ['1', '2', '3']
 ```
 
-### 从向量存储删除条目
+### Delete items from vector store
 
-注意：通过 `delete` 方法从向量存储删除条目仅支持 **direct-access** 索引。
+Note: Deleting items to vector store via `delete` method is only supported for a **direct-access** index.
 
 ```python
 vector_store.delete(ids=["3"])
@@ -165,13 +167,13 @@ vector_store.delete(ids=["3"])
 True
 ```
 
-## 查询向量存储
+## Query vector store
 
-创建向量存储并添加相关文档后，通常需要在运行链或智能体时对其进行查询。
+Once your vector store has been created and the relevant documents have been added you will most likely wish to query it during the running of your chain or agent.
 
-### 直接查询
+### Query directly
 
-执行简单相似度搜索的方法如下：
+Performing a simple similarity search can be done as follows:
 
 ```python
 results = vector_store.similarity_search(
@@ -185,7 +187,7 @@ for doc in results:
 * foo [{'id': '1'}]
 ```
 
-注意：默认情况下，相似度搜索仅返回主键和文本列。如果想要检索文档关联的自定义元数据，请在初始化向量存储时通过 `columns` 参数传入额外的列名。
+Note: By default, similarity search only returns the primary key and text column. If you want to retrieve the custom metadata associated with the document, pass the additional columns in the `columns` parameter when initializing the vector store.
 
 ```python
 vector_store = DatabricksVectorSearch(
@@ -205,7 +207,7 @@ for doc in results:
 * foo [{'source': 'https://example.com', 'id': '1'}]
 ```
 
-如果要执行相似度搜索并获取对应分数，可以运行：
+If you want to execute a similarity search and receive the corresponding scores you can run:
 
 ```python
 results = vector_store.similarity_search_with_score(
@@ -219,9 +221,9 @@ for doc, score in results:
 * [SIM=0.414035] foo [{'source': 'https://example.com', 'id': '1'}]
 ```
 
-### 转换为检索器进行查询
+### Query by turning into retriever
 
-您还可以将向量存储转换为检索器，以便在链中更方便地使用。
+You can also transform the vector store into a retriever for easier usage in your chains.
 
 ```python
 retriever = vector_store.as_retriever(search_type="mmr", search_kwargs={"k": 1})
@@ -232,27 +234,27 @@ retriever.invoke("thud")
 [Document(metadata={'source': 'https://example.com', 'id': '1'}, page_content='foo')]
 ```
 
-## 用于检索增强生成
+## Usage for retrieval-augmented generation
 
-有关如何将此向量存储用于检索增强生成（RAG）的指南，请参阅以下章节：
+For guides on how to use this vector store for retrieval-augmented generation (RAG), see the following sections:
 
-* [教程](/oss/python/langchain/rag)
-* [操作指南：基于 RAG 的问答](https://python.langchain.com/docs/how_to/#qa-with-rag)
-* [检索概念文档](https://python.langchain.com/docs/concepts/retrieval)
+* [Tutorials](/oss/python/langchain/rag)
+* [How-to: Question and answer with RAG](https://python.langchain.com/docs/how_to/#qa-with-rag)
+* [Retrieval conceptual docs](https://python.langchain.com/docs/concepts/retrieval)
 
 ---
 
-## API 参考
+## API reference
 
-有关 DatabricksVectorSearch 所有功能和配置的详细文档，请前往 API 参考：[api-docs.databricks.com/python/databricks-ai-bridge/latest/databricks_langchain.html#databricks_langchain.DatabricksVectorSearch](https://api-docs.databricks.com/python/databricks-ai-bridge/latest/databricks_langchain.html#databricks_langchain.DatabricksVectorSearch)
+For detailed documentation of all `DatabricksVectorSearch` features and configurations head to the API reference: [api-docs.databricks.com/python/databricks-ai-bridge/latest/databricks_langchain.html#databricks_langchain.DatabricksVectorSearch](https://api-docs.databricks.com/python/databricks-ai-bridge/latest/databricks_langchain.html#databricks_langchain.DatabricksVectorSearch)
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/vectorstores/databricks_vector_search.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/vectorstores/databricks_vector_search.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 <Callout icon="terminal-2">
-    通过 MCP [将这些文档连接](/use-these-docs) 到 Claude、VSCode 等，获取实时解答。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
 </Callout>
 </div>

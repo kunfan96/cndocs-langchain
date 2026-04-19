@@ -2,9 +2,11 @@
 title: INVALID_CONCURRENT_GRAPH_UPDATE
 ---
 
-LangGraph [`StateGraph`](https://langchain-ai.github.io/langgraph/reference/graphs/#langgraph.graph.state.StateGraph) 收到了来自多个节点对其状态属性的并发更新，而该属性不支持此操作。
+A LangGraph [`StateGraph`](https://langchain-ai.github.io/langgraph/reference/graphs/#langgraph.graph.state.StateGraph) received concurrent updates to its state from multiple nodes to a state property that doesn't
+support it.
 
-出现这种情况的一种方式是，如果你在图中使用 [fanout](/oss/javascript/langgraph/graph-api#map-reduce-and-the-send-api) 或其他并行执行，并且你定义了一个如下所示的图：
+One way this can occur is if you are using a [fanout](/oss/javascript/langgraph/use-graph-api#map-reduce-and-the-send-api)
+or other parallel execution in your graph and you have defined a graph like this:
 
 
 
@@ -32,11 +34,12 @@ const graph = builder.compile();
 
 
 
-如果上图中的一个节点返回 `{ someKey: "some_string_value" }`，这将用 `"some_string_value"` 覆盖 `someKey` 的状态值。
-然而，如果在单个步骤中的多个节点（例如 fanout）返回 `someKey` 的值，图将抛出此错误，因为关于如何更新内部状态存在不确定性。
+If a node in the above graph returns `{ someKey: "some_string_value" }`, this will overwrite the state value for `someKey` with `"some_string_value"`.
+However, if multiple nodes in e.g. a fanout within a single step return values for `someKey`, the graph will throw this error because
+there is uncertainty around how to update the internal state.
 
 
-为了解决这个问题，你可以定义一个 reducer 来合并多个值：
+To get around this, you can define a reducer that combines multiple values:
 
 
 
@@ -56,13 +59,13 @@ const State = new StateSchema({  // [!code highlight]
 ```
 
 
-这将允许你定义逻辑来处理并行执行的多个节点返回的相同键。
+This will allow you to define logic that handles the same key returned from multiple nodes executed in parallel.
 
-## 故障排除
+## Troubleshooting
 
-以下内容可能有助于解决此错误：
+The following may help resolve this error:
 
-* 如果你的图并行执行节点，请确保你为相关状态键定义了 reducer。
+* If your graph executes nodes in parallel, make sure you have defined relevant state keys with a reducer.
 
 ---
 

@@ -1,24 +1,24 @@
 ---
-title: "交叉编码器重排序集成"
-description: "使用 LangChain Python 集成交叉编码器重排序文档转换器。"
+title: "Cross encoder reranker integration"
+description: "Integrate with the Cross encoder reranker document transformer using LangChain Python."
 ---
 
-本笔记本演示如何在检索器中使用来自 [Hugging Face 交叉编码器模型](https://huggingface.co/cross-encoder)或实现交叉编码器功能的 Hugging Face 模型（[示例：BAAI/bge-reranker-base](https://huggingface.co/BAAI/bge-reranker-base)）实现重排序。`SagemakerEndpointCrossEncoder` 允许您使用这些加载在 Sagemaker 上的 HuggingFace 模型。
+This notebook shows how to implement reranker in a retriever with your own cross encoder from [Hugging Face cross encoder models](https://huggingface.co/cross-encoder) or Hugging Face models that implements cross encoder function ([example: BAAI/bge-reranker-base](https://huggingface.co/BAAI/bge-reranker-base)). `SagemakerEndpointCrossEncoder` enables you to use these HuggingFace models loaded on Sagemaker.
 
-本示例基于 ContextualCompressionRetriever 的思路构建。文档的整体结构参考了 [Cohere Reranker 文档](/oss/python/integrations/retrievers/cohere-reranker)。
+This builds on top of ideas in the ContextualCompressionRetriever. Overall structure of this document came from [Cohere Reranker documentation](/oss/python/integrations/retrievers/cohere-reranker).
 
-关于为何可以将交叉编码器与嵌入向量结合使用作为重排序机制以提升检索效果，请参阅 [Hugging Face Cross-Encoders 文档](https://www.sbert.net/examples/applications/cross-encoder/README.html)。
+For more about why cross encoder can be used as reranking mechanism in conjunction with embeddings for better retrieval, refer to [Hugging Face Cross-Encoders documentation](https://www.sbert.net/examples/applications/cross-encoder/README.html).
 
 ```python
 #!pip install faiss sentence_transformers
 
-# 或（视 Python 版本而定）
+# OR  (depending on Python version)
 
 #!pip install faiss-cpu sentence_transformers
 ```
 
 ```python
-# 打印文档的辅助函数
+# Helper function for printing docs
 
 
 def pretty_print_docs(docs):
@@ -29,9 +29,9 @@ def pretty_print_docs(docs):
     )
 ```
 
-## 设置基础向量存储检索器
+## Set up the base vector store retriever
 
-首先，初始化一个简单的向量存储检索器，并存储 2023 年国情咨文演讲（分块）。我们可以将检索器设置为检索较多（20 个）文档。
+Let's start by initializing a simple vector store retriever and storing the 2023 State of the Union speech (in chunks). We can set up the retriever to retrieve a high number (20) of docs.
 
 ```python
 from langchain_community.document_loaders import TextLoader
@@ -54,9 +54,9 @@ docs = retriever.invoke(query)
 pretty_print_docs(docs)
 ```
 
-## 使用 CrossEncoderReranker 进行重排序
+## Doing reranking with CrossEncoderReranker
 
-现在，使用 `ContextualCompressionRetriever` 包装基础检索器。`CrossEncoderReranker` 使用 `HuggingFaceCrossEncoder` 对返回结果进行重排序。
+Now let's wrap our base retriever with a `ContextualCompressionRetriever`. `CrossEncoderReranker` uses `HuggingFaceCrossEncoder` to rerank the returned results.
 
 ```python
 from langchain_classic.retrievers.contextual_compression import ContextualCompressionRetriever
@@ -73,11 +73,57 @@ compressed_docs = compression_retriever.invoke("What is the plan for the economy
 pretty_print_docs(compressed_docs)
 ```
 
-## 将 Hugging Face 模型上传至 SageMaker 端点
+```text
+Document 1:
 
-以下是用于创建与 `SagemakerEndpointCrossEncoder` 兼容的端点的 `inference.py` 示例。有关详细步骤，请参阅[此文章](https://huggingface.co/blog/kchoe/deploy-any-huggingface-model-to-sagemaker)。
+More infrastructure and innovation in America.
 
-该脚本会即时下载 Hugging Face 模型，因此无需将 `pytorch_model.bin` 等模型文件保存到 `model.tar.gz` 中。
+More goods moving faster and cheaper in America.
+
+More jobs where you can earn a good living in America.
+
+And instead of relying on foreign supply chains, let’s make it in America.
+
+Economists call it “increasing the productive capacity of our economy.”
+
+I call it building a better America.
+
+My plan to fight inflation will lower your costs and lower the deficit.
+----------------------------------------------------------------------------------------------------
+Document 2:
+
+Second – cut energy costs for families an average of $500 a year by combating climate change.
+
+Let’s provide investments and tax credits to weatherize your homes and businesses to be energy efficient and you get a tax credit; double America’s clean energy production in solar, wind, and so much more;  lower the price of electric vehicles, saving you another $80 a month because you’ll never have to pay at the gas pump again.
+----------------------------------------------------------------------------------------------------
+Document 3:
+
+Look at cars.
+
+Last year, there weren’t enough semiconductors to make all the cars that people wanted to buy.
+
+And guess what, prices of automobiles went up.
+
+So—we have a choice.
+
+One way to fight inflation is to drive down wages and make Americans poorer.
+
+I have a better plan to fight inflation.
+
+Lower your costs, not your wages.
+
+Make more cars and semiconductors in America.
+
+More infrastructure and innovation in America.
+
+More goods moving faster and cheaper in America.
+```
+
+## Uploading Hugging Face model to SageMaker endpoint
+
+Here is a sample `inference.py` for creating an endpoint that works with `SagemakerEndpointCrossEncoder`. For more details with step-by-step guidance, refer to [this article](https://huggingface.co/blog/kchoe/deploy-any-huggingface-model-to-sagemaker).
+
+It downloads Hugging Face model on the fly, so you do not need to keep the model artifacts such as `pytorch_model.bin` in your `model.tar.gz`.
 
 ```python
 import json
@@ -145,9 +191,9 @@ def transform_fn(
 
 <div className="source-links">
 <Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/document_transformers/cross_encoder_reranker.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/document_transformers/cross_encoder_reranker.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 <Callout icon="terminal-2">
-    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP 获取实时解答。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
 </Callout>
 </div>

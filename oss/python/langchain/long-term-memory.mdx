@@ -1,62 +1,134 @@
 ---
-title: 长期记忆
+title: Long-term memory
+description: Add long-term memory to LangChain agents to store and recall data across conversations and sessions
 ---
 
-## 概述
+import LongTermMemoryCreateAgentInmemoryPy from '/snippets/code-samples/long-term-memory-create-agent-inmemory-py.mdx';
+import LongTermMemoryCreateAgentInmemoryJs from '/snippets/code-samples/long-term-memory-create-agent-inmemory-js.mdx';
+import LongTermMemoryCreateAgentPostgresPy from '/snippets/code-samples/long-term-memory-create-agent-postgres-py.mdx';
+import LongTermMemoryCreateAgentPostgresJs from '/snippets/code-samples/long-term-memory-create-agent-postgres-js.mdx';
+import LongTermMemoryStorageInmemoryPy from '/snippets/code-samples/long-term-memory-storage-inmemory-py.mdx';
+import LongTermMemoryStorageInmemoryJs from '/snippets/code-samples/long-term-memory-storage-inmemory-js.mdx';
+import LongTermMemoryStoragePostgresPy from '/snippets/code-samples/long-term-memory-storage-postgres-py.mdx';
+import LongTermMemoryStoragePostgresJs from '/snippets/code-samples/long-term-memory-storage-postgres-js.mdx';
+import LongTermMemoryReadToolInmemoryPy from '/snippets/code-samples/long-term-memory-read-tool-inmemory-py.mdx';
+import LongTermMemoryReadToolInmemoryJs from '/snippets/code-samples/long-term-memory-read-tool-inmemory-js.mdx';
+import LongTermMemoryReadToolPostgresPy from '/snippets/code-samples/long-term-memory-read-tool-postgres-py.mdx';
+import LongTermMemoryReadToolPostgresJs from '/snippets/code-samples/long-term-memory-read-tool-postgres-js.mdx';
+import LongTermMemoryWriteToolInmemoryPy from '/snippets/code-samples/long-term-memory-write-tool-inmemory-py.mdx';
+import LongTermMemoryWriteToolInmemoryJs from '/snippets/code-samples/long-term-memory-write-tool-inmemory-js.mdx';
+import LongTermMemoryWriteToolPostgresPy from '/snippets/code-samples/long-term-memory-write-tool-postgres-py.mdx';
+import LongTermMemoryWriteToolPostgresJs from '/snippets/code-samples/long-term-memory-write-tool-postgres-js.mdx';
 
-LangChain 代理使用 [LangGraph 持久化](/oss/python/langgraph/persistence#memory-store) 来实现长期记忆。这是一个更高级的主题，需要具备 LangGraph 的相关知识。
+Long-term memory lets your agent store and recall information across different conversations and sessions.
+Unlike [short-term memory](/oss/python/langchain/short-term-memory), which is scoped to a single thread, long-term memory persists across threads and can be recalled at any time.
 
-## 内存存储
+Long-term memory is built on [LangGraph stores](/oss/python/langgraph/persistence#memory-store), which save data as JSON documents organized by namespace and key.
 
-LangGraph 将长期记忆存储为 [存储](/oss/python/langgraph/persistence#memory-store) 中的 JSON 文档。
+## Usage
 
-每个记忆都组织在一个自定义的 `命名空间`（类似于文件夹）和一个独特的 `键`（类似于文件名）下。命名空间通常包括用户或组织 ID 或其他便于组织信息的标签。
+To add long-term memory to an agent, create a store and pass it to [`create_agent`](https://reference.langchain.com/python/langchain/agents/factory/create_agent):
 
-这种结构支持记忆的分层组织。通过内容过滤器支持跨命名空间的搜索。
-
-```python
-from langgraph.store.memory import InMemoryStore
-
-
-def embed(texts: list[str]) -> list[list[float]]:
-    # 替换为实际的嵌入函数或 LangChain 嵌入对象
-    return [[1.0, 2.0] * len(texts)]
+<Tabs>
+    <Tab title="InMemoryStore">
+<LongTermMemoryCreateAgentInmemoryPy />
 
 
-# InMemoryStore 将数据保存到内存字典中。在生产环境中使用基于数据库的存储。
-store = InMemoryStore(index={"embed": embed, "dims": 2}) # [!code highlight]
-user_id = "my-user"
-application_context = "chitchat"
-namespace = (user_id, application_context) # [!code highlight]
-store.put( # [!code highlight]
-    namespace,
-    "a-memory",
-    {
-        "rules": [
-            "用户喜欢简短、直接的语言",
-            "用户只会说英语和 Python",
-        ],
-        "my-key": "my-value",
-    },
-)
-# 通过 ID 获取“记忆”
-item = store.get(namespace, "a-memory") # [!code highlight]
-# 在此命名空间内搜索“记忆”，通过内容等价性过滤，并按向量相似性排序
-items = store.search( # [!code highlight]
-    namespace, filter={"my-key": "my-value"}, query="语言偏好"
-)
+
+
+    </Tab>
+    <Tab title="PostgreSQL">
+```shell
+pip install langgraph-checkpoint-postgres
 ```
+
+<LongTermMemoryCreateAgentPostgresPy />
+
+
+
+
+    </Tab>
+</Tabs>
+
+Tools can then read from and write to the store using the `runtime.store` parameter. See [Read long-term memory in tools](#read-long-term-memory-in-tools) and [Write long-term memory from tools](#write-long-term-memory-from-tools) for examples.
+
+<Tip>
+    For a deeper dive into memory types (semantic, episodic, procedural) and strategies for writing memories, see the [Memory conceptual guide](/oss/python/concepts/memory#long-term-memory).
+</Tip>
+
+## Memory storage
+
+LangGraph stores long-term memories as JSON documents in a [store](/oss/python/langgraph/persistence#memory-store).
+
+Each memory is organized under a custom `namespace` (similar to a folder) and a distinct `key` (like a file name). Namespaces often include user or org IDs or other labels that makes it easier to organize information.
+
+This structure enables hierarchical organization of memories. Cross-namespace searching is then supported through content filters.
+
+<Tabs>
+    <Tab title="InMemoryStore">
+<LongTermMemoryStorageInmemoryPy />
+
+
+
+
+    </Tab>
+    <Tab title="PostgreSQL">
+<LongTermMemoryStoragePostgresPy />
+
+
+
+
+    </Tab>
+</Tabs>
+
+For more information about the memory store, see the [Persistence](/oss/python/langgraph/persistence#memory-store) guide.
+
+## Read long-term memory in tools
+
+<Tabs>
+    <Tab title="InMemoryStore">
+<LongTermMemoryReadToolInmemoryPy />
+
+
+
+
+    </Tab>
+    <Tab title="PostgreSQL">
+<LongTermMemoryReadToolPostgresPy />
+
+
+
+
+    </Tab>
+</Tabs>
+
+<a id="write-long-term"></a>
+## Write long-term memory from tools
+
+<Tabs>
+    <Tab title="InMemoryStore">
+<LongTermMemoryWriteToolInmemoryPy />
+
+
+
+
+    </Tab>
+    <Tab title="PostgreSQL">
+<LongTermMemoryWriteToolPostgresPy />
+
+
+
+
+    </Tab>
+</Tabs>
 
 ---
 
 <div className="source-links">
-  <Callout icon="edit">
-    [Edit this page on
-    GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/long-term-memory.mdx)
-    or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
-  </Callout>
-  <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP
-    for real-time answers.
-  </Callout>
+<Callout icon="edit">
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/long-term-memory.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+</Callout>
+<Callout icon="terminal-2">
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+</Callout>
 </div>

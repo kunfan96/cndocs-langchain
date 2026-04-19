@@ -1,46 +1,48 @@
 ---
-title: "Vectara 集成"
-description: "使用 LangChain Python 与 Vectara 集成。"
+title: "Vectara integrations"
+description: "Integrate with Vectara using LangChain Python."
 ---
 
-[Vectara](https://vectara.com/) 是面向关键任务应用的可信 AI 助手和 Agent 平台，专注于企业级就绪性。Vectara 无服务器 RAG 即服务通过易用的 API 提供所有 RAG 组件，包括：
+[Vectara](https://vectara.com/) is the trusted AI Assistant and Agent platform which focuses on enterprise readiness for mission-critical applications.
+Vectara serverless RAG-as-a-service provides all the components of RAG behind an easy-to-use API, including:
 
-1. 从文件中提取文本的方法（PDF、PPT、DOCX 等）
-2. 提供最优性能的基于 ML 的分块。
-3. [Boomerang](https://vectara.com/how-boomerang-takes-retrieval-augmented-generation-to-the-next-level-via-grounded-generation/) 嵌入模型。
-4. 存储文本块和嵌入向量的内部向量数据库。
-5. 一个查询服务，自动将查询编码为嵌入向量，并检索最相关的文本段落，支持[混合搜索](https://docs.vectara.com/docs/api-reference/search-apis/lexical-matching)以及多种重排序选项，如[多语言相关性重排序器](https://www.vectara.com/blog/deep-dive-into-vectara-multilingual-reranker-v1-state-of-the-art-reranker-across-100-languages)、[MMR](https://vectara.com/get-diverse-results-and-comprehensive-summaries-with-vectaras-mmr-reranker/)、[UDF 重排序器](https://www.vectara.com/blog/rag-with-user-defined-functions-based-reranking)。
-6. 一个 LLM，用于根据检索到的文档（上下文）创建[生成式摘要](https://docs.vectara.com/docs/learn/grounded-generation/grounded-generation-overview)，包括引用。
+1. A way to extract text from files (PDF, PPT, DOCX, etc)
+2. ML-based chunking that provides state of the art performance.
+3. The [Boomerang](https://vectara.com/how-boomerang-takes-retrieval-augmented-generation-to-the-next-level-via-grounded-generation/) embeddings model.
+4. Its own internal vector database where text chunks and embedding vectors are stored.
+5. A query service that automatically encodes the query into embedding, and retrieves the most relevant text segments, including support for [Hybrid Search](https://docs.vectara.com/docs/api-reference/search-apis/lexical-matching) as well as multiple reranking options such as the [multi-lingual relevance reranker](https://www.vectara.com/blog/deep-dive-into-vectara-multilingual-reranker-v1-state-of-the-art-reranker-across-100-languages), [MMR](https://vectara.com/get-diverse-results-and-comprehensive-summaries-with-vectaras-mmr-reranker/), [UDF reranker](https://www.vectara.com/blog/rag-with-user-defined-functions-based-reranking).
+6. An LLM for creating a [generative summary](https://docs.vectara.com/docs/learn/grounded-generation/grounded-generation-overview), based on the retrieved documents (context), including citations.
 
-更多信息：
+For more information:
 
-- [文档](https://docs.vectara.com/docs/)
-- [API 演练场](https://docs.vectara.com/docs/rest-api/)
-- [快速入门](https://docs.vectara.com/docs/quickstart)
+- [Documentation](https://docs.vectara.com/docs/)
+- [API Playground](https://docs.vectara.com/docs/rest-api/)
+- [Quickstart](https://docs.vectara.com/docs/quickstart)
 
-本笔记本展示了在仅将 Vectara 用作向量存储（不含摘要）时的基本检索功能，包括：`similarity_search` 和 `similarity_search_with_score` 以及 LangChain 的 `as_retriever` 功能。
+This notebook shows how to use the basic retrieval functionality, when utilizing Vectara just as a Vector Store (without summarization), incuding: `similarity_search` and `similarity_search_with_score` as well as using the LangChain `as_retriever` functionality.
 
-## 设置
+## Setup
 
-要使用 `VectaraVectorStore`，首先需要安装合作伙伴包。
+To use the `VectaraVectorStore` you first need to install the partner package.
 
 ```python
 !uv pip install -U pip && uv pip install -qU langchain-vectara
 ```
 
-# 入门指南
+# Getting started
 
-要开始使用，请按照以下步骤操作：
+To get started, use the following steps:
 
-1. 如果还没有账号，请[注册](https://www.vectara.com/integrations/langchain)免费 Vectara 试用版。
-2. 在你的账户中，可以创建一个或多个语料库。每个语料库代表一个存储区域，用于存储从输入文档中提取的文本数据。要创建语料库，使用 **"Create Corpus"** 按钮，然后为语料库提供名称和描述。可选地，你可以定义过滤属性并应用一些高级选项。点击已创建的语料库，可以在顶部看到其名称和语料库 ID。
-3. 接下来，你需要创建 API 密钥来访问语料库。在语料库视图中点击 **"Access Control"** 选项卡，然后点击 **"Create API Key"** 按钮。为你的密钥命名，并选择仅查询还是查询+索引权限。点击"Create"，现在你有了一个活跃的 API 密钥。请妥善保管此密钥。
+1. If you don't already have one, [Sign up](https://www.vectara.com/integrations/langchain) for your free Vectara trial.
+2. Within your account you can create one or more corpora. Each corpus represents an area that stores text data upon ingest from input documents. To create a corpus, use the **"Create Corpus"** button. You then provide a name to your corpus as well as a description. Optionally you can define filtering attributes and apply some advanced options. If you click on your created corpus, you can see its name and corpus ID right on the top.
+3. Next you'll need to create API keys to access the corpus. Click on the **"Access Control"** tab in the corpus view and then the **"Create API Key"** button. Give your key a name, and choose whether you want query-only or query+index for your key. Click "Create" and you now have an active API key. Keep this key confidential.
 
-要在 LangChain 中使用 Vectara，你需要以下两个值：`corpus_key` 和 `api_key`。你可以通过两种方式向 LangChain 提供 `VECTARA_API_KEY`：
+To use LangChain with Vectara, you'll need to have these two values: `corpus_key` and `api_key`.
+You can provide `VECTARA_API_KEY` to LangChain in two ways:
 
-1. 在环境中包含以下变量：`VECTARA_API_KEY`。
+1. Include in your environment these two variables: `VECTARA_API_KEY`.
 
-   例如，可以使用 os.environ 和 getpass 设置这些变量：
+   For example, you can set these variables using os.environ and getpass as follows:
 
 ```python
 import os
@@ -49,7 +51,7 @@ import getpass
 os.environ["VECTARA_API_KEY"] = getpass.getpass("Vectara API Key:")
 ```
 
-2. 将它们添加到 `Vectara` 向量存储构造器中：
+2. Add them to the `Vectara` vectorstore constructor:
 
 ```python
 vectara = Vectara(
@@ -57,7 +59,7 @@ vectara = Vectara(
 )
 ```
 
-在本笔记本中，我们假设它们在环境中提供。
+In this notebook we assume they are provided in the environment.
 
 ```python
 import os
@@ -80,11 +82,11 @@ from langchain_vectara.vectorstores import (
 vectara = Vectara(vectara_api_key=os.getenv("VECTARA_API_KEY"))
 ```
 
-首先，我们将 state-of-the-union 文本加载到 Vectara 中。
+First we load the state-of-the-union text into Vectara.
 
-注意，我们使用 add_files 接口，不需要任何本地处理或分块——Vectara 接收文件内容并执行所有必要的预处理、分块和嵌入操作，将文件存入其知识库。
+Note that we use the add_files interface which does not require any local processing or chunking - Vectara receives the file content and performs all the necessary pre-processing, chunking and embedding of the file into its knowledge store.
 
-在本例中使用 .txt 文件，但同样适用于许多其他[文件类型](https://docs.vectara.com/docs/api-reference/indexing-apis/file-upload/file-upload-filetypes)。
+In this case it uses a .txt file but the same works for many other [file types](https://docs.vectara.com/docs/api-reference/indexing-apis/file-upload/file-upload-filetypes).
 
 ```python
 corpus_key = os.getenv("VECTARA_CORPUS_KEY")
@@ -99,12 +101,12 @@ vectara.add_files([file_obj], corpus_key)
 ['state_of_the_union.txt']
 ```
 
-## Vectara RAG（检索增强生成）
+## Vectara RAG (retrieval augmented generation)
 
-现在我们创建一个 `VectaraQueryConfig` 对象来控制检索和摘要选项：
-- 我们启用摘要，指定希望 LLM 选取最匹配的前 7 个块并用英语响应
+We now create a `VectaraQueryConfig` object to control the retrieval and summarization options:
+- We enable summarization, specifying we would like the LLM to pick the top 7 matching chunks and respond in English
 
-使用此配置，让我们通过 `as_rag` 方法创建一个封装完整 Vectara RAG 流水线的 LangChain `Runnable` 对象：
+Using this configuration, let's create a LangChain `Runnable` object that encpasulates the full Vectara RAG pipeline, using the `as_rag` method:
 
 ```python
 generation_config = GenerationConfig(
@@ -139,7 +141,7 @@ rag.invoke(query_str)["answer"]
 "President Biden discussed several key issues in his recent statements. He emphasized the importance of keeping schools open and noted that with a high vaccination rate and reduced hospitalizations, most Americans can safely return to normal activities without masks [1]. He addressed the need to hold social media platforms accountable for their impact on children and called for stronger privacy protections and mental health services [2]. Biden also announced measures against Russia, including preventing its central bank from defending the Ruble and targeting Russian oligarchs' assets, as part of efforts to weaken Russia's economy and military [3]. Additionally, he highlighted the importance of protecting women's rights, specifically the right to choose as affirmed in Roe v. Wade [5]. Lastly, he advocated for funding the police with necessary resources and training to ensure community safety [6]."
 ```
 
-我们也可以像这样使用流式接口：
+We can also use the streaming interface like this:
 
 ```python
 output = {}
@@ -159,13 +161,13 @@ for chunk in rag.stream(query_str):
 President Biden emphasized several key points in his statements. He highlighted the importance of keeping schools open and noted that with a high vaccination rate and reduced hospitalizations, most Americans can safely return to normal activities without masks [1]. He addressed the need to hold social media platforms accountable for their impact on children and called for stronger privacy protections and mental health services [2]. Biden also discussed measures against Russia, including preventing their central bank from defending the Ruble and targeting Russian oligarchs' assets [3]. Additionally, he reaffirmed the commitment to protect women's rights, particularly the right to choose as affirmed in Roe v. Wade [5]. Lastly, he advocated for funding the police to ensure community safety [6].
 ```
 
-有关 Vectara 作为 VectorStore 的更多详情，请[前往此笔记本](../vectorstores/vectara.ipynb)。
+For more details about Vectara as VectorStore [go to this notebook](../vectorstores/vectara.ipynb).
 
-## Vectara 聊天
+## Vectara chat
 
-在大多数使用 LangChain 创建聊天机器人的场景中，必须集成一个特殊的 `memory` 组件来维护聊天会话历史，然后使用该历史确保聊天机器人了解对话历史。
+In most uses of LangChain to create chatbots, one must integrate a special `memory` component that maintains the history of chat sessions and then uses that history to ensure the chatbot is aware of conversation history.
 
-借助 Vectara Chat，所有这些都由 Vectara 在后台自动处理。
+With Vectara Chat - all of that is performed in the backend by Vectara automatically.
 
 ```python
 generation_config = GenerationConfig(
@@ -191,20 +193,20 @@ bot.invoke("What did the president say about Ketanji Brown Jackson?")["answer"]
 ```
 
 ```text
-'The president stated that nominating someone to serve on the United States Supreme Court is one of the most serious constitutional responsibilities he has. He nominated Circuit Court of Appeals Judge Ketanji Brown Jackson, describing her as one of the nation's top legal minds who will continue Justice Breyer's legacy of excellence [1].'
+'The president stated that nominating someone to serve on the United States Supreme Court is one of the most serious constitutional responsibilities he has. He nominated Circuit Court of Appeals Judge Ketanji Brown Jackson, describing her as one of the nation’s top legal minds who will continue Justice Breyer’s legacy of excellence [1].'
 ```
 
-## Vectara 作为自查询检索器
+## Vectara as self-querying retriever
 
-Vectara 提供智能查询重写选项，通过从自然语言查询自动生成元数据过滤表达式来增强搜索精度。该功能分析用户查询，提取相关元数据过滤器，并重新表述查询以聚焦于核心信息需求。
+Vectara offers Intelligent Query Rewriting option which  enhances search precision by automatically generating metadata filter expressions from natural language queries. This capability analyzes user queries, extracts relevant metadata filters, and rephrases the query to focus on the core information need.
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/providers/vectara.mdx)或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/providers/vectara.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 <Callout icon="terminal-2">
-    通过 MCP [将这些文档连接](/use-these-docs)到 Claude、VSCode 等以获取实时答案。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
 </Callout>
 </div>

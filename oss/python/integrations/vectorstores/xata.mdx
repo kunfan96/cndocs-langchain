@@ -1,32 +1,32 @@
 ---
-title: "Xata 集成"
-description: "使用 LangChain Python 与 Xata 向量存储集成。"
+title: "Xata integration"
+description: "Integrate with the Xata vector store using LangChain Python."
 ---
 
-> [Xata](https://xata.io) 是一个基于 PostgreSQL 的无服务器数据平台。它提供了用于与数据库交互的 Python SDK 以及用于管理数据的 UI。
-> Xata 拥有原生向量类型，可添加到任何表中，并支持相似性搜索。LangChain 直接将向量插入 Xata，并查询给定向量的最近邻，因此您可以将所有 LangChain Embeddings 集成与 Xata 配合使用。
+> [Xata](https://xata.io) is a serverless data platform, based on PostgreSQL. It provides a Python SDK for interacting with your database, and a UI for managing your data.
+> Xata has a native vector type, which can be added to any table, and supports similarity search. LangChain inserts vectors directly to Xata, and queries it for the nearest neighbors of a given vector, so that you can use all the LangChain Embeddings integrations with Xata.
 
-本 notebook 指导您如何将 Xata 用作 VectorStore。
+This notebook guides you how to use Xata as a VectorStore.
 
-## 配置
+## Setup
 
-### 创建用作向量存储的数据库
+### Create a database to use as a vector store
 
-在 [Xata UI](https://app.xata.io) 中创建一个新数据库。您可以随意命名，在本 notebook 中我们使用 `langchain`。
-创建一个表，同样可以随意命名，但我们将使用 `vectors`。通过 UI 添加以下列：
+In the [Xata UI](https://app.xata.io) create a new database. You can name it whatever you want, in this notepad we'll use `langchain`.
+Create a table, again you can name it anything, but we will use `vectors`. Add the following columns via the UI:
 
-* `content`，类型为"Text"。用于存储 `Document.pageContent` 的值。
-* `embedding`，类型为"Vector"。使用您计划使用的模型的维度。在本 notebook 中，我们使用 OpenAI embeddings，其维度为 1536。
-* `source`，类型为"Text"。本示例将其用作元数据列。
-* 您希望用作元数据的任何其他列。它们从 `Document.metadata` 对象填充。例如，如果在 `Document.metadata` 对象中有 `title` 属性，您可以在表中创建 `title` 列，它将被自动填充。
+* `content` of type "Text". This is used to store the `Document.pageContent` values.
+* `embedding` of type "Vector". Use the dimension used by the model you plan to use. In this notebook we use OpenAI embeddings, which have 1536 dimensions.
+* `source` of type "Text". This is used as a metadata column by this example.
+* any other columns you want to use as metadata. They are populated from the `Document.metadata` object. For example, if in the `Document.metadata` object you have a `title` property, you can create a `title` column in the table and it will be populated.
 
-首先安装我们的依赖项：
+Let's first install our dependencies:
 
 ```python
 pip install -qU  xata langchain-openai langchain-community tiktoken langchain
 ```
 
-将 OpenAI key 加载到环境中。如果您没有 OpenAI key，可以创建 OpenAI 账号并在此[页面](https://platform.openai.com/account/api-keys)上创建一个 key。
+Let's load the OpenAI key to the environment. If you don't have one you can create an OpenAI account and create a key on this [page](https://platform.openai.com/account/api-keys).
 
 ```python
 import getpass
@@ -36,7 +36,7 @@ if "OPENAI_API_KEY" not in os.environ:
     os.environ["OPENAI_API_KEY"] = getpass.getpass("OpenAI API Key:")
 ```
 
-同样，我们需要获取 Xata 的环境变量。您可以通过访问您的[账户设置](https://app.xata.io/settings)创建新的 API key。要查找数据库 URL，请前往您创建的数据库的设置页面。数据库 URL 应类似于：`https://demo-uni3q8.eu-west-1.xata.sh/db/langchain`。
+Similarly, we need to get the environment variables for Xata. You can create a new API key by visiting your [account settings](https://app.xata.io/settings). To find the database URL, go to the Settings page of the database that you have created. The database URL should look something like this: `https://demo-uni3q8.eu-west-1.xata.sh/db/langchain`.
 
 ```python
 api_key = getpass.getpass("Xata API key: ")
@@ -50,9 +50,9 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import CharacterTextSplitter
 ```
 
-### 创建 xata 向量存储
+### Create the xata vector store
 
-导入我们的测试数据集：
+Let's import our test dataset:
 
 ```python
 loader = TextLoader("../../how_to/state_of_the_union.txt")
@@ -63,7 +63,7 @@ docs = text_splitter.split_documents(documents)
 embeddings = OpenAIEmbeddings()
 ```
 
-现在创建实际的向量存储，以 Xata 表为后端。
+Now create the actual vector store, backed by the Xata table.
 
 ```python
 vector_store = XataVectorStore.from_documents(
@@ -71,8 +71,8 @@ vector_store = XataVectorStore.from_documents(
 )
 ```
 
-运行上述命令后，如果您进入 Xata UI，应该能看到文档及其嵌入向量已一同加载进来。
-要使用已包含向量内容的现有 Xata 表，请初始化 XataVectorStore 构造函数：
+After running the above command, if you go to the Xata UI, you should see the documents loaded together with their embeddings.
+To use an existing Xata table that already contains vector contents, initialize the XataVectorStore constructor:
 
 ```python
 vector_store = XataVectorStore(
@@ -80,7 +80,7 @@ vector_store = XataVectorStore(
 )
 ```
 
-### 相似性搜索
+### Similarity search
 
 ```python
 query = "What did the president say about Ketanji Brown Jackson"
@@ -88,7 +88,7 @@ found_docs = vector_store.similarity_search(query)
 print(found_docs)
 ```
 
-### 带分数（向量距离）的相似性搜索
+### Similarity search with score (vector distance)
 
 ```python
 query = "What did the president say about Ketanji Brown Jackson"
@@ -101,9 +101,9 @@ for doc, score in result:
 
 <div className="source-links">
 <Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/vectorstores/xata.mdx) 或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/vectorstores/xata.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 <Callout icon="terminal-2">
-    通过 MCP [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，获取实时答案。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
 </Callout>
 </div>

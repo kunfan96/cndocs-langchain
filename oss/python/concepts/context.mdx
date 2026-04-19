@@ -1,41 +1,41 @@
 ---
-title: Context 概述
+title: Context overview
 sidebarTitle: Context
 ---
 
-**上下文工程（Context engineering）**是构建动态系统的实践，旨在以正确的格式向 AI 应用提供所需的信息和工具，使其能够完成任务。上下文可以从两个关键维度进行描述：
+**Context engineering** is the practice of building dynamic systems that provide the right information and tools, in the right format, so that an AI application can accomplish a task. Context can be characterized along two key dimensions:
 
-1. 按**可变性**：
-  * **静态上下文**：在执行过程中不会改变的不可变数据（例如用户元数据、数据库连接、工具）
-  * **动态上下文**：随应用运行而演变的可变数据（例如对话历史、中间结果、工具调用结果）
-2. 按**生命周期**：
-  * **运行时上下文**：作用域限于单次运行或调用的数据
-  * **跨对话上下文**：跨多个对话或会话持久存在的数据
+1. By **mutability**:
+   * **Static context**: Immutable data that doesn't change during execution (e.g., user metadata, database connections, tools)
+   * **Dynamic context**: Mutable data that evolves as the application runs (e.g., conversation history, intermediate results, tool call observations)
+2. By **lifetime**:
+   * **Runtime context**: Data scoped to a single run or invocation
+   * **Cross-conversation context**: Data that persists across multiple conversations or sessions
 
 <Tip>
-    运行时上下文是指本地上下文：代码运行所需的数据和依赖项。它**不**涉及：
+    Runtime context refers to local context: data and dependencies your code needs to run. It does **not** refer to:
 
-    * LLM 上下文，即传入 LLM 提示词的数据。
-    * "上下文窗口"，即可传递给 LLM 的最大 token 数量。
+    * The LLM context, which is the data passed into the LLM's prompt.
+    * The "context window", which is the maximum number of tokens that can be passed to the LLM.
 
-    运行时上下文是一种依赖注入形式，可用于优化 LLM 上下文。它允许在运行时将依赖项（如数据库连接、用户 ID 或 API 客户端）提供给工具和节点，而无需将其硬编码。例如，您可以使用运行时上下文中的用户元数据来获取用户偏好，并将其传入上下文窗口。
+    Runtime context is a form of dependency injection and can be used to optimize the LLM context. It lets to provide dependencies (like database connections, user IDs, or API clients) to your tools and nodes at runtime rather than hardcoding them. For example, you can use user metadata in the runtime context to fetch user preferences and feed them into the context window.
 
 
 
 
 </Tip>
 
-LangGraph 提供了三种管理上下文的方式，结合了可变性和生命周期两个维度：
+LangGraph provides three ways to manage context, which combines the mutability and lifetime dimensions:
 
-| 上下文类型                                                                                    | 描述                                                   | 可变性 | 生命周期           | 访问方式                                |
-| ------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ------ | ------------------ | --------------------------------------- |
-| [**静态运行时上下文**](#static-runtime-context)                                               | 启动时传入的用户元数据、工具、数据库连接                 | 静态   | 单次运行           | `invoke`/`stream` 的 `context` 参数     |
-| [**动态运行时上下文（state）**](#dynamic-runtime-context-state)                               | 在单次运行中演变的可变数据                               | 动态   | 单次运行           | LangGraph state 对象                    |
-| [**动态跨对话上下文（store）**](#dynamic-cross-conversation-context-store)                    | 跨对话共享的持久化数据                                   | 动态   | 跨对话             | LangGraph store                         |
+| Context type                                                                                | Description                                            | Mutability | Lifetime           | Access method                           |
+| ------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ---------- | ------------------ | --------------------------------------- |
+| [**Static runtime context**](#static-runtime-context)                                       | User metadata, tools, db connections passed at startup | Static     | Single run         | `context` argument to `invoke`/`stream` |
+| [**Dynamic runtime context (state)**](#dynamic-runtime-context)                             | Mutable data that evolves during a single run          | Dynamic    | Single run         | LangGraph state object                  |
+| [**Dynamic cross-conversation context (store)**](#dynamic-cross-conversation-context)       | Persistent data shared across conversations            | Dynamic    | Cross-conversation | LangGraph store                         |
 
-## 静态运行时上下文
+## Static runtime context
 
-**静态运行时上下文**表示不可变数据，例如用户元数据、工具和数据库连接，这些数据在运行开始时通过 `invoke`/`stream` 的 `context` 参数传递给应用。此数据在执行过程中不会改变。
+**Static runtime context** represents immutable data like user metadata, tools, and database connections that are passed to an application at the start of a run via the `context` argument to `invoke`/`stream`. This data does not change during execution.
 
 ```python
 @dataclass
@@ -78,7 +78,7 @@ graph.invoke(
     )
 ```
 
-    详情请参阅[智能体](/oss/python/langchain/agents)。
+    See [Agents](/oss/python/langchain/agents) for details.
     </Tab>
     <Tab title="Workflow node">
     ```python
@@ -89,7 +89,7 @@ graph.invoke(
         ...
 ```
 
-    * 详情请参阅 [Graph API](/oss/python/langgraph/graph-api#add-runtime-configuration)。
+    * See [the Graph API](/oss/python/langgraph/use-graph-api#add-runtime-configuration) for details.
     </Tab>
     <Tab title="In a tool">
     ```python
@@ -103,28 +103,29 @@ graph.invoke(
         return email
 ```
 
-    详情请参阅[工具调用指南](/oss/python/langchain/tools#configuration)。
+    See the [tool calling guide](/oss/python/langchain/tools#context) for details.
     </Tab>
 </Tabs>
 
 <Tip>
-    `Runtime` 对象可用于访问静态上下文及其他实用工具，例如活动 store 和流写入器。
-    详情请参阅 [`Runtime`](https://reference.langchain.com/python/langgraph/runtime/Runtime) 文档。
+    The `Runtime` object can be used to access static context and other utilities like the active store and stream writer.
+    See the [`Runtime`](https://reference.langchain.com/python/langgraph/runtime/Runtime) documentation for details.
 </Tip>
 
 
 
 
-<a id="state"></a>
-## 动态运行时上下文
+## Dynamic runtime context
 
-**动态运行时上下文**表示可在单次运行中演变的可变数据，通过 LangGraph state 对象进行管理。这包括对话历史、中间结果以及工具或 LLM 输出派生的值。在 LangGraph 中，state 对象在运行期间充当[短期记忆](/oss/python/concepts/memory)。
+**Dynamic runtime context** represents mutable data that can evolve during a single run and is managed through the LangGraph state object. This includes conversation history, intermediate results, and values derived from tools or LLM outputs. In LangGraph, the state object acts as [short-term memory](/oss/python/concepts/memory) during a run.
 
 <Tabs>
     <Tab title="In an agent">
-    以下示例展示了如何将 state 整合到智能体的**提示词**中。
+    Example shows how to incorporate state into an agent **prompt**.
 
-    State 也可以被智能体的**工具**访问，这些工具可以根据需要读取或更新 state。详情请参阅[工具调用指南](/oss/python/langchain/tools#short-term-memory)。
+    State can also be accessed by the agent's **tools**, which can read or update the state as needed. See [tool calling guide](/oss/python/langchain/tools#short-term-memory-state) for details.
+
+
 
     ```python
     from langchain.agents import create_agent
@@ -185,29 +186,27 @@ graph.invoke(
 </Tabs>
 
 <Tip>
-    **开启记忆**
-    请参阅[记忆指南](/oss/python/langgraph/add-memory)，了解如何启用记忆的更多详情。这是一项强大的功能，允许您在多次调用之间持久化智能体的 state。否则，state 的作用域仅限于单次运行。
+    **Turning on memory**
+    Please see the [memory guide](/oss/python/langgraph/add-memory) for more details on how to enable memory. This is a powerful feature that allows you to persist the agent's state across multiple invocations. Otherwise, the state is scoped only to a single run.
 </Tip>
 
-<a id="store"></a>
+## Dynamic cross-conversation context
 
-## 动态跨对话上下文
+**Dynamic cross-conversation context** represents persistent, mutable data that spans across multiple conversations or sessions and is managed through the LangGraph store. This includes user profiles, preferences, and historical interactions. The LangGraph store acts as [long-term memory](/oss/python/concepts/memory#long-term-memory) across multiple runs. This can be used to read or update persistent facts (e.g., user profiles, preferences, prior interactions).
 
-**动态跨对话上下文**表示跨多个对话或会话的持久化可变数据，通过 LangGraph store 进行管理。这包括用户个人档案、偏好设置和历史交互。LangGraph store 在多次运行中充当[长期记忆](/oss/python/concepts/memory#long-term-memory)。这可用于读取或更新持久化事实（例如，用户档案、偏好设置、先前交互）。
+## Learn more
 
-## 了解更多
-
-- [记忆概念概述](/oss/python/concepts/memory)
-- [LangChain 中的短期记忆](/oss/python/langchain/short-term-memory)
-- [LangGraph 中的记忆](/oss/python/langgraph/add-memory)
+- [Memory conceptual overview](/oss/python/concepts/memory)
+- [Short-term memory in LangChain](/oss/python/langchain/short-term-memory)
+- [Memory in LangGraph](/oss/python/langgraph/add-memory)
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [在 GitHub 上编辑本页](https://github.com/langchain-ai/docs/edit/main/src/oss/concepts/context.mdx) 或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/concepts/context.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 <Callout icon="terminal-2">
-    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP 获取实时解答。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
 </Callout>
 </div>

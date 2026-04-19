@@ -1,36 +1,37 @@
+
 # BigtableVectorStore
 
-本指南介绍了使用 Google Cloud Bigtable 作为向量存储的 `BigtableVectorStore` 集成。
+This guide covers the `BigtableVectorStore` integration for using Google Cloud Bigtable as a vector store.
 
-[Bigtable](https://cloud.google.com/bigtable) 是一种键值和宽列存储，适用于对结构化、半结构化或非结构化数据的快速访问。
+[Bigtable](https://cloud.google.com/bigtable) is a key-value and wide-column store, ideal for fast access to structured, semi-structured, or unstructured data.
 
-## 概述
+## Overview
 
-`BigtableVectorStore` 使用 Google Cloud Bigtable 存储文档及其向量嵌入，用于相似度搜索和检索。它支持强大的元数据过滤以精细化搜索结果。
+The `BigtableVectorStore` uses Google Cloud Bigtable to store documents and their vector embeddings for similarity search and retrieval. It supports powerful metadata filtering to refine search results.
 
-### 集成详情
-| 类 | 包 | 本地 | JS 支持 | 包下载量 | 最新版本 |
+### Integration details
+| Class | Package | Local | JS support | Package downloads | Package latest |
 | :--- | :--- | :---: | :---: | :---: | :---: |
-| [BigtableVectorStore](https://github.com/googleapis/langchain-google-bigtable-python/blob/main/src/langchain_google_bigtable/vector_store.py) | [langchain-google-bigtable](https://pypi.org/project/langchain-google-bigtable/) | ❌ | ❌ | ![PyPI - Downloads](https://img.shields.io/pypi/dm/langchain-google-bigtable?style=flat-square&label=%20) | ![PyPI - Version](https://img.shields.io/pypi/v/langchain-google-bigtable) |
+| [`BigtableVectorStore`](https://github.com/googleapis/langchain-google-bigtable-python/blob/main/src/langchain_google_bigtable/vector_store.py) | [`langchain-google-bigtable`](https://pypi.org/project/langchain-google-bigtable/) | ❌ | ❌ | ![PyPI - Downloads](https://img.shields.io/pypi/dm/langchain-google-bigtable?style=flat-square&label=%20) | ![PyPI - Version](https://img.shields.io/pypi/v/langchain-google-bigtable) |
 
-## 设置
+## Setup
 
-### 前提条件
+### Prerequisites
 
-要开始，您需要一个已启用 Bigtable 实例的 Google Cloud 项目。
-* [创建 Google Cloud 项目](https://developers.google.com/workspace/guides/create-project)
-* [启用 Bigtable API](https://console.cloud.google.com/flows/enableapi?apiid=bigtable.googleapis.com)
-* [创建 Bigtable 实例](https://cloud.google.com/bigtable/docs/creating-instance)
+To get started, you will need a Google Cloud project with an active Bigtable instance.
+* [Create a Google Cloud Project](https://developers.google.com/workspace/guides/create-project)
+* [Enable the Bigtable API](https://console.cloud.google.com/flows/enableapi?apiid=bigtable.googleapis.com)
+* [Create a Bigtable instance](https://cloud.google.com/bigtable/docs/creating-instance)
 
-### 安装
+### Installation
 
-集成在 `langchain-google-bigtable` 包中。以下命令还安装了 `langchain-google-vertexai` 用于嵌入服务。
+The integration is in the `langchain-google-bigtable` package. The command below also installs `langchain-google-vertexai` to use for an embedding service.
 
 ```python
 %pip install -qU langchain-google-bigtable langchain-google-vertexai
 ```
 
-**仅限 Colab**：取消注释以下单元格以重启内核，或使用按钮重启内核。对于 Vertex AI Workbench，可以使用顶部的按钮重启终端。
+**Colab only**: Uncomment the following cell to restart the kernel or use the button to restart the kernel. For Vertex AI Workbench you can restart the terminal using the button on top.
 
 ```python
 # Automatically restart kernel after installs so that your environment can access the new packages
@@ -40,14 +41,14 @@
 # app.kernel.do_shutdown(True)
 ```
 
-### 设置您的 Google Cloud 项目
-设置您的 Google Cloud 项目，以便在此笔记本中使用 Google Cloud 资源。
+###  Set Your Google Cloud Project
+Set your Google Cloud project so that you can leverage Google Cloud resources within this notebook.
 
-如果您不知道项目 ID，请尝试以下方法：
+If you don't know your project ID, try the following:
 
-* 运行 `gcloud config list`。
-* 运行 `gcloud projects list`。
-* 查看支持页面：[找到项目 ID](https://support.google.com/googleapi/answer/7014113)。
+* Run `gcloud config list`.
+* Run `gcloud projects list`.
+* See the support page: [Locate the project ID](https://support.google.com/googleapi/answer/7014113).
 
 ```python
 # @markdown Please fill in your project, instance, and a new table name.
@@ -58,12 +59,12 @@ TABLE_ID = "your-vector-store-table-3"  # @param {type:"string"}
 !gcloud config set project {PROJECT_ID}
 ```
 
-### 🔐 身份验证
+### 🔐 Authentication
 
-以登录此笔记本的 IAM 用户身份向 Google Cloud 进行身份验证，以便访问您的 Google Cloud 项目。
+Authenticate to Google Cloud as the IAM user logged into this notebook in order to access your Google Cloud Project.
 
-- 如果您使用 Colab 运行此笔记本，请使用以下单元格并继续。
-- 如果您使用 Vertex AI Workbench，请查看[此处](https://github.com/GoogleCloudPlatform/generative-ai/tree/main/setup-env)的设置说明。
+- If you are using Colab to run this notebook, use the cell below and continue.
+- If you are using Vertex AI Workbench, check out the [Vertex AI Workbench setup instructions](https://github.com/GoogleCloudPlatform/generative-ai/tree/main/setup-env).
 
 ```python
 from google.colab import auth
@@ -71,12 +72,12 @@ from google.colab import auth
 auth.authenticate_user(project_id=PROJECT_ID)
 ```
 
-## 初始化
+## Initialization
 
-初始化 `BigtableVectorStore` 涉及三个步骤：设置嵌入服务、确保 Bigtable 表已创建以及配置存储参数。
+Initializing the `BigtableVectorStore` involves three steps: setting up the embedding service, ensuring the Bigtable table is created, and configuring the store's parameters.
 
-### 1. 设置嵌入服务
-首先，我们需要一个模型来为文档创建向量嵌入。本示例将使用 Vertex AI 模型。
+### 1. Set up Embedding Service
+First, we need a model to create the vector embeddings for our documents. We'll use a Vertex AI model for this example.
 
 ```python
 from langchain_google_vertexai import VertexAIEmbeddings
@@ -84,8 +85,8 @@ from langchain_google_vertexai import VertexAIEmbeddings
 embeddings = VertexAIEmbeddings(project=PROJECT_ID, model_name="gemini-embedding-001")
 ```
 
-### 2. 初始化表
-在创建 `BigtableVectorStore` 之前，必须存在一个具有正确列族的表。`init_vector_store_table` 辅助函数是创建和配置表的推荐方式。如果表已存在，则不执行任何操作。
+### 2. Initialize a Table
+Before creating a `BigtableVectorStore`, a table with the correct column families must exist. The `init_vector_store_table` helper function is the recommended way to create and configure a table. If the table already exists, it will do nothing.
 
 ```python
 from langchain_google_bigtable.vector_store import init_vector_store_table
@@ -105,11 +106,11 @@ except ValueError as e:
     print(e)
 ```
 
-### 3. 配置向量存储
-现在我们定义控制向量存储如何连接到 Bigtable 以及如何处理数据的参数。
+### 3. Configure the Vector Store
+Now we define the parameters that control how the vector store connects to Bigtable and how it handles data.
 
-#### BigtableEngine
-`BigtableEngine` 对象管理客户端和异步操作。强烈建议初始化单个引擎并在多个存储中复用它，以获得更好的性能和资源管理。
+#### The BigtableEngine
+A `BigtableEngine` object manages clients and async operations. It is highly recommended to initialize a single engine and reuse it across multiple stores for better performance and resource management.
 
 ```python
 from langchain_google_bigtable import BigtableEngine
@@ -117,18 +118,18 @@ from langchain_google_bigtable import BigtableEngine
 engine = await BigtableEngine.async_initialize(project_id=PROJECT_ID)
 ```
 
-#### 集合
-`collection` 为单个 Bigtable 表中的文档提供逻辑命名空间。它用作行键的前缀，允许多个向量存储在同一表中共存而不相互干扰。
+#### Collections
+A `collection` provides a logical namespace for your documents within a single Bigtable table. It is used as a prefix for the row keys, allowing multiple vector stores to coexist in the same table without interfering with each other.
 
 ```python
 collection_name = "my_docs"
 ```
 
-#### 元数据配置
-创建 `BigtableVectorStore` 时，您有两个可选参数用于处理元数据：
+#### Metadata Configuration
+When creating a `BigtableVectorStore`, you have two optional parameters for handling metadata:
 
-* `metadata_mappings`：这是一个 `VectorMetadataMapping` 对象列表。对于您希望在搜索查询中用于过滤的任何元数据键，您**必须**定义映射。每个映射指定元数据字段的数据类型（`encoding`），这对于正确过滤至关重要。
-* `metadata_as_json_column`：这是一个可选的 `ColumnConfig`，告诉存储将*整个*元数据字典作为单个 JSON 字符串保存在特定列中。这对于一次性高效检索文档的所有元数据非常有用，包括未在 `metadata_mappings` 中定义的字段。**注意：**仅存储在此 JSON 列中的字段不能用于过滤。
+* `metadata_mappings`: This is a list of `VectorMetadataMapping` objects. You **must** define a mapping for any metadata key you wish to use for filtering in your search queries. Each mapping specifies the data type (`encoding`) for the metadata field, which is crucial for correct filtering.
+* `metadata_as_json_column`: This is an optional `ColumnConfig` that tells the store to save the *entire* metadata dictionary as a single JSON string in a specific column. This is useful for efficiently retrieving all of a document's metadata at once, including fields not defined in `metadata_mappings`. **Note:** Fields stored only in this JSON column cannot be used for filtering.
 
 ```python
 from langchain_google_bigtable import ColumnConfig, VectorMetadataMapping, Encoding
@@ -147,7 +148,7 @@ metadata_as_json_column = ColumnConfig(
 )
 ```
 
-### 4. 创建 BigtableVectorStore 实例
+### 4. Create the BigtableVectorStore Instance
 
 ```python
 # Configure the columns for your store.
@@ -176,10 +177,10 @@ vector_store = await BigtableVectorStore.create(
 )
 ```
 
-## 管理向量存储
+## Manage vector store
 
-### 添加文档
-您可以使用预定义的 ID 添加文档。如果 `Document` 添加时没有 `id` 属性，向量存储将自动为其生成一个 **`uuid4` 字符串**。
+### Add Documents
+You can add documents with pre-defined IDs. If a `Document` is added without an `id` attribute, the vector store will automatically generate a **`uuid4` string** for it.
 
 ```python
 from langchain_core.documents import Document
@@ -226,8 +227,8 @@ added_ids = await vector_store.aadd_documents(docs_to_add)
 print(f"Added documents with IDs: {added_ids}")
 ```
 
-### 更新文档
-`BigtableVectorStore` 通过覆盖来处理更新。要更新文档，只需使用相同的 ID 但新的内容或元数据再次添加它。
+### Update Documents
+`BigtableVectorStore` handles updates by overwriting. To update a document, simply add it again with the same ID but with new content or metadata.
 
 ```python
 doc_to_update = [
@@ -247,69 +248,69 @@ await vector_store.aadd_documents(doc_to_update)
 print("Document 'doc_2' has been updated.")
 ```
 
-### 删除文档
+### Delete Documents
 
 ```python
 is_deleted = await vector_store.adelete(ids=["doc_2"])
 ```
 
-## 查询向量存储
+## Query vector store
 
-### 搜索
+### Search
 
 ```python
 results = await vector_store.asimilarity_search("a story about a powerful ring", k=1)
 print(results[0].page_content)
 ```
 
-### 带过滤器的搜索
+### Search with Filters
 
-在向量搜索运行之前应用过滤器。
+Apply filters before the vector search runs.
 
-#### kNN 搜索算法与过滤
+#### The kNN Search Algorithm and Filtering
 
-默认情况下，`BigtableVectorStore` 使用 **k 近邻（kNN）**搜索算法查找数据库中与查询向量最相似的 `k` 个向量。向量存储提供过滤功能，在 kNN 搜索执行*之前*缩小搜索空间，这可以使查询更快、更相关。
+By default, `BigtableVectorStore` uses a **k-Nearest Neighbors (kNN)** search algorithm to find the `k` vectors in the database that are most similar to your query vector. The vector store offers filtering to reduce the search space *before* the kNN search is performed, which can make queries faster and more relevant.
 
-#### 使用 `QueryParameters` 配置查询
+#### Configuring Queries with `QueryParameters`
 
-所有搜索设置通过 `QueryParameters` 对象控制。该对象允许您不仅指定过滤器，还可以指定其他重要的搜索方面：
-* `algorithm`：要使用的搜索算法。默认为 `"kNN"`。
-* `distance_strategy`：用于比较的指标，如 `COSINE`（默认）或 `EUCLIDEAN`。
-* `vector_data_type`：存储向量的数据类型，如 `FLOAT32` 或 `DOUBLE64`。这应与嵌入的精度匹配。
-* `filters`：定义要应用的过滤逻辑的字典。
+All search settings are controlled via the `QueryParameters` object. This object allows you to specify not only filters but also other important search aspects:
+* `algorithm`: The search algorithm to use. Defaults to `"kNN"`.
+* `distance_strategy`: The metric used for comparison, such as `COSINE` (default) or `EUCLIDEAN`.
+* `vector_data_type`: The data type of the stored vectors, like `FLOAT32` or `DOUBLE64`. This should match the precision of your embeddings.
+* `filters`: A dictionary defining the filtering logic to apply.
 
-#### 理解编码
+#### Understanding Encodings
 
-要在元数据字段上进行过滤，您必须在 `metadata_mappings` 中使用正确的 `encoding` 定义它们，以便 Bigtable 可以正确解释数据。支持的编码包括：
-* **字符串**：用于基于文本的元数据的 `UTF8`、`UTF16`、`ASCII`。
-* **数字**：用于整数的 `INT_BIG_ENDIAN` 或 `INT_LITTLE_ENDIAN`，以及用于小数的 `FLOAT` 或 `DOUBLE`。
-* **布尔值**：用于 true/false 值的 `BOOL`。
+To filter on metadata fields, you must define them in `metadata_mappings` with the correct `encoding` so Bigtable can properly interpret the data. Supported encodings include:
+* **String**: `UTF8`, `UTF16`, `ASCII` for text-based metadata.
+* **Numeric**: `INT_BIG_ENDIAN` or `INT_LITTLE_ENDIAN` for integers, and `FLOAT` or `DOUBLE` for decimal numbers.
+* **Boolean**: `BOOL` for true/false values.
 
-#### 过滤支持表
+#### Filtering Support Table
 
-| 过滤类别 | 键 / 运算符 | 含义 |
+| Filter Category | Key / Operator | Meaning |
 |---|---|---|
-| **行键** | `RowKeyFilter` | 将搜索范围缩小到具有特定前缀的文档 ID。 |
-| **元数据键** | `ColumnQualifiers` | 检查一个或多个确切元数据键是否存在。 |
-| | `ColumnQualifierPrefix` | 检查元数据键是否以给定前缀开头。 |
-| | `ColumnQualifierRegex` | 检查元数据键是否与正则表达式匹配。 |
-| **元数据值** | `ColumnValueFilter` | 所有基于值的条件的容器。 |
-| | `==` | 相等 |
-| | `!=` | 不等 |
-| | `>` | 大于 |
-| | `<` | 小于 |
-| | `>=` | 大于或等于 |
-| | `<=` | 小于或等于 |
-| | `in` | 值在列表中。 |
-| | `nin` | 值不在列表中。 |
-| | `contains` | 检查子字符串是否存在。 |
-| | `like` | 对字符串执行正则表达式匹配。 |
-| **逻辑**| `ColumnValueChainFilter` | 组合值条件的逻辑 AND。 |
-| | `ColumnValueUnionFilter` | 组合值条件的逻辑 OR。 |
+| **Row Key** | `RowKeyFilter` | Narrows search to document IDs with a specific prefix. |
+| **Metadata Key** | `ColumnQualifiers` | Checks for the presence of one or more exact metadata keys. |
+| | `ColumnQualifierPrefix` | Checks if a metadata key starts with a given prefix. |
+| | `ColumnQualifierRegex` | Checks if a metadata key matches a regular expression. |
+| **Metadata Value** | `ColumnValueFilter` | Container for all value-based conditions. |
+| | `==` | Equality |
+| | `!=` | Inequality |
+| | `>` | Greater than |
+| | `<` | Less than |
+| | `>=` | Greater than or equal |
+| | `<=` | Less than or equal |
+| | `in` | Value is in a list. |
+| | `nin` | Value is not in a list. |
+| | `contains` | Checks for substring presence. |
+| | `like` | Performs a regex match on a string. |
+| **Logical**| `ColumnValueChainFilter` | Logical AND for combining value conditions. |
+| | `ColumnValueUnionFilter` | Logical OR for combining value conditions. |
 
-#### 复杂过滤器示例
+#### Complex Filter Example
 
-此示例使用多个嵌套逻辑过滤器。它搜索满足以下条件的文档：（`category` 为 'sci-fi' 且 `year` 在 1970-2000 之间）或（`author` 为 'J.R.R. Tolkien'）或（`rating` > 4.5）。
+This example uses multiple nested logical filters. It searches for documents that are either (`category` is 'sci-fi' AND `year` between 1970-2000) OR (`author` is 'J.R.R. Tolkien') OR (`rating` > 4.5).
 
 ```python
 from langchain_google_bigtable.vector_store import QueryParameters
@@ -337,8 +338,8 @@ for doc in complex_results:
     print(f"- ID: {doc.id}, Metadata: {doc.metadata}")
 ```
 
-### 带分数的搜索
-您还可以在文档中检索距离分数。
+### Search with score
+You can also retrieve the distance score along with the documents.
 
 ```python
 results_with_scores = await vector_store.asimilarity_search_with_score(
@@ -348,8 +349,8 @@ for doc, score in results_with_scores:
     print(f"* [SCORE={score:.4f}] {doc.page_content} [{doc.metadata}]")
 ```
 
-### 用作检索器
-向量存储可以轻松地在 RAG 应用中用作检索器。您可以指定搜索类型（例如，`similarity` 或 `mmr`）并传递搜索时参数，如 `k` 和 `query_parameters`。
+### Use as Retriever
+The vector store can be easily used as a retriever in RAG applications. You can specify the search type (e.g., `similarity` or `mmr`) and pass search-time arguments like `k` and `query_parameters`.
 
 ```python
 # Define a filter to use with the retriever
@@ -368,17 +369,17 @@ retrieved_docs = await retriever.ainvoke("a story about a hobbit")
 print(retrieved_docs[0].page_content)
 ```
 
-## 用于检索增强生成
+## Usage for retrieval-augmented generation
 
-有关如何将此向量存储用于检索增强生成（RAG）的指南，请参阅以下部分：
+For guides on how to use this vector store for retrieval-augmented generation (RAG), see the following sections:
 
-- [教程](https://python.langchain.com/docs/tutorials/rag/)
-- [操作指南：使用 RAG 进行问答](https://python.langchain.com/docs/how_to/#qa-with-rag)
-- [检索概念文档](https://python.langchain.com/docs/concepts/retrieval/)
+- [Tutorials](https://python.langchain.com/docs/tutorials/rag/)
+- [How-to: Question and answer with RAG](https://python.langchain.com/docs/how_to/#qa-with-rag)
+- [Retrieval conceptual docs](https://python.langchain.com/docs/concepts/retrieval/)
 
-## API 参考
+## API reference
 
-有关 `BigtableVectorStore` 类的完整详情，请查看 [GitHub](https://github.com/googleapis/langchain-google-bigtable-python/blob/main/src/langchain_google_bigtable/vector_store.py) 上的源代码。
+For full details on the `BigtableVectorStore` class, see the source code on [GitHub](https://github.com/googleapis/langchain-google-bigtable-python/blob/main/src/langchain_google_bigtable/vector_store.py).
 
 ---
 

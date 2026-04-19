@@ -1,20 +1,20 @@
 ---
-title: "Neo4j 集成"
-description: "使用 LangChain Python 集成 Neo4j 图数据库。"
+title: "Neo4j integration"
+description: "Integrate with the Neo4j graph using LangChain Python."
 ---
 
->[Neo4j](https://neo4j.com/docs/getting-started/) 是由 `Neo4j, Inc` 开发的图数据库管理系统。
+>[Neo4j](https://neo4j.com/docs/getting-started/) is a graph database management system developed by `Neo4j, Inc`.
 
->`Neo4j` 存储的数据元素包括节点、连接节点的边以及节点和边的属性。开发者将其描述为具有原生图存储和处理能力的符合 ACID 标准的事务数据库。`Neo4j` 提供非开源的"社区版"（采用 GNU 通用公共许可证的修改版本授权），在线备份和高可用性扩展采用封闭源代码的商业许可证。Neo 还以封闭源代码的商业条款许可包含这些扩展的 `Neo4j`。
+>The data elements `Neo4j` stores are nodes, edges connecting them, and attributes of nodes and edges. Described by its developers as an ACID-compliant transactional database with native graph storage and processing, `Neo4j` is available in a non-open-source "community edition" licensed with a modification of the GNU General Public License, with online backup and high availability extensions licensed under a closed-source commercial license. Neo also licenses `Neo4j` with these extensions under closed-source commercial terms.
 
->本 notebook 展示如何使用 LLM 为可以用 `Cypher` 查询语言查询的图数据库提供自然语言接口。
+>This notebook shows how to use LLMs to provide a natural language interface to a graph database you can query with the `Cypher` query language.
 
->[Cypher](https://en.wikipedia.org/wiki/Cypher_(query_language)) 是一种声明式图查询语言，允许在属性图中进行富有表现力且高效的数据查询。
+>[Cypher](https://en.wikipedia.org/wiki/Cypher_(query_language)) is a declarative graph query language that allows for expressive and efficient data querying in a property graph.
 
-## 配置
+## Setting up
 
-你需要有一个运行中的 `Neo4j` 实例。一种选择是在其 Aura 云服务中[创建免费的 Neo4j 数据库实例](https://neo4j.com/cloud/platform/aura-graph-database/)。你也可以使用 [Neo4j Desktop 应用程序](https://neo4j.com/download/)在本地运行数据库，或运行 Docker 容器。
-你可以通过执行以下脚本来运行本地 Docker 容器：
+You will need to have a running `Neo4j` instance. One option is to create a [free Neo4j database instance in their Aura cloud service](https://neo4j.com/cloud/platform/aura-graph-database/). You can also run the database locally using the [Neo4j Desktop application](https://neo4j.com/download/), or running a docker container.
+You can run a local docker container by running the executing the following script:
 
 ```
 docker run \
@@ -26,7 +26,7 @@ docker run \
     neo4j:latest
 ```
 
-如果使用 Docker 容器，需要等待几秒钟让数据库启动。
+If you are using the docker container, you need to wait a couple of second for the database to start.
 
 ```python
 from langchain_neo4j import GraphCypherQAChain, Neo4jGraph
@@ -37,7 +37,7 @@ from langchain_openai import ChatOpenAI
 graph = Neo4jGraph(url="bolt://localhost:7687", username="neo4j", password="password")
 ```
 
-本指南默认使用 OpenAI 模型。
+We default to OpenAI models in this guide.
 
 ```python
 import getpass
@@ -47,9 +47,9 @@ if "OPENAI_API_KEY" not in os.environ:
     os.environ["OPENAI_API_KEY"] = getpass.getpass("OpenAI API Key:")
 ```
 
-## 初始化数据库
+## Seeding the database
 
-假设数据库为空，可以使用 Cypher 查询语言填充数据。以下 Cypher 语句是幂等的，这意味着无论运行一次还是多次，数据库信息都将保持一致。
+Assuming your database is empty, you can populate it using Cypher query language. The following Cypher statement is idempotent, which means the database information will be the same if you run it one or multiple times.
 
 ```python
 graph.query(
@@ -67,9 +67,9 @@ MERGE (a)-[:ACTED_IN]->(m)
 []
 ```
 
-## 刷新图 schema 信息
+## Refresh graph schema information
 
-如果数据库的 schema 发生变化，可以刷新生成 Cypher 语句所需的 schema 信息。
+If the schema of database changes, you can refresh the schema information needed to generate Cypher statements.
 
 ```python
 graph.refresh_schema()
@@ -89,9 +89,9 @@ The relationships:
 (:Actor)-[:ACTED_IN]->(:Movie)
 ```
 
-## 增强的 schema 信息
+## Enhanced schema information
 
-选择增强版 schema 后，系统会自动扫描数据库中的示例值并计算一些分布指标。例如，如果某个节点属性的不同值少于 10 个，则在 schema 中返回所有可能的值；否则，每个节点和关系属性只返回一个示例值。
+Choosing the enhanced schema version enables the system to automatically scan for example values within the databases and calculate some distribution metrics. For example, if a node property has less than 10 distinct values, we return all possible values in the schema. Otherwise, return only a single example value per node and relationship property.
 
 ```python
 enhanced_graph = Neo4jGraph(
@@ -116,9 +116,9 @@ The relationships:
 (:Actor)-[:ACTED_IN]->(:Movie)
 ```
 
-## 查询图
+## Querying the graph
 
-现在可以使用图 Cypher QA chain 对图提问
+We can now use the graph cypher QA chain to ask question of the graph
 
 ```python
 chain = GraphCypherQAChain.from_llm(
@@ -147,10 +147,10 @@ Full Context:
  'result': 'Tom Cruise, Val Kilmer, Anthony Edwards, and Meg Ryan played in Top Gun.'}
 ```
 
-## 限制结果数量
+## Limit the number of results
 
-可以使用 `top_k` 参数限制 Cypher QA Chain 返回的结果数量。
-默认值为 10。
+You can limit the number of results from the Cypher QA Chain using the `top_k` parameter.
+The default is 10.
 
 ```python
 chain = GraphCypherQAChain.from_llm(
@@ -183,9 +183,9 @@ Full Context:
  'result': 'Tom Cruise, Val Kilmer played in Top Gun.'}
 ```
 
-## 返回中间结果
+## Return intermediate results
 
-可以使用 `return_intermediate_steps` 参数从 Cypher QA Chain 返回中间步骤
+You can return intermediate steps from the Cypher QA Chain using the `return_intermediate_steps` parameter
 
 ```python
 chain = GraphCypherQAChain.from_llm(
@@ -217,9 +217,9 @@ Intermediate steps: [{'query': "MATCH (a:Actor)-[:ACTED_IN]->(m:Movie)\nWHERE m.
 Final answer: Tom Cruise, Val Kilmer, Anthony Edwards, and Meg Ryan played in Top Gun.
 ```
 
-## 返回直接结果
+## Return direct results
 
-可以使用 `return_direct` 参数从 Cypher QA Chain 返回直接结果
+You can return direct results from the Cypher QA Chain using the `return_direct` parameter
 
 ```python
 chain = GraphCypherQAChain.from_llm(
@@ -253,9 +253,9 @@ RETURN a.name
   {'a.name': 'Meg Ryan'}]}
 ```
 
-## 在 Cypher 生成提示词中添加示例
+## Add examples in the cypher generation prompt
 
-你可以为特定问题定义希望 LLM 生成的 Cypher 语句
+You can define the Cypher statement you want the LLM to generate for particular questions
 
 ```python
 from langchain_core.prompts.prompt import PromptTemplate
@@ -310,9 +310,9 @@ Full Context:
  'result': 'There were 4 actors in Top Gun.'}
 ```
 
-## 分别使用不同的 LLM 生成 Cypher 和答案
+## Use separate LLMs for cypher and answer generation
 
-可以使用 `cypher_llm` 和 `qa_llm` 参数定义不同的 LLM
+You can use the `cypher_llm` and `qa_llm` parameters to define different llms
 
 ```python
 chain = GraphCypherQAChain.from_llm(
@@ -345,9 +345,9 @@ Full Context:
  'result': 'Tom Cruise, Val Kilmer, Anthony Edwards, and Meg Ryan played in Top Gun.'}
 ```
 
-## 忽略指定的节点和关系类型
+## Ignore specified node and relationship types
 
-可以使用 `include_types` 或 `exclude_types` 在生成 Cypher 语句时忽略部分图 schema。
+You can use `include_types` or `exclude_types` to ignore parts of the graph schema when generating Cypher statements.
 
 ```python
 chain = GraphCypherQAChain.from_llm(
@@ -373,9 +373,9 @@ Relationship properties are the following:
 The relationships are the following:
 ```
 
-## 验证生成的 Cypher 语句
+## Validate generated cypher statements
 
-可以使用 `validate_cypher` 参数来验证并修正生成的 Cypher 语句中的关系方向
+You can use the `validate_cypher` parameter to validate and correct relationship directions in generated Cypher statements
 
 ```python
 chain = GraphCypherQAChain.from_llm(
@@ -408,10 +408,10 @@ Full Context:
  'result': 'Tom Cruise, Val Kilmer, Anthony Edwards, and Meg Ryan played in Top Gun.'}
 ```
 
-## 将数据库结果上下文作为工具/函数输出提供
+## Provide context from database results as tool/function output
 
-可以使用 `use_function_response` 参数将数据库结果的上下文作为工具/函数输出传递给 LLM。此方法提高了答案的响应准确性和相关性，因为 LLM 会更紧密地遵循提供的上下文。
-_使用此功能需要使用支持原生函数调用的 LLM_。
+You can use the `use_function_response` parameter to pass context from database results to an LLM as a tool/function output. This method improves the response accuracy and relevance of an answer as the LLM follows the provided context more closely.
+_You will need to use an LLM with native function calling support to use this feature_.
 
 ```python
 chain = GraphCypherQAChain.from_llm(
@@ -441,9 +441,9 @@ Full Context:
  'result': 'The main actors in Top Gun are Tom Cruise, Val Kilmer, Anthony Edwards, and Meg Ryan.'}
 ```
 
-使用函数响应功能时，可以通过提供 `function_response_system` 来提供自定义系统消息，以指示模型如何生成答案。
+You can provide custom system message when using the function response feature by providing `function_response_system` to instruct the model on how to generate answers.
 
-_注意：使用 `use_function_response` 时，`qa_prompt` 将不起作用_
+_Note that `qa_prompt` will have no effect when using `use_function_response`_
 
 ```python
 chain = GraphCypherQAChain.from_llm(
@@ -478,9 +478,9 @@ Full Context:
 
 <div className="source-links">
 <Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/graphs/neo4j_cypher.mdx) 或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/graphs/neo4j_cypher.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 <Callout icon="terminal-2">
-    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等工具，通过 MCP 获取实时答案。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
 </Callout>
 </div>

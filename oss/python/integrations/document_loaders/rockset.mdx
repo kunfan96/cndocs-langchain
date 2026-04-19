@@ -1,33 +1,33 @@
 ---
-title: "Rockset 集成"
-description: "使用 LangChain Python 集成 Rockset 文档加载器。"
+title: "Rockset integration"
+description: "Integrate with the Rockset document loader using LangChain Python."
 ---
 
-⚠️ **弃用公告：Rockset 集成已停用**
+⚠️ **Deprecation Notice: Rockset Integration Disabled**
 >
-> 截至 2024 年 6 月，Rockset 已被 [OpenAI 收购](https://openai.com/index/openai-acquires-rockset/) 并**关闭了其公共服务**。
+> As of June 2024, Rockset has been [acquired by OpenAI](https://openai.com/index/openai-acquires-rockset/) and **shut down its public services**.
 >
-> Rockset 曾是一个以世界级索引与检索能力著称的实时分析数据库。现在，其核心团队和技术正被整合到 OpenAI 的基础设施中，以支持未来的 AI 产品。
+> Rockset was a real-time analytics database known for world-class indexing and retrieval. Now, its core team and technology are being integrated into OpenAI's infrastructure to power future AI products.
 >
-> 此 LangChain 集成已无法使用，仅作为**历史存档**保留。
+> This LangChain integration is no longer functional and is preserved **for archival purposes only**.
 
-> Rockset 是一个实时分析数据库，可在海量半结构化数据上执行查询而无需运维负担。通过 Rockset，数据在摄取后一秒内即可查询，针对该数据的分析查询通常在毫秒级完成。Rockset 针对计算进行了优化，适用于 100TB 以下（或通过 rollup 超过 100TB）的高并发应用。
+> Rockset is a real-time analytics database which enables queries on massive, semi-structured data without operational burden. With Rockset, ingested data is queryable within one second and analytical queries against that data typically execute in milliseconds. Rockset is compute optimized, making it suitable for serving high concurrency applications in the sub-100TB range (or larger than 100s of TBs with rollups).
 
-本文档演示如何在 LangChain 中使用 Rockset 作为文档加载器。开始之前，请确保您拥有 Rockset 账户和可用的 API 密钥。
+This notebook demonstrates how to use Rockset as a document loader in langchain. To get started, make sure you have a Rockset account and an API key available.
 
-## 环境设置
+## Setting up the environment
 
-1. 前往 [Rockset 控制台](https://console.rockset.com/apikeys) 获取 API 密钥。在 [API 参考](https://rockset.com/docs/rest-api/#introduction) 中查找您的 API 区域。本文档假设您使用的是 `Oregon(us-west-2)` 区域的 Rockset。
-2. 设置环境变量 `ROCKSET_API_KEY`。
-3. 安装 Rockset Python 客户端，LangChain 将通过它与 Rockset 数据库交互。
+1. Go to the [Rockset console](https://console.rockset.com/apikeys) and get an API key. Find your API region from the [API reference](https://rockset.com/docs/rest-api/#introduction). For the purpose of this notebook, we will assume you're using Rockset from `Oregon(us-west-2)`.
+2. Set your the environment variable `ROCKSET_API_KEY`.
+3. Install the Rockset python client, which will be used by langchain to interact with the Rockset database.
 
 ```python
 pip install -qU  rockset
 ```
 
-# 加载文档
+# Loading documents
 
-LangChain 与 Rockset 的集成允许您通过 SQL 查询从 Rockset 集合中加载文档。为此，需要构建一个 `RocksetLoader` 对象。以下是初始化 `RocksetLoader` 的示例代码：
+The Rockset integration with LangChain allows you to load documents from Rockset collections with SQL queries. In order to do this you must construct a `RocksetLoader` object. Here is an example snippet that initializes a `RocksetLoader`.
 
 ```python
 from langchain_community.document_loaders import RocksetLoader
@@ -41,27 +41,27 @@ loader = RocksetLoader(
 )
 ```
 
-在这里，您可以看到执行了以下查询：
+Here, you can see that the following query is run:
 
 ```sql
 SELECT * FROM langchain_demo LIMIT 3
 ```
 
-集合中的 `text` 列用作页面内容，记录的 `id` 和 `date` 列用作元数据（如果不向 `metadata_keys` 传入任何内容，则整个 Rockset 文档将被用作元数据）。
+The `text` column in the collection is used as the page content, and the record's `id` and `date` columns are used as metadata (if you do not pass anything into `metadata_keys`, the whole Rockset document will be used as metadata).
 
-执行查询并获取结果 `Document` 的迭代器，请运行：
+To execute the query and access an iterator over the resulting `Document`s, run:
 
 ```python
 loader.lazy_load()
 ```
 
-执行查询并一次性获取所有结果 `Document`，请运行：
+To execute the query and access all resulting `Document`s at once, run:
 
 ```python
 loader.load()
 ```
 
-以下是 `loader.load()` 的示例响应：
+Here is an example response of `loader.load()`:
 
 ```python
 [
@@ -80,9 +80,9 @@ loader.load()
 ]
 ```
 
-## 使用多列作为内容
+## Using multiple columns as content
 
-您可以选择使用多列作为内容：
+You can choose to use multiple columns as content:
 
 ```python
 from langchain_community.document_loaders import RocksetLoader
@@ -95,16 +95,16 @@ loader = RocksetLoader(
 )
 ```
 
-假设 "sentence1" 字段值为 `"This is the first sentence."`，"sentence2" 字段值为 `"This is the second sentence."`，则结果 [`Document`](https://reference.langchain.com/python/langchain-core/documents/base/Document) 的 `page_content` 将为：
+Assuming the "sentence1" field is `"This is the first sentence."` and the "sentence2" field is `"This is the second sentence."`, the `page_content` of the resulting [`Document`](https://reference.langchain.com/python/langchain-core/documents/base/Document) would be:
 
 ```
 This is the first sentence.
 This is the second sentence.
 ```
 
-您可以通过在 `RocksetLoader` 构造函数中设置 `content_columns_joiner` 参数来自定义内容列的拼接方式。`content_columns_joiner` 是一个接收 `List[Tuple[str, Any]]]` 参数的方法，表示 (列名, 列值) 的元组列表。默认情况下，该方法将每个列值用换行符连接。
+You can define you own function to join content columns by setting the `content_columns_joiner` argument in the `RocksetLoader` constructor. `content_columns_joiner` is a method that takes in a `List[Tuple[str, Any]]]` as an argument, representing a list of tuples of (column name, column value). By default, this is a method that joins each column value with a new line.
 
-例如，若希望将 sentence1 和 sentence2 用空格而非换行符连接，可以这样设置 `content_columns_joiner`：
+For example, if you wanted to join sentence1 and sentence2 with a space instead of a new line, you could set `content_columns_joiner` like so:
 
 ```python
 RocksetLoader(
@@ -117,13 +117,13 @@ RocksetLoader(
 )
 ```
 
-结果 [`Document`](https://reference.langchain.com/python/langchain-core/documents/base/Document) 的 `page_content` 将为：
+The `page_content` of the resulting [`Document`](https://reference.langchain.com/python/langchain-core/documents/base/Document) would be:
 
 ```
 This is the first sentence. This is the second sentence.
 ```
 
-如果希望在 `page_content` 中包含列名，可以这样实现：
+Oftentimes you want to include the column name in the `page_content`. You can do that like this:
 
 ```python
 RocksetLoader(
@@ -136,7 +136,7 @@ RocksetLoader(
 )
 ```
 
-这将产生如下 `page_content`：
+This would result in the following `page_content`:
 
 ```
 sentence1: This is the first sentence.
@@ -147,9 +147,9 @@ sentence2: This is the second sentence.
 
 <div className="source-links">
 <Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/document_loaders/rockset.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/document_loaders/rockset.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 <Callout icon="terminal-2">
-    [将这些文档连接](/use-these-docs) 到 Claude、VSCode 等，通过 MCP 获取实时答案。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
 </Callout>
 </div>

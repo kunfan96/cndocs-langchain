@@ -1,41 +1,47 @@
 ---
-title: "Cassandra 数据库工具包集成"
-description: "使用 LangChain Python 集成 Cassandra 数据库工具包。"
+title: "Cassandra database toolkit integration"
+description: "Integrate with the Cassandra database toolkit using LangChain Python."
 ---
 
->`Apache Cassandra®` 是一款广泛用于存储事务性应用数据的数据库。大型语言模型中函数和工具的引入，为生成式 AI 应用中现有数据的使用带来了一些令人兴奋的使用场景。
+>`Apache Cassandra®` is a widely used database for storing transactional application data. The introduction of functions and >tooling in Large Language Models has opened up some exciting use cases for existing data in Generative AI applications.
 
->`Cassandra Database` 工具包使 AI 工程师能够高效地将智能体与 Cassandra 数据集成，提供以下功能：
+>The `Cassandra Database` toolkit enables AI engineers to integrate agents with Cassandra data efficiently, offering
+>the following features:
 >
-> - 通过优化查询实现快速数据访问。大多数查询应在个位毫秒或更短时间内完成。
-> - 模式自省，以增强 LLM 的推理能力
-> - 与各种 Cassandra 部署兼容，包括 Apache Cassandra®、DataStax Enterprise™ 和 DataStax Astra™
-> - 目前，该工具包仅限于 SELECT 查询和模式自省操作。（安全第一）
+> - Fast data access through optimized queries. Most queries should run in single-digit ms or less.
+> - Schema introspection to enhance LLM reasoning capabilities
+> - Compatibility with various Cassandra deployments, including Apache Cassandra®, DataStax Enterprise™, and DataStax Astra™
+> - Currently, the toolkit is limited to SELECT queries and schema introspection operations. (Safety first)
 
-有关创建 Cassandra DB 智能体的更多信息，请参阅 [CQL 智能体 cookbook](https://github.com/langchain-ai/langchain/blob/v0.3/cookbook/cql_agent.ipynb)
+For more information on creating a Cassandra DB agent see the [CQL agent cookbook](https://github.com/langchain-ai/langchain/blob/v0.3/cookbook/cql_agent.ipynb)
 
-## 快速开始
+## Quick start
 
-- 安装 `cassio` 库
-- 设置要连接的 Cassandra 数据库的环境变量
-- 初始化 `CassandraDatabase`
-- 使用 `toolkit.get_tools()` 将工具传递给您的智能体
-- 坐等它为您完成所有工作
+- Install the `cassio` library
+- Set environment variables for the Cassandra database you are connecting to
+- Initialize `CassandraDatabase`
+- Pass the tools to your agent with `toolkit.get_tools()`
+- Sit back and watch it do all your work for you
 
-## 工作原理
+## Theory of operation
 
-`Cassandra 查询语言 (CQL)` 是与 Cassandra 数据库交互的主要*以人为中心*方式。虽然在生成查询时提供了一定的灵活性，但它需要了解 Cassandra 数据建模最佳实践。LLM 函数调用赋予智能体推理能力，然后选择工具来满足请求。使用 LLM 的智能体在选择适当的工具包或工具包链时，应使用 Cassandra 特定的逻辑进行推理。这减少了 LLM 被迫提供自上而下解决方案时引入的随机性。您想让 LLM 不受限制地完全访问您的数据库吗？嗯，可能不想。为此，我们提供了在构建智能体问题时使用的提示：
+`Cassandra Query Language (CQL)` is the primary *human-centric* way of interacting with a Cassandra database. While offering some flexibility when generating queries, it requires knowledge of Cassandra data modeling best practices. LLM function calling gives an agent the ability to reason and then choose a tool to satisfy the request. Agents using LLMs should reason using Cassandra-specific logic when choosing the appropriate toolkit or chain of toolkits. This reduces the randomness introduced when LLMs are forced to provide a top-down solution. Do you want an LLM to have complete unfettered access to your database? Yeah. Probably not. To accomplish this, we provide a prompt for use when constructing questions for the agent:
 
-您是一个具有以下功能和规则的 Apache Cassandra 专家查询分析机器人：
+You are an Apache Cassandra expert query analysis bot with the following features
+and rules:
 
-- 您将接受来自最终用户的关于在数据库中查找特定数据的问题。
-- 您将检查数据库的模式并创建查询路径。
-- 您将向用户提供正确的查询以找到他们正在寻找的数据，并显示查询路径提供的步骤。
-- 您将使用 Apache Cassandra 查询的最佳实践，包括分区键和聚类列。
-- 避免在查询中使用 ALLOW FILTERING。
-- 目标是找到查询路径，因此可能需要查询其他表才能得到最终答案。
+- You will take a question from the end user about finding specific
+   data in the database.
+- You will examine the schema of the database and create a query path.
+- You will provide the user with the correct query to find the data they are looking
+   for, showing the steps provided by the query path.
+- You will use best practices for querying Apache Cassandra using partition keys
+   and clustering columns.
+- Avoid using ALLOW FILTERING in the query.
+- The goal is to find a query path, so it may take querying other tables to get
+   to the final answer.
 
-以下是 JSON 格式的查询路径示例：
+The following is an example of a query path in JSON format:
 
 ```json
  {
@@ -58,33 +64,33 @@ description: "使用 LangChain Python 集成 Cassandra 数据库工具包。"
 }
 ```
 
-## 提供的工具
+## Tools provided
 
 ### `cassandra_db_schema`
 
-收集已连接数据库或特定模式的所有模式信息。对于智能体确定操作至关重要。
+Gathers all schema information for the connected database or a specific schema. Critical for the agent when determining actions.
 
 ### `cassandra_db_select_table_data`
 
-从特定键空间和表中选择数据。智能体可以传递谓词参数和返回记录数量的限制。
+Selects data from a specific keyspace and table. The agent can pass parameters for a predicate and limits on the number of returned records.
 
 ### `cassandra_db_query`
 
-`cassandra_db_select_table_data` 的实验性替代方案，接受完全由智能体构建的查询字符串而非参数。*警告*：这可能会导致一些不寻常的查询，性能可能不佳（甚至无法工作）。此功能可能会在未来版本中删除。如果它做了一些很酷的事情，我们也想知道。谁知道呢！
+Expiriemental alternative to `cassandra_db_select_table_data` which takes a query string completely formed by the agent instead of parameters. *Warning*: This can lead to unusual queries that may not be as performant(or even work). This may be removed in future releases. If it does something cool, we want to know about that too. You never know!
 
-## 环境设置
+## Environment setup
 
-安装以下 Python 模块：
+Install the following Python modules:
 
 ```bash
 pip install ipykernel python-dotenv cassio langchain-openai langchain langchain-community langchainhub
 ```
 
-### .env 文件
+### .env file
 
-连接通过 `cassio` 使用 `auto=True` 参数，notebook 使用 OpenAI。您应相应地创建一个 `.env` 文件。
+Connection is via `cassio` using `auto=True` parameter, and the notebook uses OpenAI. You should create a `.env` file accordingly.
 
-对于 Cassandra，设置：
+For Casssandra, set:
 
 ```bash
 CASSANDRA_CONTACT_POINTS
@@ -93,7 +99,7 @@ CASSANDRA_PASSWORD
 CASSANDRA_KEYSPACE
 ```
 
-对于 Astra，设置：
+For Astra, set:
 
 ```bash
 ASTRA_DB_APPLICATION_TOKEN
@@ -101,19 +107,19 @@ ASTRA_DB_DATABASE_ID
 ASTRA_DB_KEYSPACE
 ```
 
-例如：
+For example:
 
 ```bash
-# 连接到 Astra：
+# Connection to Astra:
 ASTRA_DB_DATABASE_ID=a1b2c3d4-...
 ASTRA_DB_APPLICATION_TOKEN=AstraCS:...
 ASTRA_DB_KEYSPACE=notebooks
 
-# 同时设置
+# Also set
 OPENAI_API_KEY=sk-....
 ```
 
-（您也可以修改以下代码直接通过 `cassio` 连接。）
+(You may also modify the below code to directly connect with `cassio`.)
 
 ```python
 from dotenv import load_dotenv
@@ -136,7 +142,7 @@ from langchain_community.utilities.cassandra_database import CassandraDatabase
 from langchain_openai import ChatOpenAI
 ```
 
-## 连接到 Cassandra 数据库
+## Connect to a cassandra Database
 
 ```python
 cassio.init(auto=True)
@@ -220,20 +226,20 @@ session.set_keyspace("langchain_agent_test")
 ```
 
 ```python
-# 创建 CassandraDatabase 实例
-# 使用 cassio 会话连接到数据库
+# Create a CassandraDatabase instance
+# Uses the cassio session to connect to the database
 db = CassandraDatabase()
 ```
 
 ```python
-# 选择将驱动智能体的 LLM
-# 只有某些模型支持此功能
+# Choose the LLM that will drive the agent
+# Only certain models support this
 llm = ChatOpenAI(temperature=0, model="gpt-4-1106-preview")
 toolkit = CassandraDatabaseToolkit(db=db)
 
 tools = toolkit.get_tools()
 
-print("可用工具：")
+print("Available tools:")
 for tool in tools:
     print(tool.name + "\t- " + tool.description)
 ```
@@ -263,7 +269,7 @@ cassandra_db_select_table_data -
 ```python
 prompt = hub.pull("hwchase17/openai-tools-agent")
 
-# 构建 OpenAI Tools 智能体
+# Construct the OpenAI Tools agent
 agent = create_openai_tools_agent(llm, tools, prompt)
 ```
 

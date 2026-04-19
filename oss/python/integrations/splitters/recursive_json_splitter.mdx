@@ -1,21 +1,21 @@
 ---
-title: "分割 JSON 数据 - 文本分割器集成"
-description: "使用 LangChain Python 集成 JSON 数据文本分割器。"
+title: "Split JSON data - text splitter integration"
+description: "Integrate with the Split JSON data text splitter using LangChain Python."
 ---
 
-此 JSON 分割器在允许控制块大小的同时[分割](/oss/python/integrations/splitters/) JSON 数据。它深度优先遍历 JSON 数据并构建较小的 JSON 块。它尝试保持嵌套 JSON 对象的完整性，但如有需要会对其进行拆分，以将块大小保持在 min_chunk_size 和 max_chunk_size 之间。
+This json splitter [splits](/oss/python/integrations/splitters/) json data while allowing control over chunk sizes. It traverses json data depth first and builds smaller json chunks. It attempts to keep nested json objects whole but will split them if needed to keep chunks between a min_chunk_size and the max_chunk_size.
 
-如果值不是嵌套 JSON，而是一个非常大的字符串，则该字符串不会被分割。如果需要对块大小进行硬限制，请考虑将其与 Recursive Text Splitter 组合使用。有一个可选的预处理步骤用于分割列表，方法是先将其转换为 JSON（dict），然后将其作为 JSON 进行分割。
+If the value is not a nested json, but rather a very large string the string will not be split. If you need a hard cap on the chunk size consider composing this with a Recursive Text splitter on those chunks. There is an optional pre-processing step to split lists, by first converting them to json (dict) and then splitting them as such.
 
-1. 文本如何分割：JSON 值。
-2. 块大小如何衡量：通过字符数。
+1. How the text is split: json value.
+2. How the chunk size is measured: by number of characters.
 
 
 ```python
 pip install -qU langchain-text-splitters
 ```
 
-首先加载一些 JSON 数据：
+First we load some json data:
 
 
 ```python
@@ -27,9 +27,9 @@ import requests
 json_data = requests.get("https://api.smith.langchain.com/openapi.json").json()
 ```
 
-## 基本用法
+## Basic usage
 
-指定 `max_chunk_size` 来限制块大小：
+Specify `max_chunk_size` to constrain chunk sizes:
 
 
 ```python
@@ -38,7 +38,7 @@ from langchain_text_splitters import RecursiveJsonSplitter
 splitter = RecursiveJsonSplitter(max_chunk_size=300)
 ```
 
-要获取 JSON 块，请使用 `.split_json` 方法：
+To obtain json chunks, use the `.split_json` method:
 
 
 ```python
@@ -53,7 +53,7 @@ for chunk in json_chunks[:3]:
 {'paths': {'/api/v1/sessions/{session_id}': {'get': {'tags': ['tracer-sessions'], 'summary': 'Read Tracer Session', 'description': 'Get a specific session.', 'operationId': 'read_tracer_session_api_v1_sessions__session_id__get'}}}}
 {'paths': {'/api/v1/sessions/{session_id}': {'get': {'security': [{'API Key': []}, {'Tenant ID': []}, {'Bearer Auth': []}]}}}}
 ```
-要获取 LangChain [Document](https://python.langchain.com/api_reference/core/documents/langchain_core.documents.base.Document.html) 对象，请使用 `.create_documents` 方法：
+To obtain LangChain [Document](https://reference.langchain.com/python/langchain-core/documents/base/Document) objects, use the `.create_documents` method:
 
 
 ```python
@@ -68,7 +68,7 @@ page_content='{"openapi": "3.1.0", "info": {"title": "LangSmith", "version": "0.
 page_content='{"paths": {"/api/v1/sessions/{session_id}": {"get": {"tags": ["tracer-sessions"], "summary": "Read Tracer Session", "description": "Get a specific session.", "operationId": "read_tracer_session_api_v1_sessions__session_id__get"}}}}'
 page_content='{"paths": {"/api/v1/sessions/{session_id}": {"get": {"security": [{"API Key": []}, {"Tenant ID": []}, {"Bearer Auth": []}]}}}}'
 ```
-或使用 `.split_text` 直接获取字符串内容：
+Or use `.split_text` to obtain string content directly:
 
 
 ```python
@@ -81,9 +81,9 @@ print(texts[1])
 {"openapi": "3.1.0", "info": {"title": "LangSmith", "version": "0.1.0"}, "servers": [{"url": "https://api.smith.langchain.com", "description": "LangSmith API endpoint."}]}
 {"paths": {"/api/v1/sessions/{session_id}": {"get": {"tags": ["tracer-sessions"], "summary": "Read Tracer Session", "description": "Get a specific session.", "operationId": "read_tracer_session_api_v1_sessions__session_id__get"}}}}
 ```
-## 如何管理列表内容的块大小
+## How to manage chunk sizes from list content
 
-注意，此示例中某些块的大小超过了指定的 `max_chunk_size` 300。查看其中一个超出大小的块，可以看到其中有一个列表对象：
+Note that one of the chunks in this example is larger than the specified `max_chunk_size` of 300. Reviewing one of these chunks that was bigger we see there is a list object there:
 
 
 ```python
@@ -96,16 +96,16 @@ print(texts[3])
 
 {"paths": {"/api/v1/sessions/{session_id}": {"get": {"parameters": [{"name": "session_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Session Id"}}, {"name": "include_stats", "in": "query", "required": false, "schema": {"type": "boolean", "default": false, "title": "Include Stats"}}, {"name": "accept", "in": "header", "required": false, "schema": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Accept"}}]}}}}
 ```
-JSON 分割器默认不分割列表。
+The json splitter by default does not split lists.
 
-指定 `convert_lists=True` 可对 JSON 进行预处理，将列表内容转换为以 `index:item` 为 `key:val` 对的字典：
+Specify `convert_lists=True` to preprocess the json, converting list content to dicts with `index:item` as `key:val` pairs:
 
 
 ```python
 texts = splitter.split_text(json_data=json_data, convert_lists=True)
 ```
 
-查看块的大小，现在所有块都在最大值以内：
+Let's look at the size of the chunks. Now they are all under the max
 
 
 ```python
@@ -114,7 +114,7 @@ print([len(text) for text in texts][:10])
 ```text
 [176, 236, 141, 203, 212, 221, 210, 213, 242, 291]
 ```
-列表已转换为字典，但即使分割成多个块，仍保留了所有必要的上下文信息：
+The list has been converted to a dict, but retains all the needed contextual information even if split into many chunks:
 
 
 ```python
@@ -139,9 +139,9 @@ Document(page_content='{"paths": {"/api/v1/sessions/{session_id}": {"get": {"tag
 
 <div className="source-links">
 <Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/splitters/recursive_json_splitter.mdx) 或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/splitters/recursive_json_splitter.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 <Callout icon="terminal-2">
-    [连接这些文档](/use-these-docs) 到 Claude、VSCode 等，通过 MCP 获取实时答案。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
 </Callout>
 </div>
