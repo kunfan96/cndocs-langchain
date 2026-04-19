@@ -1,18 +1,18 @@
 ---
-title: "Oracle AI vector search generate integration"
-description: "Integrate with the Oracle AI vector search generate embedding model using LangChain Python."
+title: "Oracle AI 向量搜索生成集成"
+description: "使用 LangChain Python 与 Oracle AI 向量搜索生成嵌入模型进行集成。"
 ---
 
-Oracle AI Database supports AI workloads where you query data by **meaning** (semantics), not just keywords. It combines **semantic search over unstructured content** with **relational filtering over business data** in a single system—so you can build retrieval workflows (like RAG) without introducing a separate vector database and fragmenting data across multiple platforms.
+Oracle AI 数据库支持按**含义**（语义）而非仅关键词查询数据的 AI 工作负载。它将**对非结构化内容的语义搜索**与**对业务数据的关系过滤**结合在单一系统中——因此，您可以在不引入独立向量数据库且避免数据分散到多个平台的情况下，构建检索工作流（如 RAG）。
 
-This guide demonstrates how to generate embeddings for your content using `OracleEmbeddings`.
+本指南演示如何使用 `OracleEmbeddings` 为您的内容生成嵌入。
 
-> **Why generate embeddings in (or via) Oracle?**
-> You can keep data governance and operational guarantees (security, transactions, availability) close to your AI workflow—while choosing the embedding provider model that fits your environment.
+> **为什么要在 Oracle 中（或通过 Oracle）生成嵌入？**
+> 您可以将数据治理和运营保障（安全性、事务处理、可用性）保持在靠近您的 AI 工作流的位置——同时选择适合您环境的嵌入提供商模型。
 
-### Prerequisites
+### 前提条件
 
-Install `langchain-oracledb`. The `python-oracledb` driver will be installed automatically as a dependency.
+安装 `langchain-oracledb`。`python-oracledb` 驱动将作为依赖项自动安装。
 
 <CodeGroup>
 ```bash pip
@@ -23,16 +23,16 @@ uv add langchain-oracledb
 ```
 </CodeGroup>
 
-### Connect to Oracle Database
+### 连接到 Oracle 数据库
 
-The following sample code will show how to connect to Oracle Database. By default, python-oracledb runs in a ‘Thin’ mode which connects directly to Oracle Database. This mode does not need Oracle Client libraries. However, some additional functionality is available when python-oracledb uses them. Python-oracledb is said to be in ‘Thick’ mode when Oracle Client libraries are used. Both modes have comprehensive functionality supporting the Python Database API v2.0 Specification. See the following [guide](https://python-oracledb.readthedocs.io/en/latest/user_guide/appendix_a.html#featuresummary) that talks about features supported in each mode. You might want to switch to thick-mode if you are unable to use thin-mode.
+以下示例代码将展示如何连接到 Oracle 数据库。默认情况下，python-oracledb 以“Thin”模式运行，该模式直接连接到 Oracle 数据库。此模式不需要 Oracle Client 库。但是，当 python-oracledb 使用它们时，可以提供一些额外的功能。当使用 Oracle Client 库时，Python-oracledb 被称为处于“Thick”模式。这两种模式都具有全面的功能，支持 Python Database API v2.0 规范。请参阅以下[指南](https://python-oracledb.readthedocs.io/en/latest/user_guide/appendix_a.html#featuresummary)，其中介绍了每种模式支持的功能。如果您无法使用 thin-mode，可能需要切换到 thick-mode。
 
 ```python
 import sys
 
 import oracledb
 
-# Please update with your username, password, hostname, port and service_name
+# 请根据您的用户名、密码、主机名、端口和服务名称进行更新
 username = "<username>"
 password = "<password>"
 dsn = "<hostname>:<port>/<service_name>"
@@ -41,23 +41,23 @@ connection = oracledb.connect(user=username, password=password, dsn=dsn)
 print("Connection successful!")
 ```
 
-For embedding generation, several provider options are available to users, including embedding generation within the database and third-party services such as OcigenAI, Hugging Face, and OpenAI. Users opting for third-party providers must establish credentials that include the requisite authentication information. Alternatively, if users select 'database' as their provider, they are required to load an ONNX model into the Oracle Database to facilitate embeddings.
+对于嵌入生成，用户有多种提供商选项可供选择，包括在数据库内部生成嵌入以及使用 OcigenAI、Hugging Face 和 OpenAI 等第三方服务。选择第三方提供商的用户必须建立包含必要认证信息的凭据。或者，如果用户选择“database”作为其提供商，则必须将 ONNX 模型加载到 Oracle 数据库中以促进嵌入的生成。
 
-### Load ONNX model
+### 加载 ONNX 模型
 
-Oracle accommodates a variety of embedding providers, enabling users to choose between proprietary database solutions and third-party services such as OCIGENAI and HuggingFace. This selection dictates the methodology for generating and managing embeddings.
+Oracle 支持多种嵌入提供商，使用户能够在专有数据库解决方案和 OCIGENAI、HuggingFace 等第三方服务之间进行选择。此选择决定了生成和管理嵌入的方法。
 
-***Important*** : Should users opt for the database option, they must upload an ONNX model into the Oracle Database. Conversely, if a third-party provider is selected for embedding generation, uploading an ONNX model to Oracle Database is not required.
+***重要***：如果用户选择数据库选项，则必须将 ONNX 模型上传到 Oracle 数据库。相反，如果为嵌入生成选择了第三方提供商，则无需将 ONNX 模型上传到 Oracle 数据库。
 
-A significant advantage of utilizing an ONNX model directly within Oracle is the enhanced security and performance it offers by eliminating the need to transmit data to external parties. Additionally, this method avoids the latency typically associated with network or REST API calls.
+直接在 Oracle 中使用 ONNX 模型的一个显著优势是，它通过消除向外部传输数据的需求来提供增强的安全性和性能。此外，这种方法避免了通常与网络或 REST API 调用相关的延迟。
 
-Below is the example code to upload an ONNX model into Oracle Database:
+以下是将 ONNX 模型上传到 Oracle 数据库的示例代码：
 
 ```python
 from langchain_oracledb.embeddings.oracleai import OracleEmbeddings
 
-# Update the directory and file names for your ONNX model
-# make sure that you have onnx file in the system
+# 更新您的 ONNX 模型的目录和文件名
+# 确保系统中有 onnx 文件
 onnx_dir = "DEMO_DIR"
 onnx_file = "tinybert.onnx"
 model_name = "demo_model"
@@ -70,13 +70,13 @@ except Exception as e:
     sys.exit(1)
 ```
 
-### Create credential
+### 创建凭据
 
-When selecting third-party providers for generating embeddings, users are required to establish credentials to securely access the provider's endpoints.
+在为生成嵌入选择第三方提供商时，用户需要建立凭据以安全访问提供商的端点。
 
-***Important:*** No credentials are necessary when opting for the 'database' provider to generate embeddings. However, should users decide to utilize a third-party provider, they must create credentials specific to the chosen provider.
+***重要：*** 选择“database”提供商生成嵌入时无需凭据。但是，如果用户决定使用第三方提供商，则必须为所选提供商创建特定的凭据。
 
-Below is an illustrative example:
+以下是一个说明性示例：
 
 ```python
 try:
@@ -115,25 +115,25 @@ except Exception as ex:
     raise
 ```
 
-### Generate embeddings
+### 生成嵌入
 
-Oracle AI Vector Search provides multiple methods for generating embeddings, utilizing either locally hosted ONNX models or third-party APIs. For comprehensive instructions on configuring these alternatives, please refer to the [Oracle AI Vector Search Guide](https://docs.oracle.com/en/database/oracle/oracle-database/23/arpls/dbms_vector_chain1.html#GUID-C6439E94-4E86-4ECD-954E-4B73D53579DE).
+Oracle AI 向量搜索提供了多种生成嵌入的方法，可使用本地托管的 ONNX 模型或第三方 API。有关配置这些替代方案的详细说明，请参阅[Oracle AI 向量搜索指南](https://docs.oracle.com/en/database/oracle/oracle-database/23/arpls/dbms_vector_chain1.html#GUID-C6439E94-4E86-4ECD-954E-4B73D53579DE)。
 
-***Note:*** Users may need to configure a proxy to utilize third-party embedding generation providers, excluding the 'database' provider that utilizes an ONNX model.
+***注意：*** 用户可能需要配置代理才能使用第三方嵌入生成提供商，使用 ONNX 模型的“database”提供商除外。
 
 ```python
-# proxy to be used when we instantiate summary and embedder object
+# 实例化摘要和嵌入器对象时将使用的代理
 proxy = "<proxy>"
 ```
 
-The following sample code will show how to generate embeddings:
+以下示例代码将展示如何生成嵌入：
 
 ```python
 from langchain_oracledb.embeddings.oracleai import OracleEmbeddings
 from langchain_core.documents import Document
 
 """
-# using ocigenai
+# 使用 ocigenai
 embedder_params = {
     "provider": "ocigenai",
     "credential_name": "OCI_CRED",
@@ -141,7 +141,7 @@ embedder_params = {
     "model": "cohere.embed-english-light-v3.0",
 }
 
-# using huggingface
+# 使用 huggingface
 embedder_params = {
     "provider": "huggingface",
     "credential_name": "HF_CRED",
@@ -151,28 +151,28 @@ embedder_params = {
 }
 """
 
-# using ONNX model loaded to Oracle Database
+# 使用加载到 Oracle 数据库的 ONNX 模型
 embedder_params = {"provider": "database", "model": "demo_model"}
 
-# If a proxy is not required for your environment, you can omit the 'proxy' parameter below
+# 如果您的环境不需要代理，则可以省略下面的 'proxy' 参数
 embedder = OracleEmbeddings(conn=conn, params=embedder_params, proxy=proxy)
 embed = embedder.embed_query("Hello World!")
 
-""" verify """
+""" 验证 """
 print(f"Embedding generated by OracleEmbeddings: {embed}")
 ```
 
-### End to end demo
+### 端到端演示
 
-Please refer to our complete demo guide [Oracle AI Vector Search End-to-End Demo Guide](https://github.com/langchain-ai/langchain/blob/v0.3/cookbook/oracleai_demo.ipynb) to build an end to end RAG pipeline with the help of Oracle AI Vector Search.
+请参阅我们的完整演示指南[Oracle AI 向量搜索端到端演示指南](https://github.com/langchain-ai/langchain/blob/v0.3/cookbook/oracleai_demo.ipynb)，以便在 Oracle AI 向量搜索的帮助下构建端到端的 RAG 管道。
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/embeddings/oracleai.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/embeddings/oracleai.mdx) 或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [连接这些文档](/use-these-docs) 到 Claude、VSCode 等，并通过 MCP 获取实时答案。
 </Callout>
 </div>

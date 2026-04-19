@@ -1,23 +1,23 @@
 ---
-title: "Isaacus integration"
-description: "Integrate with the Isaacus embedding model using LangChain Python."
+title: "Isaacus 集成"
+description: "使用 LangChain Python 与 Isaacus 嵌入模型进行集成。"
 ---
 
-This guide walks you through how to get started generating legal embeddings using [Isaacus'](/oss/python/integrations/providers/isaacus) LangChain integration.
+本指南将引导您开始使用 [Isaacus](/oss/python/integrations/providers/isaacus) 的 LangChain 集成来生成法律嵌入。
 
-## 1. Set up your account
+## 1. 设置您的账户
 
-Head to the [Isaacus Platform](https://platform.isaacus.com/accounts/signup/) to create a new account.
+前往 [Isaacus 平台](https://platform.isaacus.com/accounts/signup/) 创建新账户。
 
-Once signed up, [add a payment method](https://platform.isaacus.com/billing/) to claim your [free credits](https://docs.isaacus.com/pricing/credits).
+注册完成后，[添加支付方式](https://platform.isaacus.com/billing/) 以领取您的[免费额度](https://docs.isaacus.com/pricing/credits)。
 
-After adding a payment method, [create a new API key](https://platform.isaacus.com/users/api-keys/).
+添加支付方式后，[创建新的 API 密钥](https://platform.isaacus.com/users/api-keys/)。
 
-Make sure to keep your API key safe. You won't be able to see it again after you create it. But don't worry, you can always generate a new one.
+请妥善保管您的 API 密钥。创建后您将无法再次查看它。但请放心，您随时可以生成一个新的。
 
-## 2. Install the isaacus API client
+## 2. 安装 isaacus API 客户端
 
-Now that your account is set up, install the [Isaacus LangChain](https://pypi.org/project/langchain-isaacus/) integration package.
+账户设置完成后，请安装 [Isaacus LangChain](https://pypi.org/project/langchain-isaacus/) 集成包。
 
 <CodeGroup>
 ```bash pip
@@ -29,25 +29,25 @@ uv add langchain-isaacus
 ```
 </CodeGroup>
 
-## 3. Embed a document
+## 3. 嵌入文档
 
-With our API client installed, let's embed our first legal query and document.
+安装好 API 客户端后，让我们开始嵌入第一个法律查询和文档。
 
-To start, you need to **initialize the client with your API key**. You can do this by setting the `ISAACUS_API_KEY` environment variable or by passing it directly, which is what we're doing in this example.
+首先，您需要**使用 API 密钥初始化客户端**。您可以通过设置 `ISAACUS_API_KEY` 环境变量或直接传递该密钥来实现，本示例采用直接传递的方式。
 
-We're going to use [Kanon 2 Embedder](https://isaacus.com/blog/introducing-kanon-2-embedder), the world's most accurate legal embedding model on the [Massive Legal Embedding Benchmark](https://isaacus.com/blog/introducing-mleb) as of 20 October 2025.
+我们将使用 [Kanon 2 Embedder](https://isaacus.com/blog/introducing-kanon-2-embedder)，截至 2025 年 10 月 20 日，它是 [Massive Legal Embedding Benchmark](https://isaacus.com/blog/introducing-mleb) 上全球最准确的法律嵌入模型。
 
 ```python
 from langchain_isaacus import IsaacusEmbeddings
 
-# Create an Isaacus API client for Kanon 2 Embedder.
+# 为 Kanon 2 Embedder 创建 Isaacus API 客户端。
 client = IsaacusEmbeddings(
     model="kanon-2-embedder",
     api_key="PASTE_YOUR_API_KEY_HERE",
-    # dimensions=1792, # You may optionally wish to specify a lower dimension.
+    # dimensions=1792, # 您可以选择指定一个较低的维度。
 )
 ```
-Next, let's grab a legal document to embed. For this example, we'll use [GitHub's terms of service](https://github.com/terms).
+接下来，让我们获取一个要嵌入的法律文档。在本示例中，我们将使用 [GitHub 的服务条款](https://github.com/terms)。
 
 ```python
 import isaacus
@@ -55,28 +55,28 @@ import isaacus
 tos = isaacus.Isaacus().get(path="https://examples.isaacus.com/github-tos.md", cast_to=str)
 ```
 
-We're interested in retrieving the GitHub terms of service given a search query about it.
+我们的目标是根据相关搜索查询检索 GitHub 服务条款。
 
-To do that, we'll first embed the document using the `.embed_documents()` method of our API client. Using this method indicates that we're embedding a document (as opposed to a search query) which is important for ensuring that our embeddings are optimized for retrieval (as opposed to other tasks like classification or sentence similarity).
+为此，我们将首先使用 API 客户端的 `.embed_documents()` 方法对文档进行嵌入。使用此方法表明我们正在嵌入文档（而非搜索查询），这对于确保我们的嵌入向量针对检索任务进行了优化（而非分类或句子相似度等其他任务）至关重要。
 
 ```python
 document_embedding = client.embed_documents(texts=[tos])[0]
 ```
 
-Now, let's embed two search queries, one that is clearly relevant to the document and another that is clearly irrelevant. This time we'll use the `.embed_query()` method of our API client, which indicates that we're embedding a search query.
+现在，让我们嵌入两个搜索查询：一个与文档明显相关，另一个明显不相关。这次我们将使用 API 客户端的 `.embed_query()` 方法，该方法表明我们正在嵌入搜索查询。
 
 ```python
 relevant_query_embedding = client.embed_query(text="What are GitHub's billing policies?")
 irrelevant_query_embedding = client.embed_query(text="What are Microsoft's billing policies?")
 ```
 
-To assess the relevance of the queries to the document, we can compute the cosine similarity between their embeddings and the document embedding.
+为了评估查询与文档的相关性，我们可以计算它们各自的嵌入向量与文档嵌入向量之间的余弦相似度。
 
-Cosine similarity measures how similar two sets of numbers are (specifically, the cosine of the angle between two vectors in an inner product space). In theory, it ranges from $$-1$$ to $$1$$, with $$1$$ indicating that the vectors are identical, $$0$$ indicating that they are orthogonal (i.e., completely dissimilar), and $$-1$$ indicating that they are diametrically opposed. In practice, however, it tends to range from $$0$$ to $$1$$ for text embeddings (since they are usually non-negative).
+余弦相似度用于衡量两组数字的相似程度（具体而言，是内积空间中两个向量之间夹角的余弦值）。理论上，其取值范围为 $$-1$$ 到 $$1$$，其中 $$1$$ 表示向量完全相同，$$0$$ 表示向量正交（即完全不相似），$$-1$$ 表示向量完全相反。然而在实际应用中，文本嵌入向量的余弦相似度通常介于 $$0$$ 到 $$1$$ 之间（因为它们通常为非负值）。
 
-Isaacus' embedders have been optimized such that the cosine similarity of the embeddings they produce roughly corresponds to how similar the original texts are in meaning. Unlike Isaacus' universal classifiers, however, Isaacus embedders' scores have not been calibrated to be interpreted as probabilities, only as relative measures of similarity, making them most useful for ranking search results.
+Isaacus 的嵌入模型经过优化，使其生成的嵌入向量的余弦相似度大致对应于原始文本在语义上的相似程度。然而，与 Isaacus 的通用分类器不同，Isaacus 嵌入模型的得分并未校准为概率解释，仅作为相似度的相对度量，因此它们在排序搜索结果时最为有用。
 
-For the sake of convenience, our Python example uses [`numpy`](https://numpy.org/)'s `dot` function to compute the dot product of our embeddings (which is equivalent to their cosine similarity since all our embeddings are L2-normalized). If you prefer, you can use another library to compute the cosine similarity of the embeddings (e.g., [`torch`](https://pytorch.org/) via `torch.nn.functional.cosine_similarity`), or you could write your own implementation.
+为方便起见，我们的 Python 示例使用了 [`numpy`](https://numpy.org/) 的 `dot` 函数来计算嵌入向量的点积（由于所有嵌入向量均已进行 L2 归一化，点积等价于余弦相似度）。如果您愿意，也可以使用其他库来计算嵌入向量的余弦相似度（例如通过 [`torch`](https://pytorch.org/) 的 `torch.nn.functional.cosine_similarity`），或者自行编写实现代码。
 
 ```python
 import numpy as np
@@ -88,23 +88,23 @@ print(f"Similarity of relevant query to the document: {relevant_similarity * 100
 print(f"Similarity of irrelevant query to the document: {irrelevant_similarity * 100:.2f}")
 ```
 
-The output should look something like this:
+输出结果应类似于以下内容：
 ```
 Similarity of relevant query to the document: 52.87
 Similarity of irrelevant query to the document: 24.86
 ```
 
-As you should see, the relevant query has a much higher similarity score to the document than the irrelevant query, indicating that our embedder has successfully captured the semantic meaning of the texts.
+正如您所看到的，相关查询与文档的相似度分数远高于不相关查询，这表明我们的嵌入模型已成功捕捉到了文本的语义含义。
 
-And that's it! You've just successfully embedded a legal document and queries using the Isaacus API with LangChain.
+以上就是全部内容！您已成功使用 LangChain 结合 Isaacus API 完成了法律文档和查询的嵌入。
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/embeddings/isaacus.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/embeddings/isaacus.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档](/use-these-docs) 通过 MCP 连接到 Claude、VSCode 等工具，以获取实时答案。
 </Callout>
 </div>

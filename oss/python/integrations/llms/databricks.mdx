@@ -1,39 +1,39 @@
 ---
-title: "Databricks integration"
-description: "Integrate with the Databricks LLM using LangChain Python."
+title: "Databricks 集成"
+description: "使用 LangChain Python 与 Databricks LLM 进行集成。"
 ---
 
-> [Databricks](https://www.databricks.com/) Lakehouse Platform unifies data, analytics, and AI on one platform.
+> [Databricks](https://www.databricks.com/) Lakehouse 平台将数据、分析和人工智能统一在一个平台上。
 
-This guide provides a quick overview for getting started with Databricks [LLM models](https://python.langchain.com/docs/concepts/text_llms). For detailed documentation of all features and configurations head to the [API reference](https://reference.langchain.com/python/langchain-community/llms/databricks/Databricks).
+本指南提供了快速入门 Databricks [LLM 模型](https://python.langchain.com/docs/concepts/text_llms)的概述。如需所有功能和配置的详细文档，请前往 [API 参考](https://reference.langchain.com/python/langchain-community/llms/databricks/Databricks)。
 
-## Overview
+## 概述
 
-`Databricks` LLM class wraps a completion endpoint hosted as either of these two endpoint types:
+`Databricks` LLM 类封装了一个补全端点，该端点托管为以下两种端点类型之一：
 
-* [Databricks Model Serving](https://docs.databricks.com/en/machine-learning/model-serving/index.html), recommended for production and development,
-* Cluster driver proxy app, recommended for interactive development.
+* [Databricks Model Serving](https://docs.databricks.com/en/machine-learning/model-serving/index.html)，推荐用于生产和开发，
+* 集群驱动代理应用（Cluster driver proxy app），推荐用于交互式开发。
 
-This example notebook shows how to wrap your LLM endpoint and use it as an LLM in your LangChain application.
+此示例笔记本展示了如何封装您的 LLM 端点，并在 LangChain 应用中将其作为 LLM 使用。
 
-## Limitations
+## 限制
 
-The `Databricks` LLM class is *legacy* implementation and has several limitations in the feature compatibility.
+`Databricks` LLM 类是*遗留*实现，在功能兼容性方面存在若干限制。
 
-* Only supports synchronous invocation. Streaming or async APIs are not supported.
-* `batch` API is not supported.
+* 仅支持同步调用。不支持流式传输或异步 API。
+* 不支持 `batch` API。
 
-To use those features, please use the new [ChatDatabricks](https://python.langchain.com/docs/integrations/chat/databricks) class instead. `ChatDatabricks` supports all APIs of `ChatModel` including streaming, async, batch, etc.
+要使用这些功能，请使用新的 [ChatDatabricks](https://python.langchain.com/docs/integrations/chat/databricks) 类。`ChatDatabricks` 支持 `ChatModel` 的所有 API，包括流式传输、异步、批处理等。
 
-## Setup
+## 设置
 
-To access Databricks models you'll need to create a Databricks account, set up credentials (only if you are outside Databricks workspace), and install required packages.
+要访问 Databricks 模型，您需要创建一个 Databricks 账户，设置凭据（仅在 Databricks 工作区外部时需要），并安装所需的软件包。
 
-### Credentials (only if you are outside databricks)
+### 凭据（仅在 Databricks 外部时）
 
-If you are running LangChain app inside Databricks, you can skip this step.
+如果您在 Databricks 内部运行 LangChain 应用，可以跳过此步骤。
 
-Otherwise, you need manually set the Databricks workspace hostname and personal access token to `DATABRICKS_HOST` and `DATABRICKS_TOKEN` environment variables, respectively. See [Authentication Documentation](https://docs.databricks.com/en/dev-tools/auth/index.html#databricks-personal-access-tokens) for how to get an access token.
+否则，您需要手动将 Databricks 工作区主机名和个人访问令牌分别设置为 `DATABRICKS_HOST` 和 `DATABRICKS_TOKEN` 环境变量。有关如何获取访问令牌的说明，请参阅 [身份验证文档](https://docs.databricks.com/en/dev-tools/auth/index.html#databricks-personal-access-tokens)。
 
 ```python
 import getpass
@@ -46,41 +46,41 @@ if "DATABRICKS_TOKEN" not in os.environ:
     )
 ```
 
-Alternatively, you can pass those parameters when initializing the `Databricks` class.
+或者，您可以在初始化 `Databricks` 类时传递这些参数。
 
 ```python
 from langchain_community.llms import Databricks
 
 databricks = Databricks(
     host="https://your-workspace.cloud.databricks.com",
-    # We strongly recommend NOT to hardcode your access token in your code, instead use secret management tools
-    # or environment variables to store your access token securely. The following example uses Databricks Secrets
-    # to retrieve the access token that is available within the Databricks notebook.
+    # 我们强烈建议不要在代码中硬编码您的访问令牌，而是使用密钥管理工具
+    # 或环境变量来安全地存储您的访问令牌。以下示例使用 Databricks Secrets
+    # 来获取 Databricks 笔记本中可用的访问令牌。
     token=dbutils.secrets.get(scope="YOUR_SECRET_SCOPE", key="databricks-token"),
 )
 ```
 
-### Installation
+### 安装
 
-The LangChain Databricks integration lives in the `langchain-community` package. Also, `mlflow >= 2.9` is required to run the code in this notebook.
+LangChain Databricks 集成位于 `langchain-community` 软件包中。此外，运行此笔记本中的代码需要 `mlflow >= 2.9`。
 
 ```python
 pip install -qU langchain-community mlflow>=2.9.0
 ```
 
-## Wrapping model serving endpoint
+## 封装模型服务端点
 
-### Prerequisites
+### 前提条件
 
-* An LLM was registered and deployed to [a Databricks serving endpoint](https://docs.databricks.com/machine-learning/model-serving/index.html).
-* You have ["Can Query" permission](https://docs.databricks.com/security/auth-authz/access-control/serving-endpoint-acl.html) to the endpoint.
+* 已注册并将 LLM 部署到 [Databricks 服务端点](https://docs.databricks.com/machine-learning/model-serving/index.html)。
+* 您拥有该端点的“可查询”（Can Query）权限。
 
-The expected MLflow model signature is:
+预期的 MLflow 模型签名如下：
 
-* inputs: `[{"name": "prompt", "type": "string"}, {"name": "stop", "type": "list[string]"}]`
-* outputs: `[{"type": "string"}]`
+* 输入：`[{"name": "prompt", "type": "string"}, {"name": "stop", "type": "list[string]"}]`
+* 输出：`[{"type": "string"}]`
 
-### Invocation
+### 调用
 
 ```python
 from langchain_community.llms import Databricks
@@ -101,14 +101,14 @@ llm.invoke("How are you?", stop=["."])
 'Good'
 ```
 
-### Transform input and output
+### 转换输入和输出
 
-Sometimes you may want to wrap a serving endpoint that has incompatible model signature or you want to insert extra configs. You can use the `transform_input_fn` and `transform_output_fn` arguments to define additional pre/post process.
+有时您可能希望封装具有不兼容模型签名的服务端点，或者希望插入额外的配置。您可以使用 `transform_input_fn` 和 `transform_output_fn` 参数来定义额外的预处理/后处理逻辑。
 
 ```python
-# Use `transform_input_fn` and `transform_output_fn` if the serving endpoint
-# expects a different input schema and does not return a JSON string,
-# respectively, or you want to apply a prompt template on top.
+# 如果服务端点
+# 期望不同的输入模式且不返回 JSON 字符串，
+# 或者您想在此基础上应用提示词模板，请使用 `transform_input_fn` 和 `transform_output_fn`。
 
 
 def transform_input(**request):
@@ -140,9 +140,9 @@ llm.invoke("How are you?")
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/llms/databricks.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/llms/databricks.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [连接这些文档](/use-these-docs) 至 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 </div>
