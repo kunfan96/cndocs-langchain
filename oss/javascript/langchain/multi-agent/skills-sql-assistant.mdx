@@ -1,45 +1,45 @@
 ---
-title: Build a SQL assistant with on-demand skills
-sidebarTitle: "Skills: SQL assistant"
+title: 使用按需技能构建 SQL 助手
+sidebarTitle: "技能：SQL 助手"
 ---
 
 import ChatModelTabsPy from '/snippets/chat-model-tabs.mdx';
 import ChatModelTabsJs from '/snippets/chat-model-tabs-js.mdx';
 
-This tutorial shows how to use **progressive disclosure** - a context management technique where the agent loads information on-demand rather than upfront - to implement **skills** (specialized prompt-based instructions). The agent loads skills via tool calls, rather than dynamically changing the system prompt, discovering and loading only the skills it needs for each task.
+本教程展示如何使用**渐进式披露**——一种上下文管理技术，其中代理按需加载信息而非预先加载——来实现**技能**（基于提示的专门指令）。代理通过工具调用加载技能，而不是动态更改系统提示，仅发现并加载每个任务所需的技能。
 
-**Use case:** Imagine building an agent to help write SQL queries across different business verticals in a large enterprise. Your organization might have separate datastores for each vertical, or a single monolithic database with thousands of tables. Either way, loading all schemas upfront would overwhelm the context window. Progressive disclosure solves this by loading only the relevant schema when needed. This architecture also enables different product owners and stakeholders to independently contribute and maintain skills for their specific business verticals.
+**用例：** 想象构建一个代理，帮助在大型企业中跨不同业务垂直领域编写 SQL 查询。您的组织可能为每个垂直领域拥有单独的数据存储，或一个包含数千张表的单一整体数据库。无论哪种情况，预先加载所有模式都会使上下文窗口不堪重负。渐进式披露通过仅在需要时加载相关模式来解决此问题。此架构还使不同的产品负责人和利益相关者能够独立贡献和维护其特定业务垂直领域的技能。
 
-**What you'll build:** A SQL query assistant with two skills (sales analytics and inventory management). The agent sees lightweight skill descriptions in its system prompt, then loads full database schemas and business logic through tool calls only when relevant to the user's query.
+**您将构建什么：** 一个具有两种技能（销售分析和库存管理）的 SQL 查询助手。代理在其系统提示中看到轻量级技能描述，然后仅在与用户查询相关时通过工具调用加载完整的数据库模式和业务逻辑。
 
 <Note>
-For a complete example of a SQL agent with query execution, error correction, and validation, see our [SQL Agent tutorial](/oss/javascript/langchain/sql-agent). This tutorial focuses on the progressive disclosure pattern which can be applied to any domain.
+有关具有查询执行、错误纠正和验证功能的 SQL 代理的完整示例，请参阅我们的 [SQL 代理教程](/oss/javascript/langchain/sql-agent)。本教程重点介绍渐进式披露模式，该模式可应用于任何领域。
 </Note>
 
 <Tip>
-Progressive disclosure was popularized by Anthropic as a technique for building scalable agent skills systems. This approach uses a three-level architecture (metadata → core content → detailed resources) where agents load information only as needed. For more on this technique, see [Equipping agents for the real world with Agent Skills](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills).
+渐进式披露由 Anthropic 推广，作为构建可扩展代理技能系统的技术。此方法使用三级架构（元数据 → 核心内容 → 详细资源），代理仅在需要时加载信息。有关此技术的更多信息，请参阅 [使用代理技能为代理配备现实世界](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills)。
 </Tip>
 
-## How it works
+## 工作原理
 
-Here's the flow when a user asks for a SQL query:
+当用户请求 SQL 查询时，流程如下：
 
 ```mermaid
 %%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#4CAF50','primaryTextColor':'#fff','primaryBorderColor':'#2E7D32','lineColor':'#666','secondaryColor':'#FF9800','tertiaryColor':'#2196F3','tertiaryBorderColor':'#1565C0','tertiaryTextColor':'#fff'}}}%%
 flowchart TD
-    Start([💬 User: Write SQL query<br/>for high-value customers]) --> SystemPrompt[📋 Agent sees skill descriptions:<br/>• sales_analytics<br/>• inventory_management]
+    Start([💬 用户：为高价值客户编写 SQL 查询]) --> SystemPrompt[📋 代理看到技能描述：<br/>• sales_analytics<br/>• inventory_management]
 
-    SystemPrompt --> Decide{🤔 Need sales schema}
+    SystemPrompt --> Decide{🤔 需要销售模式}
 
     Decide --> LoadSkill[🔧 load_skill<br/>'sales_analytics']
 
-    LoadSkill --> Schema[📊 Schema loaded:<br/>customers, orders tables<br/>+ business logic]
+    LoadSkill --> Schema[📊 模式已加载：<br/>customers、orders 表<br/>+ 业务逻辑]
 
-    Schema --> WriteQuery[✍️ Agent writes SQL query<br/>using schema knowledge]
+    Schema --> WriteQuery[✍️ 代理编写 SQL 查询<br/>使用模式知识]
 
-    WriteQuery --> Response([✅ Returns valid SQL<br/>following business rules])
+    WriteQuery --> Response([✅ 返回有效 SQL<br/>遵循业务规则])
 
-    %% Styling for light and dark modes
+    %% 为浅色和深色模式设置样式
     classDef startEnd fill:#DCFCE7,stroke:#16A34A,stroke-width:2px,color:#14532D
     classDef process fill:#FEF3C7,stroke:#F59E0B,stroke-width:2px,color:#78350F
     classDef decision fill:#DBEAFE,stroke:#2563EB,stroke-width:2px,color:#1E3A8A
@@ -51,42 +51,40 @@ flowchart TD
     class Schema enrichment
 ```
 
-**Why progressive disclosure:**
-- **Reduces context usage** - load only the 2-3 skills needed for a task, not all available skills
-- **Enables team autonomy** - different teams can develop specialized skills independently (similar to other multi-agent architectures)
-- **Scales efficiently** - add dozens or hundreds of skills without overwhelming context
-- **Simplifies conversation history** - single agent with one conversation thread
+**为什么使用渐进式披露：**
+- **减少上下文使用** - 仅加载任务所需的 2-3 个技能，而非所有可用技能
+- **实现团队自主性** - 不同团队可以独立开发专门技能（类似于其他多代理架构）
+- **高效扩展** - 添加数十或数百个技能而不会使上下文不堪重负
+- **简化对话历史** - 具有单个对话线程的单一代理
 
-**What are skills:** Skills, as popularized by Claude Code, are primarily prompt-based: self-contained units of specialized instructions for specific business tasks. In Claude Code, skills are exposed as directories with files on the file system, discovered through file operations. Skills guide behavior through prompts and can provide information about tool usage or include sample code for a coding agent to execute.
-
-<Tip>
-Skills with progressive disclosure can be viewed as a form of [RAG (Retrieval-Augmented Generation)](/oss/javascript/langchain/rag), where each skill is a retrieval unit—though not necessarily backed by embeddings or keyword search, but by tools for browsing content (like file operations or, in this tutorial, direct lookup).
-</Tip>
-
-**Trade-offs:**
-- **Latency**: Loading skills on-demand requires additional tool calls, which adds latency to the first request that needs each skill
-- **Workflow control**: Basic implementations rely on prompting to guide skill usage - you cannot enforce hard constraints like "always try skill A before skill B" without custom logic
+**什么是技能：** 技能（如 Claude Code 所推广）主要是基于提示的：针对特定业务任务的自包含专门指令单元。在 Claude Code 中，技能作为目录和文件系统上的文件公开，通过文件操作发现。技能通过提示指导行为，并可以提供有关工具使用的信息或包含供编码代理执行的示例代码。
 
 <Tip>
-**Implementing your own skills system**
-
-When building your own skills implementation (as we do in this tutorial), the core concept is progressive disclosure - loading information on-demand. Beyond that, you have full flexibility in implementation:
-
-- **Storage**: databases, S3, in-memory data structures, or any backend
-- **Discovery**: direct lookup (this tutorial), RAG for large skill collections, file system scanning, or API calls
-- **Loading logic**: customize latency characteristics and add logic to search through skill content or rank relevance
-- **Side effects**: define what happens when a skill loads, such as exposing tools associated with that skill (covered in section 8)
-
-This flexibility lets you optimize for your specific requirements around performance, storage, and workflow control.
+具有渐进式披露的技能可视为 [RAG（检索增强生成）](/oss/javascript/langchain/rag) 的一种形式，其中每个技能都是一个检索单元——尽管不一定由嵌入或关键词搜索支持，而是由浏览内容的工具（如文件操作或在本教程中直接查找）支持。
 </Tip>
 
-## Setup
+**权衡：**
+- **延迟**：按需加载技能需要额外的工具调用，这会增加首次需要每个技能的请求的延迟
+- **工作流控制**：基本实现依赖于提示来指导技能使用——您无法在没有自定义逻辑的情况下强制执行硬性约束，例如“始终在技能 B 之前尝试技能 A”
 
-### Installation
+<Tip>
+**实现您自己的技能系统**
 
-This tutorial requires the `langchain` package:
+在构建您自己的技能实现时（如本教程中所做），核心概念是渐进式披露——按需加载信息。除此之外，您在实现方面拥有完全的灵活性：
 
+- **存储**：数据库、S3、内存数据结构或任何后端
+- **发现**：直接查找（本教程）、用于大型技能集合的 RAG、文件系统扫描或 API 调用
+- **加载逻辑**：自定义延迟特性并添加逻辑以搜索技能内容或对相关性进行排名
+- **副作用**：定义技能加载时发生的情况，例如公开与该技能关联的工具（在第 8 节中介绍）
 
+此灵活性使您可以根据性能、存储和工作流控制的具体要求进行优化。
+</Tip>
+
+## 设置
+
+### 安装
+
+本教程需要 `langchain` 包：
 
 <CodeGroup>
 ```bash npm
@@ -100,14 +98,11 @@ pnpm add langchain
 ```
 </CodeGroup>
 
-
-For more details, see our [Installation guide](/oss/javascript/langchain/install).
+有关更多详细信息，请参阅我们的 [安装指南](/oss/javascript/langchain/install)。
 
 ### LangSmith
 
-Set up [LangSmith](https://smith.langchain.com) to inspect what is happening inside your agent. Then set the following environment variables:
-
-
+设置 [LangSmith](https://smith.langchain.com) 以检查代理内部发生的情况。然后设置以下环境变量：
 
 <CodeGroup>
 ```bash bash
@@ -120,41 +115,32 @@ process.env.LANGSMITH_API_KEY = "...";
 ```
 </CodeGroup>
 
+### 选择 LLM
 
-### Select an LLM
-
-Select a chat model from LangChain's suite of integrations:
-
-
+从 LangChain 的集成套件中选择一个聊天模型：
 
 <ChatModelTabsJs />
 
+## 1. 定义技能
 
-## 1. Define skills
-
-First, define the structure for skills. Each skill has a name, a brief description (shown in the system prompt), and full content (loaded on-demand):
-
-
+首先，定义技能的结构。每个技能都有一个名称、一个简短描述（显示在系统提示中）和完整内容（按需加载）：
 
 ```typescript
 import { z } from "zod";
 
-// A skill that can be progressively disclosed to the agent
+// 一个可以逐步披露给代理的技能
 const SkillSchema = z.object({  // [!code highlight]
-  name: z.string(),  // Unique identifier for the skill
-  description: z.string(),  // 1-2 sentence description to show in system prompt
-  content: z.string(),  // Full skill content with detailed instructions
+  name: z.string(),  // 技能的唯一标识符
+  description: z.string(),  // 1-2 句描述，显示在系统提示中
+  content: z.string(),  // 包含详细说明的完整技能内容
 });
 
 type Skill = z.infer<typeof SkillSchema>;
 ```
 
+现在为 SQL 查询助手定义示例技能。这些技能设计为**描述轻量级**（预先显示给代理），但**内容详细**（仅在需要时加载）：
 
-Now define example skills for a SQL query assistant. The skills are designed to be **lightweight in description** (shown to the agent upfront) but **detailed in content** (loaded only when needed):
-
-<Accordion title="View complete skill definitions">
-
-
+<Accordion title="查看完整的技能定义">
 
 ```typescript
 import { context } from "langchain";
@@ -163,14 +149,14 @@ const SKILLS: Skill[] = [
   {
     name: "sales_analytics",
     description:
-      "Database schema and business logic for sales data analysis including customers, orders, and revenue.",
+      "用于销售数据分析的数据库模式和业务逻辑，包括客户、订单和收入。",
     content: context`
-    # Sales Analytics Schema
+    # 销售分析模式
 
-    ## Tables
+    ## 表
 
     ### customers
-    - customer_id (PRIMARY KEY)
+    - customer_id (主键)
     - name
     - email
     - signup_date
@@ -178,39 +164,39 @@ const SKILLS: Skill[] = [
     - customer_tier (bronze/silver/gold/platinum)
 
     ### orders
-    - order_id (PRIMARY KEY)
-    - customer_id (FOREIGN KEY -> customers)
+    - order_id (主键)
+    - customer_id (外键 -> customers)
     - order_date
     - status (pending/completed/cancelled/refunded)
     - total_amount
     - sales_region (north/south/east/west)
 
     ### order_items
-    - item_id (PRIMARY KEY)
-    - order_id (FOREIGN KEY -> orders)
+    - item_id (主键)
+    - order_id (外键 -> orders)
     - product_id
     - quantity
     - unit_price
     - discount_percent
 
-    ## Business Logic
+    ## 业务逻辑
 
-    **Active customers**:
+    **活跃客户**：
     status = 'active' AND signup_date <= CURRENT_DATE - INTERVAL '90 days'
 
-    **Revenue calculation**:
-    Only count orders with status = 'completed'.
-    Use total_amount from orders table, which already accounts for discounts.
+    **收入计算**：
+    仅计算状态为 'completed' 的订单。
+    使用 orders 表中的 total_amount，该字段已考虑折扣。
 
-    **Customer lifetime value (CLV)**:
-    Sum of all completed order amounts for a customer.
+    **客户终身价值 (CLV)**：
+    客户所有已完成订单金额的总和。
 
-    **High-value orders**:
-    Orders with total_amount > 1000
+    **高价值订单**：
+    total_amount > 1000 的订单
 
-    ## Example Query
+    ## 示例查询
 
-    -- Get top 10 customers by revenue in the last quarter
+    -- 获取上一季度按收入排名的前 10 名客户
     SELECT
         c.customer_id,
         c.name,
@@ -227,61 +213,60 @@ const SKILLS: Skill[] = [
   {
     name: "inventory_management",
     description:
-      "Database schema and business logic for inventory tracking including products, warehouses, and stock levels.",
+      "用于库存跟踪的数据库模式和业务逻辑，包括产品、仓库和库存水平。",
     content: context`
-    # Inventory Management Schema
+    # 库存管理模式
 
-    ## Tables
+    ## 表
 
     ### products
-    - product_id (PRIMARY KEY)
+    - product_id (主键)
     - product_name
     - sku
     - category
     - unit_cost
-    - reorder_point (minimum stock level before reordering)
-    - discontinued (boolean)
+    - reorder_point (重新订购前的最低库存水平)
+    - discontinued (布尔值)
 
     ### warehouses
-    - warehouse_id (PRIMARY KEY)
+    - warehouse_id (主键)
     - warehouse_name
     - location
     - capacity
 
     ### inventory
-    - inventory_id (PRIMARY KEY)
-    - product_id (FOREIGN KEY -> products)
-    - warehouse_id (FOREIGN KEY -> warehouses)
+    - inventory_id (主键)
+    - product_id (外键 -> products)
+    - warehouse_id (外键 -> warehouses)
     - quantity_on_hand
     - last_updated
 
     ### stock_movements
-    - movement_id (PRIMARY KEY)
-    - product_id (FOREIGN KEY -> products)
-    - warehouse_id (FOREIGN KEY -> warehouses)
+    - movement_id (主键)
+    - product_id (外键 -> products)
+    - warehouse_id (外键 -> warehouses)
     - movement_type (inbound/outbound/transfer/adjustment)
-    - quantity (positive for inbound, negative for outbound)
+    - quantity (正数表示入库，负数表示出库)
     - movement_date
     - reference_number
 
-    ## Business Logic
+    ## 业务逻辑
 
-    **Available stock**:
-    quantity_on_hand from inventory table where quantity_on_hand > 0
+    **可用库存**：
+    inventory 表中 quantity_on_hand > 0 的记录
 
-    **Products needing reorder**:
-    Products where total quantity_on_hand across all warehouses is less
-    than or equal to the product's reorder_point
+    **需要重新订购的产品**：
+    所有仓库中总 quantity_on_hand 小于或等于产品 reorder_point 的产品
 
-    **Active products only**:
-    Exclude products where discontinued = true unless specifically analyzing discontinued items
+    **仅限活跃产品**：
+    排除 discontinued = true 的产品，除非专门分析已停产的项目
 
-    **Stock valuation**:
-    quantity_on_hand * unit_cost for each product
+    **库存估值**：
+    每个产品的 quantity_on_hand * unit_cost
 
-    ## Example Query
+    ## 示例查询
 
-    -- Find products below reorder point across all warehouses
+    -- 查找所有仓库中低于重新订购点的产品
     SELECT
         p.product_id,
         p.product_name,
@@ -299,14 +284,11 @@ const SKILLS: Skill[] = [
 ];
 ```
 
-
 </Accordion>
 
-## 2. Create skill loading tool
+## 2. 创建技能加载工具
 
-Create a tool to load full skill content on-demand:
-
-
+创建一个工具，用于按需加载完整的技能内容：
 
 ```typescript
 import { tool } from "langchain";
@@ -314,47 +296,42 @@ import { z } from "zod";
 
 const loadSkill = tool(  // [!code highlight]
   async ({ skillName }) => {
-    // Find and return the requested skill
+    // 查找并返回请求的技能
     const skill = SKILLS.find((s) => s.name === skillName);
     if (skill) {
       return `Loaded skill: ${skillName}\n\n${skill.content}`;  // [!code highlight]
     }
 
-    // Skill not found
+    // 未找到技能
     const available = SKILLS.map((s) => s.name).join(", ");
     return `Skill '${skillName}' not found. Available skills: ${available}`;
   },
   {
     name: "load_skill",
-    description: `Load the full content of a skill into the agent's context.
+    description: `将技能的完整内容加载到代理的上下文中。
 
-Use this when you need detailed information about how to handle a specific
-type of request. This will provide you with comprehensive instructions,
-policies, and guidelines for the skill area.`,
+当您需要有关如何处理特定类型请求的详细信息时使用此工具。这将为您提供全面的说明、政策和指南。`,
     schema: z.object({
-      skillName: z.string().describe("The name of the skill to load"),
+      skillName: z.string().describe("要加载的技能名称"),
     }),
   }
 );
 ```
 
+`load_skill` 工具将完整的技能内容作为字符串返回，该字符串作为 ToolMessage 成为对话的一部分。有关创建和使用工具的更多详细信息，请参阅 [工具指南](/oss/javascript/langchain/tools)。
 
-The `load_skill` tool returns the full skill content as a string, which becomes part of the conversation as a ToolMessage. For more details on creating and using tools, see the [Tools guide](/oss/javascript/langchain/tools).
+## 3. 构建技能中间件
 
-## 3. Build skill middleware
-
-Create custom middleware that injects skill descriptions into the system prompt. This middleware makes skills discoverable without loading their full content upfront.
+创建自定义中间件，将技能描述注入系统提示。此中间件使技能可发现，而无需预先加载其完整内容。
 
 <Note>
-This guide demonstrates creating custom middleware. For a comprehensive guide on middleware concepts and patterns, see the [custom middleware documentation](/oss/javascript/langchain/middleware/custom).
+本指南演示如何创建自定义中间件。有关中间件概念和模式的综合指南，请参阅 [自定义中间件文档](/oss/javascript/langchain/middleware/custom)。
 </Note>
-
-
 
 ```typescript
 import { createMiddleware } from "langchain";
 
-// Build skills prompt from the SKILLS list
+// 从 SKILLS 列表构建技能提示
 const skillsPrompt = SKILLS.map(
   (skill) => `- **${skill.name}**: ${skill.description}`
 ).join("\n");
@@ -363,13 +340,12 @@ const skillMiddleware = createMiddleware({  // [!code highlight]
   name: "skillMiddleware",
   tools: [loadSkill],  // [!code highlight]
   wrapModelCall: async (request, handler) => {
-    // Build the skills addendum
+    // 构建技能附录
     const skillsAddendum =  // [!code highlight]
-      `\n\n## Available Skills\n\n${skillsPrompt}\n\n` +  // [!code highlight]
-      "Use the load_skill tool when you need detailed information " +  // [!code highlight]
-      "about handling a specific type of request.";  // [!code highlight]
+      `\n\n## 可用技能\n\n${skillsPrompt}\n\n` +  // [!code highlight]
+      "当您需要有关处理特定类型请求的详细信息时，使用 load_skill 工具。";  // [!code highlight]
 
-    // Append to system prompt
+    // 附加到系统提示
     const newSystemPrompt = request.systemPrompt + skillsAddendum;
 
     return handler({
@@ -380,78 +356,70 @@ const skillMiddleware = createMiddleware({  // [!code highlight]
 });
 ```
 
-
-The middleware appends skill descriptions to the system prompt, making the agent aware of available skills without loading their full content. The `load_skill` tool is registered as a class variable, making it available to the agent.
+中间件将技能描述附加到系统提示，使代理了解可用技能，而无需加载其完整内容。`load_skill` 工具注册为类变量，使其对代理可用。
 
 <Note>
-**Production consideration**: This tutorial loads the skill list in `__init__` for simplicity. In a production system, you may want to load skills in the `before_agent` hook instead, allowing them to be refreshed periodically to reflect up-to-date changes (e.g., when new skills are added or existing ones are modified). See the [before_agent hook documentation](/oss/javascript/langchain/middleware/custom#node-style-hooks) for details.
+**生产考虑**：本教程为简单起见，在 `__init__` 中加载技能列表。在生产系统中，您可能希望在 `before_agent` 钩子中加载技能，以便定期刷新以反映最新更改（例如，添加新技能或修改现有技能）。有关详细信息，请参阅 [before_agent 钩子文档](/oss/javascript/langchain/middleware/custom#node-style-hooks)。
 </Note>
 
-## 4. Create the agent with skill support
+## 4. 创建支持技能的代理
 
-Now create the agent with the skill middleware and a checkpointer for state persistence:
-
-
+现在创建具有技能中间件和用于状态持久化的检查点的代理：
 
 ```typescript
 import { createAgent } from "langchain";
 import { MemorySaver } from "@langchain/langgraph";
 
-// Create the agent with skill support
+// 创建支持技能的代理
 const agent = createAgent({
   model,
   systemPrompt:
-    "You are a SQL query assistant that helps users " +
-    "write queries against business databases.",
+    "您是一个 SQL 查询助手，帮助用户 " +
+    "针对业务数据库编写查询。",
   middleware: [skillMiddleware],  // [!code highlight]
   checkpointer: new MemorySaver(),
 });
 ```
 
+代理现在可以在其系统提示中访问技能描述，并可以在需要时调用 `load_skill` 来检索完整的技能内容。检查点维护跨轮次的对话历史。
 
-The agent now has access to skill descriptions in its system prompt and can call `load_skill` to retrieve full skill content when needed. The checkpointer maintains conversation history across turns.
+## 5. 测试渐进式披露
 
-## 5. Test progressive disclosure
-
-Test the agent with a question that requires skill-specific knowledge:
-
-
+使用需要特定技能知识的问题测试代理：
 
 ```typescript
 import { v4 as uuidv4 } from "uuid";
 
-// Configuration for this conversation thread
+// 此对话线程的配置
 const threadId = uuidv4();
 const config = { configurable: { thread_id: threadId } };
 
-// Ask for a SQL query
+// 请求 SQL 查询
 const result = await agent.invoke(  // [!code highlight]
   {
     messages: [
       {
         role: "user",
         content:
-          "Write a SQL query to find all customers " +
-          "who made orders over $1000 in the last month",
+          "编写一个 SQL 查询，查找上个月订单金额超过 1000 美元的所有客户",
       },
     ],
   },
   config
 );
 
-// Print the conversation
+// 打印对话
 for (const message of result.messages) {
   console.log(`${message._getType()}: ${message.content}`);
 }
 ```
 
-
-Expected output:
+预期输出：
 
 ```
 ================================ Human Message =================================
 
-Write a SQL query to find all customers who made orders over $1000 in the last month
+编写一个 SQL 查询，查找上个月订单金额超过 1000 美元的所有客户
 ================================== Ai Message ==================================
 Tool Calls:
   load_skill (call_abc123)
@@ -463,12 +431,12 @@ Name: load_skill
 
 Loaded skill: sales_analytics
 
-# Sales Analytics Schema
+# 销售分析模式
 
-## Tables
+## 表
 
 ### customers
-- customer_id (PRIMARY KEY)
+- customer_id (主键)
 - name
 - email
 - signup_date
@@ -476,25 +444,25 @@ Loaded skill: sales_analytics
 - customer_tier (bronze/silver/gold/platinum)
 
 ### orders
-- order_id (PRIMARY KEY)
-- customer_id (FOREIGN KEY -> customers)
+- order_id (主键)
+- customer_id (外键 -> customers)
 - order_date
 - status (pending/completed/cancelled/refunded)
 - total_amount
 - sales_region (north/south/east/west)
 
-[... rest of schema ...]
+[... 模式其余部分 ...]
 
-## Business Logic
+## 业务逻辑
 
-**High-value orders**: Orders with `total_amount > 1000`
-**Revenue calculation**: Only count orders with `status = 'completed'`
+**高价值订单**：total_amount > 1000 的订单
+**收入计算**：仅计算状态为 'completed' 的订单
 
 ================================== Ai Message ==================================
 
-Here's a SQL query to find all customers who made orders over $1000 in the last month:
+这是一个 SQL 查询，用于查找上个月订单金额超过 1000 美元的所有客户：
 
-\`\`\`sql
+```sql
 SELECT DISTINCT
     c.customer_id,
     c.name,
@@ -506,45 +474,41 @@ WHERE o.total_amount > 1000
   AND o.status = 'completed'
   AND o.order_date >= CURRENT_DATE - INTERVAL '1 month'
 ORDER BY c.customer_id;
-\`\`\`
-
-This query:
-- Joins customers with their orders
-- Filters for high-value orders (>$1000) using the total_amount field
-- Only includes completed orders (as per the business logic)
-- Restricts to orders from the last month
-- Returns distinct customers to avoid duplicates if they made multiple qualifying orders
 ```
 
-The agent saw the lightweight skill description in its system prompt, recognized the question required sales database knowledge, called `load_skill("sales_analytics")` to get the full schema and business logic, and then used that information to write a correct query following the database conventions.
+此查询：
+- 将客户与其订单连接
+- 使用 total_amount 字段过滤高价值订单（>1000 美元）
+- 仅包括已完成订单（根据业务逻辑）
+- 限制为上个月的订单
+- 返回不同的客户，以避免同一客户多次符合条件的订单时出现重复
 
-## 6. Advanced: Add constraints with custom state
+```
 
-<Accordion title="Optional: Track loaded skills and enforce tool constraints">
+代理在其系统提示中看到轻量级技能描述，识别出问题需要销售数据库知识，调用 `load_skill("sales_analytics")` 获取完整的模式和业务逻辑，然后使用该信息编写遵循数据库约定的正确查询。
 
-You can add constraints to enforce that certain tools are only available after specific skills have been loaded. This requires tracking which skills have been loaded in custom agent state.
+## 6. 高级：使用自定义状态添加约束
 
-### Define custom state
+<Accordion title="可选：跟踪已加载的技能并强制执行工具约束">
 
-First, extend the agent state to track loaded skills:
+您可以添加约束，以强制某些工具仅在特定技能加载后才可用。这需要在自定义代理状态中跟踪哪些技能已加载。
 
+### 定义自定义状态
 
+首先，扩展代理状态以跟踪已加载的技能：
 
 ```typescript
 import { StateSchema } from "@langchain/langgraph";
 import { z } from "zod";
 
 const CustomState = new StateSchema({
-  skillsLoaded: z.array(z.string()).optional(),  // Track which skills have been loaded  // [!code highlight]
+  skillsLoaded: z.array(z.string()).optional(),  // 跟踪已加载的技能  // [!code highlight]
 });
 ```
 
+### 更新 load_skill 以修改状态
 
-### Update load_skill to modify state
-
-Modify the `load_skill` tool to update state when a skill is loaded:
-
-
+修改 `load_skill` 工具，在技能加载时更新状态：
 
 ```typescript
 import { tool, ToolMessage, type ToolRuntime } from "langchain";
@@ -553,13 +517,13 @@ import { z } from "zod";
 
 const loadSkill = tool(  // [!code highlight]
   async ({ skillName }, runtime: ToolRuntime<typeof CustomState.State>) => {
-    // Find and return the requested skill
+    // 查找并返回请求的技能
     const skill = SKILLS.find((s) => s.name === skillName);
 
     if (skill) {
       const skillContent = `Loaded skill: ${skillName}\n\n${skill.content}`;
 
-      // Update state to track loaded skill
+      // 更新状态以跟踪已加载的技能
       return new Command({  // [!code highlight]
         update: {  // [!code highlight]
           messages: [  // [!code highlight]
@@ -573,7 +537,7 @@ const loadSkill = tool(  // [!code highlight]
       });  // [!code highlight]
     }
 
-    // Skill not found
+    // 未找到技能
     const available = SKILLS.map((s) => s.name).join(", ");
     return new Command({
       update: {
@@ -588,101 +552,88 @@ const loadSkill = tool(  // [!code highlight]
   },
   {
     name: "load_skill",
-    description: `Load the full content of a skill into the agent's context.`,
+    description: `将技能的完整内容加载到代理的上下文中。`,
     schema: z.object({
-      skillName: z.string().describe("The name of the skill to load"),
+      skillName: z.string().describe("要加载的技能名称"),
     }),
   }
 );
 ```
 
+### 创建受约束的工具
 
-### Create constrained tool
-
-Create a tool that's only usable after a specific skill has been loaded:
-
-
+创建一个仅在特定技能加载后才可用的工具：
 
 ```typescript
 const writeSqlQuery = tool(  // [!code highlight]
   async ({ query, vertical }, runtime: ToolRuntime<typeof CustomState.State>) => {
-    // Check if the required skill has been loaded
+    // 检查是否已加载所需技能
     const skillsLoaded = runtime.state.skillsLoaded ?? [];  // [!code highlight]
 
     if (!skillsLoaded.includes(vertical)) {  // [!code highlight]
       return (  // [!code highlight]
-        `Error: You must load the '${vertical}' skill first ` +  // [!code highlight]
-        `to understand the database schema before writing queries. ` +  // [!code highlight]
-        `Use load_skill('${vertical}') to load the schema.`  // [!code highlight]
+        `错误：您必须先加载 '${vertical}' 技能 ` +  // [!code highlight]
+        `以了解数据库模式，然后才能编写查询。 ` +  // [!code highlight]
+        `使用 load_skill('${vertical}') 加载模式。`  // [!code highlight]
       );  // [!code highlight]
     }
 
-    // Validate and format the query
+    // 验证并格式化查询
     return (
-      `SQL Query for ${vertical}:\n\n` +
+      `SQL 查询，适用于 ${vertical}：\n\n` +
       `\`\`\`sql\n${query}\n\`\`\`\n\n` +
-      `✓ Query validated against ${vertical} schema\n` +
-      `Ready to execute against the database.`
+      `✓ 查询已根据 ${vertical} 模式验证\n` +
+      `准备针对数据库执行。`
     );
   },
   {
     name: "write_sql_query",
-    description: `Write and validate a SQL query for a specific business vertical.
+    description: `为特定业务垂直领域编写和验证 SQL 查询。
 
-This tool helps format and validate SQL queries. You must load the
-appropriate skill first to understand the database schema.`,
+此工具帮助格式化和验证 SQL 查询。您必须先加载适当的技能以了解数据库模式。`,
     schema: z.object({
-      query: z.string().describe("The SQL query to write"),
-      vertical: z.string().describe("The business vertical (sales_analytics or inventory_management)"),
+      query: z.string().describe("要编写的 SQL 查询"),
+      vertical: z.string().describe("业务垂直领域（sales_analytics 或 inventory_management）"),
     }),
   }
 );
 ```
 
+### 更新中间件和代理
 
-### Update middleware and agent
-
-Update the middleware to use the custom state schema:
-
-
+更新中间件以使用自定义状态模式：
 
 ```typescript
 const skillMiddleware = createMiddleware({  // [!code highlight]
   name: "skillMiddleware",
   stateSchema: CustomState,  // [!code highlight]
   tools: [loadSkill, writeSqlQuery],  // [!code highlight]
-  // ... rest of the middleware implementation stays the same
+  // ... 中间件实现的其余部分保持不变
 });
 ```
 
-
-Create the agent with the middleware that registers the constrained tool:
-
-
+创建具有注册受约束工具的中间件的代理：
 
 ```typescript
 const agent = createAgent({
   model,
   systemPrompt:
-    "You are a SQL query assistant that helps users " +
-    "write queries against business databases.",
+    "您是一个 SQL 查询助手，帮助用户 " +
+    "针对业务数据库编写查询。",
   middleware: [skillMiddleware],  // [!code highlight]
   checkpointer: new MemorySaver(),
 });
 ```
 
-
-Now if the agent tries to use `write_sql_query` before loading the required skill, it will receive an error message prompting it to load the appropriate skill (e.g., `sales_analytics` or `inventory_management`) first. This ensures the agent has the necessary schema knowledge before attempting to validate queries.
+现在，如果代理在加载所需技能之前尝试使用 `write_sql_query`，它将收到错误消息，提示它先加载适当的技能（例如 `sales_analytics` 或 `inventory_management`）。这确保代理在尝试验证查询之前拥有必要的模式知识。
 
 </Accordion>
 
-## Complete example
+## 完整示例
 
-<Accordion title="View complete runnable script">
+<Accordion title="查看完整的可运行脚本">
 
-Here's a complete, runnable implementation combining all the pieces from this tutorial:
-
-
+以下是结合本教程所有部分的完整、可运行实现：
 
 ```typescript
 import {
@@ -698,11 +649,11 @@ import { ChatOpenAI } from "@langchain/openai";
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
 
-// A skill that can be progressively disclosed to the agent
+// 一个可以逐步披露给代理的技能
 const SkillSchema = z.object({
-  name: z.string(), // Unique identifier for the skill
-  description: z.string(), // 1-2 sentence description to show in system prompt
-  content: z.string(), // Full skill content with detailed instructions
+  name: z.string(), // 技能的唯一标识符
+  description: z.string(), // 1-2 句描述，显示在系统提示中
+  content: z.string(), // 包含详细说明的完整技能内容
 });
 
 type Skill = z.infer<typeof SkillSchema>;
@@ -711,14 +662,14 @@ const SKILLS: Skill[] = [
   {
     name: "sales_analytics",
     description:
-      "Database schema and business logic for sales data analysis including customers, orders, and revenue.",
+      "用于销售数据分析的数据库模式和业务逻辑，包括客户、订单和收入。",
     content: context`
-    # Sales Analytics Schema
+    # 销售分析模式
 
-    ## Tables
+    ## 表
 
     ### customers
-    - customer_id (PRIMARY KEY)
+    - customer_id (主键)
     - name
     - email
     - signup_date
@@ -726,37 +677,37 @@ const SKILLS: Skill[] = [
     - customer_tier (bronze/silver/gold/platinum)
 
     ### orders
-    - order_id (PRIMARY KEY)
-    - customer_id (FOREIGN KEY -> customers)
+    - order_id (主键)
+    - customer_id (外键 -> customers)
     - order_date
     - status (pending/completed/cancelled/refunded)
     - total_amount
     - sales_region (north/south/east/west)
 
     ### order_items
-    - item_id (PRIMARY KEY)
-    - order_id (FOREIGN KEY -> orders)
+    - item_id (主键)
+    - order_id (外键 -> orders)
     - product_id
     - quantity
     - unit_price
     - discount_percent
 
-    ## Business Logic
+    ## 业务逻辑
 
-    **Active customers**: status = 'active' AND signup_date <= CURRENT_DATE - INTERVAL '90 days'
+    **活跃客户**：status = 'active' AND signup_date <= CURRENT_DATE - INTERVAL '90 days'
 
-    **Revenue calculation**:
-    Only count orders with status = 'completed'. Use total_amount from orders table,
-    which already accounts for discounts.
+    **收入计算**：
+    仅计算状态为 'completed' 的订单。使用 orders 表中的 total_amount，
+    该字段已考虑折扣。
 
-    **Customer lifetime value (CLV)**:
-    Sum of all completed order amounts for a customer.
+    **客户终身价值 (CLV)**：
+    客户所有已完成订单金额的总和。
 
-    **High-value orders**:
-    Orders with total_amount > 1000
+    **高价值订单**：
+    total_amount > 1000 的订单
 
-    ## Example Query
-    -- Get top 10 customers by revenue in the last quarter
+    ## 示例查询
+    -- 获取上一季度按收入排名的前 10 名客户
     SELECT
         c.customer_id,
         c.name,
@@ -773,62 +724,60 @@ const SKILLS: Skill[] = [
   {
     name: "inventory_management",
     description:
-      "Database schema and business logic for inventory tracking including products, warehouses, and stock levels.",
+      "用于库存跟踪的数据库模式和业务逻辑，包括产品、仓库和库存水平。",
     content: context`
-    # Inventory Management Schema
+    # 库存管理模式
 
-    ## Tables
+    ## 表
 
     ### products
-    - product_id (PRIMARY KEY)
+    - product_id (主键)
     - product_name
     - sku
     - category
     - unit_cost
-    - reorder_point (minimum stock level before reordering)
-    - discontinued (boolean)
+    - reorder_point (重新订购前的最低库存水平)
+    - discontinued (布尔值)
 
     ### warehouses
-    - warehouse_id (PRIMARY KEY)
+    - warehouse_id (主键)
     - warehouse_name
     - location
     - capacity
 
     ### inventory
-    - inventory_id (PRIMARY KEY)
-    - product_id (FOREIGN KEY -> products)
-    - warehouse_id (FOREIGN KEY -> warehouses)
+    - inventory_id (主键)
+    - product_id (外键 -> products)
+    - warehouse_id (外键 -> warehouses)
     - quantity_on_hand
     - last_updated
 
     ### stock_movements
-    - movement_id (PRIMARY KEY)
-    - product_id (FOREIGN KEY -> products)
-    - warehouse_id (FOREIGN KEY -> warehouses)
+    - movement_id (主键)
+    - product_id (外键 -> products)
+    - warehouse_id (外键 -> warehouses)
     - movement_type (inbound/outbound/transfer/adjustment)
-    - quantity (positive for inbound, negative for outbound)
+    - quantity (正数表示入库，负数表示出库)
     - movement_date
     - reference_number
 
-    ## Business Logic
+    ## 业务逻辑
 
-    **Available stock**:
-    quantity_on_hand from inventory table where quantity_on_hand > 0
+    **可用库存**：
+    inventory 表中 quantity_on_hand > 0 的记录
 
-    **Products needing reorder**:
-    Products where total quantity_on_hand across all warehouses is
-    less than or equal to the product's reorder_point
+    **需要重新订购的产品**：
+    所有仓库中总 quantity_on_hand 小于或等于产品 reorder_point 的产品
 
-    **Active products only**:
-    Exclude products where discontinued = true unless specifically
-    analyzing discontinued items
+    **仅限活跃产品**：
+    排除 discontinued = true 的产品，除非专门分析已停产的项目
 
-    **Stock valuation**:
-    quantity_on_hand * unit_cost for each product
+    **库存估值**：
+    每个产品的 quantity_on_hand * unit_cost
 
-    ## Example Query
+    ## 示例查询
 
-    -- Find products below reorder point across all warehouses
+    -- 查找所有仓库中低于重新订购点的产品
     SELECT
         p.product_id,
         p.product_name,
@@ -847,30 +796,28 @@ const SKILLS: Skill[] = [
 
 // const loadSkill = tool(
 //   async ({ skillName }) => {
-//     // Find and return the requested skill
+//     // 查找并返回请求的技能
 //     const skill = SKILLS.find((s) => s.name === skillName);
 //     if (skill) {
 //       return `Loaded skill: ${skillName}\n\n${skill.content}`;
 //     }
 
-//     // Skill not found
+//     // 未找到技能
 //     const available = SKILLS.map((s) => s.name).join(", ");
 //     return `Skill '${skillName}' not found. Available skills: ${available}`;
 //   },
 //   {
 //     name: "load_skill",
-//     description: `Load the full content of a skill into the agent's context.
+//     description: `将技能的完整内容加载到代理的上下文中。
 
-// Use this when you need detailed information about how to handle a specific
-// type of request. This will provide you with comprehensive instructions,
-// policies, and guidelines for the skill area.`,
+// 当您需要有关如何处理特定类型请求的详细信息时使用此工具。这将为您提供全面的说明、政策和指南。`,
 //     schema: z.object({
-//       skillName: z.string().describe("The name of the skill to load"),
+//       skillName: z.string().describe("要加载的技能名称"),
 //     }),
 //   }
 // );
 
-// Build skills prompt from the SKILLS list
+// 从 SKILLS 列表构建技能提示
 const skillsPrompt = SKILLS.map(
   (skill) => `- **${skill.name}**: ${skill.description}`
 ).join("\n");
@@ -879,13 +826,12 @@ const skillMiddleware = createMiddleware({
   name: "skillMiddleware",
   tools: [loadSkill],
   wrapModelCall: async (request, handler) => {
-    // Build the skills addendum
+    // 构建技能附录
     const skillsAddendum =
-      `\n\n## Available Skills\n\n${skillsPrompt}\n\n` +
-      "Use the load_skill tool when you need detailed information " +
-      "about handling a specific type of request.";
+      `\n\n## 可用技能\n\n${skillsPrompt}\n\n` +
+      "当您需要有关处理特定类型请求的详细信息时，使用 load_skill 工具。";
 
-    // Append to system prompt
+    // 附加到系统提示
     const newSystemPrompt = request.systemPrompt + skillsAddendum;
 
     return handler({
@@ -900,127 +846,125 @@ const model = new ChatOpenAI({
   temperature: 0,
 });
 
-// Create the agent with skill support
+// 创建支持技能的代理
 const agent = createAgent({
   model,
   systemPrompt:
-    "You are a SQL query assistant that helps users " +
-    "write queries against business databases.",
+    "您是一个 SQL 查询助手，帮助用户 " +
+    "针对业务数据库编写查询。",
   middleware: [skillMiddleware],
   checkpointer: new MemorySaver(),
 });
 
-// Configuration for this conversation thread
+// 此对话线程的配置
 const threadId = uuidv4();
 const config = { configurable: { thread_id: threadId } };
 
-// Ask for a SQL query
+// 请求 SQL 查询
 const result = await agent.invoke(
   {
     messages: [
       {
         role: "user",
         content:
-          "Write a SQL query to find all customers " +
-          "who made orders over $1000 in the last month",
+          "编写一个 SQL 查询，查找上个月订单金额超过 1000 美元的所有客户",
       },
     ],
   },
   config
 );
 
-// Print the conversation
+// 打印对话
 for (const message of result.messages) {
   console.log(`${message.type}: ${message.content}`);
 }
 ```
 
+此完整示例包括：
+- 具有完整数据库模式的技能定义
+- 用于按需加载的 `load_skill` 工具
+- 将技能描述注入系统提示的 `SkillMiddleware`
+- 具有中间件和检查点的代理创建
+- 显示代理如何加载技能和编写 SQL 查询的示例用法
 
-This complete example includes:
-- Skill definitions with full database schemas
-- The `load_skill` tool for on-demand loading
-- `SkillMiddleware` that injects skill descriptions into the system prompt
-- Agent creation with middleware and checkpointer
-- Example usage showing how the agent loads skills and writes SQL queries
-
-To run this, you'll need to:
-1. Install required packages: `pip install langchain langchain-openai langgraph`
-2. Set your API key (e.g., `export OPENAI_API_KEY=...`)
-3. Replace the model initialization with your preferred LLM provider
-
-</Accordion>
-
-## Implementation variations
-
-<Accordion title="View implementation options and trade-offs">
-
-This tutorial implemented skills as in-memory Python dictionaries loaded through tool calls. However, there are several ways to implement progressive disclosure with skills:
-
-**Storage backends:**
-- **In-memory** (this tutorial): Skills defined as Python data structures, fast access, no I/O overhead
-- **File system** (Claude Code approach): Skills as directories with files, discovered via file operations like `read_file`
-- **Remote storage**: Skills in S3, databases, Notion, or APIs, fetched on-demand
-
-**Skill discovery** (how the agent learns which skills exist):
-- **System prompt listing**: Skill descriptions in system prompt (used in this tutorial)
-- **File-based**: Discover skills by scanning directories (Claude Code approach)
-- **Registry-based**: Query a skill registry service or API for available skills
-- **Dynamic lookup**: List available skills via a tool call
-
-**Progressive disclosure strategies** (how skill content is loaded):
-- **Single load**: Load entire skill content in one tool call (used in this tutorial)
-- **Paginated**: Load skill content in multiple pages/chunks for large skills
-- **Search-based**: Search within a specific skill's content for relevant sections (e.g., using grep/read operations on skill files)
-- **Hierarchical**: Load skill overview first, then drill into specific subsections
-
-**Size considerations** (uncalibrated mental model - optimize for your system):
-- **Small skills** (< 1K tokens / ~750 words): Can be included directly in system prompt and cached with prompt caching for cost savings and faster responses
-- **Medium skills** (1-10K tokens / ~750-7.5K words): Benefit from on-demand loading to avoid context overhead (this tutorial)
-- **Large skills** (> 10K tokens / ~7.5K words, or > 5-10% of context window): Should use progressive disclosure techniques like pagination, search-based loading, or hierarchical exploration to avoid consuming excessive context
-
-The choice depends on your requirements: in-memory is fastest but requires redeployment for skill updates, while file-based or remote storage enables dynamic skill management without code changes.
+要运行此示例，您需要：
+1. 安装所需包：`pip install langchain langchain-openai langgraph`
+2. 设置您的 API 密钥（例如 `export OPENAI_API_KEY=...`）
+3. 将模型初始化替换为您首选的 LLM 提供商
 
 </Accordion>
 
-## Progressive disclosure and context engineering
+## 实现变体
 
-<Accordion title="Combining with few-shot prompting and other techniques">
+<Accordion title="查看实现选项和权衡">
 
-Progressive disclosure is fundamentally a **[context engineering](/oss/javascript/langchain/context-engineering) technique** - you're managing what information is available to the agent and when. This tutorial focused on loading database schemas, but the same principles apply to other types of context.
+本教程将技能实现为通过工具调用加载的内存 Python 字典。然而，有几种方法可以使用技能实现渐进式披露：
 
-### Combining with few-shot prompting
+**存储后端：**
+- **内存中**（本教程）：技能定义为 Python 数据结构，访问速度快，无 I/O 开销
+- **文件系统**（Claude Code 方法）：技能作为目录和文件，通过文件操作（如 `read_file`）发现
+- **远程存储**：技能存储在 S3、数据库、Notion 或 API 中，按需获取
 
-For the SQL query use case, you could extend progressive disclosure to dynamically load **few-shot examples** that match the user's query:
+**技能发现**（代理如何了解存在哪些技能）：
+- **系统提示列出**：技能描述在系统提示中（本教程中使用）
+- **基于文件**：通过扫描目录发现技能（Claude Code 方法）
+- **基于注册表**：查询技能注册表服务或 API 以获取可用技能
+- **动态查找**：通过工具调用列出可用技能
 
-**Example approach:**
-1. User asks: "Find customers who haven't ordered in 6 months"
-2. Agent loads `sales_analytics` schema (as shown in this tutorial)
-3. Agent also loads 2-3 relevant example queries (via semantic search or tag-based lookup):
-   - Query for finding inactive customers
-   - Query with date-based filtering
-   - Query joining customers and orders tables
-4. Agent writes query using both schema knowledge AND example patterns
+**渐进式披露策略**（如何加载技能内容）：
+- **单次加载**：在一个工具调用中加载整个技能内容（本教程中使用）
+- **分页**：对于大型技能，分多个页面/块加载技能内容
+- **基于搜索**：在特定技能内容中搜索相关部分（例如，使用 grep/read 操作对技能文件进行操作）
+- **分层**：首先加载技能概述，然后深入特定子部分
 
-This combination of progressive disclosure (loading schemas on-demand) and dynamic few-shot prompting (loading relevant examples) creates a powerful context engineering pattern that scales to large knowledge bases while providing high-quality, grounded outputs.
+**大小考虑**（未校准的心理模型 - 针对您的系统进行优化）：
+- **小型技能**（< 1K 令牌 / ~750 词）：可以直接包含在系统提示中，并通过提示缓存进行缓存以节省成本并加快响应速度
+- **中型技能**（1-10K 令牌 / ~750-7.5K 词）：受益于按需加载以避免上下文开销（本教程）
+- **大型技能**（> 10K 令牌 / ~7.5K 词，或 > 上下文窗口的 5-10%）：应使用渐进式披露技术，如分页、基于搜索的加载或分层探索，以避免消耗过多上下文
+
+选择取决于您的要求：内存中最快，但需要重新部署以更新技能，而基于文件或远程存储支持动态技能管理，无需更改代码。
 
 </Accordion>
 
-## Next steps
+## 渐进式披露与上下文工程
 
-- Learn about [middleware](/oss/javascript/langchain/middleware) for more dynamic agent behaviors
-- Explore [context engineering](/oss/javascript/langchain/context-engineering) techniques for managing agent context
-- Explore the [handoffs pattern](/oss/javascript/langchain/multi-agent/handoffs-customer-support) for sequential workflows
-- Read the [subagents pattern](/oss/javascript/langchain/multi-agent/subagents-personal-assistant) for parallel task routing
-- See [multi-agent patterns](/oss/javascript/langchain/multi-agent) for other approaches to specialized agents
-- Use [LangSmith](https://smith.langchain.com) to debug and monitor skill loading
+<Accordion title="结合少样本提示和其他技术">
+
+渐进式披露本质上是**[上下文工程](/oss/javascript/langchain/context-engineering)**技术——您管理代理可用的信息及其可用时间。本教程重点介绍加载数据库模式，但相同原则适用于其他类型的上下文。
+
+### 结合少样本提示
+
+对于 SQL 查询用例，您可以扩展渐进式披露以动态加载与用户查询匹配的**少样本示例**：
+
+**示例方法：**
+1. 用户询问：“查找 6 个月内未订购的客户”
+2. 代理加载 `sales_analytics` 模式（如本教程所示）
+3. 代理还通过语义搜索或基于标签的查找加载 2-3 个相关示例查询：
+   - 用于查找不活跃客户的查询
+   - 具有基于日期过滤的查询
+   - 连接客户和订单表的查询
+4. 代理使用模式知识和示例模式编写查询
+
+这种渐进式披露（按需加载模式）和动态少样本提示（加载相关示例）的结合创建了一种强大的上下文工程模式，可扩展到大型知识库，同时提供高质量、有根据的输出。
+
+</Accordion>
+
+## 后续步骤
+
+- 了解 [中间件](/oss/javascript/langchain/middleware) 以获取更多动态代理行为
+- 探索 [上下文工程](/oss/javascript/langchain/context-engineering) 技术以管理代理上下文
+- 探索 [交接模式](/oss/javascript/langchain/multi-agent/handoffs-customer-support) 用于顺序工作流
+- 阅读 [子代理模式](/oss/javascript/langchain/multi-agent/subagents-personal-assistant) 用于并行任务路由
+- 查看 [多代理模式](/oss/javascript/langchain/multi-agent) 以获取其他专门代理方法
+- 使用 [LangSmith](https://smith.langchain.com) 调试和监控技能加载
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/multi-agent/skills-sql-assistant.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/multi-agent/skills-sql-assistant.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [连接这些文档](/use-these-docs) 到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 </div>

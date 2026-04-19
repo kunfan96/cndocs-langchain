@@ -1,35 +1,35 @@
 ---
-title: "Sap hana cloud vector engine integration"
-description: "Integrate with the Sap hana cloud vector engine vector store using LangChain JavaScript."
+title: "SAP HANA Cloud 向量引擎集成"
+description: "使用 LangChain JavaScript 与 SAP HANA Cloud 向量引擎向量存储进行集成。"
 ---
 
-[SAP HANA Cloud Vector Engine](https://www.sap.com/events/teched/news-guide/ai.html#article8) is a vector store fully integrated into the `SAP HANA Cloud database`.
+[SAP HANA Cloud Vector Engine](https://www.sap.com/events/teched/news-guide/ai.html#article8) 是一个完全集成到 `SAP HANA Cloud 数据库` 中的向量存储。
 
-## Setup
+## 设置
 
-You'll first need to install either the [`@sap/hana-client`](https://www.npmjs.com/package/@sap/hana-client) or the [`hdb`](https://www.npmjs.com/package/hdb) package, and the [`@langchain/community`](https://www.npmjs.com/package/@langchain/community) package:
+您首先需要安装 [`@sap/hana-client`](https://www.npmjs.com/package/@sap/hana-client) 或 [`hdb`](https://www.npmjs.com/package/hdb) 包，以及 [`@langchain/community`](https://www.npmjs.com/package/@langchain/community) 包：
 
 <Tip>
-See [this section for general instructions on installing LangChain packages](/oss/javascript/langchain/install).
+请参阅[此部分获取安装 LangChain 包的一般说明](/oss/javascript/langchain/install)。
 </Tip>
 
 ```bash npm
 npm install -S @langchain/community @langchain/core @sap/hana-client
-# or
+# 或
 npm install -S @langchain/community @langchain/core hdb
 ```
 
-You'll also need to have database connection to a HANA Cloud instance.
+您还需要拥有到 HANA Cloud 实例的数据库连接。
 
-```bash .env example
-OPENAI_API_KEY = "Your OpenAI API key"
-HANA_HOST = "HANA_DB_ADDRESS"
-HANA_PORT = "HANA_DB_PORT"
-HANA_UID =  "HANA_DB_USER"
-HANA_PWD = "HANA_DB_PASSWORD"
+```bash .env 示例
+OPENAI_API_KEY = "您的 OpenAI API 密钥"
+HANA_HOST = "HANA_DB 地址"
+HANA_PORT = "HANA_DB 端口"
+HANA_UID =  "HANA_DB 用户"
+HANA_PWD = "HANA_DB 密码"
 ```
 
-## Create a new index from texts
+## 从文本创建新索引
 
 ```typescript
 import { OpenAIEmbeddings } from "@langchain/openai";
@@ -47,14 +47,14 @@ const connectionParams = {
   // useCesu8 : false
 };
 const client = hanaClient.createClient(connectionParams);
-// connect to hanaDB
+// 连接到 hanaDB
 await new Promise<void>((resolve, reject) => {
   client.connect((err: Error) => {
-    // Use arrow function here
+    // 此处使用箭头函数
     if (err) {
       reject(err);
     } else {
-      console.log("Connected to SAP HANA successfully.");
+      console.log("成功连接到 SAP HANA。");
       resolve();
     }
   });
@@ -64,8 +64,8 @@ const args: HanaDBArgs = {
   connection: client,
   tableName: "test_fromTexts",
 };
-// This function will create a table "test_fromTexts" if not exist, if exists,
-// then the value will be appended to the table.
+// 此函数将创建表 "test_fromTexts"（如果不存在），如果存在，
+// 则值将追加到表中。
 const vectorStore = await HanaDB.fromTexts(
   ["Bye bye", "Hello world", "hello nice world"],
   [
@@ -81,7 +81,7 @@ const response = await vectorStore.similaritySearch("hello world", 2);
 
 console.log(response);
 
-/* This result is based on no table "test_fromTexts" existing in the database.
+/* 此结果基于数据库中不存在表 "test_fromTexts"。
   [
     { pageContent: 'Hello world', metadata: { id: 1, name: '1' } },
     { pageContent: 'hello nice world', metadata: { id: 3, name: '3' } }
@@ -90,7 +90,7 @@ console.log(response);
 client.disconnect();
 ```
 
-## Create a new index from a loader and perform similarity searches
+## 从加载器创建新索引并执行相似性搜索
 
 ```typescript
 import hanaClient from "hdb";
@@ -110,14 +110,14 @@ const connectionParams = {
   // useCesu8 : false
 };
 const client = hanaClient.createClient(connectionParams);
-// connect to hanaDB
+// 连接到 hanaDB
 await new Promise<void>((resolve, reject) => {
   client.connect((err: Error) => {
-    // Use arrow function here
+    // 此处使用箭头函数
     if (err) {
       reject(err);
     } else {
-      console.log("Connected to SAP HANA successfully.");
+      console.log("成功连接到 SAP HANA。");
       resolve();
     }
   });
@@ -127,7 +127,7 @@ const args: HanaDBArgs = {
   connection: client,
   tableName: "test_fromDocs",
 };
-// Load documents from file
+// 从文件加载文档
 const loader = new TextLoader("./state_of_the_union.txt");
 const rawDocuments = await loader.load();
 const splitter = new CharacterTextSplitter({
@@ -135,16 +135,16 @@ const splitter = new CharacterTextSplitter({
   chunkOverlap: 0,
 });
 const documents = await splitter.splitDocuments(rawDocuments);
-// Create a LangChain VectorStore interface for the HANA database and specify the table (collection) to use in args.
+// 为 HANA 数据库创建 LangChain VectorStore 接口，并在 args 中指定要使用的表（集合）。
 const vectorStore = new HanaDB(embeddings, args);
 await vectorStore.initialize();
-// Delete already existing documents from the table
+// 从表中删除已存在的文档
 await vectorStore.delete({ filter: {} });
-// add the loaded document chunks
+// 添加加载的文档块
 await vectorStore.addDocuments(documents);
 
-// similarity search (default:“Cosine Similarity”, options:["euclidean", "cosine"])
-const query = "What did the president say about Ketanji Brown Jackson";
+// 相似性搜索（默认：“余弦相似性”，选项：["euclidean", "cosine"]）
+const query = "总统关于 Ketanji Brown Jackson 说了什么";
 const docs = await vectorStore.similaritySearch(query, 2);
 docs.forEach((doc) => {
   console.log("-".repeat(80));
@@ -152,20 +152,19 @@ docs.forEach((doc) => {
 });
 /*
   --------------------------------------------------------------------------------
-  One of the most serious constitutional responsibilities a President has is nominating
-  someone to serve on the United States Supreme Court.
+  总统最严重的宪法责任之一是提名某人担任美国最高法院法官。
 
-  And I did that 4 days ago, when I nominated Circuit Court of Appeals Judge Ketanji Brown Jackson.
-  One of our nation’s top legal minds, who will continue Justice Breyer’s legacy of excellence.
+  我在 4 天前做到了这一点，当时我提名了巡回上诉法院法官 Ketanji Brown Jackson。
+  他是我们国家顶尖的法律思想家之一，将继续布雷耶大法官的卓越传统。
   --------------------------------------------------------------------------------
-  As I said last year, especially to our younger transgender Americans, I will always have your back as your President,
-  so you can be yourself and reach your God-given potential.
+  正如我去年所说，特别是对我们年轻的跨性别美国人，作为总统，我将永远支持你们，
+  这样你们就可以做自己，并发挥你们上帝赋予的潜力。
 
-  While it often appears that we never agree, that isn’t true. I signed 80 bipartisan bills into law last year.
-  From preventing government shutdowns to protecting Asian-Americans from still-too-common hate crimes to reforming military justice
+  虽然我们似乎从未达成一致，但这不是真的。我去年签署了 80 项两党法案成为法律。
+  从防止政府关门到保护亚裔美国人免受仍然常见的仇恨犯罪，再到改革军事司法
 */
 
-// similarity search using euclidean distance method
+// 使用欧几里得距离方法进行相似性搜索
 const argsL2d: HanaDBArgs = {
   connection: client,
   tableName: "test_fromDocs",
@@ -178,9 +177,9 @@ docsL2d.forEach((docsL2d) => {
   console.log(docsL2d.pageContent);
 });
 
-// Output should be the same as the cosine similarity search method.
+// 输出应与余弦相似性搜索方法相同。
 
-// Maximal Marginal Relevance Search (MMR)
+// 最大边际相关性搜索 (MMR)
 const docsMMR = await vectorStore.maxMarginalRelevanceSearch(query, {
   k: 2,
   fetchK: 20,
@@ -191,28 +190,27 @@ docsMMR.forEach((docsMMR) => {
 });
 /*
   --------------------------------------------------------------------------------
-  One of the most serious constitutional responsibilities a President has is nominating someone
-  to serve on the United States Supreme Court.
+  总统最严重的宪法责任之一是提名某人担任美国最高法院法官。
 
-  And I did that 4 days ago, when I nominated Circuit Court of Appeals Judge Ketanji Brown Jackson.
-  One of our nation’s top legal minds, who will continue Justice Breyer’s legacy of excellence.
+  我在 4 天前做到了这一点，当时我提名了巡回上诉法院法官 Ketanji Brown Jackson。
+  他是我们国家顶尖的法律思想家之一，将继续布雷耶大法官的卓越传统。
   --------------------------------------------------------------------------------
-  Groups of citizens blocking tanks with their bodies. Everyone from students to retirees teachers turned
-  soldiers defending their homeland.
+  公民用身体阻挡坦克的群体。从学生到退休人员、教师都变成了
+  保卫祖国的士兵。
 
-  In this struggle as President Zelenskyy said in his speech to the European Parliament “Light will win over darkness.”
-  The Ukrainian Ambassador to the United States is here tonight.
+  在这场斗争中，正如泽连斯基总统在欧洲议会的演讲中所说，“光明将战胜黑暗。”
+  乌克兰驻美国大使今晚在此。
 
-  Let each of us here tonight in this Chamber send an unmistakable signal to Ukraine and to the world.
+  让我们今晚在此议事厅的每个人向乌克兰和世界发出一个明确的信号。
 */
 client.disconnect();
 ```
 
-## Creating an HNSW vector index
+## 创建 HNSW 向量索引
 
-A vector index can significantly speed up top-k nearest neighbor queries for vectors. Users can create a Hierarchical Navigable Small World (HNSW) vector index using the `create_hnsw_index` function.
+向量索引可以显著加快向量的 top-k 最近邻查询速度。用户可以使用 `create_hnsw_index` 函数创建分层可导航小世界 (HNSW) 向量索引。
 
-For more information about creating an index at the database level, such as parameters requirement, please refer to the [official documentation](https://help.sap.com/docs/hana-cloud-database/sap-hana-cloud-sap-hana-database-vector-engine-guide/create-vector-index-statement-data-definition).
+有关在数据库级别创建索引的更多信息，例如参数要求，请参阅[官方文档](https://help.sap.com/docs/hana-cloud-database/sap-hana-cloud-sap-hana-database-vector-engine-guide/create-vector-index-statement-data-definition)。
 
 ```typescript
 import hanaClient from "hdb";
@@ -222,8 +220,8 @@ import {
 } from "@langchain/community/vectorstores/hanavector";
 import { OpenAIEmbeddings } from "@langchain/openai";
 
-// table "test_fromDocs" is already created with the previous example.
-// Now, we will use this existing table to create indexes and perform similarity search.
+// 表 "test_fromDocs" 已在上一个示例中创建。
+// 现在，我们将使用此现有表创建索引并执行相似性搜索。
 
 const connectionParams = {
   host: process.env.HANA_HOST,
@@ -233,39 +231,39 @@ const connectionParams = {
 };
 const client = hanaClient.createClient(connectionParams);
 
-// Connect to SAP HANA
+// 连接到 SAP HANA
 await new Promise<void>((resolve, reject) => {
   client.connect((err: Error) => {
     if (err) {
       reject(err);
     } else {
-      console.log("Connected to SAP HANA successfully.");
+      console.log("成功连接到 SAP HANA。");
       resolve();
     }
   });
 });
 
-// Initialize embeddings
+// 初始化嵌入
 const embeddings = new OpenAIEmbeddings();
 
-// First instance using the existing table "test_fromDocs" (default: Cosine similarity)
+// 第一个实例使用现有表 "test_fromDocs"（默认：余弦相似性）
 const argsCosine: HanaDBArgs = {
   connection: client,
   tableName: "test_fromDocs",
 };
 
-// Second instance using the existing table "test_fromDocs" but with L2 Euclidean distance
+// 第二个实例使用现有表 "test_fromDocs"，但使用 L2 欧几里得距离
 const argsL2: HanaDBArgs = {
   connection: client,
   tableName: "test_fromDocs",
-  distanceStrategy: "euclidean", // Use Euclidean distance for this instance
+  distanceStrategy: "euclidean", // 此实例使用欧几里得距离
 };
 
-// Initialize both HanaDB instances
+// 初始化两个 HanaDB 实例
 const vectorStoreCosine = new HanaDB(embeddings, argsCosine);
 const vectorStoreL2 = new HanaDB(embeddings, argsL2);
 
-// Create HNSW index with Cosine similarity (default)
+// 使用余弦相似性（默认）创建 HNSW 索引
 await vectorStoreCosine.createHnswIndex({
   indexName: "hnsw_cosine_index",
   efSearch: 400,
@@ -273,7 +271,7 @@ await vectorStoreCosine.createHnswIndex({
   efConstruction: 150,
 });
 
-// Create HNSW index with Euclidean (L2) distance
+// 使用欧几里得 (L2) 距离创建 HNSW 索引
 await vectorStoreL2.createHnswIndex({
   indexName: "hnsw_l2_index",
   efSearch: 400,
@@ -281,46 +279,46 @@ await vectorStoreL2.createHnswIndex({
   efConstruction: 150,
 });
 
-// Query text for similarity search
-const query = "What did the president say about Ketanji Brown Jackson";
+// 用于相似性搜索的查询文本
+const query = "总统关于 Ketanji Brown Jackson 说了什么";
 
-// Perform similarity search using the default Cosine index
+// 使用默认余弦索引执行相似性搜索
 const docsCosine = await vectorStoreCosine.similaritySearch(query, 2);
-console.log("Cosine Similarity Results:");
+console.log("余弦相似性结果：");
 docsCosine.forEach((doc) => {
   console.log("-".repeat(80));
   console.log(doc.pageContent);
 });
 /*
-Cosine Similarity Results:
+余弦相似性结果：
 ----------------------------------------------------------------------
-One of the most serious constitutional ...
+总统最严重的宪法责任之一是提名...
 
-And I did that 4 days ago, when I ...
+我在 4 天前做到了这一点，当时我...
 ----------------------------------------------------------------------
-As I said last year, especially ...
+正如我去年所说，特别是...
 
-While it often appears that we never agree, that isn’t true...
+虽然我们似乎从未达成一致，但这不是真的...
 */
-// Perform similarity search using Euclidean distance (L2 index)
+// 使用欧几里得距离 (L2 索引) 执行相似性搜索
 const docsL2 = await vectorStoreL2.similaritySearch(query, 2);
-console.log("Euclidean (L2) Distance Results:");
+console.log("欧几里得 (L2) 距离结果：");
 docsL2.forEach((doc) => {
   console.log("-".repeat(80));
   console.log(doc.pageContent);
 });
-// The L2 distance results should be the same as cosine search results.
+// L2 距离结果应与余弦搜索结果相同。
 
-// Disconnect from SAP HANA after the operations
+// 操作后断开与 SAP HANA 的连接
 client.disconnect();
 ```
 
-## Basic vectorstore operations
+## 基本向量存储操作
 
 ```typescript
 import { OpenAIEmbeddings } from "@langchain/openai";
 import hanaClient from "hdb";
-// or import another node.js driver
+// 或导入另一个 Node.js 驱动程序
 // import hanaClient from "@sap/haha-client";
 import { Document } from "@langchain/core/documents";
 import {
@@ -336,26 +334,26 @@ const connectionParams = {
   // useCesu8 : false
 };
 const client = hanaClient.createClient(connectionParams);
-// connect to hanaDB
+// 连接到 hanaDB
 await new Promise<void>((resolve, reject) => {
   client.connect((err: Error) => {
-    // Use arrow function here
+    // 此处使用箭头函数
     if (err) {
       reject(err);
     } else {
-      console.log("Connected to SAP HANA successfully.");
+      console.log("成功连接到 SAP HANA。");
       resolve();
     }
   });
 });
 const embeddings = new OpenAIEmbeddings();
-// define instance args
+// 定义实例参数
 const args: HanaDBArgs = {
   connection: client,
   tableName: "testBasics",
 };
 
-// Add documents with metadata.
+// 添加带元数据的文档。
 const docs: Document[] = [
   {
     pageContent: "foo",
@@ -367,17 +365,17 @@ const docs: Document[] = [
   },
 ];
 
-// Create a LangChain VectorStore interface for the HANA database and specify the table (collection) to use in args.
+// 为 HANA 数据库创建 LangChain VectorStore 接口，并在 args 中指定要使用的表（集合）。
 const vectorStore = new HanaDB(embeddings, args);
-// need to initialize once an instance is created.
+// 创建实例后需要初始化一次。
 await vectorStore.initialize();
-// Delete already existing documents from the table
+// 从表中删除已存在的文档
 await vectorStore.delete({ filter: {} });
 await vectorStore.addDocuments(docs);
-// Query documents with specific metadata.
+// 使用特定元数据查询文档。
 const filterMeta = { quality: "bad" };
 const query = "foobar";
-// With filtering on {"quality": "bad"}, only one document should be returned
+// 使用 {"quality": "bad"} 进行过滤，应仅返回一个文档
 const results = await vectorStore.similaritySearch(query, 1, filterMeta);
 console.log(results);
 /*
@@ -387,9 +385,9 @@ console.log(results);
       }
     ]
 */
-// Delete documents with specific metadata.
+// 删除具有特定元数据的文档。
 await vectorStore.delete({ filter: filterMeta });
-// Now the similarity search with the same filter will return no results
+// 现在使用相同过滤器的相似性搜索将不返回结果
 const resultsAfterFilter = await vectorStore.similaritySearch(
   query,
   1,
@@ -402,24 +400,24 @@ console.log(resultsAfterFilter);
 client.disconnect();
 ```
 
-## Advanced filtering
+## 高级过滤
 
-In addition to the basic value-based filtering capabilities, it is possible to use more advanced filtering. The table below shows the available filter operators.
+除了基本的基于值的过滤功能外，还可以使用更高级的过滤。下表显示了可用的过滤器运算符。
 
-| Operator   | Semantic                                                                   |
+| 运算符   | 语义                                                                   |
 | ---------- | -------------------------------------------------------------------------- |
-| `$eq`      | Equality (==)                                                              |
-| `$ne`      | Inequality (!=)                                                            |
-| `$lt`      | Less than (&lt;)                                                           |
-| `$lte`     | Less than or equal (&lt;=)                                                 |
-| `$gt`      | Greater than (&gt;)                                                        |
-| `$gte`     | Greater than or equal (&gt;=)                                              |
-| `$in`      | Contained in a set of given values (in)                                    |
-| `$nin`     | Not contained in a set of given values (not in)                            |
-| `$between` | Between the range of two boundary values                                   |
-| `$like`    | Text equality based on the "LIKE" semantics in SQL (using "%" as wildcard) |
-| `$and`     | Logical "and", supporting two or more operands                               |
-| `$or`      | Logical "or", supporting two or more operands                                |
+| `$eq`      | 相等 (==)                                                              |
+| `$ne`      | 不相等 (!=)                                                            |
+| `$lt`      | 小于 (&lt;)                                                           |
+| `$lte`     | 小于或等于 (&lt;=)                                                 |
+| `$gt`      | 大于 (&gt;)                                                        |
+| `$gte`     | 大于或等于 (&gt;=)                                              |
+| `$in`      | 包含在给定值集合中 (in)                                    |
+| `$nin`     | 不包含在给定值集合中 (not in)                            |
+| `$between` | 在两个边界值的范围内                                   |
+| `$like`    | 基于 SQL 中 "LIKE" 语义的文本相等性（使用 "%" 作为通配符） |
+| `$and`     | 逻辑 "与"，支持两个或多个操作数                               |
+| `$or`      | 逻辑 "或"，支持两个或多个操作数                                |
 
 ```typescript
 import { OpenAIEmbeddings } from "@langchain/openai";
@@ -438,13 +436,13 @@ const connectionParams = {
 };
 const client = hanaClient.createClient(connectionParams);
 
-// Connect to SAP HANA
+// 连接到 SAP HANA
 await new Promise<void>((resolve, reject) => {
   client.connect((err: Error) => {
     if (err) {
       reject(err);
     } else {
-      console.log("Connected to SAP HANA successfully.");
+      console.log("成功连接到 SAP HANA。");
       resolve();
     }
   });
@@ -465,7 +463,7 @@ const docs: Document[] = [
   },
 ];
 
-// Initialize embeddings
+// 初始化嵌入
 const embeddings = new OpenAIEmbeddings();
 
 const args: HanaDBArgs = {
@@ -473,18 +471,18 @@ const args: HanaDBArgs = {
   tableName: "testAdvancedFilters",
 };
 
-// Create a LangChain VectorStore interface for the HANA database and specify the table (collection) to use in args.
+// 为 HANA 数据库创建 LangChain VectorStore 接口，并在 args 中指定要使用的表（集合）。
 const vectorStore = new HanaDB(embeddings, args);
-// need to initialize once an instance is created.
+// 创建实例后需要初始化一次。
 await vectorStore.initialize();
-// Delete already existing documents from the table
+// 从表中删除已存在的文档
 await vectorStore.delete({ filter: {} });
 await vectorStore.addDocuments(docs);
 
-// Helper function to print filter results
+// 打印过滤结果的辅助函数
 function printFilterResult(result: Document[]) {
   if (result.length === 0) {
-    console.log("<empty result>");
+    console.log("<空结果>");
   } else {
     result.forEach((doc) => console.log(doc.metadata));
   }
@@ -492,149 +490,149 @@ function printFilterResult(result: Document[]) {
 
 let advancedFilter;
 
-// Not equal
+// 不等于
 advancedFilter = { id: { $ne: 1 } };
-console.log(`Filter: ${JSON.stringify(advancedFilter)}`);
+console.log(`过滤器：${JSON.stringify(advancedFilter)}`);
 printFilterResult(
   await vectorStore.similaritySearch("just testing", 5, advancedFilter)
 );
-/* Filter: {"id":{"$ne":1}}
+/* 过滤器：{"id":{"$ne":1}}
 { name: 'bob', is_active: false, id: 2, height: 5.7 }
 { name: 'jane', is_active: true, id: 3, height: 2.4 }
 */
 
-// Between range
+// 范围之间
 advancedFilter = { id: { $between: [1, 2] } };
-console.log(`Filter: ${JSON.stringify(advancedFilter)}`);
+console.log(`过滤器：${JSON.stringify(advancedFilter)}`);
 printFilterResult(
   await vectorStore.similaritySearch("just testing", 5, advancedFilter)
 );
-/* Filter: {"id":{"$between":[1,2]}}
+/* 过滤器：{"id":{"$between":[1,2]}}
 { name: 'adam', is_active: true, id: 1, height: 10 }
 { name: 'bob', is_active: false, id: 2, height: 5.7 } */
 
-// In list
+// 在列表中
 advancedFilter = { name: { $in: ["adam", "bob"] } };
-console.log(`Filter: ${JSON.stringify(advancedFilter)}`);
+console.log(`过滤器：${JSON.stringify(advancedFilter)}`);
 printFilterResult(
   await vectorStore.similaritySearch("just testing", 5, advancedFilter)
 );
-/* Filter: {"name":{"$in":["adam","bob"]}}
+/* 过滤器：{"name":{"$in":["adam","bob"]}}
 { name: 'adam', is_active: true, id: 1, height: 10 }
 { name: 'bob', is_active: false, id: 2, height: 5.7 } */
 
-// Not in list
+// 不在列表中
 advancedFilter = { name: { $nin: ["adam", "bob"] } };
-console.log(`Filter: ${JSON.stringify(advancedFilter)}`);
+console.log(`过滤器：${JSON.stringify(advancedFilter)}`);
 printFilterResult(
   await vectorStore.similaritySearch("just testing", 5, advancedFilter)
 );
-/* Filter: {"name":{"$nin":["adam","bob"]}}
+/* 过滤器：{"name":{"$nin":["adam","bob"]}}
 { name: 'jane', is_active: true, id: 3, height: 2.4 } */
 
-// Greater than
+// 大于
 advancedFilter = { id: { $gt: 1 } };
-console.log(`Filter: ${JSON.stringify(advancedFilter)}`);
+console.log(`过滤器：${JSON.stringify(advancedFilter)}`);
 printFilterResult(
   await vectorStore.similaritySearch("just testing", 5, advancedFilter)
 );
-/* Filter: {"id":{"$gt":1}}
+/* 过滤器：{"id":{"$gt":1}}
 { name: 'bob', is_active: false, id: 2, height: 5.7 }
 { name: 'jane', is_active: true, id: 3, height: 2.4 } */
 
-// Greater than or equal to
+// 大于或等于
 advancedFilter = { id: { $gte: 1 } };
-console.log(`Filter: ${JSON.stringify(advancedFilter)}`);
+console.log(`过滤器：${JSON.stringify(advancedFilter)}`);
 printFilterResult(
   await vectorStore.similaritySearch("just testing", 5, advancedFilter)
 );
-/* Filter: {"id":{"$gte":1}}
+/* 过滤器：{"id":{"$gte":1}}
 { name: 'adam', is_active: true, id: 1, height: 10 }
 { name: 'bob', is_active: false, id: 2, height: 5.7 }
 { name: 'jane', is_active: true, id: 3, height: 2.4 } */
 
-// Less than
+// 小于
 advancedFilter = { id: { $lt: 1 } };
-console.log(`Filter: ${JSON.stringify(advancedFilter)}`);
+console.log(`过滤器：${JSON.stringify(advancedFilter)}`);
 printFilterResult(
   await vectorStore.similaritySearch("just testing", 5, advancedFilter)
 );
-/* Filter: {"id":{"$lt":1}}
-<empty result> */
+/* 过滤器：{"id":{"$lt":1}}
+<空结果> */
 
-// Less than or equal to
+// 小于或等于
 advancedFilter = { id: { $lte: 1 } };
-console.log(`Filter: ${JSON.stringify(advancedFilter)}`);
+console.log(`过滤器：${JSON.stringify(advancedFilter)}`);
 printFilterResult(
   await vectorStore.similaritySearch("just testing", 5, advancedFilter)
 );
-/* Filter: {"id":{"$lte":1}}
+/* 过滤器：{"id":{"$lte":1}}
 { name: 'adam', is_active: true, id: 1, height: 10 } */
 
-// Text filtering with $like
+// 使用 $like 进行文本过滤
 advancedFilter = { name: { $like: "a%" } };
-console.log(`Filter: ${JSON.stringify(advancedFilter)}`);
+console.log(`过滤器：${JSON.stringify(advancedFilter)}`);
 printFilterResult(
   await vectorStore.similaritySearch("just testing", 5, advancedFilter)
 );
-/* Filter: {"name":{"$like":"a%"}}
+/* 过滤器：{"name":{"$like":"a%"}}
 { name: 'adam', is_active: true, id: 1, height: 10 } */
 
 advancedFilter = { name: { $like: "%a%" } };
-console.log(`Filter: ${JSON.stringify(advancedFilter)}`);
+console.log(`过滤器：${JSON.stringify(advancedFilter)}`);
 printFilterResult(
   await vectorStore.similaritySearch("just testing", 5, advancedFilter)
 );
-/* Filter: {"name":{"$like":"%a%"}}
+/* 过滤器：{"name":{"$like":"%a%"}}
 { name: 'adam', is_active: true, id: 1, height: 10 }
 { name: 'jane', is_active: true, id: 3, height: 2.4 } */
 
-// Combined filtering with $or
+// 使用 $or 进行组合过滤
 advancedFilter = { $or: [{ id: 1 }, { name: "bob" }] };
-console.log(`Filter: ${JSON.stringify(advancedFilter)}`);
+console.log(`过滤器：${JSON.stringify(advancedFilter)}`);
 printFilterResult(
   await vectorStore.similaritySearch("just testing", 5, advancedFilter)
 );
-/* Filter: {"$or":[{"id":1},{"name":"bob"}]}
+/* 过滤器：{"$or":[{"id":1},{"name":"bob"}]}
 { name: 'adam', is_active: true, id: 1, height: 10 }
 { name: 'bob', is_active: false, id: 2, height: 5.7 } */
 
-// Combined filtering with $and
+// 使用 $and 进行组合过滤
 advancedFilter = { $and: [{ id: 1 }, { id: 2 }] };
-console.log(`Filter: ${JSON.stringify(advancedFilter)}`);
+console.log(`过滤器：${JSON.stringify(advancedFilter)}`);
 printFilterResult(
   await vectorStore.similaritySearch("just testing", 5, advancedFilter)
 );
-/* Filter: {"$and":[{"id":1},{"id":2}]}
-<empty result> */
+/* 过滤器：{"$and":[{"id":1},{"id":2}]}
+<空结果> */
 
 advancedFilter = { $or: [{ id: 1 }, { id: 2 }, { id: 3 }] };
-console.log(`Filter: ${JSON.stringify(advancedFilter)}`);
+console.log(`过滤器：${JSON.stringify(advancedFilter)}`);
 printFilterResult(
   await vectorStore.similaritySearch("just testing", 5, advancedFilter)
 );
-/* Filter: {"$or":[{"id":1},{"id":2},{"id":3}]}
+/* 过滤器：{"$or":[{"id":1},{"id":2},{"id":3}]}
 { name: 'adam', is_active: true, id: 1, height: 10 }
 { name: 'bob', is_active: false, id: 2, height: 5.7 }
 { name: 'jane', is_active: true, id: 3, height: 2.4 } */
 
-// You can also define a nested filter with $and and $or.
+// 您还可以使用 $and 和 $or 定义嵌套过滤器。
 advancedFilter = {
   $and: [{ $or: [{ id: 1 }, { id: 2 }] }, { height: { $gte: 5.0 } }],
 };
-console.log(`Filter: ${JSON.stringify(advancedFilter)}`);
+console.log(`过滤器：${JSON.stringify(advancedFilter)}`);
 printFilterResult(
   await vectorStore.similaritySearch("just testing", 5, advancedFilter)
 );
-/* Filter: {"$and":[{"$or":[{"id":1},{"id":2}]},{"height":{"$gte":5.0}}]}
+/* 过滤器：{"$and":[{"$or":[{"id":1},{"id":2}]},{"height":{"$gte":5.0}}]}
 { name: 'adam', is_active: true, id: 1, height: 10 }
 { name: 'bob', is_active: false, id: 2, height: 5.7 } */
 
-// Disconnect from SAP HANA aft er the operations
+// 操作后断开与 SAP HANA 的连接
 client.disconnect();
 ```
 
-## Using a VectorStore as a retriever in chains for retrieval augmented generation (RAG)
+## 在链中使用 VectorStore 作为检索器，用于检索增强生成 (RAG)
 
 ```typescript
 import { ChatPromptTemplate } from "@langchain/core/prompts";
@@ -647,7 +645,7 @@ import {
   HanaDBArgs,
 } from "@langchain/community/vectorstores/hanavector";
 
-// Connection parameters
+// 连接参数
 const connectionParams = {
   host: process.env.HANA_HOST,
   port: process.env.HANA_PORT,
@@ -656,14 +654,14 @@ const connectionParams = {
   // useCesu8 : false
 };
 const client = hanaClient.createClient(connectionParams);
-// connect to hanaDB
+// 连接到 hanaDB
 await new Promise<void>((resolve, reject) => {
   client.connect((err: Error) => {
-    // Use arrow function here
+    // 此处使用箭头函数
     if (err) {
       reject(err);
     } else {
-      console.log("Connected to SAP HANA successfully.");
+      console.log("成功连接到 SAP HANA。");
       resolve();
     }
   });
@@ -676,12 +674,12 @@ const args: HanaDBArgs = {
 };
 const vectorStore = new HanaDB(embeddings, args);
 await vectorStore.initialize();
-// Use the store as part of a chain, under the premise that "test_fromDocs" exists and contains the chunked docs.
+// 在 "test_fromDocs" 存在并包含分块文档的前提下，将存储用作链的一部分。
 const model = new ChatOpenAI({ model: "gpt-3.5-turbo-1106" });
 const questionAnsweringPrompt = ChatPromptTemplate.fromMessages([
   [
     "system",
-    "You are an expert in state of the union topics. You are provided multiple context items that are related to the prompt you have to answer. Use the following pieces of context to answer the question at the end.\n\n{context}",
+    "您是国情咨文主题的专家。您提供了与您必须回答的提示相关的多个上下文项。使用以下上下文片段来回答最后的问题。\n\n{context}",
   ],
   ["human", "{input}"],
 ]);
@@ -696,43 +694,43 @@ const chain = await createRetrievalChain({
   combineDocsChain,
 });
 
-// Ask the first question (and verify how many text chunks have been used).
+// 提出第一个问题（并验证使用了多少文本块）。
 const response = await chain.invoke({
-  input: "What about Mexico and Guatemala?",
+  input: "关于墨西哥和危地马拉的情况如何？",
 });
 
-console.log("Chain response:");
+console.log("链响应：");
 console.log(response.answer);
 console.log(
-  `Number of used source document chunks: ${response.context.length}`
+  `使用的源文档块数量：${response.context.length}`
 );
 /*
- The United States has set up joint patrols with Mexico and Guatemala to catch more human traffickers.
- Number of used source document chunks: 4
+ 美国已与墨西哥和危地马拉建立联合巡逻，以抓捕更多人口贩运者。
+ 使用的源文档块数量：4
 */
 const responseOther = await chain.invoke({
-  input: "What about other countries?",
+  input: "其他国家的情况如何？",
 });
-console.log("Chain response:");
+console.log("链响应：");
 console.log(responseOther.answer);
-/* Ask another question on the same conversational chain. The answer should relate to the previous answer given.
-....including members of NATO, the European Union, and other allies such as Canada....
+/* 在同一对话链上提出另一个问题。答案应与之前给出的答案相关。
+....包括北约、欧盟成员以及加拿大等其他盟友....
 */
 client.disconnect();
 ```
 
-## Related
+## 相关
 
-- Vector store [conceptual guide](/oss/javascript/integrations/vectorstores)
-- Vector store [how-to guides](/oss/javascript/integrations/vectorstores)
+- 向量存储[概念指南](/oss/javascript/integrations/vectorstores)
+- 向量存储[操作指南](/oss/javascript/integrations/vectorstores)
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/javascript/integrations/vectorstores/hanavector.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/javascript/integrations/vectorstores/hanavector.mdx) 或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [通过 MCP 将这些文档连接到 Claude、VSCode 等](/use-these-docs) 以获取实时答案。
 </Callout>
 </div>

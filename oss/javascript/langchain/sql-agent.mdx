@@ -1,44 +1,44 @@
 ---
-title: Build a SQL agent
-sidebarTitle: SQL agent
+title: 构建 SQL 代理
+sidebarTitle: SQL 代理
 ---
 
 import ChatModelTabsPy from '/snippets/chat-model-tabs.mdx';
 import ChatModelTabsJS from '/snippets/chat-model-tabs-js.mdx';
 
-## Overview
+## 概述
 
-In this tutorial, you will learn how to build an agent that can answer questions about a SQL database using LangChain [agents](/oss/javascript/langchain/agents).
+在本教程中，您将学习如何构建一个能够使用 LangChain [代理](/oss/javascript/langchain/agents) 回答 SQL 数据库问题的代理。
 
-At a high level, the agent will:
+从高层次来看，该代理将：
 
 <Steps>
-<Step title="Fetch the available tables and schemas from the database" />
-<Step title="Decide which tables are relevant to the question" />
-<Step title="Fetch the schemas for the relevant tables" />
-<Step title="Generate a query based on the question and information from the schemas" />
-<Step title="Double-check the query for common mistakes using an LLM" />
-<Step title="Execute the query and return the results" />
-<Step title="Correct mistakes surfaced by the database engine until the query is successful" />
-<Step title="Formulate a response based on the results" />
+<Step title="从数据库中获取可用的表和模式" />
+<Step title="确定哪些表与问题相关" />
+<Step title="获取相关表的模式" />
+<Step title="根据问题和模式信息生成查询" />
+<Step title="使用 LLM 双重检查查询中的常见错误" />
+<Step title="执行查询并返回结果" />
+<Step title="根据数据库引擎发现的错误进行修正，直到查询成功" />
+<Step title="根据结果制定响应" />
 </Steps>
 
 <Warning>
-Building Q&A systems of SQL databases requires executing model-generated SQL queries. There are inherent risks in doing this. Make sure that your database connection permissions are always scoped as narrowly as possible for your agent's needs. This will mitigate, though not eliminate, the risks of building a model-driven system.
+构建 SQL 数据库的问答系统需要执行模型生成的 SQL 查询。这样做存在固有风险。请确保您的数据库连接权限始终根据代理的需求尽可能严格地限定范围。这将减轻（但不能消除）构建模型驱动系统的风险。
 </Warning>
 
-### Concepts
+### 概念
 
-We will cover the following concepts:
+我们将涵盖以下概念：
 
-- [Tools](/oss/javascript/langchain/tools) for reading from SQL databases
-- LangChain [agents](/oss/javascript/langchain/agents)
-- [Human-in-the-loop](/oss/javascript/langchain/human-in-the-loop) processes
+- 用于从 SQL 数据库读取的 [工具](/oss/javascript/langchain/tools)
+- LangChain [代理](/oss/javascript/langchain/agents)
+- [人在环中](/oss/javascript/langchain/human-in-the-loop) 流程
 
 
-## Setup
+## 设置
 
-### Installation
+### 安装
 
 
     <CodeGroup>
@@ -56,27 +56,27 @@ We will cover the following concepts:
 
 ### LangSmith
 
-Set up [LangSmith](https://smith.langchain.com) to inspect what is happening inside your chain or agent. Then set the following environment variables:
+设置 [LangSmith](https://smith.langchain.com) 以检查链或代理内部发生的情况。然后设置以下环境变量：
 
     ```shell
     export LANGSMITH_TRACING="true"
     export LANGSMITH_API_KEY="..."
     ```
 
-## 1. Select an LLM
+## 1. 选择 LLM
 
 
-Select a model that supports [tool-calling](/oss/javascript/integrations/providers/overview):
+选择一个支持 [工具调用](/oss/javascript/integrations/providers/overview) 的模型：
 <ChatModelTabsJS />
 
 
-The output shown in the examples below used OpenAI.
+下面示例中显示的输出使用了 OpenAI。
 
-## 2. Configure the database
+## 2. 配置数据库
 
-You will be creating a [SQLite database](https://www.sqlitetutorial.net/sqlite-sample-database/) for this tutorial. SQLite is a lightweight database that is easy to set up and use. We will be loading the `chinook` database, which is a sample database that represents a digital media store.
+您将为本教程创建一个 [SQLite 数据库](https://www.sqlitetutorial.net/sqlite-sample-database/)。SQLite 是一个轻量级数据库，易于设置和使用。我们将加载 `chinook` 数据库，这是一个代表数字媒体商店的示例数据库。
 
-For convenience, we have hosted the database (`Chinook.db`) on a public GCS bucket.
+为方便起见，我们已将数据库 (`Chinook.db`) 托管在公共 GCS 存储桶中。
 
 
 ```typescript
@@ -100,9 +100,9 @@ async function resolveDbPath() {
 
 
 
-## 3. Add tools for database interactions
+## 3. 添加用于数据库交互的工具
 
-Use the `SqlDatabase` wrapper available in the `langchain/sql_db` to interact with the database. The wrapper provides a simple interface to execute SQL queries and fetch results:
+使用 `langchain/sql_db` 中可用的 `SqlDatabase` 包装器与数据库交互。该包装器提供了一个简单的接口来执行 SQL 查询并获取结果：
 ```typescript
 import { SqlDatabase } from "@langchain/classic/sql_db";
 import { DataSource } from "typeorm";
@@ -128,9 +128,9 @@ async function getSchema() {
 
 
 
-## 4. Execute SQL queries
+## 4. 执行 SQL 查询
 
-Before running the command, do a check to check the LLM generated command in ` _safe_sql`:
+在运行命令之前，检查 LLM 在 `_safe_sql` 中生成的命令：
 
 ```typescript
 
@@ -140,14 +140,14 @@ const HAS_LIMIT_TAIL_RE = /\blimit\b\s+\d+(\s*,\s*\d+)?\s*;?\s*$/i;
 function sanitizeSqlQuery(q) {
   let query = String(q ?? "").trim();
 
-  // block multiple statements (allow one optional trailing ;)
+  // 阻止多个语句（允许一个可选的尾随 ;）
   const semis = [...query].filter((c) => c === ";").length;
   if (semis > 1 || (query.endsWith(";") && query.slice(0, -1).includes(";"))) {
     throw new Error("multiple statements are not allowed.")
   }
   query = query.replace(/;+\s*$/g, "").trim();
 
-  // read-only gate
+  // 只读门控
   if (!query.toLowerCase().startsWith("select")) {
     throw new Error("Only SELECT statements are allowed")
   }
@@ -155,7 +155,7 @@ function sanitizeSqlQuery(q) {
     throw new Error("DML/DDL detected. Only read-only queries are permitted.")
   }
 
-  // append LIMIT only if not already present
+  // 仅当不存在时才追加 LIMIT
   if (!HAS_LIMIT_TAIL_RE.test(query)) {
     query += " LIMIT 5";
   }
@@ -164,7 +164,7 @@ function sanitizeSqlQuery(q) {
 
 ```
 
-Then, use `run` from `SQLDatabase` to execute commands with an `execute_sql` tool:
+然后，使用 `SQLDatabase` 中的 `run` 通过 `execute_sql` 工具执行命令：
 
 ```typescript
 import { tool } from "langchain"
@@ -182,42 +182,42 @@ const executeSql = tool(
   },
   {
     name: "execute_sql",
-    description: "Execute a READ-ONLY SQLite SELECT query and return results.",
+    description: "执行只读 SQLite SELECT 查询并返回结果。",
     schema: z.object({
-      query: z.string().describe("SQLite SELECT query to execute (read-only)."),
+      query: z.string().describe("要执行的 SQLite SELECT 查询（只读）。"),
     }),
   }
 );
 
 ```
 
-## 5. Use `createAgent`
+## 5. 使用 `createAgent`
 
-Use `createAgent` to build a [ReAct agent](https://arxiv.org/pdf/2210.03629) with minimal code. The agent will interpret the request and generate a SQL command. The tools will check the command for safety and then try to execute the command. If the command has an error, the error message is returned to the model. The model can then examine the original request and the new error message and generate a new command. This can continue until the LLM generates the command successfully or reaches an end count. This pattern of providing a model with feedback - error messages in this case - is very powerful.
+使用 `createAgent` 以最少的代码构建一个 [ReAct 代理](https://arxiv.org/pdf/2210.03629)。代理将解释请求并生成 SQL 命令。工具将检查命令的安全性，然后尝试执行命令。如果命令有错误，错误消息将返回给模型。模型然后可以检查原始请求和新的错误消息，并生成一个新的命令。这可以继续，直到 LLM 成功生成命令或达到结束计数。这种向模型提供反馈（本例中是错误消息）的模式非常强大。
 
-Initialize the agent with a descriptive system prompt to customize its behavior:
+使用描述性的系统提示初始化代理以自定义其行为：
 
 ```typescript
 import { SystemMessage } from "langchain";
 
-const getSystemPrompt = async () => new SystemMessage(`You are a careful SQLite analyst.
+const getSystemPrompt = async () => new SystemMessage(`您是一位谨慎的 SQLite 分析师。
 
-Authoritative schema (do not invent columns/tables):
+权威模式（不要发明列/表）：
 ${await getSchema()}
 
-Rules:
-- Think step-by-step.
-- When you need data, call the tool \`execute_sql\` with ONE SELECT query.
-- Read-only only; no INSERT/UPDATE/DELETE/ALTER/DROP/CREATE/REPLACE/TRUNCATE.
-- Limit to 5 rows unless user explicitly asks otherwise.
-- If the tool returns 'Error:', revise the SQL and try again.
-- Limit the number of attempts to 5.
-- If you are not successful after 5 attempts, return a note to the user.
-- Prefer explicit column lists; avoid SELECT *.
+规则：
+- 逐步思考。
+- 当您需要数据时，使用一个 SELECT 查询调用工具 \`execute_sql\`。
+- 仅限只读；不允许 INSERT/UPDATE/DELETE/ALTER/DROP/CREATE/REPLACE/TRUNCATE。
+- 限制为 5 行，除非用户明确要求其他。
+- 如果工具返回 'Error:'，请修改 SQL 并重试。
+- 将尝试次数限制为 5 次。
+- 如果 5 次尝试后仍未成功，请向用户返回一条说明。
+- 优先使用显式列列表；避免使用 SELECT *。
 `);
 ```
 
-Now, create an agent with the model, tools, and prompt:
+现在，使用模型、工具和提示创建代理：
 
 ```typescript
 import { createAgent } from "langchain";
@@ -230,9 +230,9 @@ const agent = createAgent({
 
 ```
 
-## 6. Run the agent
+## 6. 运行代理
 
-Run the agent on a sample query and observe its behavior:
+在示例查询上运行代理并观察其行为：
 
 ```typescript
 const question = "Which genre, on average, has the longest tracks?";
@@ -250,27 +250,27 @@ for await (const step of stream) {
 human: Which genre, on average, has the longest tracks?
 ai:
 tool: [{"Genre":"Sci Fi & Fantasy","AvgMilliseconds":2911783.0384615385}]
-ai: Sci Fi & Fantasy — average track length ≈ 48.5 minutes (about 2,911,783 ms).
+ai: Sci Fi & Fantasy — 平均曲目长度 ≈ 48.5 分钟（约 2,911,783 毫秒）。
 ```
 
-The agent correctly wrote a query, checked the query, and ran it to inform its final response.
+代理正确地编写了查询，检查了查询，并运行它以告知其最终响应。
 
 <Note>
-    You can inspect all aspects of the above run, including steps taken, tools invoked, what prompts were seen by the LLM, and more in the [LangSmith trace](https://smith.langchain.com/public/653d218b-af67-4854-95ca-6abecb9b2520/r).
+    您可以在 [LangSmith 追踪](https://smith.langchain.com/public/653d218b-af67-4854-95ca-6abecb9b2520/r) 中检查上述运行的所有方面，包括采取的步骤、调用的工具、LLM 看到的提示等。
 </Note>
 
-#### (Optional) Use Studio
+#### （可选）使用 Studio
 
-[Studio](/langsmith/studio) provides a "client side" loop as well as memory so you can run this as a chat interface and query the database. You can ask questions like "Tell me the scheme of the database" or "Show me the invoices for the 5 top customers". You will see the SQL command that is generated and the resulting output. The details of how to get that started are below.
-<Accordion title="Run your agent in Studio">
+[Studio](/langsmith/studio) 提供了一个“客户端”循环以及内存，因此您可以将其作为聊天界面运行并查询数据库。您可以询问诸如“告诉我数据库的模式”或“显示前 5 名客户的发票”之类的问题。您将看到生成的 SQL 命令和结果输出。下面介绍了如何启动它的详细信息。
+<Accordion title="在 Studio 中运行您的代理">
 
-In addition to the previously mentioned packages, you will need to:
+除了前面提到的包之外，您还需要：
 
 ```shell
 npm i -g @langchain/langgraph-cli@latest
 ```
 
-In directory you will run in, you will need a `langgraph.json` file with the following contents:
+在您将要运行的目录中，您需要一个包含以下内容的 `langgraph.json` 文件：
 
 ```json
 {
@@ -326,14 +326,14 @@ const HAS_LIMIT_TAIL_RE = /\blimit\b\s+\d+(\s*,\s*\d+)?\s*;?\s*$/i;
 function sanitizeSqlQuery(q) {
   let query = String(q ?? "").trim();
 
-  // block multiple statements (allow one optional trailing ;)
+  // 阻止多个语句（允许一个可选的尾随 ;）
   const semis = [...query].filter((c) => c === ";").length;
   if (semis > 1 || (query.endsWith(";") && query.slice(0, -1).includes(";"))) {
     throw new Error("multiple statements are not allowed.")
   }
   query = query.replace(/;+\s*$/g, "").trim();
 
-  // read-only gate
+  // 只读门控
   if (!query.toLowerCase().startsWith("select")) {
     throw new Error("Only SELECT statements are allowed")
   }
@@ -341,7 +341,7 @@ function sanitizeSqlQuery(q) {
     throw new Error("DML/DDL detected. Only read-only queries are permitted.")
   }
 
-  // append LIMIT only if not already present
+  // 仅当不存在时才追加 LIMIT
   if (!HAS_LIMIT_TAIL_RE.test(query)) {
     query += " LIMIT 5";
   }
@@ -360,27 +360,27 @@ const executeSql = tool(
   },
   {
     name: "execute_sql",
-    description: "Execute a READ-ONLY SQLite SELECT query and return results.",
+    description: "执行只读 SQLite SELECT 查询并返回结果。",
     schema: z.object({
-      query: z.string().describe("SQLite SELECT query to execute (read-only)."),
+      query: z.string().describe("要执行的 SQLite SELECT 查询（只读）。"),
     }),
   }
 );
 
-const getSystemPrompt = async () => new SystemMessage(`You are a careful SQLite analyst.
+const getSystemPrompt = async () => new SystemMessage(`您是一位谨慎的 SQLite 分析师。
 
-Authoritative schema (do not invent columns/tables):
+权威模式（不要发明列/表）：
 ${await getSchema()}
 
-Rules:
-- Think step-by-step.
-- When you need data, call the tool \`execute_sql\` with ONE SELECT query.
-- Read-only only; no INSERT/UPDATE/DELETE/ALTER/DROP/CREATE/REPLACE/TRUNCATE.
-- Limit to 5 rows unless user explicitly asks otherwise.
-- If the tool returns 'Error:', revise the SQL and try again.
-- Limit the number of attempts to 5.
-- If you are not successful after 5 attempts, return a note to the user.
-- Prefer explicit column lists; avoid SELECT *.
+规则：
+- 逐步思考。
+- 当您需要数据时，使用一个 SELECT 查询调用工具 \`execute_sql\`。
+- 仅限只读；不允许 INSERT/UPDATE/DELETE/ALTER/DROP/CREATE/REPLACE/TRUNCATE。
+- 限制为 5 行，除非用户明确要求其他。
+- 如果工具返回 'Error:'，请修改 SQL 并重试。
+- 将尝试次数限制为 5 次。
+- 如果 5 次尝试后仍未成功，请向用户返回一条说明。
+- 优先使用显式列列表；避免使用 SELECT *。
 `);
 
 export const agent = createAgent({
@@ -392,17 +392,17 @@ export const agent = createAgent({
 </Accordion>
 
 
-## Next steps
+## 后续步骤
 
-For deeper customization, check out [this tutorial](/oss/javascript/langgraph/sql-agent) for implementing a SQL agent directly using LangGraph primitives.
+如需更深入的定制，请查看[本教程](/oss/javascript/langgraph/sql-agent)，了解如何直接使用 LangGraph 原语实现 SQL 代理。
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/sql-agent.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/sql-agent.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [通过 MCP 将这些文档](/use-these-docs) 连接到 Claude、VSCode 等，以获取实时答案。
 </Callout>
 </div>

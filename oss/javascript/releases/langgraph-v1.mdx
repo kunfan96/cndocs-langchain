@@ -1,25 +1,25 @@
 ---
-title: What's new in LangGraph v1
+title: LangGraph v1 的新特性
 sidebarTitle: LangGraph v1
 ---
 
-**LangGraph v1 is a stability-focused release for the agent runtime.** It keeps the core graph APIs and execution model unchanged, while refining type safety, docs, and developer ergonomics.
+**LangGraph v1 是一个专注于稳定性的代理运行时版本。** 它保持核心图 API 和执行模型不变，同时改进了类型安全性、文档和开发者体验。
 
-It's designed to work hand-in-hand with [LangChain v1](/oss/javascript/releases/langchain-v1) (whose `createAgent` is built on LangGraph) so you can start high-level and drop down to granular control when needed.
+它旨在与 [LangChain v1](/oss/javascript/releases/langchain-v1) 协同工作（其 `createAgent` 基于 LangGraph 构建），因此您可以从高级功能开始，并在需要时深入到细粒度控制。
 
 <CardGroup cols={1}>
-    <Card title="Stable core APIs" icon="sitemap">
-        Graph primitives (state, nodes, edges) and the execution/runtime model are unchanged, making upgrades straightforward.
+    <Card title="稳定的核心 API" icon="sitemap">
+        图原语（状态、节点、边）和执行/运行时模型保持不变，使升级变得简单直接。
     </Card>
-    <Card title="Reliability, by default" icon="database">
-        Durable execution with checkpointing, persistence, streaming, and human-in-the-loop continues to be first-class.
+    <Card title="默认可靠性" icon="database">
+        具有检查点、持久化、流式传输和人在环路的持久执行仍然是首要功能。
     </Card>
-    <Card title="Seamless with LangChain v1" icon="link">
-        LangChain's `createAgent` runs on LangGraph. Use LangChain for a fast start; drop to LangGraph for custom orchestration.
+    <Card title="与 LangChain v1 无缝集成" icon="link">
+        LangChain 的 `createAgent` 在 LangGraph 上运行。使用 LangChain 快速启动；使用 LangGraph 进行自定义编排。
     </Card>
 </CardGroup>
 
-To upgrade,
+要升级，请使用以下命令：
 
 <CodeGroup>
 ```bash npm
@@ -36,18 +36,18 @@ bun add @langchain/langgraph @langchain/core
 ```
 </CodeGroup>
 
-For a complete list of changes, see the [migration guide](/oss/javascript/migrate/langgraph-v1).
+有关完整更改列表，请参阅[迁移指南](/oss/javascript/migrate/langgraph-v1)。
 
-## Deprecation of `createReactAgent`
+## `createReactAgent` 的弃用
 
-The LangGraph `createReactAgent` prebuilt has been deprecated in favor of LangChain's `createAgent`. It provides a simpler interface, and offers greater customization potential through the introduction of middleware.
+LangGraph 的 `createReactAgent` 预构建功能已被弃用，转而使用 LangChain 的 `createAgent`。它提供了更简单的接口，并通过引入中间件提供了更大的自定义潜力。
 
-* For information on the new `createAgent` API, see the [LangChain v1 release notes](/oss/javascript/releases/langchain-v1#createagent).
-* For information on migrating from `createReactAgent` to `createAgent`, see the [LangChain v1 migration guide](/oss/javascript/migrate/langchain-v1#createagent).
+* 有关新的 `createAgent` API 的信息，请参阅 [LangChain v1 发布说明](/oss/javascript/releases/langchain-v1#createagent)。
+* 有关从 `createReactAgent` 迁移到 `createAgent` 的信息，请参阅 [LangChain v1 迁移指南](/oss/javascript/migrate/langchain-v1#createagent)。
 
-## Typed interrupts
+## 类型化中断
 
-[`StateGraph`](https://reference.langchain.com/javascript/langchain-langgraph/index/StateGraph) now accepts a map of interrupt types in the constructor to more closely constrain the types of interrupts that can be used within a graph.
+[`StateGraph`](https://reference.langchain.com/javascript/langchain-langgraph/index/StateGraph) 现在在构造函数中接受中断类型的映射，以更严格地约束图中可以使用的中断类型。
 
 ```typescript expandable
 import { StateGraph, MemorySaver, interrupt } from "@langchain/langgraph";
@@ -59,9 +59,9 @@ const stateSchema = z.object({
 
 const graphConfig = {
   interrupts: {
-    // Define a simple interrupt that accepts a reason and returns messages
+    // 定义一个简单的中断，接受原因并返回消息
     simple: interrupt<{ reason: string }, { messages: string[] }>, // [!code highlight]
-    // Define a complex interrupt with the same signature
+    // 定义一个具有相同签名的复杂中断
     complex: interrupt<{ reason: string }, { messages: string[] }>, // [!code highlight]
   }
 }
@@ -70,38 +70,38 @@ const checkpointer = new MemorySaver();
 
 const graph = new StateGraph(stateSchema, graphConfig)
   .addNode("node", async (state, runtime) => {
-    // Trigger the simple interrupt with a reason
+    // 使用原因触发简单中断
     const response = runtime.interrupt.simple({ reason: "test" });
-    // Return the interrupt response as the new state
+    // 将中断响应作为新状态返回
     return { foo: response };
   })
-  // Compile the graph with the checkpointer
+  // 使用检查点编译图
   .compile({ checkpointer });
 
-// Invoke the graph with initial state
+// 使用初始状态调用图
 const result = await graph.invoke({ foo: "test" });
 
-// Access the interrupt data
+// 访问中断数据
 if (graph.isInterrupted(result)) {
   console.log(result.__interrupt__.messages);
 }
 ```
 
-For more information on interrupts, see the [Interrupts](/oss/javascript/langgraph/interrupts) documentation.
+有关中断的更多信息，请参阅[中断](/oss/javascript/langgraph/interrupts)文档。
 
-## Frontend SDK enhancements
+## 前端 SDK 增强
 
-LangGraph v1 comes with a few enhancements when interacting with a LangGraph application from the frontend.
+LangGraph v1 在与前端 LangGraph 应用交互时提供了一些增强功能。
 
-### Event stream encoding
+### 事件流编码
 
-The low-level `toLangGraphEventStream` helper has been removed. Streaming responses are now handled natively by the SDK, and you can select the wire format via passing in the `encoding` format to `graph.stream`. This makes switching between SSE and normal JSON responses straightforward without changing UI logic.
+底层的 `toLangGraphEventStream` 助手已被移除。流式响应现在由 SDK 原生处理，您可以通过向 `graph.stream` 传递 `encoding` 格式来选择有线格式。这使得在 SSE 和普通 JSON 响应之间切换变得简单，无需更改 UI 逻辑。
 
-See the [migration guide](/oss/javascript/migrate/langgraph-v1#event-stream-encoding) for more information.
+有关更多信息，请参阅[迁移指南](/oss/javascript/migrate/langgraph-v1#event-stream-encoding)。
 
-### Custom transports in `useStream`
+### `useStream` 中的自定义传输
 
-The React `useStream` hook now supports pluggable transports so you can have more control over the network layer without changing UI code.
+React 的 `useStream` 钩子现在支持可插拔传输，因此您可以在不更改 UI 代码的情况下更好地控制网络层。
 
 ```typescript
 const stream = useStream({
@@ -111,47 +111,47 @@ const stream = useStream({
 });
 ```
 
-Learn how to integrate and customize the hook: [Integrate LangGraph into your React application](/oss/javascript/langgraph/ui).
+了解如何集成和自定义钩子：[将 LangGraph 集成到您的 React 应用中](/oss/javascript/langgraph/ui)。
 
-## Reporting issues
+## 报告问题
 
-Please report any issues discovered with 1.0 on [GitHub](https://github.com/langchain-ai/langgraphjs/issues) using the [`'v1'` label](https://github.com/langchain-ai/langgraphjs/issues?q=state%3Aopen%20label%3Av1).
+请在 [GitHub](https://github.com/langchain-ai/langgraphjs/issues) 上使用 [`'v1'` 标签](https://github.com/langchain-ai/langgraphjs/issues?q=state%3Aopen%20label%3Av1) 报告在 1.0 中发现的任何问题。
 
-## Additional resources
+## 其他资源
 
 <CardGroup cols={3}>
     <Card title="LangGraph 1.0" icon="rocket" href="https://blog.langchain.com/langchain-langchain-1-0-alpha-releases/">
-        Read the announcement
+        阅读公告
     </Card>
-    <Card title="Overview" icon="book" href="/oss/javascript/langgraph/overview" arrow>
-        What LangGraph is and when to use it
+    <Card title="概述" icon="book" href="/oss/javascript/langgraph/overview" arrow>
+        LangGraph 是什么以及何时使用它
     </Card>
-    <Card title="Graph API" icon="sitemap" href="/oss/javascript/langgraph/graph-api" arrow>
-        Build graphs with state, nodes, and edges
+    <Card title="图 API" icon="sitemap" href="/oss/javascript/langgraph/graph-api" arrow>
+        使用状态、节点和边构建图
     </Card>
-    <Card title="LangChain Agents" icon="robot" href="/oss/javascript/langchain/agents" arrow>
-        High-level agents built on LangGraph
+    <Card title="LangChain 代理" icon="robot" href="/oss/javascript/langchain/agents" arrow>
+        基于 LangGraph 构建的高级代理
     </Card>
-    <Card title="Migration guide" icon="arrows-exchange" href="/oss/javascript/migrate/langgraph-v1" arrow>
-        How to migrate to LangGraph v1
+    <Card title="迁移指南" icon="arrows-exchange" href="/oss/javascript/migrate/langgraph-v1" arrow>
+        如何迁移到 LangGraph v1
     </Card>
     <Card title="GitHub" icon="brand-github" href="https://github.com/langchain-ai/langgraphjs">
-        Report issues or contribute
+        报告问题或贡献
     </Card>
 </CardGroup>
 
-## See also
+## 另请参阅
 
-- [Versioning](/oss/javascript/versioning) – Understanding version numbers
-- [Release policy](/oss/javascript/release-policy) – Detailed release policies
+- [版本控制](/oss/javascript/versioning) – 理解版本号
+- [发布政策](/oss/javascript/release-policy) – 详细的发布政策
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/javascript/releases/langgraph-v1.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/javascript/releases/langgraph-v1.mdx) 或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [通过 MCP 将这些文档](/use-these-docs) 连接到 Claude、VSCode 等，以获取实时答案。
 </Callout>
 </div>

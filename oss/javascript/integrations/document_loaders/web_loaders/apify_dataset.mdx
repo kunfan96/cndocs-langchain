@@ -1,75 +1,75 @@
 ---
-title: "Apify dataset integration"
-description: "Integrate with the Apify dataset document loader using LangChain JavaScript."
+title: "Apify 数据集集成"
+description: "使用 LangChain JavaScript 与 Apify 数据集文档加载器集成。"
 ---
 
-This guide shows how to use [Apify](https://apify.com) with LangChain to load documents from an Apify Dataset.
+本指南展示如何将 [Apify](https://apify.com) 与 LangChain 结合使用，以从 Apify 数据集加载文档。
 
-## Overview
+## 概述
 
-[Apify](https://apify.com) is a cloud platform for web scraping and data extraction, which provides an [ecosystem](https://apify.com/store) of more than 10,000 ready-made apps called _Actors_ for various web scraping, crawling, and data extraction use cases.
+[Apify](https://apify.com) 是一个用于网络爬虫和数据提取的云平台，它提供了一个包含超过 10,000 个现成应用的[生态系统](https://apify.com/store)，这些应用称为 _Actors_，适用于各种网络爬虫、抓取和数据提取用例。
 
-This guide shows how to load documents from an [Apify Dataset](https://docs.apify.com/platform/storage/dataset): a scalable append-only storage built for storing structured web scraping results, such as a list of products or Google SERPs, and then export them to various formats like JSON, CSV, or Excel.
+本指南展示如何从 [Apify 数据集](https://docs.apify.com/platform/storage/dataset) 加载文档：这是一个可扩展的追加存储，专为存储结构化网络爬虫结果而构建，例如产品列表或 Google SERP，然后将其导出为 JSON、CSV 或 Excel 等各种格式。
 
-Datasets are typically used to save results of different Actors. For example:
+数据集通常用于保存不同 Actors 的结果。例如：
 
-- [Website Content Crawler](https://apify.com/apify/website-content-crawler) Actor deeply crawls websites such as documentation, knowledge bases, help centers, or blogs, and stores the text content of webpages into a dataset
-- [RAG Web Browser](https://apify.com/apify/rag-web-browser) Actor queries Google Search, scrapes the top N pages from the results, and returns the cleaned content in Markdown format for further processing by a large language model
+- [网站内容爬虫](https://apify.com/apify/website-content-crawler) Actor 深度爬取网站，如文档、知识库、帮助中心或博客，并将网页的文本内容存储到数据集中
+- [RAG 网络浏览器](https://apify.com/apify/rag-web-browser) Actor 查询 Google 搜索，从结果中抓取前 N 个页面，并返回清理后的内容（Markdown 格式），供大型语言模型进一步处理
 
-### Integration details
+### 集成详情
 
-| Class | Package | Local | Serializable | [PY support](https://python.langchain.com/docs/integrations/document_loaders/apify_dataset) |
+| 类 | 包 | 本地 | 可序列化 | [Python 支持](https://python.langchain.com/docs/integrations/document_loaders/apify_dataset) |
 | :--- | :--- | :---: | :---: |  :---: |
 | [`ApifyDatasetLoader`](https://reference.langchain.com/javascript/langchain-community/document_loaders/web/apify_dataset/ApifyDatasetLoader) | [`@langchain/community`](https://www.npmjs.com/package/@langchain/community) | ❌ | ❌ | ✅ |
 
-### Loader features
+### 加载器特性
 
-| Source | Document Lazy Loading | Native Async Support |
+| 来源 | 文档延迟加载 | 原生异步支持 |
 |:------:|:-------------------:|:-------------------:|
-| Apify Dataset | ❌ | ❌ |
+| Apify 数据集 | ❌ | ❌ |
 
-## Setup
+## 设置
 
-### Credentials
+### 凭证
 
-You'll need to sign up for an [Apify account](https://console.apify.com/sign-up) and retrieve your [Apify API token](https://console.apify.com/settings/integrations). Set it as an environment variable:
+您需要注册一个 [Apify 账户](https://console.apify.com/sign-up) 并获取您的 [Apify API 令牌](https://console.apify.com/settings/integrations)。将其设置为环境变量：
 
 ```typescript
 process.env.APIFY_TOKEN = "your-apify-token"
 ```
 
-### Installation
+### 安装
 
-You'll first need to install the official Apify client and LangChain packages:
+您首先需要安装官方的 Apify 客户端和 LangChain 包：
 
 ```bash npm
 npm install apify-client @langchain/community @langchain/core @langchain/openai hnswlib-node
 ```
 
 <Tip>
-See [this section for general instructions on installing LangChain packages](/oss/javascript/langchain/install).
+请参阅[此部分了解安装 LangChain 包的一般说明](/oss/javascript/langchain/install)。
 </Tip>
 
-### Pricing
+### 定价
 
-Many Actors support [Pay-Per-Event (PPE) pricing](https://docs.apify.com/platform/actors/publishing/monetize/pay-per-event), where you pay for explicit events defined by the Actor author (for example, per dataset item).
-This can be a good fit for agent workloads where you want clear, per-operation costs.
+许多 Actors 支持[按事件付费 (PPE) 定价](https://docs.apify.com/platform/actors/publishing/monetize/pay-per-event)，您需要为 Actor 作者定义的明确事件付费（例如，按数据集项付费）。
+这对于您希望明确每个操作成本的代理工作负载来说是一个很好的选择。
 
-Apify also offers pay-per-use pricing with a free tier available.
-Pricing varies by Actor—some Actors are free (you only pay for platform usage), while others charge per result or event. See [Apify pricing](https://apify.com/pricing) for details.
+Apify 还提供按使用付费的定价，并提供免费层级。
+定价因 Actor 而异——有些 Actor 是免费的（您只需支付平台使用费），而其他 Actor 则按结果或事件收费。有关详细信息，请参阅 [Apify 定价](https://apify.com/pricing)。
 
-## Usage
+## 用法
 
-### From a new dataset (crawl a website and store the data in an Apify dataset)
+### 从新数据集（爬取网站并将数据存储在 Apify 数据集中）
 
-If you don't already have an existing dataset on the Apify platform, you'll need to initialize the document loader by calling an Actor and waiting for the results.
-In the example below, we use the [Website Content Crawler](https://apify.com/apify/website-content-crawler) Actor to crawl
-LangChain documentation, store the results in Apify Dataset, and then load the dataset using the `ApifyDatasetLoader`.
-For this demonstration, we'll use a fast Cheerio crawler type and limit the number of crawled pages to 10.
+如果您在 Apify 平台上还没有现有数据集，则需要通过调用 Actor 并等待结果来初始化文档加载器。
+在下面的示例中，我们使用 [网站内容爬虫](https://apify.com/apify/website-content-crawler) Actor 来爬取
+LangChain 文档，将结果存储在 Apify 数据集中，然后使用 `ApifyDatasetLoader` 加载数据集。
+在此演示中，我们将使用快速的 Cheerio 爬虫类型，并将爬取的页面数量限制为 10。
 
-**Note:** Running the Website Content Crawler may take some time, depending on the size of the website. For large sites, it can take several hours or even days!
+**注意：** 运行网站内容爬虫可能需要一些时间，具体取决于网站的大小。对于大型网站，可能需要几个小时甚至几天！
 
-Here's an example:
+以下是一个示例：
 
 ```typescript
 import { ApifyDatasetLoader } from "@langchain/community/document_loaders/web/apify_dataset";
@@ -80,12 +80,12 @@ import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { createStuffDocumentsChain } from "@langchain/classic/chains/combine_documents";
 import { createRetrievalChain } from "@langchain/classic/chains/retrieval";
 
-const APIFY_TOKEN = "YOUR-APIFY-TOKEN"; // or set as process.env.APIFY_TOKEN
-const OPENAI_API_KEY = "YOUR-OPENAI-API-KEY"; // or set as process.env.OPENAI_API_KEY
+const APIFY_TOKEN = "YOUR-APIFY-TOKEN"; // 或设置为 process.env.APIFY_TOKEN
+const OPENAI_API_KEY = "YOUR-OPENAI-API-KEY"; // 或设置为 process.env.OPENAI_API_KEY
 
 /*
- * datasetMappingFunction is a function that maps your Apify dataset format to LangChain documents.
- * In the below example, the Apify dataset format looks like this:
+ * datasetMappingFunction 是一个函数，用于将您的 Apify 数据集格式映射到 LangChain 文档。
+ * 在下面的示例中，Apify 数据集格式如下所示：
  * {
  *   "url": "https://apify.com",
  *   "text": "Apify is the best web scraping and automation platform."
@@ -157,17 +157,17 @@ console.log(res.context.map((doc) => doc.metadata.source));
 */
 ```
 
-## When to use Apify
+## 何时使用 Apify
 
-Apify is ideal when you need:
+当您需要以下功能时，Apify 是理想的选择：
 
-- **Access to thousands of prebuilt Actors** for various platforms (social media, e-commerce, search engines, etc.)
-- **Custom web scraping and automation workflows** beyond simple search
-- **Flexible Actor ecosystem**: run any Actor from the Apify Store
+- **访问数千个预构建的 Actors**，适用于各种平台（社交媒体、电子商务、搜索引擎等）
+- **超越简单搜索的自定义网络爬虫和自动化工作流**
+- **灵活的 Actor 生态系统**：运行 Apify Store 中的任何 Actor
 
-## From an existing dataset
+## 从现有数据集
 
-If you've already run an Actor and have an existing dataset on the Apify platform, you can initialize the document loader directly using the constructor
+如果您已经运行过 Actor 并且在 Apify 平台上拥有现有数据集，您可以直接使用构造函数初始化文档加载器
 
 ```typescript
 import { ApifyDatasetLoader } from "@langchain/community/document_loaders/web/apify_dataset";
@@ -178,12 +178,12 @@ import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { createRetrievalChain } from "@langchain/classic/chains/retrieval";
 import { createStuffDocumentsChain } from "@langchain/classic/chains/combine_documents";
 
-const APIFY_TOKEN = "YOUR-APIFY-TOKEN"; // or set as process.env.APIFY_TOKEN
-const OPENAI_API_KEY = "YOUR-OPENAI-API-KEY"; // or set as process.env.OPENAI_API_KEY
+const APIFY_TOKEN = "YOUR-APIFY-TOKEN"; // 或设置为 process.env.APIFY_TOKEN
+const OPENAI_API_KEY = "YOUR-OPENAI-API-KEY"; // 或设置为 process.env.OPENAI_API_KEY
 
 /*
- * datasetMappingFunction is a function that maps your Apify dataset format to LangChain documents.
- * In the below example, the Apify dataset format looks like this:
+ * datasetMappingFunction 是一个函数，用于将您的 Apify 数据集格式映射到 LangChain 文档。
+ * 在下面的示例中，Apify 数据集格式如下所示：
  * {
  *   "url": "https://apify.com",
  *   "text": "Apify is the best web scraping and automation platform."
@@ -247,9 +247,9 @@ console.log(res.context.map((doc) => doc.metadata.source));
 */
 ```
 
-## Additional Actor examples
+## 其他 Actor 示例
 
-The Apify Store contains thousands of prebuilt Actors. Here are examples of other popular Actors you can use with the document loader:
+Apify Store 包含数千个预构建的 Actors。以下是您可以与文档加载器一起使用的其他流行 Actors 示例：
 
 ### Instagram Scraper
 
@@ -320,30 +320,30 @@ const searchDocs = await ApifyDatasetLoader.fromActorCall(
 );
 ```
 
-Browse the [Apify Store](https://apify.com/store) to discover more Actors for your use case.
+浏览 [Apify Store](https://apify.com/store) 以发现更多适用于您用例的 Actors。
 
 ---
 
-## Using Apify MCP server
+## 使用 Apify MCP 服务器
 
-Unsure which Actor to use or what parameters it requires?
-The [Apify MCP (Model Context Protocol) server](https://mcp.apify.com) can help you discover available Actors, explore their input schemas, and understand parameter requirements.
+不确定使用哪个 Actor 或它需要什么参数？
+[Apify MCP（模型上下文协议）服务器](https://mcp.apify.com) 可以帮助您发现可用的 Actors，探索其输入模式，并了解参数要求。
 
-When connecting to the Apify MCP server over HTTP, include your Apify token in the request headers:
+通过 HTTP 连接到 Apify MCP 服务器时，请在请求头中包含您的 Apify 令牌：
 
 ```text
 Authorization: Bearer <APIFY_TOKEN>
 ```
 
-For more information, see the [LangChain MCP documentation](/oss/javascript/langchain/mcp) and [Apify MCP server](https://mcp.apify.com).
+有关更多信息，请参阅 [LangChain MCP 文档](/oss/javascript/langchain/mcp) 和 [Apify MCP 服务器](https://mcp.apify.com)。
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/javascript/integrations/document_loaders/web_loaders/apify_dataset.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/javascript/integrations/document_loaders/web_loaders/apify_dataset.mdx) 或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [通过 MCP 将这些文档连接到 Claude、VSCode 等](/use-these-docs) 以获取实时答案。
 </Callout>
 </div>

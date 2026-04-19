@@ -1,9 +1,9 @@
 ---
-title: Message queues
-description: Queue multiple messages and manage them while the agent processes sequentially
+title: 消息队列
+description: 队列化多个消息并在代理顺序处理时进行管理
 ---
 
-Message queuing lets users send multiple messages in rapid succession without waiting for the agent to finish processing the current one. Each message is enqueued server-side and processed sequentially, giving you full visibility and control over the pending queue.
+消息队列允许用户连续快速发送多条消息，而无需等待代理完成当前消息的处理。每条消息都会在服务器端入队并按顺序处理，从而让您完全可见并控制待处理队列。
 
 import { PatternEmbed } from "/snippets/pattern-embed.jsx"
 
@@ -13,50 +13,46 @@ import RequiresLanggraphServer from '/snippets/oss/requires-langgraph-server.mdx
 
 <RequiresLanggraphServer />
 
-## Why message queues?
+## 为什么需要消息队列？
 
-In a typical chat interface, users must wait for the agent to finish responding before sending another message. This creates friction in several scenarios:
+在典型的聊天界面中，用户必须等待代理完成响应后才能发送另一条消息。这在以下几种场景中会造成摩擦：
 
-- **Batch questions**: a user wants to ask five related questions at once rather than waiting for each answer
-- **Follow-up chains**: submitting clarifications or additional context while the agent is still working
-- **Automated testing sequences**: programmatically sending a series of prompts to validate agent behavior
-- **Data entry workflows**: feeding structured inputs one after another for processing
+- **批量提问**：用户希望一次性提出五个相关问题，而不是等待每个答案
+- **后续链式提问**：在代理仍在工作时提交澄清或额外上下文
+- **自动化测试序列**：以编程方式发送一系列提示以验证代理行为
+- **数据输入工作流**：为处理而依次输入结构化输入
 
-Message queuing solves this by accepting all submissions immediately and processing them in order.
+消息队列通过立即接受所有提交并按顺序处理来解决此问题。
 
-## How it works
+## 工作原理
 
-Under the hood, LangGraph uses `multitaskStrategy: "enqueue"` to manage concurrent submissions. When a message is submitted while the agent is already processing, it gets added to a server-side queue. Once the current run completes, the next queued message is picked up automatically.
+在底层，LangGraph 使用 `multitaskStrategy: "enqueue"` 来管理并发提交。当消息在代理正在处理时提交，它会被添加到服务器端队列中。当前运行完成后，下一个排队的消息会自动被拾取。
 
-The `useStream` hook exposes a `queue` property that provides real-time visibility into pending messages:
+`useStream` 钩子公开了一个 `queue` 属性，该属性提供对挂起消息的实时可见性：
 
-| Property | Type | Description |
+| 属性 | 类型 | 描述 |
 |---|---|---|
-| `queue.entries` | `QueueEntry[]` | Array of all pending queue entries |
-| `queue.size` | `number` | Number of entries currently in the queue |
-| `queue.cancel(id)` | `(id: string) => Promise<void>` | Cancel a specific queued entry by ID |
-| `queue.clear()` | `() => Promise<void>` | Cancel all queued entries |
+| `queue.entries` | `QueueEntry[]` | 所有挂起队列条目的数组 |
+| `queue.size` | `number` | 当前队列中的条目数量 |
+| `queue.cancel(id)` | `(id: string) => Promise<void>` | 按 ID 取消特定的排队条目 |
+| `queue.clear()` | `() => Promise<void>` | 取消所有排队条目 |
 
-Each `QueueEntry` object contains:
+每个 `QueueEntry` 对象包含：
 
-| Field | Type | Description |
+| 字段 | 类型 | 描述 |
 |---|---|---|
-| `id` | `string` | Unique identifier for this queue entry |
-| `values` | `object` | The input values (including messages) that were submitted |
-| `options` | `object` | Any additional options passed with the submission |
-| `createdAt` | `string` | ISO timestamp of when the entry was created |
+| `id` | `string` | 此队列条目的唯一标识符 |
+| `values` | `object` | 提交的输入值（包括消息） |
+| `options` | `object` | 随提交一起传递的任何附加选项 |
+| `createdAt` | `string` | 条目创建时的 ISO 时间戳 |
 
-## Setting up `useStream`
+## 设置 `useStream`
 
-
-
-Import your agent and pass `typeof myAgent` as a type parameter to `useStream` for type-safe access to state values:
+导入您的代理并将 `typeof myAgent` 作为类型参数传递给 `useStream`，以类型安全地访问状态值：
 
 ```ts
 import type { myAgent } from "./agent";
 ```
-
-
 
 <CodeGroup>
 
@@ -75,7 +71,7 @@ function Chat() {
     });
   };
 
-  // Access queue state
+  // 访问队列状态
   const pendingCount = stream.queue.size;
   const entries = stream.queue.entries;
 
@@ -104,7 +100,7 @@ function handleSubmit(text: string) {
   });
 }
 
-// Access queue state via .value in script
+// 通过脚本中的 .value 访问队列状态
 const pendingCount = computed(() => stream.queue.value.size);
 const entries = computed(() => stream.queue.value.entries);
 </script>
@@ -173,21 +169,21 @@ export class ChatComponent {
 
 </CodeGroup>
 
-## Displaying the queue
+## 显示队列
 
-Build a `QueueList` component that shows each pending message with a cancel button. This gives users visibility into what's waiting and the ability to remove items they no longer need.
+构建一个 `QueueList` 组件，显示每条挂起的消息并带有取消按钮。这使用户能够看到等待的内容，并能够移除不再需要的项目。
 
 ```tsx
 function QueueList({ entries, queue }) {
   return (
     <div className="queue-panel">
       <div className="queue-header">
-        <span>Queued messages ({entries.length})</span>
-        <button onClick={() => queue.clear()}>Clear all</button>
+        <span>排队的消息 ({entries.length})</span>
+        <button onClick={() => queue.clear()}>全部清除</button>
       </div>
       <ul className="queue-entries">
         {entries.map((entry) => {
-          const text = entry.values?.messages?.[0]?.content ?? "Unknown";
+          const text = entry.values?.messages?.[0]?.content ?? "未知";
           return (
             <li key={entry.id} className="queue-entry">
               <span className="queue-text">{text}</span>
@@ -198,7 +194,7 @@ function QueueList({ entries, queue }) {
                 className="queue-cancel"
                 onClick={() => queue.cancel(entry.id)}
               >
-                Cancel
+                取消
               </button>
             </li>
           );
@@ -210,60 +206,57 @@ function QueueList({ entries, queue }) {
 ```
 
 <Tip>
-Display the first few characters of each queued message as a preview so users can quickly identify which items to cancel without reading full messages.
+显示每条排队消息的前几个字符作为预览，以便用户可以快速识别要取消的项目，而无需阅读完整消息。
 </Tip>
 
-## Cancelling queued messages
+## 取消排队消息
 
-You have two levels of cancellation:
+您有两个级别的取消：
 
-### Cancel a single entry
+### 取消单个条目
 
-Remove a specific message from the queue by its ID. The agent will skip it and move to the next entry.
+按 ID 从队列中移除特定消息。代理将跳过它并移动到下一个条目。
 
 ```ts
 await queue.cancel(entryId);
 ```
 
-### Clear the entire queue
+### 清除整个队列
 
-Remove all pending messages at once. Useful when the user changes context or wants to start over.
+一次性移除所有挂起的消息。当用户更改上下文或想要重新开始时非常有用。
 
 ```ts
 await queue.clear();
 ```
 
 <Note>
-Cancelling a queue entry only affects messages that have **not yet started
-processing**. If the agent is already working on a message, cancelling it from
-the queue has no effect. Use `stream.stop()` to interrupt the current run.
+取消队列条目仅影响**尚未开始处理**的消息。如果代理已经在处理某条消息，从队列中取消它不会产生任何效果。请使用 `stream.stop()` 来中断当前运行。
 </Note>
 
-## Chaining follow-up submissions with `onCreated`
+## 使用 `onCreated` 链接后续提交
 
-The `onCreated` callback fires when a new run is created, giving you a hook to submit follow-up messages programmatically. This is useful for building multi-step workflows where the next question depends on the previous submission being accepted.
+`onCreated` 回调在创建新运行时触发，让您可以通过编程方式提交后续消息。这对于构建多步骤工作流非常有用，其中下一个问题取决于前一个提交是否被接受。
 
 ```ts
 stream.submit(
-  { messages: [{ type: "human", content: "What is quantum computing?" }] },
+  { messages: [{ type: "human", content: "什么是量子计算？" }] },
   {
     onCreated(run) {
-      console.log("Run created:", run.run_id);
-      // Chain a follow-up
+      console.log("运行已创建:", run.run_id);
+      // 链接一个后续问题
       stream.submit({
-        messages: [{ type: "human", content: "Give me a simple analogy." }],
+        messages: [{ type: "human", content: "给我一个简单的类比。" }],
       });
     },
   }
 );
 ```
 
-This pattern naturally fills the queue. The first message starts processing
-immediately, and the follow-up is queued behind it.
+此模式自然地填充队列。第一条消息立即开始处理，后续消息在其后排队。
 
-## Starting a new thread
+## 开始新线程
 
-When a user wants to begin a fresh conversation, use `switchThread(null)` to create a new thread. This clears the current message history and queue.
+当用户想要开始新的对话时，使用 `switchThread(null)` 创建一个新线程。这将清除当前消息历史记录和队列。
 
 <CodeGroup>
 
@@ -273,7 +266,7 @@ function NewThreadButton() {
 
   return (
     <button onClick={() => stream.switchThread(null)}>
-      New conversation
+      新对话
     </button>
   );
 }
@@ -285,7 +278,7 @@ const stream = useStream<typeof myAgent>({ /* ... */ });
 </script>
 
 <template>
-  <button @click="stream.switchThread(null)">New conversation</button>
+  <button @click="stream.switchThread(null)">新对话</button>
 </template>
 ```
 
@@ -294,21 +287,19 @@ const stream = useStream<typeof myAgent>({ /* ... */ });
   const { switchThread } = useStream<typeof myAgent>({ /* ... */ });
 </script>
 
-<button on:click={() => switchThread(null)}>New conversation</button>
+<button on:click={() => switchThread(null)}>新对话</button>
 ```
 
 ```ts Angular
 stream = useStream<typeof myAgent>({ /* ... */ });
 
-// In template:
-// <button (click)="stream.switchThread(null)">New conversation</button>
-```
-
+// 在模板中：
+// <button (click)="stream.switchThread(null)">新对话</button>
 </CodeGroup>
 
-## Complete example
+## 完整示例
 
-Putting it all together, here is a full chat component with queue management:
+将所有内容放在一起，这是一个具有队列管理功能的完整聊天组件：
 
 ```tsx
 function QueueChat() {
@@ -330,8 +321,8 @@ function QueueChat() {
   return (
     <div className="chat-container">
       <header>
-        <h2>Queue Chat</h2>
-        <button onClick={() => stream.switchThread(null)}>New thread</button>
+        <h2>队列聊天</h2>
+        <button onClick={() => stream.switchThread(null)}>新线程</button>
       </header>
 
       <div className="messages">
@@ -343,8 +334,8 @@ function QueueChat() {
 
       {stream.queue.size > 0 && (
         <div className="queue-panel">
-          <strong>Queued ({stream.queue.size})</strong>
-          <button onClick={() => stream.queue.clear()}>Clear all</button>
+          <strong>排队中 ({stream.queue.size})</strong>
+          <button onClick={() => stream.queue.clear()}>全部清除</button>
           {stream.queue.entries.map((entry) => (
             <div key={entry.id} className="queue-item">
               <span>{entry.values?.messages?.[0]?.content}</span>
@@ -358,34 +349,31 @@ function QueueChat() {
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Type a message (you can send multiple!)"
+          placeholder="输入消息（您可以发送多条！）"
         />
-        <button type="submit">Send</button>
+        <button type="submit">发送</button>
       </form>
     </div>
   );
 }
 ```
 
-## Best practices
+## 最佳实践
 
-- **Limit queue size**: While there is no hard client-side limit on queue size,
-be mindful that very large queues can degrade user experience. Consider
-showing a warning when the queue exceeds a reasonable threshold (e.g., 10
-items).
-- **Show queue position**: Number each queued item so users know the processing order.
-- **Preserve input focus**: Keep the input field focused after submission so users can type the next message immediately.
-- **Animate transitions**: Smoothly move items from the queue panel into the message list as they start processing.
-- **Handle errors gracefully**: If a queued message fails, surface the error without blocking subsequent queue entries.
-- **Debounce rapid submissions**: For automated or programmatic submissions, add a small delay between messages to avoid overwhelming the server.
+- **限制队列大小**：虽然客户端对队列大小没有硬性限制，但请注意，非常大的队列会降低用户体验。考虑在队列超过合理阈值（例如 10 个项目）时显示警告。
+- **显示队列位置**：为每个排队项目编号，以便用户了解处理顺序。
+- **保留输入焦点**：提交后保持输入字段聚焦，以便用户可以立即输入下一条消息。
+- **动画过渡**：当项目开始处理时，平滑地将它们从队列面板移动到消息列表。
+- **优雅地处理错误**：如果排队消息失败，请显示错误而不阻止后续队列条目。
+- **对快速提交进行去抖动**：对于自动化或编程提交，在消息之间添加小延迟以避免使服务器不堪重负。
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/frontend/message-queues.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/frontend/message-queues.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [通过 MCP 将这些文档连接到 Claude、VSCode 等](/use-these-docs) 以获取实时答案。
 </Callout>
 </div>

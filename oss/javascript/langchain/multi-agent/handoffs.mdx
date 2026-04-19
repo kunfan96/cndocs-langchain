@@ -1,11 +1,11 @@
 ---
-title: Handoffs
+title: 手动交接
 ---
 
-In the **handoffs** architecture, behavior changes dynamically based on state. The core mechanism: [tools](/oss/javascript/langchain/tools) update a state variable (e.g., `current_step` or `active_agent`) that persists across turns, and the system reads this variable to adjust behavior—either applying different configuration (system prompt, tools) or routing to a different [agent](/oss/javascript/langchain/agents). This pattern supports both handoffs between distinct agents and dynamic configuration changes within a single agent.
+在**手动交接**架构中，行为会根据状态动态变化。其核心机制是：[工具](/oss/javascript/langchain/tools) 更新一个状态变量（例如 `current_step` 或 `active_agent`），该变量在多个回合中持久存在，系统读取此变量以调整行为——要么应用不同的配置（系统提示、工具），要么路由到不同的[代理](/oss/javascript/langchain/agents)。此模式支持不同代理之间的手动交接以及单个代理内的动态配置更改。
 
 <Tip>
-The term **handoffs** was coined by [OpenAI](https://openai.github.io/openai-agents-python/handoffs/) for using tool calls (e.g., `transfer_to_sales_agent`) to transfer control between agents or states.
+术语**手动交接**由 [OpenAI](https://openai.github.io/openai-agents-python/handoffs/) 创造，用于使用工具调用（例如 `transfer_to_sales_agent`）在代理或状态之间转移控制权。
 </Tip>
 
 ```mermaid
@@ -14,36 +14,35 @@ sequenceDiagram
     participant Agent
     participant Workflow State
 
-    User->>Agent: "My phone is broken"
-    Note over Agent,Workflow State: Step: Get warranty status<br/>Tools: record_warranty_status
-    Agent-->>User: "Is your device under warranty?"
+    User->>Agent: "我的手机坏了"
+    Note over Agent,Workflow State: 步骤：获取保修状态<br/>工具：record_warranty_status
+    Agent-->>User: "您的设备在保修期内吗？"
 
-    User->>Agent: "Yes, it's still under warranty"
+    User->>Agent: "是的，仍在保修期内"
     Agent->>Workflow State: record_warranty_status("in_warranty")
-    Note over Agent,Workflow State: Step: Classify issue<br/>Tools: record_issue_type
-    Agent-->>User: "Can you describe the issue?"
+    Note over Agent,Workflow State: 步骤：分类问题<br/>工具：record_issue_type
+    Agent-->>User: "请描述问题？"
 
-    User->>Agent: "The screen is cracked"
+    User->>Agent: "屏幕碎了"
     Agent->>Workflow State: record_issue_type("hardware")
-    Note over Agent,Workflow State: Step: Provide resolution<br/>Tools: provide_solution, escalate_to_human
-    Agent-->>User: "Here's the warranty repair process..."
+    Note over Agent,Workflow State: 步骤：提供解决方案<br/>工具：provide_solution, escalate_to_human
+    Agent-->>User: "以下是保修维修流程..."
 ```
 
-## Key characteristics
+## 关键特性
 
-* State-driven behavior: Behavior changes based on a state variable (e.g., `current_step` or `active_agent`)
-* Tool-based transitions: Tools update the state variable to move between states
-* Direct user interaction: Each state's configuration handles user messages directly
-* Persistent state: State survives across conversation turns
+*   **状态驱动行为**：行为根据状态变量（例如 `current_step` 或 `active_agent`）而变化
+*   **基于工具的转换**：工具更新状态变量以在状态之间移动
+*   **直接用户交互**：每个状态的配置直接处理用户消息
+*   **持久状态**：状态在对话回合之间持续存在
 
-## When to use
+## 使用时机
 
-Use the handoffs pattern when you need to enforce sequential constraints (unlock capabilities only after preconditions are met), the agent needs to converse directly with the user across different states, or you're building multi-stage conversational flows. This pattern is particularly valuable for customer support scenarios where you need to collect information in a specific sequence—for example, collecting a warranty ID before processing a refund.
+当您需要强制执行顺序约束（仅在满足先决条件后解锁功能）、代理需要在不同状态下直接与用户对话，或者您正在构建多阶段对话流时，请使用手动交接模式。此模式对于客户支持场景特别有价值，例如在处理退款之前需要按特定顺序收集信息——例如，在处理退款之前收集保修 ID。
 
-## Basic implementation
+## 基本实现
 
-The core mechanism is a [tool](/oss/javascript/langchain/tools) that returns a [`Command`](/oss/javascript/langgraph/graph-api#command) to update state, triggering a transition to a new step or agent:
-
+核心机制是一个[工具](/oss/javascript/langchain/tools)，它返回一个 [`Command`](/oss/javascript/langgraph/graph-api#command) 来更新状态，从而触发向新步骤或代理的转换：
 
 ```typescript
 import { tool, ToolMessage, type ToolRuntime } from "langchain";
@@ -72,30 +71,28 @@ const transferToSpecialist = tool(
 );
 ```
 
-
 <Note>
-**Why include a `ToolMessage`?** When an LLM calls a tool, it expects a response. The `ToolMessage` with matching `tool_call_id` completes this request-response cycle—without it, the conversation history becomes malformed. This is required whenever your handoff tool updates messages.
+**为什么包含 `ToolMessage`？** 当 LLM 调用工具时，它期望一个响应。具有匹配 `tool_call_id` 的 `ToolMessage` 完成了这个请求-响应循环——没有它，对话历史会变得不完整。每当您的交接工具更新消息时，这都是必需的。
 </Note>
 
-For a complete implementation, see the tutorial below.
+有关完整实现，请参阅下面的教程。
 
 <Card
-    title="Tutorial: Build customer support with handoffs"
+    title="教程：使用手动交接构建客户支持"
     icon="users"
     href="/oss/javascript/langchain/multi-agent/handoffs-customer-support"
-    arrow cta="Learn more"
+    arrow cta="了解更多"
 >
-    Learn how to build a customer support agent using the handoffs pattern, where a single agent transitions between different configurations.
+    了解如何使用手动交接模式构建客户支持代理，其中单个代理在不同配置之间转换。
 </Card>
 
-## Implementation approaches
+## 实现方法
 
-There are two ways to implement handoffs: **[single agent with middleware](#single-agent-with-middleware)** (one agent with dynamic configuration) or **[multiple agent subgraphs](#multiple-agent-subgraphs)** (distinct agents as graph nodes).
+有两种实现手动交接的方法：**[带中间件的单代理](#single-agent-with-middleware)**（具有动态配置的单个代理）或**[多代理子图](#multiple-agent-subgraphs)**（作为图节点的不同代理）。
 
-### Single agent with middleware
+### 带中间件的单代理
 
-A single agent changes its behavior based on state. Middleware intercepts each model call and dynamically adjusts the system prompt and available tools. Tools update the state variable to trigger transitions:
-
+单个代理根据状态改变其行为。中间件拦截每个模型调用，并动态调整系统提示和可用工具。工具更新状态变量以触发转换：
 
 ```typescript
 import { tool, ToolMessage, type ToolRuntime } from "langchain";
@@ -127,9 +124,7 @@ const recordWarrantyStatus = tool(
 );
 ```
 
-
-<Accordion title="Complete example: Customer support with middleware">
-
+<Accordion title="完整示例：带中间件的客户支持">
 
 ```typescript
 import {
@@ -142,13 +137,13 @@ import {
 import { Command, MemorySaver, StateSchema } from "@langchain/langgraph";
 import { z } from "zod";
 
-// 1. Define state with current_step tracker
+// 1. 定义带有 current_step 跟踪器的状态
 const SupportState = new StateSchema({ // [!code highlight]
   currentStep: z.string().default("triage"), // [!code highlight]
   warrantyStatus: z.string().optional(),
 });
 
-// 2. Tools update currentStep via Command
+// 2. 工具通过 Command 更新 currentStep
 const recordWarrantyStatus = tool(
   async ({ status }, config: ToolRuntime<typeof SupportState.State>) => {
     return new Command({ // [!code highlight]
@@ -172,14 +167,14 @@ const recordWarrantyStatus = tool(
   }
 );
 
-// 3. Middleware applies dynamic configuration based on currentStep
+// 3. 中间件根据 currentStep 应用动态配置
 const applyStepConfig = createMiddleware({
   name: "applyStepConfig",
   stateSchema: SupportState, // [!code highlight]
   wrapModelCall: async (request, handler) => {
     const step = request.state.currentStep || "triage"; // [!code highlight]
 
-    // Map steps to their configurations
+    // 将步骤映射到其配置
     const configs = {
       triage: {
         prompt: "Collect warranty information...",
@@ -200,7 +195,7 @@ const applyStepConfig = createMiddleware({
   },
 });
 
-// 4. Create agent with middleware
+// 4. 创建带有中间件的代理
 const agent = createAgent({
   model,
   tools: [recordWarrantyStatus, provideSolution, escalate],
@@ -209,17 +204,15 @@ const agent = createAgent({
 });
 ```
 
-
 </Accordion>
 
-### Multiple agent subgraphs
+### 多代理子图
 
-Multiple distinct agents exist as separate nodes in a graph. Handoff tools navigate between agent nodes using `Command.PARENT` to specify which node to execute next.
+多个不同的代理作为图中的单独节点存在。交接工具使用 `Command.PARENT` 在代理节点之间导航，以指定下一个要执行的节点。
 
 <Warning>
-Subgraph handoffs require careful **[context engineering](/oss/javascript/langchain/context-engineering)**. Unlike single-agent middleware (where message history flows naturally), you must explicitly decide what messages pass between agents. Get this wrong and agents receive malformed conversation history or bloated context. See [Context engineering](#context-engineering) below.
+子图交接需要仔细的**[上下文工程](/oss/javascript/langchain/context-engineering)**。与单代理中间件（消息历史自然流动）不同，您必须明确决定哪些消息在代理之间传递。如果出错，代理会收到不完整的对话历史或臃肿的上下文。请参阅下面的[上下文工程](#context-engineering)。
 </Warning>
-
 
 ```typescript
 import {
@@ -261,12 +254,9 @@ const transferToSales = tool(
 );
 ```
 
+<Accordion title="完整示例：使用手动交接的销售和支持">
 
-<Accordion title="Complete example: Sales and support with handoffs">
-
-This example shows a multi-agent system with separate sales and support agents. Each agent is a separate graph node, and handoff tools allow agents to transfer conversations to each other.
-
-
+此示例展示了一个具有独立销售和支持代理的多代理系统。每个代理都是一个单独的图节点，交接工具允许代理将对话相互转移。
 
 ```typescript
 import {
@@ -283,13 +273,13 @@ import { createAgent, AIMessage, ToolMessage } from "langchain";
 import { tool, ToolRuntime } from "@langchain/core/tools";
 import { z } from "zod/v4";
 
-// 1. Define state with active_agent tracker
+// 1. 定义带有 active_agent 跟踪器的状态
 const MultiAgentState = new StateSchema({
   messages: MessagesValue,
   activeAgent: z.string().optional(),
 });
 
-// 2. Create handoff tools
+// 2. 创建交接工具
 const transferToSales = tool(
   async (_, runtime: ToolRuntime<typeof MultiAgentState.State>) => {
     const lastAiMessage = [...runtime.state.messages] // [!code highlight]
@@ -340,7 +330,7 @@ const transferToSupport = tool(
   }
 );
 
-// 3. Create agents with handoff tools
+// 3. 创建带有交接工具的代理
 const salesAgent = createAgent({
   model: "anthropic:claude-sonnet-4-20250514",
   tools: [transferToSupport],
@@ -355,7 +345,7 @@ const supportAgent = createAgent({
     "You are a support agent. Help with technical issues. If asked about pricing or purchasing, transfer to the sales agent.",
 });
 
-// 4. Create agent nodes that invoke the agents
+// 4. 创建调用代理的代理节点
 const callSalesAgent: GraphNode<typeof MultiAgentState.State> = async (state) => {
   const response = await salesAgent.invoke(state);
   return response;
@@ -366,14 +356,14 @@ const callSupportAgent: GraphNode<typeof MultiAgentState.State> = async (state) 
   return response;
 };
 
-// 5. Create router that checks if we should end or continue
+// 5. 创建路由器，检查是否应结束或继续
 const routeAfterAgent: ConditionalEdgeRouter<
   typeof MultiAgentState.State,
   "sales_agent" | "support_agent"
 > = (state) => {
   const messages = state.messages ?? [];
 
-  // Check the last message - if it's an AIMessage without tool calls, we're done
+  // 检查最后一条消息 - 如果是不带工具调用的 AIMessage，则完成
   if (messages.length > 0) {
     const lastMsg = messages[messages.length - 1];
     if (lastMsg instanceof AIMessage && !lastMsg.tool_calls?.length) { // [!code highlight]
@@ -381,7 +371,7 @@ const routeAfterAgent: ConditionalEdgeRouter<
     } // [!code highlight]
   }
 
-  // Otherwise route to the active agent
+  // 否则路由到活动代理
   const active = state.activeAgent ?? "sales_agent";
   return active as "sales_agent" | "support_agent";
 };
@@ -390,22 +380,22 @@ const routeInitial: ConditionalEdgeRouter<
   typeof MultiAgentState.State,
   "sales_agent" | "support_agent"
 > = (state) => {
-  // Route to the active agent based on state, default to sales agent
+  // 根据状态路由到活动代理，默认为销售代理
   return (state.activeAgent ?? "sales_agent") as
     | "sales_agent"
     | "support_agent";
 };
 
-// 6. Build the graph
+// 6. 构建图
 const builder = new StateGraph(MultiAgentState)
   .addNode("sales_agent", callSalesAgent)
   .addNode("support_agent", callSupportAgent);
-  // Start with conditional routing based on initial activeAgent
+  // 根据初始 activeAgent 开始条件路由
   .addConditionalEdges(START, routeInitial, [
     "sales_agent",
     "support_agent",
   ])
-  // After each agent, check if we should end or route to another agent
+  // 每个代理之后，检查是否应结束或路由到另一个代理
   .addConditionalEdges("sales_agent", routeAfterAgent, [
     "sales_agent",
     "support_agent",
@@ -432,37 +422,34 @@ for (const msg of result.messages) {
 }
 ```
 
-
 </Accordion>
 
 <Tip>
-Use **single agent with middleware** for most handoffs use cases—it's simpler. Only use **multiple agent subgraphs** when you need bespoke agent implementations (e.g., a node that's itself a complex graph with reflection or retrieval steps).
+对于大多数手动交接用例，请使用**带中间件的单代理**——它更简单。仅当您需要定制的代理实现（例如，一个本身是具有反思或检索步骤的复杂图的节点）时，才使用**多代理子图**。
 </Tip>
 
-#### Context engineering
+#### 上下文工程
 
-With subgraph handoffs, you control exactly what messages flow between agents. This precision is essential for maintaining valid conversation history and avoiding context bloat that could confuse downstream agents. For more on this topic, see [context engineering](/oss/javascript/langchain/context-engineering).
+使用子图交接时，您可以精确控制代理之间流动的消息。这种精确性对于维护有效的对话历史和避免可能混淆下游代理的上下文膨胀至关重要。有关此主题的更多信息，请参阅[上下文工程](/oss/javascript/langchain/context-engineering)。
 
-**Handling context during handoffs**
+**在交接期间处理上下文**
 
-When handing off between agents, you need to ensure the conversation history remains valid. LLMs expect tool calls to be paired with their responses, so when using `Command.PARENT` to hand off to another agent, you must include both:
+在代理之间交接时，您需要确保对话历史保持有效。LLM 期望工具调用与其响应配对，因此当使用 `Command.PARENT` 交接给另一个代理时，您必须同时包含：
 
-1. **The `AIMessage` containing the tool call** (the message that triggered the handoff)
-2. **A `ToolMessage` acknowledging the handoff** (the artificial response to that tool call)
+1.  **包含工具调用的 `AIMessage`**（触发交接的消息）
+2.  **确认交接的 `ToolMessage`**（该工具调用的人工响应）
 
-Without this pairing, the receiving agent will see an incomplete conversation and may produce errors or unexpected behavior.
+没有这种配对，接收代理将看到不完整的对话，并可能产生错误或意外行为。
 
-The example below assumes only the handoff tool was called (no parallel tool calls):
-
-
+下面的示例假设只调用了交接工具（没有并行工具调用）：
 
 ```typescript
 const transferToSales = tool(
   async (_, runtime: ToolRuntime<typeof MultiAgentState.State>) => {
-    // Get the AI message that triggered this handoff
+    // 获取触发此交接的 AI 消息
     const lastAiMessage = runtime.state.messages.at(-1);
 
-    // Create an artificial tool response to complete the pair
+    // 创建人工工具响应以完成配对
     const transferMessage = new ToolMessage({
       content: "Transferred to sales agent",
       tool_call_id: runtime.toolCallId,
@@ -472,7 +459,7 @@ const transferToSales = tool(
       goto: "sales_agent",
       update: {
         activeAgent: "sales_agent",
-        // Pass only these two messages, not the full subagent history
+        // 仅传递这两个消息，而不是完整的子代理历史
         messages: [lastAiMessage, transferMessage],
       },
       graph: Command.PARENT,
@@ -486,30 +473,29 @@ const transferToSales = tool(
 );
 ```
 
-
 <Note>
-**Why not pass all subagent messages?** While you could include the full subagent conversation in the handoff, this often creates problems. The receiving agent may become confused by irrelevant internal reasoning, and token costs increase unnecessarily. By passing only the handoff pair, you keep the parent graph's context focused on high-level coordination. If the receiving agent needs additional context, consider summarizing the subagent's work in the ToolMessage content instead of passing raw message history.
+**为什么不传递所有子代理消息？** 虽然您可以在交接中包含完整的子代理对话，但这通常会产生问题。接收代理可能会被无关的内部推理混淆，并且令牌成本会不必要地增加。通过仅传递交接对，您可以使父图的上下文专注于高层协调。如果接收代理需要额外的上下文，请考虑在 `ToolMessage` 内容中总结子代理的工作，而不是传递原始消息历史。
 </Note>
 
-**Returning control to the user**
+**将控制权返回给用户**
 
-When returning control to the user (ending the agent's turn), ensure the final message is an `AIMessage`. This maintains valid conversation history and signals to the user interface that the agent has finished its work.
+当将控制权返回给用户（结束代理的回合）时，请确保最终消息是 `AIMessage`。这可以维护有效的对话历史，并向用户界面发出信号，表明代理已完成其工作。
 
-## Implementation considerations
+## 实现注意事项
 
-As you design your multi-agent system, consider:
+在设计多代理系统时，请考虑：
 
-* **Context filtering strategy**: Will each agent receive full conversation history, filtered portions, or summaries? Different agents may need different context depending on their role.
-* **Tool semantics**: Clarify whether handoff tools only update routing state or also perform side effects. For example, should `transfer_to_sales()` also create a support ticket, or should that be a separate action?
-* **Token efficiency**: Balance context completeness against token costs. Summarization and selective context passing become more important as conversations grow longer.
+*   **上下文过滤策略**：每个代理是接收完整的对话历史、过滤的部分还是摘要？不同的代理可能根据其角色需要不同的上下文。
+*   **工具语义**：澄清交接工具是仅更新路由状态还是也执行副作用。例如，`transfer_to_sales()` 是否还应创建支持票证，或者这应该是单独的操作？
+*   **令牌效率**：在上下文完整性和令牌成本之间取得平衡。随着对话变长，摘要和选择性上下文传递变得更加重要。
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/multi-agent/handoffs.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/multi-agent/handoffs.mdx) 或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [通过 MCP 将这些文档连接到 Claude、VSCode 等](/use-these-docs) 以获取实时答案。
 </Callout>
 </div>

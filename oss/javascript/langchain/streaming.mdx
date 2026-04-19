@@ -1,56 +1,48 @@
 ---
-title: Streaming
-description: Stream real-time updates from agent runs
+title: 流式传输
+description: 从代理运行中流式传输实时更新
 ---
 
 import StreamingReasoningTokensPy from '/snippets/code-samples/streaming-reasoning-tokens-py.mdx';
 import StreamingReasoningTokensJs from '/snippets/code-samples/streaming-reasoning-tokens-js.mdx';
 
-LangChain implements a streaming system to surface real-time updates.
+LangChain 实现了一个流式传输系统，用于呈现实时更新。
 
-Streaming is crucial for enhancing the responsiveness of applications built on LLMs. By displaying output progressively, even before a complete response is ready, streaming significantly improves user experience (UX), particularly when dealing with the latency of LLMs.
+流式传输对于增强基于 LLM 构建的应用程序的响应能力至关重要。通过逐步显示输出，甚至在完整响应准备好之前，流式传输显著改善了用户体验（UX），尤其是在处理 LLM 的延迟时。
 
-## Overview
+## 概述
 
-LangChain's streaming system lets you surface live feedback from agent runs to your application.
+LangChain 的流式传输系统让您可以将代理运行的实时反馈呈现到您的应用程序中。
 
-What's possible with LangChain streaming:
+LangChain 流式传输可以实现以下功能：
 
-* <Icon icon="brain" size={16} /> [**Stream agent progress**](#agent-progress)—get state updates after each agent step.
-* <Icon icon="binary" size={16} /> [**Stream LLM tokens**](#llm-tokens)—stream language model tokens as they're generated.
-* <Icon icon="bulb" size={16} /> [**Stream thinking / reasoning tokens**](#streaming-thinking-/-reasoning-tokens)—surface model reasoning as it's generated.
-* <Icon icon="table" size={16} /> [**Stream custom updates**](#custom-updates)—emit user-defined signals (e.g., `"Fetched 10/100 records"`).
-* <Icon icon="stack-push" size={16} /> [**Stream multiple modes**](#stream-multiple-modes)—choose from `updates` (agent progress), `messages` (LLM tokens + metadata), or `custom` (arbitrary user data).
+* <Icon icon="brain" size={16} /> [**流式传输代理进度**](#agent-progress)—在每个代理步骤后获取状态更新。
+* <Icon icon="binary" size={16} /> [**流式传输 LLM 令牌**](#llm-tokens)—在语言模型令牌生成时进行流式传输。
+* <Icon icon="bulb" size={16} /> [**流式传输思考/推理令牌**](#streaming-thinking-/-reasoning-tokens)—在模型推理生成时呈现。
+* <Icon icon="table" size={16} /> [**流式传输自定义更新**](#custom-updates)—发出用户定义的信号（例如，`"已获取 10/100 条记录"`）。
+* <Icon icon="stack-push" size={16} /> [**流式传输多种模式**](#stream-multiple-modes)—从 `updates`（代理进度）、`messages`（LLM 令牌 + 元数据）或 `custom`（任意用户数据）中选择。
 
-See the [common patterns](#common-patterns) section below for additional end-to-end examples.
+请参阅下面的[常见模式](#common-patterns)部分，获取更多端到端示例。
 
-## Supported stream modes
+## 支持的流式传输模式
 
+将以下一个或多个流式传输模式作为列表传递给 [`stream`](https://reference.langchain.com/javascript/classes/_langchain_langgraph.index.CompiledStateGraph.html#stream) 方法：
 
-
-Pass one or more of the following stream modes as a list to the [`stream`](https://reference.langchain.com/javascript/classes/_langchain_langgraph.index.CompiledStateGraph.html#stream) method:
-
-
-| Mode       | Description                                                                                                 |
+| 模式 | 描述 |
 | ---------- | ----------------------------------------------------------------------------------------------------------- |
-| `updates`  | Streams state updates after each agent step. If multiple updates are made in the same step (e.g., multiple nodes are run), those updates are streamed separately. |
-| `messages` | Streams tuples of `(token, metadata)` from any graph nodes where an LLM is invoked. |
-| `custom`   | Streams custom data from inside your graph nodes using the stream writer. |
+| `updates` | 在每个代理步骤后流式传输状态更新。如果在同一步骤中进行多次更新（例如，运行多个节点），则这些更新将分别流式传输。 |
+| `messages` | 从任何调用 LLM 的图节点流式传输 `(token, metadata)` 元组。 |
+| `custom` | 使用流写入器从图节点内部流式传输自定义数据。 |
 
-## Agent progress
+## 代理进度
 
+要流式传输代理进度，请使用带有 `streamMode: "updates"` 的 [`stream`](https://reference.langchain.com/javascript/classes/_langchain_langgraph.index.CompiledStateGraph.html#stream) 方法。这会在每个代理步骤后发出一个事件。
 
+例如，如果您有一个调用一次工具的代理，您应该看到以下更新：
 
-To stream agent progress, use the [`stream`](https://reference.langchain.com/javascript/classes/_langchain_langgraph.index.CompiledStateGraph.html#stream) method with `streamMode: "updates"`. This emits an event after every agent step.
-
-
-For example, if you have an agent that calls a tool once, you should see the following updates:
-
-* **LLM node**: [`AIMessage`](https://reference.langchain.com/javascript/langchain-core/messages/AIMessage) with tool call requests
-* **Tool node**: [`ToolMessage`](https://reference.langchain.com/javascript/langchain-core/messages/ToolMessage) with execution result
-* **LLM node**: Final AI response
-
-
+* **LLM 节点**：带有工具调用请求的 [`AIMessage`](https://reference.langchain.com/javascript/langchain-core/messages/AIMessage)
+* **工具节点**：带有执行结果的 [`ToolMessage`](https://reference.langchain.com/javascript/langchain-core/messages/ToolMessage)
+* **LLM 节点**：最终的 AI 响应
 
 ```typescript
 import z from "zod";
@@ -130,12 +122,9 @@ for await (const chunk of await agent.stream(
  */
 ```
 
+## LLM 令牌
 
-## LLM tokens
-
-
-
-To stream tokens as they are produced by the LLM, use `streamMode: "messages"`:
+要流式传输 LLM 生成的令牌，请使用 `streamMode: "messages"`：
 
 ```typescript
 import z from "zod";
@@ -168,12 +157,9 @@ for await (const [token, metadata] of await agent.stream(
 }
 ```
 
+## 自定义更新
 
-## Custom updates
-
-
-
-To stream updates from tools as they are executed, you can use the `writer` parameter from the configuration.
+要流式传输工具执行时的更新，您可以使用配置中的 `writer` 参数。
 
 ```typescript
 import z from "zod";
@@ -182,9 +168,9 @@ import { LangGraphRunnableConfig } from "@langchain/langgraph";
 
 const getWeather = tool(
     async (input, config: LangGraphRunnableConfig) => {
-        // Stream any arbitrary data
+        // 流式传输任意数据
         config.writer?.(`Looking up data for city: ${input.city}`);
-        // ... fetch city data
+        // ... 获取城市数据
         config.writer?.(`Acquired data for city: ${input.city}`);
         return `It's always sunny in ${input.city}!`;
     },
@@ -216,17 +202,14 @@ Acquired data for city: San Francisco
 ```
 
 <Note>
-    If you add the `writer` parameter to your tool, you won't be able to invoke the tool outside of a LangGraph execution context without providing a writer function.
+    如果您将 `writer` 参数添加到您的工具中，您将无法在 LangGraph 执行上下文之外调用该工具，除非提供一个写入器函数。
 </Note>
 
+## 流式传输多种模式
 
-## Stream multiple modes
+您可以通过将 streamMode 作为数组传递来指定多种流式传输模式：`streamMode: ["updates", "messages", "custom"]`。
 
-
-
-You can specify multiple streaming modes by passing streamMode as an array: `streamMode: ["updates", "messages", "custom"]`.
-
-The streamed outputs will be tuples of `[mode, chunk]` where `mode` is the name of the stream mode and `chunk` is the data streamed by that mode.
+流式传输的输出将是 `[mode, chunk]` 元组，其中 `mode` 是流式传输模式的名称，`chunk` 是该模式流式传输的数据。
 
 ```typescript
 import z from "zod";
@@ -235,9 +218,9 @@ import { LangGraphRunnableConfig } from "@langchain/langgraph";
 
 const getWeather = tool(
     async (input, config: LangGraphRunnableConfig) => {
-        // Stream any arbitrary data
+        // 流式传输任意数据
         config.writer?.(`Looking up data for city: ${input.city}`);
-        // ... fetch city data
+        // ... 获取城市数据
         config.writer?.(`Acquired data for city: ${input.city}`);
         return `It's always sunny in ${input.city}!`;
     },
@@ -263,26 +246,23 @@ for await (const [streamMode, chunk] of await agent.stream(
 }
 ```
 
+## 常见模式
 
-## Common patterns
+以下是展示流式传输常见用例的示例。
 
-Below are examples showing common use cases for streaming.
+### 流式传输思考/推理令牌
 
-### Streaming thinking / reasoning tokens
-
-Some models perform internal reasoning before producing a final answer. You can stream these thinking / reasoning tokens as they're generated by filtering [standard content blocks](/oss/javascript/langchain/messages#standard-content-blocks) for the `type` `"reasoning"`.
+某些模型在生成最终答案之前会执行内部推理。您可以通过过滤[标准内容块](/oss/javascript/langchain/messages#standard-content-blocks)中 `type` 为 `"reasoning"` 的内容，在思考/推理令牌生成时进行流式传输。
 
 <Note>
-    Reasoning output must be enabled on the model.
+    必须在模型上启用推理输出。
 
-    See the [reasoning section](/oss/javascript/langchain/models#reasoning) and your [provider's integration page](/oss/javascript/integrations/providers/overview) for configuration details.
+    请参阅[推理部分](/oss/javascript/langchain/models#reasoning)和您的[提供商集成页面](/oss/javascript/integrations/providers/overview)以获取配置详细信息。
 
-    To quickly check a model's reasoning support, see [models.dev](https://models.dev).
+    要快速检查模型的推理支持，请参阅 [models.dev](https://models.dev)。
 </Note>
 
-
-
-To stream thinking tokens from an agent, use `streamMode: "messages"` and filter for reasoning content blocks. Use a model instance (e.g. `ChatAnthropic`) with extended thinking enabled when the model supports it:
+要从代理流式传输思考令牌，请使用 `streamMode: "messages"` 并过滤推理内容块。当模型支持时，使用启用了扩展思考的模型实例（例如 `ChatAnthropic`）：
 
 <StreamingReasoningTokensJs />
 
@@ -293,25 +273,19 @@ To stream thinking tokens from an agent, use `streamMode: "messages"` and filter
 The weather in San Francisco is: It's always sunny in San Francisco!
 ```
 
+无论模型提供商如何，这都以相同的方式工作—LangChain 通过 [`content_blocks`](/oss/javascript/langchain/messages#standard-content-blocks) 属性将提供商特定的格式（Anthropic `thinking` 块、OpenAI `reasoning` 摘要等）标准化为标准的 `"reasoning"` 内容块类型。
 
+要直接从聊天模型（不使用代理）流式传输推理令牌，请参阅[使用聊天模型进行流式传输](/oss/javascript/langchain/models#reasoning)。
 
-This works the same way regardless of the model provider—LangChain normalizes provider-specific formats (Anthropic `thinking` blocks, OpenAI `reasoning` summaries, etc.) into a standard `"reasoning"` content block type via the [`content_blocks`](/oss/javascript/langchain/messages#standard-content-blocks) property.
+## 禁用流式传输
 
-To stream reasoning tokens directly from a chat model (without an agent), see [streaming with chat models](/oss/javascript/langchain/models#reasoning).
+在某些应用程序中，您可能需要为给定模型禁用单个令牌的流式传输。这在以下情况下很有用：
 
+- 使用[多代理](/oss/javascript/langchain/multi-agent)系统来控制哪些代理流式传输其输出
+- 将支持流式传输的模型与不支持流式传输的模型混合使用
+- 部署到 [LangSmith](/langsmith/home) 并希望防止某些模型输出流式传输到客户端
 
-
-## Disable streaming
-
-In some applications you might need to disable streaming of individual tokens for a given model. This is useful when:
-
-- Working with [multi-agent](/oss/javascript/langchain/multi-agent) systems to control which agents stream their output
-- Mixing models that support streaming with those that do not
-- Deploying to [LangSmith](/langsmith/home) and wanting to prevent certain model outputs from being streamed to the client
-
-
-
-Set `streaming: false` when initializing the model.
+在初始化模型时设置 `streaming: false`。
 
 ```typescript
 import { ChatOpenAI } from "@langchain/openai";
@@ -322,38 +296,32 @@ const model = new ChatOpenAI({
 });
 ```
 
-
 <Tip>
-When deploying to LangSmith, set `streaming=False` on any models whose output you don't want streamed to the client. This is configured in your graph code before deployment.
+部署到 LangSmith 时，在任何不希望其输出流式传输到客户端的模型上设置 `streaming=False`。这需要在部署前在您的图代码中进行配置。
 </Tip>
 
-
-
 <Note>
-Not all chat model integrations support the `streaming` parameter. If your model doesn't support it, use `disableStreaming: true` instead. This parameter is available on all chat models via the base class.
+并非所有聊天模型集成都支持 `streaming` 参数。如果您的模型不支持，请改用 `disableStreaming: true`。此参数可通过基类在所有聊天模型上使用。
 </Note>
 
+请参阅 [LangGraph 流式传输指南](/oss/javascript/langgraph/streaming#disable-streaming-for-specific-chat-models) 以获取更多详细信息。
 
-See the [LangGraph streaming guide](/oss/javascript/langgraph/streaming#disable-streaming-for-specific-chat-models) for more details.
+## 相关
 
-
-
-## Related
-
-- [Frontend streaming](/oss/javascript/langchain/streaming/frontend)—Build React UIs with `useStream` for real-time agent interactions
-- [Streaming with chat models](/oss/javascript/langchain/models#stream)—Stream tokens directly from a chat model without using an agent or graph
-- [Reasoning with chat models](/oss/javascript/langchain/models#reasoning)—Configure and access reasoning output from chat models
-- [Standard content blocks](/oss/javascript/langchain/messages#standard-content-blocks)—Understand the normalized content block format used for reasoning, text, and other content types
-- [Streaming with human-in-the-loop](/oss/javascript/langchain/human-in-the-loop#streaming-with-human-in-the-loop)—Stream agent progress while handling interrupts for human review
-- [LangGraph streaming](/oss/javascript/langgraph/streaming)—Advanced streaming options including `values`, `debug` modes, and subgraph streaming
+- [前端流式传输](/oss/javascript/langchain/streaming/frontend)—使用 `useStream` 构建 React UI，实现实时代理交互
+- [使用聊天模型进行流式传输](/oss/javascript/langchain/models#stream)—直接从聊天模型流式传输令牌，无需使用代理或图
+- [使用聊天模型进行推理](/oss/javascript/langchain/models#reasoning)—配置和访问聊天模型的推理输出
+- [标准内容块](/oss/javascript/langchain/messages#standard-content-blocks)—了解用于推理、文本和其他内容类型的标准化内容块格式
+- [使用人机交互进行流式传输](/oss/javascript/langchain/human-in-the-loop#streaming-with-human-in-the-loop)—在处理用于人工审查的中断时流式传输代理进度
+- [LangGraph 流式传输](/oss/javascript/langgraph/streaming)—高级流式传输选项，包括 `values`、`debug` 模式和子图流式传输
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/streaming.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/streaming.mdx) 或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [连接这些文档](/use-these-docs) 到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 </div>

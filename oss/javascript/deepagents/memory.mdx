@@ -1,40 +1,35 @@
 ---
-title: Memory
-description: Add persistent memory to agents built with Deep Agents so they learn and improve across conversations
+title: 内存
+description: 为使用 Deep Agents 构建的代理添加持久化内存，使其能够在对话中学习和改进
 ---
 
-Memory lets your agent learn and improve across conversations. Deep Agents makes memory first class with filesystem-backed memory: the agent reads and writes memory as files, and you control where those files are stored using [backends](/oss/javascript/deepagents/backends).
+内存让您的代理能够在对话中学习和改进。Deep Agents 通过基于文件系统的内存使内存成为一等公民：代理将内存作为文件读写，您可以使用[后端](/oss/javascript/deepagents/backends)控制这些文件的存储位置。
 
 <Note>
-This page covers **long-term memory**: memory that persists across conversations. For short-term memory (conversation history and scratch files within a single session), see the [context engineering](/oss/javascript/deepagents/context-engineering) guide. Short-term memory is managed automatically as part of the agent's [state](/oss/javascript/langgraph/graph-api#state).
+本页涵盖**长期内存**：跨对话持久化的内存。关于短期内存（单个会话内的对话历史和临时文件），请参阅[上下文工程](/oss/javascript/deepagents/context-engineering)指南。短期内存作为代理[状态](/oss/javascript/langgraph/graph-api#state)的一部分自动管理。
 </Note>
 
-## How memory works
+## 内存工作原理
 
-1. **Point the agent at memory files.** Pass file paths to `memory=` when creating the agent. You can also pass [skills](/oss/javascript/deepagents/skills) via `skills=` for procedural memory (reusable instructions that tell the agent *how* to perform a task). A [backend](/oss/javascript/deepagents/backends) controls where files are stored and who can access them.
-2. **Agent reads memory.** The agent can load memory files into the system prompt at startup, or read them on demand during the conversation. For example, [skills](/oss/javascript/deepagents/skills) use on-demand loading: the agent reads only skill descriptions at startup, then reads the full skill file only when it matches a task. This keeps context lean until a capability is needed.
-3. **Agent updates memory (optional).** When the agent learns new information, it can use its built-in `edit_file` tool to update memory files. Updates can happen during the conversation (the default) or in the background between conversations via [background consolidation](#background-consolidation). Changes are persisted and available in the next conversation. Not all memory is writable: developer-defined [skills](/oss/javascript/deepagents/skills) and [organization policies](#organization-level-memory) are typically read-only. See [read-only vs writable memory](#read-only-vs-writable-memory) for details.
+1. **将代理指向内存文件。** 在创建代理时通过 `memory=` 传递文件路径。您还可以通过 `skills=` 传递[技能](/oss/javascript/deepagents/skills)以实现过程性内存（可重用的指令，告诉代理*如何*执行任务）。[后端](/oss/javascript/deepagents/backends)控制文件的存储位置和访问权限。
+2. **代理读取内存。** 代理可以在启动时将内存文件加载到系统提示中，或在对话期间按需读取。例如，[技能](/oss/javascript/deepagents/skills)使用按需加载：代理在启动时仅读取技能描述，然后仅在匹配任务时读取完整的技能文件。这保持了上下文的精简，直到需要该能力。
+3. **代理更新内存（可选）。** 当代理学习到新信息时，它可以使用内置的 `edit_file` 工具更新内存文件。更新可以在对话期间（默认）或通过[后台合并](#background-consolidation)在对话之间后台进行。更改会被持久化并在下一次对话中可用。并非所有内存都是可写的：开发者定义的[技能](/oss/javascript/deepagents/skills)和[组织策略](#organization-level-memory)通常是只读的。有关详细信息，请参阅[只读与可写内存](#read-only-vs-writable-memory)。
 
-The two most common patterns are [agent-scoped memory](#agent-scoped-memory) (shared across all users) and [user-scoped memory](#user-scoped-memory) (isolated per user).
+两种最常见的模式是[代理范围内存](#agent-scoped-memory)（所有用户共享）和[用户范围内存](#user-scoped-memory)（每个用户隔离）。
 
-## Scoped memory
+## 范围内存
 
-Agent memory can be scoped so the same memory files are accessible to everyone using the agent or memory files can be individual to each user.
+代理内存可以设置范围，以便所有使用该代理的用户都可以访问相同的内存文件，或者内存文件可以为每个用户单独设置。
 
-### Agent-scoped memory
+### 代理范围内存
 
-Give the agent its own persistent identity that evolves over time. Agent-scoped memory is shared across all users, so the agent builds up its own persona, accumulated knowledge, and learned preferences through every conversation. As it interacts with users, it develops expertise, refines its approach, and remembers what works. It can also learn and update [skills](/oss/javascript/deepagents/skills) when it has write access.
+为代理提供其自己的持久身份，并随时间演变。代理范围内存跨所有用户共享，因此代理通过每次对话建立自己的角色、积累的知识和学习的偏好。随着与用户的互动，它发展专业知识、完善方法并记住有效的方法。当具有写入权限时，它还可以学习和更新[技能](/oss/javascript/deepagents/skills)。
 
-The key is the backend namespace: setting it to `(assistant_id,)` means every conversation for this agent reads and writes to the same memory file.
-
-
+关键是后端命名空间：将其设置为 `(assistant_id,)` 意味着此代理的每次对话都读写到相同的内存文件。
 
 <Note>
-Accessing `rt.serverInfo` requires `deepagents>=1.9.0`. On older versions, read the assistant ID from `getConfig().metadata.assistantId` instead.
+访问 `rt.serverInfo` 需要 `deepagents>=1.9.0`。在旧版本中，请从 `getConfig().metadata.assistantId` 读取助理 ID。
 </Note>
-
-
-
 
 ```typescript
 import { createDeepAgent, CompositeBackend, StateBackend, StoreBackend } from "deepagents";
@@ -56,21 +51,18 @@ const agent = createDeepAgent({
 });
 ```
 
+<Accordion title="完整示例：种子内存和调用">
 
-<Accordion title="Full example: seed memory and invoke">
-
-Populate the store with initial memories, then invoke the agent across two threads to see it remember and update what it learns.
-
-
+用初始内存填充存储，然后在两个线程上调用代理，以查看它记住并更新所学内容。
 
 ```typescript
 import { v4 as uuidv4 } from "uuid";
 import { createDeepAgent, CompositeBackend, StateBackend, StoreBackend, createFileData } from "deepagents";
 import { InMemoryStore } from "@langchain/langgraph";
 
-const store = new InMemoryStore();  // Use platform store when deploying to LangSmith
+const store = new InMemoryStore();  // 部署到 LangSmith 时使用平台存储
 
-// Seed the memory file
+// 种子内存文件
 await store.put(
   ["my-agent"],
   "/memories/AGENTS.md",
@@ -80,7 +72,7 @@ await store.put(
 `),
 );
 
-// Seed a skill
+// 种子技能
 await store.put(
   ["my-agent"],
   "/skills/langgraph-docs/SKILL.md",
@@ -112,29 +104,26 @@ const agent = createDeepAgent({
   store,
 });
 
-// Thread 1: the agent learns a new preference and saves it to memory
+// 线程 1：代理学习新偏好并保存到内存
 const config1 = { configurable: { thread_id: uuidv4() } };
 await agent.invoke({
   messages: [{ role: "user", content: "I prefer detailed explanations. Remember that." }],
 }, config1);
 
-// Thread 2: the agent reads memory and applies the preference
+// 线程 2：代理读取内存并应用偏好
 const config2 = { configurable: { thread_id: uuidv4() } };
 await agent.invoke({
   messages: [{ role: "user", content: "Explain how transformers work." }],
 }, config2);
 ```
 
-
 </Accordion>
 
-### User-scoped memory
+### 用户范围内存
 
-Give each user their own memory file. The agent remembers preferences, context, and history per user while core agent instructions stay fixed. Users can also have per-user [skills](/oss/javascript/deepagents/skills) if stored in a user-scoped backend.
+为每个用户提供自己的内存文件。代理记住每个用户的偏好、上下文和历史，而核心代理指令保持固定。如果存储在用户范围的后端中，用户也可以拥有每个用户的[技能](/oss/javascript/deepagents/skills)。
 
-The namespace uses `(user_id,)` so each user gets an isolated copy of the memory file. User A's preferences never leak into User B's conversations.
-
-
+命名空间使用 `(user_id,)`，因此每个用户获得内存文件的隔离副本。用户 A 的偏好永远不会泄露到用户 B 的对话中。
 
 ```typescript
 import { createDeepAgent, CompositeBackend, StateBackend, StoreBackend } from "deepagents";
@@ -156,21 +145,18 @@ const agent = createDeepAgent({
 });
 ```
 
+<Accordion title="完整示例：跨用户的隔离内存">
 
-<Accordion title="Full example: isolated memory across users">
-
-Seed per-user memories and invoke the agent as two different users. Each user sees only their own preferences.
-
-
+种子每个用户的内存，并以两个不同用户的身份调用代理。每个用户只能看到自己的偏好。
 
 ```typescript
 import { v4 as uuidv4 } from "uuid";
 import { createDeepAgent, CompositeBackend, StateBackend, StoreBackend, createFileData } from "deepagents";
 import { InMemoryStore } from "@langchain/langgraph";
 
-const store = new InMemoryStore();  // Use platform store when deploying to LangSmith
+const store = new InMemoryStore();  // 部署到 LangSmith 时使用平台存储
 
-// Seed preferences for two users
+// 为两个用户种子偏好
 await store.put(
   ["user-alice"],
   "/memories/preferences.md",
@@ -188,7 +174,7 @@ await store.put(
 `),
 );
 
-// Seed a skill for Alice
+// 为 Alice 种子技能
 await store.put(
   ["user-alice"],
   "/skills/langgraph-docs/SKILL.md",
@@ -220,40 +206,37 @@ const agent = createDeepAgent({
   store,
 });
 
-// When deployed, each authenticated request resolves
-// `rt.serverInfo.user.identity` to the calling user, so Alice and Bob
-// automatically see only their own preferences.
+// 部署时，每个经过身份验证的请求都会解析
+// `rt.serverInfo.user.identity` 为调用用户，因此 Alice 和 Bob
+// 自动只看到自己的偏好。
 await agent.invoke(
   { messages: [{ role: "user", content: "How do I read a CSV file?" }] },
   { configurable: { thread_id: uuidv4() } },
 );
 ```
 
-
 </Accordion>
 
-## Advanced usage
+## 高级用法
 
-On top of the basic configuration options for memory paths and scope, you can also configure more advanced parameters for memory:
+除了内存路径和范围的基本配置选项外，您还可以为内存配置更多高级参数：
 
-| Dimension | Question it answers | Options |
+| 维度 | 回答的问题 | 选项 |
 |---|---|---|
-| **Duration** | How long does it last? | [Short-term](/oss/javascript/deepagents/context-engineering) (single conversation) or [long-term](#scoped-memory) (across conversations) |
-| **Information type** | What kind of information is it? | [Episodic](#episodic-memory) (past experiences), [procedural](/oss/javascript/deepagents/skills) (instructions and skills), or [semantic](/oss/javascript/concepts/memory#semantic-memory) (facts) |
-| **Scope** | Who can see and modify it? | [User](#user-scoped-memory), [agent](#agent-scoped-memory), or [organization](#organization-level-memory) |
-| **Update strategy** | When are memories written? | During conversation (default) or [between conversations](#background-consolidation) |
-| **Retrieval** | How are memories read? | Loaded into prompt (default) or on demand (e.g., [skills](/oss/javascript/deepagents/skills)) |
-| **Agent permissions** | Can the agent write to memory? | [Read-write](#read-only-vs-writable-memory) (default) or [read-only](#read-only-vs-writable-memory) (for shared policies) |
+| **持续时间** | 持续多久？ | [短期](/oss/javascript/deepagents/context-engineering)（单次对话）或[长期](#scoped-memory)（跨对话） |
+| **信息类型** | 是什么类型的信息？ | [情节性](#episodic-memory)（过去的经验）、[过程性](/oss/javascript/deepagents/skills)（指令和技能）或[语义性](/oss/javascript/concepts/memory#semantic-memory)（事实） |
+| **范围** | 谁可以查看和修改？ | [用户](#user-scoped-memory)、[代理](#agent-scoped-memory)或[组织](#organization-level-memory) |
+| **更新策略** | 何时写入内存？ | 对话期间（默认）或[对话之间](#background-consolidation) |
+| **检索** | 如何读取内存？ | 加载到提示中（默认）或按需（例如[技能](/oss/javascript/deepagents/skills)） |
+| **代理权限** | 代理可以写入内存吗？ | [读写](#read-only-vs-writable-memory)（默认）或[只读](#read-only-vs-writable-memory)（用于共享策略） |
 
-### Episodic memory
+### 情节性内存
 
-Episodic memory stores records of past experiences: what happened, in what order, and what the outcome was. Unlike semantic memory (facts and preferences stored in files like `AGENTS.md`), episodic memory preserves the full conversational context so the agent can recall *how* a problem was solved, not just *what* was learned from it.
+情节性内存存储过去经验的记录：发生了什么、顺序如何以及结果是什么。与语义内存（存储在 `AGENTS.md` 等文件中的事实和偏好）不同，情节性内存保留完整的对话上下文，以便代理可以回忆*如何*解决问题，而不仅仅是从中学到了*什么*。
 
-Deep Agents already use [checkpointers](/oss/javascript/langgraph/persistence#checkpoints) which is the mechanism that supports episodic memory: every conversation is persisted as a checkpointed thread.
+Deep Agents 已经使用[检查点](/oss/javascript/langgraph/persistence#checkpoints)，这是支持情节性内存的机制：每次对话都作为检查点线程持久化。
 
-To make past conversations searchable, wrap thread search in a tool. The `user_id` is pulled from the runtime context rather than passed as a parameter:
-
-
+为了使过去的对话可搜索，将线程搜索包装在工具中。`user_id` 从运行时上下文中提取，而不是作为参数传递：
 
 ```typescript
 import { Client } from "@langchain/langgraph-sdk";
@@ -282,35 +265,29 @@ const searchPastConversations = tool(
 );
 ```
 
-
-You can scope thread search by user or organization by adjusting the metadata filter:
-
-
+您可以通过调整元数据过滤器按用户或组织限定线程搜索范围：
 
 ```typescript
-// Search conversations for a specific user
+// 搜索特定用户的对话
 const userThreads = await client.threads.search({
   metadata: { userId },
   limit: 5,
 });
 
-// Search conversations across an organization
+// 搜索整个组织的对话
 const orgThreads = await client.threads.search({
   metadata: { orgId },
   limit: 5,
 });
 ```
 
+这对于执行复杂、多步骤任务的代理非常有用。例如，编码代理可以回顾过去的调试会话，并直接跳到可能的根本原因。
 
-This is useful for agents that perform complex, multi-step tasks. For example, a coding agent can look back at a past debugging session and skip straight to the likely root cause.
+### 组织级内存
 
-### Organization-level memory
+组织级内存遵循与用户范围内存相同的模式，但使用组织范围的命名空间而不是每个用户的命名空间。用于应在组织内所有用户和代理中应用的策略或知识。
 
-Organization-level memory follows the same pattern as user-scoped memory, but with an organization-wide namespace instead of a per-user one. Use it for policies or knowledge that should apply across all users and agents in an organization.
-
-Organization memory is typically **read-only** to prevent prompt injection via shared state. See [read-only vs writable memory](#read-only-vs-writable-memory) for details.
-
-
+组织内存通常是**只读**的，以防止通过共享状态进行提示注入。有关详细信息，请参阅[只读与可写内存](#read-only-vs-writable-memory)。
 
 ```typescript
 import { createDeepAgent, CompositeBackend, StateBackend, StoreBackend } from "deepagents";
@@ -334,10 +311,7 @@ const agent = createDeepAgent({
 });
 ```
 
-
-Populate organization memory from your application code:
-
-
+从您的应用程序代码填充组织内存：
 
 ```typescript
 import { Client } from "@langchain/langgraph-sdk";
@@ -355,27 +329,24 @@ await client.store.putItem(
 );
 ```
 
+使用[权限](/oss/javascript/deepagents/permissions)强制组织级内存为只读，或使用[策略钩子](/oss/javascript/deepagents/backends#add-policy-hooks)进行自定义验证逻辑。
 
-Use [permissions](/oss/javascript/deepagents/permissions) to enforce that org-level memory is read-only, or [policy hooks](/oss/javascript/deepagents/backends#add-policy-hooks) for custom validation logic.
+### 后台合并
 
-### Background consolidation
+默认情况下，代理在对话期间写入内存（热路径）。另一种方法是在对话之间作为后台任务处理内存，有时称为**睡眠时间计算**。一个单独的深代理审查最近的对话，提取关键事实，并将其与现有内存合并。
 
-By default, the agent writes memories during the conversation (hot path). An alternative is to process memories **between conversations** as a background task, sometimes called **sleep time compute**. A separate deep agent reviews recent conversations, extracts key facts, and merges them with existing memories.
-
-| Approach | Pros | Cons |
+| 方法 | 优点 | 缺点 |
 |---|---|---|
-| **Hot path** (during conversation) | Memories available immediately, transparent to user | Adds latency, agent must multitask |
-| **Background** (between conversations) | No user-facing latency, can synthesize across multiple conversations | Memories not available until next conversation, requires a second agent |
+| **热路径**（对话期间） | 内存立即可用，对用户透明 | 增加延迟，代理必须多任务处理 |
+| **后台**（对话之间） | 无用户感知延迟，可跨多个对话合成 | 内存直到下一次对话才可用，需要第二个代理 |
 
-For most applications, the hot path is sufficient. Add background consolidation when you need to reduce latency or improve memory quality across many conversations.
+对于大多数应用程序，热路径就足够了。当您需要减少延迟或提高跨多个对话的内存质量时，添加后台合并。
 
-The recommended pattern is to deploy a **consolidation agent** alongside your main agent — a deep agent that reads recent conversation history, extracts key facts, and merges them into the memory store — and trigger it on a [cron schedule](#cron). Pick a cadence that reflects how often your users actually interact with the agent: a chat product with steady daily traffic might consolidate every few hours, while a tool used a handful of times per week only needs to run nightly or weekly. Consolidating much more often than users converse just burns tokens on no-op runs.
+推荐的模式是部署一个**合并代理**与您的主代理一起——一个深代理，读取最近的对话历史，提取关键事实，并将其合并到内存存储中——并按[cron 计划](#cron)触发它。选择一个反映用户实际与代理互动频率的节奏：具有稳定每日流量的聊天产品可能每几小时合并一次，而每周仅使用几次的工具只需要每晚或每周运行一次。比用户对话更频繁地合并只会浪费令牌进行无操作运行。
 
-#### Consolidation agent
+#### 合并代理
 
-The consolidation agent reads recent conversation history and merges key facts into the memory store. Register it alongside your main agent in `langgraph.json`:
-
-
+合并代理读取最近的对话历史，并将关键事实合并到内存存储中。在 `langgraph.json` 中与您的主代理一起注册它：
 
 ```typescript src/consolidation-agent.ts
 import { createDeepAgent } from "deepagents";
@@ -417,9 +388,6 @@ Merge new facts, remove outdated information, and keep it concise.`,
 export { agent };
 ```
 
-
-
-
 ```json langgraph.json
 {
   "dependencies": ["."],
@@ -431,10 +399,9 @@ export { agent };
 }
 ```
 
-
 #### Cron
 
-A [cron job](/langsmith/cron-jobs) runs the consolidation agent on a fixed schedule. The agent searches recent conversations and synthesizes them into memory. Match the schedule to your usage patterns so consolidation runs roughly track real activity.
+[cron 作业](/langsmith/cron-jobs)在固定计划上运行合并代理。代理搜索最近的对话并将其合成为内存。匹配计划以符合您的使用模式，以便合并运行大致跟踪真实活动。
 
 ```mermaid
 graph LR
@@ -454,9 +421,7 @@ graph LR
     class Cron schedule
 ```
 
-Schedule the consolidation agent with a cron job:
-
-
+使用 cron 作业安排合并代理：
 
 ```typescript
 import { Client } from "@langchain/langgraph-sdk";
@@ -472,45 +437,42 @@ const cronJob = await client.crons.create(
 );
 ```
 
-
 <Note>
-All cron schedules are interpreted in **UTC**. See [cron jobs](/langsmith/cron-jobs) for details on managing and deleting cron jobs.
+所有 cron 计划均按**UTC**时间解释。有关管理和删除 cron 作业的详细信息，请参阅[cron 作业](/langsmith/cron-jobs)。
 </Note>
 
 <Warning>
-The cron interval must match the lookback window inside the consolidation agent. The example above runs every 6 hours (`0 */6 * * *`) and the agent's `search_recent_conversations` tool looks back `timedelta(hours=6)` — keep these in sync. If the cron runs more often than the lookback, you'll reprocess the same conversations; if it runs less often, you'll drop memories that fall outside the window.
+cron 间隔必须与合并代理内的回顾窗口匹配。上面的示例每 6 小时运行一次（`0 */6 * * *`），代理的 `search_recent_conversations` 工具回顾 `timedelta(hours=6)`——请保持同步。如果 cron 运行频率高于回顾窗口，您将重新处理相同的对话；如果运行频率较低，您将丢失窗口之外的内存。
 </Warning>
 
-For more on deploying agents with background processes, see [going to production](/oss/javascript/deepagents/going-to-production).
+有关使用后台进程部署代理的更多信息，请参阅[投入生产](/oss/javascript/deepagents/going-to-production)。
 
-### Read-only vs writable memory
+### 只读与可写内存
 
-By default, the agent can both read and write memory files. For shared state like organization policies or compliance rules, you may want to make memory **read-only** so the agent can reference it but not modify it. This prevents prompt injection via shared memory and ensures that only your application code controls what's in the file.
+默认情况下，代理可以读写内存文件。对于共享状态（如组织策略或合规规则），您可能希望使内存**只读**，以便代理可以引用它但不能修改它。这可以防止通过共享内存进行提示注入，并确保只有您的应用程序代码控制文件中的内容。
 
-| Permission | Use case | How it works |
+| 权限 | 用例 | 工作原理 |
 |---|---|---|
-| **Read-write** (default) | User preferences, agent self-improvement, learned [skills](/oss/javascript/deepagents/skills) | Agent updates files via `edit_file` tool |
-| **Read-only** | Organization policies, compliance rules, shared knowledge bases, developer-defined [skills](/oss/javascript/deepagents/skills) | Populate via application code or the [Store API](/langsmith/custom-store). Use [permissions](/oss/javascript/deepagents/permissions) to deny writes to specific paths, or [policy hooks](/oss/javascript/deepagents/backends#add-policy-hooks) for custom validation logic. |
+| **读写**（默认） | 用户偏好、代理自我改进、学习的[技能](/oss/javascript/deepagents/skills) | 代理通过 `edit_file` 工具更新文件 |
+| **只读** | 组织策略、合规规则、共享知识库、开发者定义的[技能](/oss/javascript/deepagents/skills) | 通过应用程序代码或[Store API](/langsmith/custom-store)填充。使用[权限](/oss/javascript/deepagents/permissions)拒绝写入特定路径，或使用[策略钩子](/oss/javascript/deepagents/backends#add-policy-hooks)进行自定义验证逻辑。 |
 
-**Security considerations:** If one user can write to memory that another user reads, a malicious user could inject instructions into shared state. To mitigate this:
+**安全考虑：** 如果一个用户可以写入另一个用户读取的内存，恶意用户可能会将指令注入共享状态。为了缓解此问题：
 
-- **Default to user scope** `(user_id)` unless you have a specific reason to share
-- Use **read-only memory** for shared policies (populate via application code, not the agent)
-- Add **human-in-the-loop** validation before the agent writes to shared memory. Use an [interrupt](/oss/javascript/langgraph/interrupts) to require human approval for writes to sensitive paths.
+- **默认使用用户范围** `(user_id)`，除非有特定原因需要共享
+- 对共享策略使用**只读内存**（通过应用程序代码填充，而不是代理）
+- 在代理写入共享内存之前添加**人工介入**验证。使用[中断](/oss/javascript/langgraph/interrupts)要求对敏感路径的写入进行人工批准。
 
-To enforce read-only memory, use [permissions](/oss/javascript/deepagents/permissions) to declaratively deny writes to specific paths. For custom validation logic (rate limiting, audit logging, content inspection), use [backend policy hooks](/oss/javascript/deepagents/backends#add-policy-hooks).
+要强制只读内存，请使用[权限](/oss/javascript/deepagents/permissions)以声明方式拒绝写入特定路径。对于自定义验证逻辑（速率限制、审计日志、内容检查），请使用[后端策略钩子](/oss/javascript/deepagents/backends#add-policy-hooks)。
 
-### Concurrent writes
+### 并发写入
 
-Multiple threads can write to memory in parallel, but concurrent writes to the **same file** can cause last-write-wins conflicts. For user-scoped memory this is rare since users typically have one active conversation at a time. For agent-scoped or organization-scoped memory, consider using [background consolidation](#background-consolidation) to serialize writes, or structure memory as separate files per topic to reduce contention.
+多个线程可以并行写入内存，但对**同一文件**的并发写入可能导致最后写入获胜冲突。对于用户范围的内存，这种情况很少见，因为用户通常一次只有一个活动对话。对于代理范围或组织范围的内存，请考虑使用[后台合并](#background-consolidation)来序列化写入，或将内存结构化为每个主题的单独文件以减少争用。
 
-In practice, if a write fails due to a conflict, the LLM is usually smart enough to retry or recover gracefully, so a single lost write is not catastrophic.
+在实践中，如果写入因冲突而失败，LLM 通常足够智能以重试或优雅恢复，因此单个丢失的写入不是灾难性的。
 
-### Multiple agents in the same deployment
+### 同一部署中的多个代理
 
-To give each agent its own memory in a shared deployment, add `assistant_id` to the namespace:
-
-
+要在共享部署中为每个代理提供自己的内存，请将 `assistant_id` 添加到命名空间：
 
 ```typescript
 new StoreBackend({
@@ -521,20 +483,19 @@ new StoreBackend({
 })
 ```
 
-
-Use `assistant_id` alone if you only need per-agent isolation without per-user scoping.
+如果只需要每个代理的隔离而不需要每个用户的范围，请单独使用 `assistant_id`。
 
 <Tip>
-Use [LangSmith tracing](/langsmith/trace-with-langgraph) to audit what your agent writes to memory. Every file write appears as a tool call in the trace.
+使用[LangSmith 追踪](/langsmith/trace-with-langgraph)审核代理写入内存的内容。每次文件写入都会在追踪中显示为工具调用。
 </Tip>
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/deepagents/memory.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/deepagents/memory.mdx) 或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [通过 MCP 将这些文档](/use-these-docs)连接到 Claude、VSCode 等，以获取实时答案。
 </Callout>
 </div>

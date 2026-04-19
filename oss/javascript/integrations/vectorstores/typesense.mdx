@@ -1,14 +1,14 @@
 ---
-title: "Typesense integration"
-description: "Integrate with the Typesense vector store using LangChain JavaScript."
+title: "Typesense 集成"
+description: "使用 LangChain JavaScript 与 Typesense 向量存储进行集成。"
 ---
 
-Vector store that utilizes the Typesense search engine.
+利用 Typesense 搜索引擎的向量存储。
 
-### Basic usage
+### 基本用法
 
 <Tip>
-See [this section for general instructions on installing LangChain packages](/oss/javascript/langchain/install).
+请参阅[此部分了解安装 LangChain 包的一般说明](/oss/javascript/langchain/install)。
 </Tip>
 
 ```bash npm
@@ -18,7 +18,7 @@ npm install @langchain/openai @langchain/community @langchain/core
 import {
   Typesense,
   TypesenseConfig,
-} from "@lanchain/community/vectorstores/typesense";
+} from "@langchain/community/vectorstores/typesense";
 import { OpenAIEmbeddings } from "@langchain/openai";
 import { Client } from "typesense";
 import { Document } from "@langchain/core/documents";
@@ -26,40 +26,40 @@ import { Document } from "@langchain/core/documents";
 const vectorTypesenseClient = new Client({
   nodes: [
     {
-      // Ideally should come from your .env file
+      // 理想情况下应来自您的 .env 文件
       host: "...",
       port: 123,
       protocol: "https",
     },
   ],
-  // Ideally should come from your .env file
+  // 理想情况下应来自您的 .env 文件
   apiKey: "...",
   numRetries: 3,
   connectionTimeoutSeconds: 60,
 });
 
 const typesenseVectorStoreConfig = {
-  // Typesense client
+  // Typesense 客户端
   typesenseClient: vectorTypesenseClient,
-  // Name of the collection to store the vectors in
+  // 用于存储向量的集合名称
   schemaName: "your_schema_name",
-  // Optional column names to be used in Typesense
+  // 可选的列名，用于 Typesense
   columnNames: {
-    // "vec" is the default name for the vector column in Typesense but you can change it to whatever you want
+    // "vec" 是 Typesense 中向量列的默认名称，但您可以将其更改为您想要的任何名称
     vector: "vec",
-    // "text" is the default name for the text column in Typesense but you can change it to whatever you want
+    // "text" 是 Typesense 中文本列的默认名称，但您可以将其更改为您想要的任何名称
     pageContent: "text",
-    // Names of the columns that you will save in your typesense schema and need to be retrieved as metadata when searching
+    // 您将在 Typesense 模式中保存的列的名称，搜索时需要作为元数据检索
     metadataColumnNames: ["foo", "bar", "baz"],
   },
-  // Optional search parameters to be passed to Typesense when searching
+  // 搜索时传递给 Typesense 的可选搜索参数
   searchParams: {
     q: "*",
     filter_by: "foo:[fooo]",
     query_by: "",
   },
-  // You can override the default Typesense import function if you want to do something more complex
-  // Default import function:
+  // 如果您想执行更复杂的操作，可以覆盖默认的 Typesense 导入函数
+  // 默认导入函数：
   // async importToTypesense<
   //   T extends Record<string, unknown> = Record<string, unknown>
   // >(data: T[], collectionName: string) {
@@ -84,10 +84,10 @@ const typesenseVectorStoreConfig = {
 } satisfies TypesenseConfig;
 
 /**
- * Creates a Typesense vector store from a list of documents.
- * Will update documents if there is a document with the same id, at least with the default import function.
- * @param documents list of documents to create the vector store from
- * @returns Typesense vector store
+ * 从文档列表创建 Typesense 向量存储。
+ * 如果存在具有相同 ID 的文档，将更新文档（至少使用默认导入函数时）。
+ * @param documents 用于创建向量存储的文档列表
+ * @returns Typesense 向量存储
  */
 const createVectorStoreWithTypesense = async (documents: Document[] = []) =>
   Typesense.fromDocuments(
@@ -97,62 +97,62 @@ const createVectorStoreWithTypesense = async (documents: Document[] = []) =>
   );
 
 /**
- * Returns a Typesense vector store from an existing index.
- * @returns Typesense vector store
+ * 从现有索引返回 Typesense 向量存储。
+ * @returns Typesense 向量存储
  */
 const getVectorStoreWithTypesense = async () =>
   new Typesense(new OpenAIEmbeddings(), typesenseVectorStoreConfig);
 
-// Do a similarity search
+// 执行相似性搜索
 const vectorStore = await getVectorStoreWithTypesense();
 const documents = await vectorStore.similaritySearch("hello world");
 
-// Add filters based on metadata with the search parameters of Typesense
-// will exclude documents with author:JK Rowling, so if Joe Rowling & JK Rowling exists, only Joe Rowling will be returned
+// 使用 Typesense 的搜索参数基于元数据添加过滤器
+// 将排除作者为 JK Rowling 的文档，因此如果存在 Joe Rowling 和 JK Rowling，则仅返回 Joe Rowling
 vectorStore.similaritySearch("Rowling", undefined, {
   filter_by: "author:!=JK Rowling",
 });
 
-// Delete a document
+// 删除文档
 vectorStore.deleteDocuments(["document_id_1", "document_id_2"]);
 ```
 
-### Constructor
+### 构造函数
 
-Before starting, create a schema in Typesense with an id, a field for the vector and a field for the text. Add as many other fields as needed for the metadata.
+首先，在 Typesense 中创建一个包含 ID、向量字段和文本字段的模式。根据需要添加任意数量的其他字段用于元数据。
 
-- `constructor(embeddings: Embeddings, config: TypesenseConfig)`: Constructs a new instance of the `Typesense` class.
-  - `embeddings`: An instance of the [`Embeddings`](https://reference.langchain.com/javascript/langchain-core/embeddings/Embeddings) class used for embedding documents.
-  - `config`: Configuration object for the Typesense vector store.
-    - `typesenseClient`: Typesense client instance.
-    - `schemaName`: Name of the Typesense schema in which documents will be stored and searched.
-    - `searchParams` (optional): Typesense search parameters. Default is `{ q: '*', per_page: 5, query_by: '' }`.
-    - `columnNames` (optional): Column names configuration.
-      - `vector` (optional): Vector column name. Default is `'vec'`.
-      - `pageContent` (optional): Page content column name. Default is `'text'`.
-      - `metadataColumnNames` (optional): Metadata column names. Default is an empty array `[]`.
-    - `import` (optional): Replace the default import function for importing data to Typesense. This can affect the functionality of updating documents.
+- `constructor(embeddings: Embeddings, config: TypesenseConfig)`: 构造 `Typesense` 类的新实例。
+  - `embeddings`: 用于嵌入文档的 [`Embeddings`](https://reference.langchain.com/javascript/langchain-core/embeddings/Embeddings) 类实例。
+  - `config`: Typesense 向量存储的配置对象。
+    - `typesenseClient`: Typesense 客户端实例。
+    - `schemaName`: 将在其中存储和搜索文档的 Typesense 模式名称。
+    - `searchParams` (可选): Typesense 搜索参数。默认为 `{ q: '*', per_page: 5, query_by: '' }`。
+    - `columnNames` (可选): 列名配置。
+      - `vector` (可选): 向量列名。默认为 `'vec'`。
+      - `pageContent` (可选): 页面内容列名。默认为 `'text'`。
+      - `metadataColumnNames` (可选): 元数据列名。默认为空数组 `[]`。
+    - `import` (可选): 替换用于将数据导入 Typesense 的默认导入函数。这可能会影响更新文档的功能。
 
-### Methods
+### 方法
 
-- `async addDocuments(documents: Document[]): Promise<void>`: Adds documents to the vector store. The documents will be updated if there is a document with the same ID.
-- `static async fromDocuments(docs: Document[], embeddings: Embeddings, config: TypesenseConfig): Promise<Typesense>`: Creates a Typesense vector store from a list of documents. Documents are added to the vector store during construction.
-- `static async fromTexts(texts: string[], metadatas: object[], embeddings: Embeddings, config: TypesenseConfig): Promise<Typesense>`: Creates a Typesense vector store from a list of texts and associated metadata. Texts are converted to documents and added to the vector store during construction.
-- `async similaritySearch(query: string, k?: number, filter?: Record<string, unknown>): Promise<Document[]>`: Searches for similar documents based on a query. Returns an array of similar documents.
-- `async deleteDocuments(documentIds: string[]): Promise<void>`: Deletes documents from the vector store based on their IDs.
+- `async addDocuments(documents: Document[]): Promise<void>`: 将文档添加到向量存储。如果存在具有相同 ID 的文档，将更新文档。
+- `static async fromDocuments(docs: Document[], embeddings: Embeddings, config: TypesenseConfig): Promise<Typesense>`: 从文档列表创建 Typesense 向量存储。文档在构造期间添加到向量存储。
+- `static async fromTexts(texts: string[], metadatas: object[], embeddings: Embeddings, config: TypesenseConfig): Promise<Typesense>`: 从文本列表和关联的元数据创建 Typesense 向量存储。文本在构造期间转换为文档并添加到向量存储。
+- `async similaritySearch(query: string, k?: number, filter?: Record<string, unknown>): Promise<Document[]>`: 基于查询搜索相似文档。返回相似文档数组。
+- `async deleteDocuments(documentIds: string[]): Promise<void>`: 基于 ID 从向量存储中删除文档。
 
-## Related
+## 相关
 
-- Vector store [conceptual guide](/oss/javascript/integrations/vectorstores)
-- Vector store [how-to guides](/oss/javascript/integrations/vectorstores)
+- 向量存储[概念指南](/oss/javascript/integrations/vectorstores)
+- 向量存储[操作指南](/oss/javascript/integrations/vectorstores)
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/javascript/integrations/vectorstores/typesense.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/javascript/integrations/vectorstores/typesense.mdx) 或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [通过 MCP 将这些文档连接到 Claude、VSCode 等](/use-these-docs) 以获取实时答案。
 </Callout>
 </div>

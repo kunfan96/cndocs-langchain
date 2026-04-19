@@ -1,7 +1,7 @@
 ---
-title: Build a deep research agent
-sidebarTitle: Deep Research
-description: Build a multi-step web research agent with subagent delegation
+title: 构建深度研究代理
+sidebarTitle: 深度研究
+description: 构建具有子代理委派功能的多步骤网络研究代理
 ---
 
 import DeepResearchToolsPy from '/snippets/code-samples/deep-research-tools-py.mdx';
@@ -13,41 +13,39 @@ import DeepResearchAgentClaudeJs from '/snippets/code-samples/deep-research-agen
 import DeepResearchRunSyncJs from '/snippets/code-samples/deep-research-run-sync-js.mdx';
 import DeepResearchRunStreamJs from '/snippets/code-samples/deep-research-run-stream-js.mdx';
 
-## Overview
+## 概述
 
-This guide demonstrates how to build a multi-step web research agent from scratch using [Deep Agents](/oss/javascript/deepagents). The agent decomposes research questions into focused tasks, delegates them to specialized sub-agents, and synthesizes findings into a comprehensive report.
+本指南演示如何使用 [Deep Agents](/oss/javascript/deepagents) 从头开始构建一个多步骤网络研究代理。该代理将研究问题分解为聚焦的任务，将其委派给专门的子代理，并将发现综合成一份全面的报告。
 
-The agent you build will:
+您构建的代理将：
 
-1. Plan research using a todo list
-1. Delegate focused research tasks to sub-agents with isolated context
-1. Assess search results and plan next steps as you gather information
-1. Synthesize findings with proper citations into a final report
+1. 使用待办事项列表规划研究
+2. 将聚焦的研究任务委派给具有隔离上下文的子代理
+3. 在收集信息时评估搜索结果并规划后续步骤
+4. 将发现综合成带有适当引用的最终报告
 
-The spawned sub-agents will conduct web searches with Tavily, fetching full webpage content for analysis.
+生成的子代理将使用 Tavily 进行网络搜索，获取完整的网页内容进行分析。
 
-### Key concepts
+### 关键概念
 
-This tutorial covers:
+本教程涵盖：
 
-- [Subagents](/oss/javascript/deepagents/subagents) for parallel, context-isolated research
-- Custom [tools](/oss/javascript/langchain/tools) for web search
-- Multi-step planning with the [built-in planning tool](/oss/javascript/deepagents/harness#planning-capabilities)
+- 用于并行、上下文隔离研究的[子代理](/oss/javascript/deepagents/subagents)
+- 用于网络搜索的自定义[工具](/oss/javascript/langchain/tools)
+- 使用[内置规划工具](/oss/javascript/deepagents/harness#planning-capabilities)进行多步骤规划
 
-## Prerequisites
+## 先决条件
 
-API keys for:
+需要以下 API 密钥：
 
-- Anthropic (Claude) or Google (Gemini)
-- [Tavily](https://www.tavily.com/) for web search (optional - free tier sufficient)
-- [LangSmith](https://smith.langchain.com/) for tracing (optional)
+- Anthropic (Claude) 或 Google (Gemini)
+- [Tavily](https://www.tavily.com/) 用于网络搜索（可选 - 免费套餐足够）
+- [LangSmith](https://smith.langchain.com/) 用于跟踪（可选）
 
-## Setup
-
-
+## 设置
 
 <Steps>
-<Step title="Create project directory">
+<Step title="创建项目目录">
 
 ```bash
 mkdir deep-research-agent
@@ -55,7 +53,7 @@ cd deep-research-agent
 ```
 
 </Step>
-<Step title="Install dependencies">
+<Step title="安装依赖项">
 
 <Tabs>
 <Tab title="Claude">
@@ -71,21 +69,21 @@ npm install deepagents @langchain/google-genai @langchain/core
 </Tabs>
 
 </Step>
-<Step title="Set API keys">
+<Step title="设置 API 密钥">
 
 <Tabs>
 <Tab title="Claude">
 ```bash
 export ANTHROPIC_API_KEY="your_anthropic_api_key"
 export TAVILY_API_KEY="your_tavily_api_key"
-export LANGSMITH_API_KEY="your_langsmith_api_key"   # Optional
+export LANGSMITH_API_KEY="your_langsmith_api_key"   # 可选
 ```
 </Tab>
 <Tab title="Gemini">
 ```bash
 export GOOGLE_API_KEY="your_google_api_key"
 export TAVILY_API_KEY="your_tavily_api_key"
-export LANGSMITH_API_KEY="your_langsmith_api_key"   # Optional
+export LANGSMITH_API_KEY="your_langsmith_api_key"   # 可选
 ```
 </Tab>
 </Tabs>
@@ -93,93 +91,81 @@ export LANGSMITH_API_KEY="your_langsmith_api_key"   # Optional
 </Step>
 </Steps>
 
+## 构建代理
 
-## Build the agent
-
-
-
-Create `agent.ts` in your project directory:
-
+在您的项目目录中创建 `agent.ts`：
 
 <Steps>
-<Step title="Add tools">
+<Step title="添加工具">
 
-Add the custom search tool. The `tavily_search` tool uses Tavily for URL discovery, then fetches full webpage content so the agent can analyze complete sources instead of summaries.
-
-
+添加自定义搜索工具。`tavily_search` 工具使用 Tavily 发现 URL，然后获取完整的网页内容，以便代理可以分析完整的来源，而不是摘要。
 
 <DeepResearchToolsJs />
 
-
 </Step>
-<Step title="Add prompts">
+<Step title="添加提示">
 
-
-
-Add the orchestrator workflow and sub-agent prompt templates to `agent.ts`:
-
-
-
+将编排器工作流和子代理提示模板添加到 `agent.ts`：
 
 ```ts expandable wrap
-const RESEARCH_WORKFLOW_INSTRUCTIONS = `# Research Workflow
+const RESEARCH_WORKFLOW_INSTRUCTIONS = `# 研究工作流
 
-Follow this workflow for all research requests:
+遵循此工作流处理所有研究请求：
 
-1. **Plan**: Create a todo list with write_todos to break down the research into focused tasks
-2. **Save the request**: Use write_file() to save the user's research question to \`/research_request.md\`
-3. **Research**: Delegate research tasks to sub-agents using the task() tool - ALWAYS use sub-agents for research, never conduct research yourself
-4. **Synthesize**: Review all sub-agent findings and consolidate citations (each unique URL gets one number across all findings)
-5. **Write Report**: Write a comprehensive final report to \`/final_report.md\` (see Report Writing Guidelines below)
-6. **Verify**: Read \`/research_request.md\` and confirm you've addressed all aspects with proper citations and structure
+1. **规划**：使用 write_todos 创建待办事项列表，将研究分解为聚焦的任务
+2. **保存请求**：使用 write_file() 将用户的研究问题保存到 \`/research_request.md\`
+3. **研究**：使用 task() 工具将研究任务委派给子代理 - 始终使用子代理进行研究，切勿自行进行研究
+4. **综合**：审查所有子代理的发现并整合引用（每个唯一 URL 在所有发现中分配一个编号）
+5. **撰写报告**：将全面的最终报告写入 \`/final_report.md\`（参见下面的报告撰写指南）
+6. **验证**：阅读 \`/research_request.md\` 并确认您已通过适当的引用和结构处理了所有方面
 
-## Research Planning Guidelines
-- Batch similar research tasks into a single TODO to minimize overhead
-- For simple fact-finding questions, use 1 sub-agent
-- For comparisons or multi-faceted topics, delegate to multiple parallel sub-agents
-- Each sub-agent should research one specific aspect and return findings
+## 研究规划指南
+- 将类似的研究任务批量处理到一个 TODO 中以最小化开销
+- 对于简单的事实查找问题，使用 1 个子代理
+- 对于比较或多方面主题，委派给多个并行子代理
+- 每个子代理应研究一个特定方面并返回发现
 
-## Report Writing Guidelines
+## 报告撰写指南
 
-When writing the final report to \`/final_report.md\`, follow these structure patterns:
+将最终报告写入 \`/final_report.md\` 时，遵循以下结构模式：
 
-**For comparisons:**
-1. Introduction
-2. Overview of topic A
-3. Overview of topic B
-4. Detailed comparison
-5. Conclusion
+**对于比较：**
+1. 引言
+2. 主题 A 概述
+3. 主题 B 概述
+4. 详细比较
+5. 结论
 
-**For lists/rankings:**
-Simply list items with details - no introduction needed:
-1. Item 1 with explanation
-2. Item 2 with explanation
-3. Item 3 with explanation
+**对于列表/排名：**
+只需列出项目及其详细信息 - 无需引言：
+1. 项目 1 及解释
+2. 项目 2 及解释
+3. 项目 3 及解释
 
-**For summaries/overviews:**
-1. Overview of topic
-2. Key concept 1
-3. Key concept 2
-4. Key concept 3
-5. Conclusion
+**对于摘要/概述：**
+1. 主题概述
+2. 关键概念 1
+3. 关键概念 2
+4. 关键概念 3
+5. 结论
 
-**General guidelines:**
-- Use clear section headings (## for sections, ### for subsections)
-- Write in paragraph form by default - be text-heavy, not just bullet points
-- Do NOT use self-referential language ("I found...", "I researched...")
-- Write as a professional report without meta-commentary
-- Each section should be comprehensive and detailed
-- Use bullet points only when listing is more appropriate than prose
+**通用指南：**
+- 使用清晰的章节标题（## 用于章节，### 用于子章节）
+- 默认以段落形式撰写 - 文本密集，不仅仅是项目符号
+- 不要使用自我指涉的语言（“我发现...”、“我研究了...”）
+- 撰写专业报告，不带元评论
+- 每个章节应全面且详细
+- 仅在列表比散文更合适时使用项目符号
 
-**Citation format:**
-- Cite sources inline using [1], [2], [3] format
-- Assign each unique URL a single citation number across ALL sub-agent findings
-- End report with ### Sources section listing each numbered source
-- Number sources sequentially without gaps (1,2,3,4...)
-- Format: [1] Source Title: URL (each on separate line for proper list rendering)
-- Example:
+**引用格式：**
+- 使用 [1]、[2]、[3] 格式在行内引用来源
+- 为每个唯一 URL 分配一个引用编号，贯穿所有子代理发现
+- 报告末尾使用 ### Sources 部分列出每个编号的来源
+- 顺序编号来源，无间隔（1,2,3,4...）
+- 格式：[1] 来源标题：URL（每行一个，以便正确呈现列表）
+- 示例：
 
- Some important finding [1]. Another key insight [2].
+ 一些重要发现 [1]。另一个关键见解 [2]。
 
  ### Sources
  [1] AI Research Paper: https://example.com/paper
@@ -188,167 +174,151 @@ Simply list items with details - no introduction needed:
 ```
 
 ```ts expandable wrap
-const RESEARCHER_INSTRUCTIONS = `You are a research assistant conducting research on the user's input topic. For context, today's date is {date}.
+const RESEARCHER_INSTRUCTIONS = `您是研究助理，对用户的输入主题进行研究。上下文是，今天的日期是 {date}。
 
-Your job is to use tools to gather information about the user's input topic.
-You can use the tavily_search tool to find resources that can help answer the research question.
-You can call it in series or in parallel, your research is conducted in a tool-calling loop.
+您的工作是使用工具收集有关用户输入主题的信息。
+您可以使用 tavily_search 工具查找有助于回答研究问题的资源。
+您可以串行或并行调用它，您的研究在工具调用循环中进行。
 
-You have access to the tavily_search tool for conducting web searches.
+您有权使用 tavily_search 工具进行网络搜索。
 
-Think like a human researcher with limited time. Follow these steps:
+像时间有限的人类研究人员一样思考。遵循以下步骤：
 
-1. **Read the question carefully** - What specific information does the user need?
-2. **Start with broader searches** - Use broad, comprehensive queries first
-3. **After each search, pause and assess** - Do I have enough to answer? What's still missing?
-4. **Execute narrower searches as you gather information** - Fill in the gaps
-5. **Stop when you can answer confidently** - Don't keep searching for perfection
+1. **仔细阅读问题** - 用户需要什么具体信息？
+2. **从更广泛的搜索开始** - 首先使用广泛、全面的查询
+3. **每次搜索后暂停并评估** - 我有足够的信息吗？还缺少什么？
+4. **在收集信息时执行更窄的搜索** - 填补空白
+5. **当您能自信地回答时停止** - 不要继续追求完美而不断搜索
 
-**Tool Call Budgets** (Prevent excessive searching):
-- **Simple queries**: Use 2-3 search tool calls maximum
-- **Complex queries**: Use up to 5 search tool calls maximum
-- **Always stop**: After 5 search tool calls if you cannot find the right sources
+**工具调用预算**（防止过度搜索）：
+- **简单查询**：最多使用 2-3 次搜索工具调用
+- **复杂查询**：最多使用 5 次搜索工具调用
+- **始终停止**：如果 5 次搜索工具调用后仍无法找到正确的来源，则停止
 
-**Stop Immediately When**:
-- You can answer the user's question comprehensively
-- You have 3+ relevant examples/sources for the question
-- Your last 2 searches returned similar information
+**立即停止的情况**：
+- 您能全面回答用户的问题
+- 您有 3 个以上与问题相关的示例/来源
+- 您最后两次搜索返回了相似的信息
 
-After each search, assess results before continuing: What key information did I find? What's missing? Do I have enough to answer? Should I search more or provide my answer?
+每次搜索后，在继续之前评估结果：我发现了什么关键信息？缺少什么？我有足够的信息回答吗？我应该继续搜索还是提供答案？
 
-When providing your findings back to the orchestrator:
+当向编排器提供您的发现时：
 
-1. **Structure your response**: Organize findings with clear headings and detailed explanations
-2. **Cite sources inline**: Use [1], [2], [3] format when referencing information from your searches
-3. **Include Sources section**: End with ### Sources listing each numbered source with title and URL
+1. **构建您的响应**：使用清晰的标题和详细解释组织发现
+2. **在行内引用来源**：引用搜索信息时使用 [1]、[2]、[3] 格式
+3. **包含来源部分**：以 ### Sources 结尾，列出每个编号的来源及其标题和 URL
 
-Example:
-## Key Findings
-Context engineering is a critical technique for AI agents [1]. Studies show that proper context management can improve performance by 40% [2].
+示例：
+## 关键发现
+上下文工程是 AI 代理的关键技术 [1]。研究表明，适当的上下文管理可以将性能提高 40% [2]。
 
 ### Sources
 [1] Context Engineering Guide: https://example.com/context-guide
 [2] AI Performance Study: https://example.com/study
 
-The orchestrator will consolidate citations from all sub-agents into the final report.
+编排器将把所有子代理的引用整合到最终报告中。
 `;
 ```
 
 ```ts expandable wrap
-const SUBAGENT_DELEGATION_INSTRUCTIONS = `# Sub-Agent Research Coordination
+const SUBAGENT_DELEGATION_INSTRUCTIONS = `# 子代理研究协调
 
-Your role is to coordinate research by delegating tasks from your TODO list to specialized research sub-agents.
+您的角色是通过将任务从您的 TODO 列表委派给专门的研究子代理来协调研究。
 
-## Delegation Strategy
+## 委派策略
 
-**DEFAULT: Start with 1 sub-agent** for most queries:
-- "What is quantum computing?" -> 1 sub-agent (general overview)
-- "List the top 10 coffee shops in San Francisco" -> 1 sub-agent
-- "Summarize the history of the internet" -> 1 sub-agent
-- "Research context engineering for AI agents" -> 1 sub-agent (covers all aspects)
+**默认：从 1 个子代理开始** 处理大多数查询：
+- "什么是量子计算？" -> 1 个子代理（一般概述）
+- "列出旧金山十大咖啡店" -> 1 个子代理
+- "总结互联网历史" -> 1 个子代理
+- "研究 AI 代理的上下文工程" -> 1 个子代理（涵盖所有方面）
 
-**ONLY parallelize when the query EXPLICITLY requires comparison or has clearly independent aspects:**
+**仅在查询明确要求比较或具有明显独立方面时并行化：**
 
-**Explicit comparisons** -> 1 sub-agent per element:
-- "Compare OpenAI vs Anthropic vs DeepMind AI safety approaches" -> 3 parallel sub-agents
-- "Compare Python vs JavaScript for web development" -> 2 parallel sub-agents
+**明确的比较** -> 每个元素 1 个子代理：
+- "比较 OpenAI、Anthropic 和 DeepMind 的 AI 安全方法" -> 3 个并行子代理
+- "比较 Python 和 JavaScript 用于 Web 开发" -> 2 个并行子代理
 
-**Clearly separated aspects** -> 1 sub-agent per aspect (use sparingly):
-- "Research renewable energy adoption in Europe, Asia, and North America" -> 3 parallel sub-agents (geographic separation)
-- Only use this pattern when aspects cannot be covered efficiently by a single comprehensive search
+**明显分离的方面** -> 每个方面 1 个子代理（谨慎使用）：
+- "研究欧洲、亚洲和北美的可再生能源采用情况" -> 3 个并行子代理（地理分离）
+- 仅当方面无法通过单个全面搜索有效覆盖时使用此模式
 
-## Key Principles
-- **Bias towards single sub-agent**: One comprehensive research task is more token-efficient than multiple narrow ones
-- **Avoid premature decomposition**: Don't break "research X" into "research X overview", "research X techniques", "research X applications" - just use 1 sub-agent for all of X
-- **Parallelize only for clear comparisons**: Use multiple sub-agents when comparing distinct entities or geographically separated data
+## 关键原则
+- **倾向于单个子代理**：一个全面的研究任务比多个狭窄的任务更节省令牌
+- **避免过早分解**：不要将“研究 X”分解为“研究 X 概述”、“研究 X 技术”、“研究 X 应用” - 只使用 1 个子代理处理所有 X
+- **仅对明确的比较进行并行化**：当比较不同实体或地理分离的数据时使用多个子代理
 
-## Parallel Execution Limits
-- Use at most {maxConcurrentResearchUnits} parallel sub-agents per iteration
-- Make multiple task() calls in a single response to enable parallel execution
-- Each sub-agent returns findings independently
+## 并行执行限制
+- 每次迭代最多使用 {maxConcurrentResearchUnits} 个并行子代理
+- 在单个响应中进行多次 task() 调用以启用并行执行
+- 每个子代理独立返回发现
 
-## Research Limits
-- Stop after {maxResearcherIterations} delegation rounds if you haven't found adequate sources
-- Stop when you have sufficient information to answer comprehensively
-- Bias towards focused research over exhaustive exploration`;
+## 研究限制
+- 如果在 {maxResearcherIterations} 次委派轮次后仍未找到足够的来源，则停止
+- 当您有足够的信息全面回答时停止
+- 倾向于聚焦研究而非详尽探索`;
 ```
 
-
 </Step>
-<Step title="Create the agent">
+<Step title="创建代理">
 
-
-
-Add the model initialization and agent creation to `agent.ts`:
+将模型初始化和代理创建添加到 `agent.ts`：
 
 <DeepResearchAgentClaudeJs />
-
 
 </Step>
 </Steps>
 
-## Run the agent
+## 运行代理
 
-You can run the agent synchronously, meaning it will wait for the full result and then print it, or you can stream updates as they come in.
+您可以同步运行代理，这意味着它将等待完整结果然后打印，或者您可以流式传输更新。
 
-
-
-Add the code from the respective tab at the bottom of `agent.ts`:
-
+将相应选项卡中的代码添加到 `agent.ts` 底部：
 
 <Tabs>
-<Tab title="Run synchronously" value="sync">
-
-
+<Tab title="同步运行" value="sync">
 
 <DeepResearchRunSyncJs />
 
-
 </Tab>
-<Tab title="Stream updates" value="stream">
-
-
+<Tab title="流式传输更新" value="stream">
 
 <DeepResearchRunStreamJs />
-
 
 </Tab>
 </Tabs>
 
-Run the agent from the project root:
-
-
+从项目根目录运行代理：
 
 ```sh
 npx tsx agent.ts
 ```
 
+如果在运行前设置了 `LANGSMITH_API_KEY` 环境变量，您可以在 [LangSmith](/langsmith/home) 中查看代理的跟踪以调试和监控多步骤行为。
 
-If you set the `LANGSMITH_API_KEY` environment variable before running, you can view the agent's traces in [LangSmith](/langsmith/home) to debug and monitor multi-step behavior.
+## 完整代码
 
-## Full code
+在 GitHub 上查看完整的 [深度研究示例](https://github.com/langchain-ai/deepagents/tree/main/examples/deep_research)。
 
-View the complete [Deep Research example](https://github.com/langchain-ai/deepagents/tree/main/examples/deep_research) on GitHub.
+## 后续步骤
 
-## Next steps
+现在您已经构建了代理，可以通过更改代理文件中的提示常量来自定义它，以调整工作流、委派策略或研究人员行为。
+您还可以调整委派限制以允许更多并行子代理或委派轮次。
 
-Now that you've built the agent, customize it by changing the prompt constants in your agent file to adjust the workflow, delegation strategy, or researcher behavior.
-You can also tune the delegation limits to allow for more parallel sub-agents or delegation rounds.
+有关本教程中概念的更多信息，请查看以下资源：
 
-For more information on the concepts in this tutorial, check out the following resources:
-
-- [Subagents](/oss/javascript/deepagents/subagents): Learn how to configure subagents with different tools and prompts
-- [Customization](/oss/javascript/deepagents/customization): Customize models, tools, system prompts, and planning behavior
-- [LangSmith](/langsmith/home): Trace research runs and debug multi-step behavior
-- [Deep Research Course](https://academy.langchain.com/courses/deep-research-with-langgraph): Full course on deep research with LangGraph
+- [子代理](/oss/javascript/deepagents/subagents)：了解如何配置具有不同工具和提示的子代理
+- [自定义](/oss/javascript/deepagents/customization)：自定义模型、工具、系统提示和规划行为
+- [LangSmith](/langsmith/home)：跟踪研究运行并调试多步骤行为
+- [深度研究课程](https://academy.langchain.com/courses/deep-research-with-langgraph)：关于使用 LangGraph 进行深度研究的完整课程
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/deepagents/deep-research.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/deepagents/deep-research.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [连接这些文档](/use-these-docs) 到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 </div>

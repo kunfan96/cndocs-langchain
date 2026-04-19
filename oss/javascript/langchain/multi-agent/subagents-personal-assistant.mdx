@@ -1,40 +1,38 @@
 ---
-title: Build a personal assistant with subagents
-sidebarTitle: "Subagents: Personal assistant"
+title: 使用子智能体构建个人助理
+sidebarTitle: "子智能体：个人助理"
 ---
 
 import ChatModelTabsPy from '/snippets/chat-model-tabs.mdx';
 import ChatModelTabsJs from '/snippets/chat-model-tabs-js.mdx';
 
-## Overview
+## 概述
 
-The **supervisor pattern** is a [multi-agent](/oss/javascript/langchain/multi-agent) architecture where a central supervisor agent coordinates specialized worker agents. This approach excels when tasks require different types of expertise. Rather than building one agent that manages tool selection across domains, you create focused specialists coordinated by a supervisor who understands the overall workflow.
+**主管模式**是一种[多智能体](/oss/javascript/langchain/multi-agent)架构，其中中央主管智能体协调专门的工作者智能体。这种方法在任务需要不同类型专业知识时表现出色。与其构建一个跨领域管理工具选择的智能体，不如创建由理解整体工作流的主管协调的专注专家。
 
-In this tutorial, you'll build a personal assistant system that demonstrates these benefits through a realistic workflow. The system will coordinate two specialists with fundamentally different responsibilities:
+在本教程中，您将构建一个个人助理系统，通过一个真实的工作流来展示这些优势。该系统将协调两个职责根本不同的专家：
 
-- A **calendar agent** that handles scheduling, availability checking, and event management.
-- An **email agent** that manages communication, drafts messages, and sends notifications.
+- **日历智能体**：处理日程安排、可用性检查和事件管理。
+- **电子邮件智能体**：管理通信、起草消息和发送通知。
 
-We will also incorporate [human-in-the-loop review](/oss/javascript/langchain/human-in-the-loop) to allow users to approve, edit, and reject actions (such as outbound emails) as desired.
+我们还将结合[人机回环审查](/oss/javascript/langchain/human-in-the-loop)，允许用户根据需要批准、编辑和拒绝操作（例如外发电子邮件）。
 
-### Why use a supervisor?
+### 为什么使用主管？
 
-Multi-agent architectures allow you to partition [tools](/oss/javascript/langchain/tools) across workers, each with their own individual prompts or instructions. Consider an agent with direct access to all calendar and email APIs: it must choose from many similar tools, understand exact formats for each API, and handle multiple domains simultaneously. If performance degrades, it may be helpful to separate related tools and associated prompts into logical groups (in part to manage iterative improvements).
+多智能体架构允许您将[工具](/oss/javascript/langchain/tools)分配给工作者，每个工作者都有自己的提示或指令。考虑一个直接访问所有日历和电子邮件 API 的智能体：它必须从许多相似的工具中选择，理解每个 API 的确切格式，并同时处理多个领域。如果性能下降，将相关工具和关联提示分离到逻辑组中可能会有所帮助（部分原因是为了管理迭代改进）。
 
-### Concepts
+### 概念
 
-We will cover the following concepts:
+我们将涵盖以下概念：
 
-- [Multi-agent systems](/oss/javascript/langchain/multi-agent)
-- [Human-in-the-loop review](/oss/javascript/langchain/human-in-the-loop)
+- [多智能体系统](/oss/javascript/langchain/multi-agent)
+- [人机回环审查](/oss/javascript/langchain/human-in-the-loop)
 
-## Setup
+## 设置
 
-### Installation
+### 安装
 
-This tutorial requires the `langchain` package:
-
-
+本教程需要 `langchain` 包：
 
 <CodeGroup>
 ```bash npm
@@ -48,14 +46,11 @@ pnpm add langchain
 ```
 </CodeGroup>
 
-
-For more details, see our [Installation guide](/oss/javascript/langchain/install).
+更多详情，请参阅我们的[安装指南](/oss/javascript/langchain/install)。
 
 ### LangSmith
 
-Set up [LangSmith](https://smith.langchain.com) to inspect what is happening inside your agent. Then set the following environment variables:
-
-
+设置 [LangSmith](https://smith.langchain.com) 以检查智能体内部发生的情况。然后设置以下环境变量：
 
 <CodeGroup>
 ```bash bash
@@ -68,21 +63,15 @@ process.env.LANGSMITH_API_KEY = "...";
 ```
 </CodeGroup>
 
+### 组件
 
-### Components
-
-We will need to select a chat model from LangChain's suite of integrations:
-
-
+我们需要从 LangChain 的集成套件中选择一个聊天模型：
 
 <ChatModelTabsJs />
 
+## 1. 定义工具
 
-## 1. Define tools
-
-Start by defining the tools that require structured inputs. In real applications, these would call actual APIs (Google Calendar, SendGrid, etc.). For this tutorial, you'll use stubs to demonstrate the pattern.
-
-
+首先定义需要结构化输入的工具。在实际应用中，这些工具会调用实际的 API（Google Calendar、SendGrid 等）。在本教程中，您将使用存根来演示该模式。
 
 ```typescript
 import { tool } from "langchain";
@@ -90,7 +79,7 @@ import { z } from "zod";
 
 const createCalendarEvent = tool(
   async ({ title, startTime, endTime, attendees, location }) => {
-    // Stub: In practice, this would call Google Calendar API, Outlook API, etc.
+    // 存根：在实践中，这将调用 Google Calendar API、Outlook API 等。
     return `Event created: ${title} from ${startTime} to ${endTime} with ${attendees.length} attendees`;
   },
   {
@@ -108,7 +97,7 @@ const createCalendarEvent = tool(
 
 const sendEmail = tool(
   async ({ to, subject, body, cc }) => {
-    // Stub: In practice, this would call SendGrid, Gmail API, etc.
+    // 存根：在实践中，这将调用 SendGrid、Gmail API 等。
     return `Email sent to ${to.join(', ')} - Subject: ${subject}`;
   },
   {
@@ -125,7 +114,7 @@ const sendEmail = tool(
 
 const getAvailableTimeSlots = tool(
   async ({ attendees, date, durationMinutes }) => {
-    // Stub: In practice, this would query calendar APIs
+    // 存根：在实践中，这将查询日历 API
     return ["09:00", "14:00", "16:00"];
   },
   {
@@ -140,16 +129,13 @@ const getAvailableTimeSlots = tool(
 );
 ```
 
+## 2. 创建专门的子智能体
 
-## 2. Create specialized sub-agents
+接下来，我们将创建处理每个领域的专门子智能体。
 
-Next, we'll create specialized sub-agents that handle each domain.
+### 创建日历智能体
 
-### Create a calendar agent
-
-The calendar agent understands natural language scheduling requests and translates them into precise API calls. It handles date parsing, availability checking, and event creation.
-
-
+日历智能体理解自然语言调度请求，并将其转换为精确的 API 调用。它处理日期解析、可用性检查和事件创建。
 
 ```typescript
 import { createAgent } from "langchain";
@@ -171,10 +157,7 @@ const calendarAgent = createAgent({
 });
 ```
 
-
-Test the calendar agent to see how it handles natural language scheduling:
-
-
+测试日历智能体以查看其如何处理自然语言调度：
 
 ```typescript
 const query = "Schedule a team meeting next Tuesday at 2pm for 1 hour";
@@ -225,13 +208,11 @@ Event created: Team Meeting from 2024-06-18T14:00:00 to 2024-06-18T15:00:00 with
 The team meeting has been scheduled for next Tuesday, June 18th, at 2:00 PM and will last for 1 hour. If you need to add attendees or a location, please let me know!
 ```
 
-The agent parses "next Tuesday at 2pm" into ISO format ("2024-01-16T14:00:00"), calculates the end time, calls `create_calendar_event`, and returns a natural language confirmation.
+智能体将 "next Tuesday at 2pm" 解析为 ISO 格式 ("2024-01-16T14:00:00")，计算结束时间，调用 `create_calendar_event`，并返回自然语言确认。
 
-### Create an email agent
+### 创建电子邮件智能体
 
-The email agent handles message composition and sending. It focuses on extracting recipient information, crafting appropriate subject lines and body text, and managing email communication.
-
-
+电子邮件智能体处理消息的撰写和发送。它专注于提取收件人信息、撰写合适的主题行和正文文本，以及管理电子邮件通信。
 
 ```typescript
 const EMAIL_AGENT_PROMPT = `
@@ -249,7 +230,7 @@ const emailAgent = createAgent({
 });
 ```
 
-Test the email agent with a natural language request:
+使用自然语言请求测试电子邮件智能体：
 
 ```typescript
 const query = "Send the design team a reminder about reviewing the new mockups";
@@ -295,13 +276,11 @@ Email sent to design-team@example.com - Subject: Reminder: Please Review the New
 I've sent a reminder to the design team asking them to review the new mockups. If you need any further communication on this topic, just let me know!
 ```
 
-The agent infers the recipient from the informal request, crafts a professional subject line and body, calls `send_email`, and returns a confirmation. Each sub-agent has a narrow focus with domain-specific tools and prompts, allowing it to excel at its specific task.
+智能体从非正式请求中推断收件人，撰写专业的主题行和正文，调用 `send_email`，并返回确认。每个子智能体都有狭窄的关注点，配备领域特定的工具和提示，使其能够在特定任务上表现出色。
 
-## 3. Wrap sub-agents as tools
+## 3. 将子智能体包装为工具
 
-Now wrap each sub-agent as a tool that the supervisor can invoke. This is the key architectural step that creates the layered system. The supervisor will see high-level tools like "schedule_event", not low-level tools like "create_calendar_event".
-
-
+现在将每个子智能体包装为一个工具，供主管调用。这是创建分层系统的关键架构步骤。主管将看到高级工具，如 "schedule_event"，而不是低级工具，如 "create_calendar_event"。
 
 ```typescript
 const scheduleEvent = tool(
@@ -353,14 +332,11 @@ Input: Natural language email request (e.g., 'send them a reminder about the mee
 );
 ```
 
+工具描述帮助主管决定何时使用每个工具，因此请使其清晰具体。我们只返回子智能体的最终响应，因为主管不需要看到中间推理或工具调用。
 
-The tool descriptions help the supervisor decide when to use each tool, so make them clear and specific. We return only the sub-agent's final response, as the supervisor doesn't need to see intermediate reasoning or tool calls.
+## 4. 创建主管智能体
 
-## 4. Create the supervisor agent
-
-Now create the supervisor that orchestrates the sub-agents. The supervisor only sees high-level tools and makes routing decisions at the domain level, not the individual API level.
-
-
+现在创建协调子智能体的主管。主管只看到高级工具，并在领域级别做出路由决策，而不是在单个 API 级别。
 
 ```typescript
 const SUPERVISOR_PROMPT = `
@@ -377,14 +353,11 @@ const supervisorAgent = createAgent({
 });
 ```
 
+## 5. 使用主管
 
-## 5. Use the supervisor
+现在使用需要跨多个领域协调的复杂请求测试您的完整系统：
 
-Now test your complete system with complex requests that require coordination across multiple domains:
-
-### Example 1: Simple single-domain request
-
-
+### 示例 1：简单的单领域请求
 
 ```typescript
 const query = "Schedule a team standup for tomorrow at 9am";
@@ -420,15 +393,13 @@ The team standup has been scheduled for tomorrow at 9:00 AM with Alice and Bob. 
 The team standup with Alice and Bob is scheduled for tomorrow at 9:00 AM. If you need any further arrangements or adjustments, please let me know!
 ```
 
-The supervisor identifies this as a calendar task, calls `schedule_event`, and the calendar agent handles date parsing and event creation.
+主管将此识别为日历任务，调用 `schedule_event`，日历智能体处理日期解析和事件创建。
 
 <Tip>
-For full transparency into the information flow, including prompts and responses for each chat model call, check out the [LangSmith trace](https://smith.langchain.com/public/91a9a95f-fba9-4e84-aff0-371861ad2f4a/r) for the above run.
+要全面了解信息流，包括每个聊天模型调用的提示和响应，请查看上述运行的 [LangSmith 追踪](https://smith.langchain.com/public/91a9a95f-fba9-4e84-aff0-371861ad2f4a/r)。
 </Tip>
 
-### Example 2: Complex multi-domain request
-
-
+### 示例 2：复杂的多领域请求
 
 ```typescript
 const query =
@@ -478,27 +449,25 @@ I've also sent an email reminder to the design team, asking them to review the n
 Let me know if you'd like to add more details to the meeting or include additional information in the email!
 ```
 
-The supervisor recognizes this requires both calendar and email actions, calls `schedule_event` for the meeting, then calls `manage_email` for the reminder. Each sub-agent completes its task, and the supervisor synthesizes both results into a coherent response.
+主管识别出这需要日历和电子邮件操作，为会议调用 `schedule_event`，然后为提醒调用 `manage_email`。每个子智能体完成其任务，主管将两个结果综合成一个连贯的响应。
 
 <Tip>
-Refer to the [LangSmith trace](https://smith.langchain.com/public/95cd00a3-d1f9-4dba-9731-7bf733fb6a3c/r) to see the detailed information flow for the above run, including individual chat model prompts and responses.
+请参阅 [LangSmith 追踪](https://smith.langchain.com/public/95cd00a3-d1f9-4dba-9731-7bf733fb6a3c/r) 以查看上述运行的详细信息流，包括各个聊天模型的提示和响应。
 </Tip>
 
-### Complete working example
+### 完整的工作示例
 
-Here's everything together in a runnable script:
+以下是可运行脚本中的所有内容：
 
-<Expandable title="View complete code" defaultOpen={false}>
-
-
+<Expandable title="查看完整代码" defaultOpen={false}>
 
 ```typescript
 /**
- * Personal Assistant Supervisor Example
+ * 个人助理主管示例
  *
- * This example demonstrates the tool calling pattern for multi-agent systems.
- * A supervisor agent coordinates specialized sub-agents (calendar and email)
- * that are wrapped as tools.
+ * 此示例演示了多智能体系统的工具调用模式。
+ * 主管智能体协调专门的子智能体（日历和电子邮件），
+ * 这些子智能体被包装为工具。
  */
 
 import { tool, createAgent } from "langchain";
@@ -506,12 +475,12 @@ import { ChatAnthropic } from "@langchain/anthropic";
 import { z } from "zod";
 
 // ============================================================================
-// Step 1: Define low-level API tools (stubbed)
+// 步骤 1：定义低级 API 工具（存根）
 // ============================================================================
 
 const createCalendarEvent = tool(
   async ({ title, startTime, endTime, attendees, location }) => {
-    // Stub: In practice, this would call Google Calendar API, Outlook API, etc.
+    // 存根：在实践中，这将调用 Google Calendar API、Outlook API 等。
     return `Event created: ${title} from ${startTime} to ${endTime} with ${attendees.length} attendees`;
   },
   {
@@ -529,7 +498,7 @@ const createCalendarEvent = tool(
 
 const sendEmail = tool(
   async ({ to, subject, body, cc }) => {
-    // Stub: In practice, this would call SendGrid, Gmail API, etc.
+    // 存根：在实践中，这将调用 SendGrid、Gmail API 等。
     return `Email sent to ${to.join(", ")} - Subject: ${subject}`;
   },
   {
@@ -547,7 +516,7 @@ const sendEmail = tool(
 
 const getAvailableTimeSlots = tool(
   async ({ attendees, date, durationMinutes }) => {
-    // Stub: In practice, this would query calendar APIs
+    // 存根：在实践中，这将查询日历 API
     return ["09:00", "14:00", "16:00"];
   },
   {
@@ -563,7 +532,7 @@ const getAvailableTimeSlots = tool(
 );
 
 // ============================================================================
-// Step 2: Create specialized sub-agents
+// 步骤 2：创建专门的子智能体
 // ============================================================================
 
 const llm = new ChatAnthropic({
@@ -597,7 +566,7 @@ Always confirm what was sent in your final response.
 });
 
 // ============================================================================
-// Step 3: Wrap sub-agents as tools for the supervisor
+// 步骤 3：将子智能体包装为供主管使用的工具
 // ============================================================================
 
 const scheduleEvent = tool(
@@ -649,7 +618,7 @@ Input: Natural language email request (e.g., 'send them a reminder about the mee
 );
 
 // ============================================================================
-// Step 4: Create the supervisor agent
+// 步骤 4：创建主管智能体
 // ============================================================================
 
 const supervisorAgent = createAgent({
@@ -664,10 +633,10 @@ When a request involves multiple actions, use multiple tools in sequence.
 });
 
 // ============================================================================
-// Step 5: Use the supervisor
+// 步骤 5：使用主管
 // ============================================================================
 
-// Example: User request requiring both calendar and email coordination
+// 示例：需要日历和电子邮件协调的用户请求
 const userRequest =
   "Schedule a meeting with the design team next Tuesday at 2pm for 1 hour, " +
   "and send them an email reminder about reviewing the new mockups.";
@@ -690,24 +659,21 @@ for await (const step of stream) {
 }
 ```
 
-
 </Expandable>
 
-### Understanding the architecture
+### 理解架构
 
-Your system has three layers. The bottom layer contains rigid API tools that require exact formats. The middle layer contains sub-agents that accept natural language, translate it to structured API calls, and return natural language confirmations. The top layer contains the supervisor that routes to high-level capabilities and synthesizes results.
+您的系统有三层。底层包含需要精确格式的刚性 API 工具。中间层包含接受自然语言、将其转换为结构化 API 调用并返回自然语言确认的子智能体。顶层包含主管，它路由到高级功能并综合结果。
 
-This separation of concerns provides several benefits: each layer has a focused responsibility, you can add new domains without affecting existing ones, and you can test and iterate on each layer independently.
+这种关注点分离提供了几个好处：每个层都有明确的职责，您可以添加新领域而不影响现有领域，并且可以独立测试和迭代每个层。
 
-## 6. Add human-in-the-loop review
+## 6. 添加人机回环审查
 
-It can be prudent to incorporate [human-in-the-loop review](/oss/javascript/langchain/human-in-the-loop) of sensitive actions. LangChain includes [built-in middleware](/oss/javascript/langchain/human-in-the-loop#configuring-interrupts) to review tool calls, in this case the tools invoked by sub-agents.
+对于敏感操作，加入[人机回环审查](/oss/javascript/langchain/human-in-the-loop)是谨慎的做法。LangChain 包含[内置中间件](/oss/javascript/langchain/human-in-the-loop#configuring-interrupts)来审查工具调用，在本例中是子智能体调用的工具。
 
-Let's add human-in-the-loop review to both sub-agents:
-- We configure the `create_calendar_event` and `send_email` tools to interrupt, permitting all [response types](/oss/javascript/langchain/human-in-the-loop) (`approve`, `edit`, `reject`)
-- We add a [checkpointer](/oss/javascript/langchain/short-term-memory) **only to the top-level agent**. This is required to pause and resume execution.
-
-
+让我们向两个子智能体添加人机回环审查：
+- 我们将 `create_calendar_event` 和 `send_email` 工具配置为中断，允许所有[响应类型](/oss/javascript/langchain/human-in-the-loop)（`approve`、`edit`、`reject`）
+- 我们仅向顶级智能体添加一个[检查点](/oss/javascript/langchain/short-term-memory)。这是暂停和恢复执行所必需的。
 
 ```typescript
 import { createAgent, humanInTheLoopMiddleware } from "langchain"; // [!code highlight]
@@ -745,10 +711,7 @@ const supervisorAgent = createAgent({
 });
 ```
 
-
-Let's repeat the query. Note that we gather interrupt events into a list to access downstream:
-
-
+让我们重复查询。请注意，我们将中断事件收集到一个列表中以访问下游：
 
 ```typescript
 const query =
@@ -791,9 +754,7 @@ INTERRUPTED: 4f994c9721682a292af303ec1a46abb7
 
 INTERRUPTED: 2b56f299be313ad8bc689eff02973f16
 ```
-This time we've interrupted execution. Let's inspect the interrupt events:
-
-
+这次我们中断了执行。让我们检查中断事件：
 
 ```typescript
 for (const interrupt of interrupts) {
@@ -818,9 +779,7 @@ Tool: send_email
 Args: {'to': ['designteam@example.com'], 'subject': 'Reminder: Review New Mockups Before Meeting Next Tuesday at 2pm', 'body': "Hello Team,\n\nThis is a reminder to review the new mockups ahead of our meeting scheduled for next Tuesday at 2pm. Your feedback and insights will be valuable for our discussion and next steps.\n\nPlease ensure you've gone through the designs and are ready to share your thoughts during the meeting.\n\nThank you!\n\nBest regards,\n[Your Name]"}
 ```
 
-We can specify decisions for each interrupt by referring to its ID using a [`Command`](https://reference.langchain.com/javascript/langchain-langgraph/index/Command). Refer to the [human-in-the-loop guide](/oss/javascript/langchain/human-in-the-loop) for additional details. For demonstration purposes, here we will accept the calendar event, but edit the subject of the outbound email:
-
-
+我们可以使用 [`Command`](https://reference.langchain.com/javascript/langchain-langgraph/index/Command) 通过其 ID 为每个中断指定决策。有关更多详细信息，请参阅[人机回环指南](/oss/javascript/langchain/human-in-the-loop)。出于演示目的，这里我们将接受日历事件，但编辑外发电子邮件的主题：
 
 ```typescript
 import { Command } from "@langchain/langgraph"; // [!code highlight]
@@ -829,7 +788,7 @@ const resume: Record<string, any> = {};
 for (const interrupt of interrupts) {
   const actionRequest = interrupt.value.actionRequests[0];
   if (actionRequest.name === "send_email") {
-    // Edit email
+    // 编辑电子邮件
     const editedAction = { ...actionRequest };
     editedAction.args.subject = "Mockups reminder";
     resume[interrupt.id] = {
@@ -878,15 +837,13 @@ Let me know if you need any further assistance!
 
 Let me know if you need any further assistance!
 ```
-The run proceeds with our input.
+运行继续进行，使用我们的输入。
 
-## 7. Advanced: Control information flow
+## 7. 高级：控制信息流
 
-By default, sub-agents receive only the request string from the supervisor. You might want to pass additional context, such as conversation history or user preferences.
+默认情况下，子智能体仅接收来自主管的请求字符串。您可能希望传递额外的上下文，例如对话历史或用户偏好。
 
-### Pass additional conversational context to sub-agents
-
-
+### 向子智能体传递额外的对话上下文
 
 ```typescript
 import { getCurrentTaskInput } from "@langchain/langgraph";
@@ -894,8 +851,8 @@ import { type BuiltInState, HumanMessage } from "langchain";
 
 const scheduleEvent = tool(
   async ({ request }, config) => {
-    // Customize context received by sub-agent
-    // Access full thread messages from the config
+    // 自定义子智能体接收的上下文
+    // 从配置中访问完整的线程消息
     const currentMessages = getCurrentTaskInput<BuiltInState>(config).messages;
     const originalUserMessage = currentMessages.find(HumanMessage.isInstance);
     const prompt = `
@@ -924,18 +881,15 @@ ${request}
 );
 ```
 
-
-This allows sub-agents to see the full conversation context, which can be useful for resolving ambiguities like "schedule it for the same time tomorrow" (referencing a previous conversation).
+这允许子智能体看到完整的对话上下文，这对于解决诸如“安排在明天同一时间”（引用之前的对话）之类的歧义非常有用。
 
 <Tip>
-You can see the full context received by the sub agent in the [chat model call](https://smith.langchain.com/public/c7d54882-afb8-4039-9c5a-4112d0f458b0/r/6803571e-af78-4c68-904a-ecf55771084d) of the LangSmith trace.
+您可以在 LangSmith 追踪的[聊天模型调用](https://smith.langchain.com/public/c7d54882-afb8-4039-9c5a-4112d0f458b0/r/6803571e-af78-4c68-904a-ecf55771084d)中看到子智能体接收的完整上下文。
 </Tip>
 
-### Control what supervisor receives
+### 控制主管接收的内容
 
-You can also customize what information flows back to the supervisor:
-
-
+您还可以自定义流回主管的信息：
 
 ```typescript
 const scheduleEvent = tool(
@@ -946,10 +900,10 @@ const scheduleEvent = tool(
 
     const lastMessage = result.messages[result.messages.length - 1];
 
-    // Option 1: Return just the confirmation message
+    // 选项 1：仅返回确认消息
     return lastMessage.text;
 
-    // Option 2: Return structured data
+    // 选项 2：返回结构化数据
     // return JSON.stringify({
     //   status: "success",
     //   event_id: "evt_123",
@@ -966,37 +920,35 @@ const scheduleEvent = tool(
 );
 ```
 
-
-**Important:** Make sure sub-agent prompts emphasize that their final message should contain all relevant information. A common failure mode is sub-agents that perform tool calls but don't include the results in their final response.
-
-<Tip>
-For a complete working example that demonstrates the full supervisor pattern with human-in-the-loop review and advanced information flow control, check out [`supervisor_complete.ts`](https://github.com/langchain-ai/langchainjs/blob/main/examples/src/createAgent/supervisor.ts) in the LangChain.js examples.
-</Tip>
-
-
-## 8. Key takeaways
-
-The supervisor pattern creates layers of abstraction where each layer has a clear responsibility. When designing a supervisor system, start with clear domain boundaries and give each sub-agent focused tools and prompts. Write clear tool descriptions for the supervisor, test each layer independently before integration, and control information flow based on your specific needs.
+**重要提示：** 确保子智能体提示强调其最终消息应包含所有相关信息。常见的故障模式是子智能体执行工具调用但未将结果包含在其最终响应中。
 
 <Tip>
-**When to use the supervisor pattern**
-
-Use the supervisor pattern when you have multiple distinct domains (calendar, email, CRM, database), each domain has multiple tools or complex logic, you want centralized workflow control, and sub-agents don't need to converse directly with users.
-
-For simpler cases with just a few tools, use a single agent. When agents need to have conversations with users, use [handoffs](/oss/javascript/langchain/multi-agent/handoffs) instead. For peer-to-peer collaboration between agents, consider other multi-agent patterns.
+有关演示完整主管模式（包括人机回环审查和高级信息流控制）的完整工作示例，请查看 LangChain.js 示例中的 [`supervisor_complete.ts`](https://github.com/langchain-ai/langchainjs/blob/main/examples/src/createAgent/supervisor.ts)。
 </Tip>
 
-## Next steps
+## 8. 关键要点
 
-Learn about [handoffs](/oss/javascript/langchain/multi-agent/handoffs) for agent-to-agent conversations, explore [context engineering](/oss/javascript/langchain/context-engineering) to fine-tune information flow, read the [multi-agent overview](/oss/javascript/langchain/multi-agent) to compare different patterns, and use [LangSmith](https://smith.langchain.com) to debug and monitor your multi-agent system.
+主管模式创建了抽象层，其中每层都有明确的职责。设计主管系统时，从明确的领域边界开始，并为每个子智能体提供专注的工具和提示。为主管编写清晰的工具描述，在集成前独立测试每一层，并根据您的特定需求控制信息流。
+
+<Tip>
+**何时使用主管模式**
+
+当您有多个不同的领域（日历、电子邮件、CRM、数据库），每个领域有多个工具或复杂逻辑，您希望集中控制工作流，并且子智能体不需要直接与用户对话时，使用主管模式。
+
+对于只有几个工具的简单情况，请使用单个智能体。当智能体需要与用户对话时，请使用[交接](/oss/javascript/langchain/multi-agent/handoffs)。对于智能体之间的点对点协作，请考虑其他多智能体模式。
+</Tip>
+
+## 后续步骤
+
+了解用于智能体间对话的[交接](/oss/javascript/langchain/multi-agent/handoffs)，探索[上下文工程](/oss/javascript/langchain/context-engineering)以微调信息流，阅读[多智能体概述](/oss/javascript/langchain/multi-agent)以比较不同模式，并使用 [LangSmith](https://smith.langchain.com) 调试和监控您的多智能体系统。
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/multi-agent/subagents-personal-assistant.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/multi-agent/subagents-personal-assistant.mdx) 或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [通过 MCP 将这些文档](/use-these-docs)连接到 Claude、VSCode 等，以获取实时答案。
 </Callout>
 </div>

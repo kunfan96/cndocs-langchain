@@ -1,43 +1,37 @@
 ---
-title: Prebuilt middleware
-description: Prebuilt middleware for common agent use cases
+title: 预构建中间件
+description: 适用于常见代理用例的预构建中间件
 ---
 
-LangChain and [Deep Agents](/oss/javascript/deepagents/overview) provide prebuilt middleware for common use cases. Each middleware is production-ready and configurable for your specific needs.
+LangChain 和 [Deep Agents](/oss/javascript/deepagents/overview) 为常见用例提供预构建中间件。每种中间件都已为生产环境准备就绪，并可针对您的特定需求进行配置。
 
-## Provider-agnostic middleware
+## 与提供商无关的中间件
 
-The following middleware work with any LLM provider:
+以下中间件可与任何 LLM 提供商配合使用：
 
-
-
-| Middleware | Description |
+| 中间件 | 描述 |
 |------------|-------------|
-| [Summarization](#summarization) | Automatically summarize conversation history when approaching token limits. |
-| [Human-in-the-loop](#human-in-the-loop) | Pause execution for human approval of tool calls. |
-| [Model call limit](#model-call-limit) | Limit the number of model calls to prevent excessive costs. |
-| [Tool call limit](#tool-call-limit) | Control tool execution by limiting call counts. |
-| [Model fallback](#model-fallback) | Automatically fallback to alternative models when primary fails. |
-| [PII detection](#pii-detection) | Detect and handle Personally Identifiable Information (PII). |
-| [To-do list](#to-do-list) | Equip agents with task planning and tracking capabilities. |
-| [LLM tool selector](#llm-tool-selector) | Use an LLM to select relevant tools before calling main model. |
-| [Tool retry](#tool-retry) | Automatically retry failed tool calls with exponential backoff. |
-| [Model retry](#model-retry) | Automatically retry failed model calls with exponential backoff. |
-| [LLM tool emulator](#llm-tool-emulator) | Emulate tool execution using an LLM for testing purposes. |
-| [Context editing](#context-editing) | Manage conversation context by trimming or clearing tool uses. |
-| [Filesystem](#filesystem-middleware) | Provide agents with a filesystem for storing context and long-term memories. |
-| [Subagent middleware](#subagent) | Add the ability to spawn subagents. |
+| [摘要](#summarization) | 在接近令牌限制时自动总结对话历史。 |
+| [人机回环](#human-in-the-loop) | 暂停执行以供人工批准工具调用。 |
+| [模型调用限制](#model-call-limit) | 限制模型调用次数以防止成本过高。 |
+| [工具调用限制](#tool-call-limit) | 通过限制调用次数来控制工具执行。 |
+| [模型回退](#model-fallback) | 当主模型失败时自动回退到替代模型。 |
+| [PII 检测](#pii-detection) | 检测并处理个人身份信息 (PII)。 |
+| [待办事项列表](#to-do-list) | 为代理配备任务规划和跟踪能力。 |
+| [LLM 工具选择器](#llm-tool-selector) | 在调用主模型之前使用 LLM 选择相关工具。 |
+| [工具重试](#tool-retry) | 使用指数退避自动重试失败的工具调用。 |
+| [模型重试](#model-retry) | 使用指数退避自动重试失败的模型调用。 |
+| [LLM 工具模拟器](#llm-tool-emulator) | 使用 LLM 模拟工具执行以用于测试目的。 |
+| [上下文编辑](#context-editing) | 通过修剪或清除工具使用来管理对话上下文。 |
+| [文件系统](#filesystem-middleware) | 为代理提供用于存储上下文和长期记忆的文件系统。 |
+| [子代理中间件](#subagent) | 添加生成子代理的能力。 |
 
+### 摘要
 
-
-### Summarization
-
-Automatically summarize conversation history when approaching token limits, preserving recent messages while compressing older context. Summarization is useful for the following:
-- Long-running conversations that exceed context windows.
-- Multi-turn dialogues with extensive history.
-- Applications where preserving full conversation context matters.
-
-
+在接近令牌限制时自动总结对话历史，保留最近的消息同时压缩较旧的上下文。摘要适用于以下情况：
+- 超过上下文窗口的长时间运行的对话。
+- 具有广泛历史的多轮对话。
+- 保留完整对话上下文很重要的应用程序。
 
 ```typescript
 import { createAgent, summarizationMiddleware } from "langchain";
@@ -55,13 +49,10 @@ const agent = createAgent({
 });
 ```
 
-
-<Accordion title="Configuration options">
-
-
+<Accordion title="配置选项">
 
 <Tip>
-    The `fraction` conditions for `trigger` and `keep` (shown below) rely on a chat model's [profile data](/oss/javascript/langchain/models#model-profiles) if using `langchain@1.1.0`. If data are not available, use another condition or specify manually:
+    `trigger` 和 `keep` 的 `fraction` 条件（如下所示）依赖于聊天模型的[配置文件数据](/oss/javascript/langchain/models#model-profiles)（如果使用 `langchain@1.1.0`）。如果数据不可用，请使用其他条件或手动指定：
     ```typescript
     const customProfile: ModelProfile = {
         maxInputTokens: 100_000,
@@ -74,78 +65,75 @@ const agent = createAgent({
 </Tip>
 
 <ParamField body="model" type="string | BaseChatModel" required>
-    Model for generating summaries. Can be a model identifier string (e.g., `'openai:gpt-4.1-mini'`) or a `BaseChatModel` instance.
+    用于生成摘要的模型。可以是模型标识符字符串（例如，`'openai:gpt-4.1-mini'`）或 `BaseChatModel` 实例。
 </ParamField>
 
 <ParamField body="trigger" type="object | object[]">
-    Conditions for triggering summarization. Can be:
+    触发摘要的条件。可以是：
 
-    - A single condition object (all properties must be met - AND logic)
-    - An array of condition objects (any condition must be met - OR logic)
+    - 单个条件对象（必须满足所有属性 - AND 逻辑）
+    - 条件对象数组（必须满足任何条件 - OR 逻辑）
 
-    Each condition can include:
-    - `fraction` (number): Fraction of model's context size (0-1)
-    - `tokens` (number): Absolute token count
-    - `messages` (number): Message count
+    每个条件可以包括：
+    - `fraction`（数字）：模型上下文大小的分数（0-1）
+    - `tokens`（数字）：绝对令牌计数
+    - `messages`（数字）：消息计数
 
-    At least one property must be specified per condition. If not provided, summarization will not trigger automatically.
+    每个条件必须至少指定一个属性。如果未提供，摘要将不会自动触发。
 </ParamField>
 
 <ParamField body="keep" type="object" default="{messages: 20}">
-    How much context to preserve after summarization. Specify exactly one of:
+    摘要后要保留的上下文量。精确指定以下一项：
 
-    - `fraction` (number): Fraction of model's context size to keep (0-1)
-    - `tokens` (number): Absolute token count to keep
-    - `messages` (number): Number of recent messages to keep
+    - `fraction`（数字）：要保留的模型上下文大小的分数（0-1）
+    - `tokens`（数字）：要保留的绝对令牌计数
+    - `messages`（数字）：要保留的最近消息数
 </ParamField>
 
 <ParamField body="tokenCounter" type="function">
-    Custom token counting function. Defaults to character-based counting.
+    自定义令牌计数函数。默认为基于字符的计数。
 </ParamField>
 
 <ParamField body="summaryPrompt" type="string">
-    Custom prompt template for summarization. Uses built-in template if not specified. The template should include `{messages}` placeholder where conversation history will be inserted.
+    用于摘要的自定义提示模板。如果未指定，则使用内置模板。模板应包含 `{messages}` 占位符，对话历史将插入其中。
 </ParamField>
 
 <ParamField body="trimTokensToSummarize" type="number" default="4000">
-    Maximum number of tokens to include when generating the summary. Messages will be trimmed to fit this limit before summarization.
+    生成摘要时要包含的最大令牌数。消息将在摘要之前被修剪以适应此限制。
 </ParamField>
 
 <ParamField body="summaryPrefix" type="string">
-    Prefix to add to the summary message. If not provided, a default prefix is used.
+    添加到摘要消息的前缀。如果未提供，则使用默认前缀。
 </ParamField>
 
 <ParamField body="maxTokensBeforeSummary" type="number" deprecated>
-    **Deprecated:** Use `trigger: { tokens: value }` instead. Token threshold for triggering summarization.
+    **已弃用：** 请改用 `trigger: { tokens: value }`。触发摘要的令牌阈值。
 </ParamField>
 
 <ParamField body="messagesToKeep" type="number" deprecated>
-    **Deprecated:** Use `keep: { messages: value }` instead. Recent messages to preserve.
+    **已弃用：** 请改用 `keep: { messages: value }`。要保留的最近消息。
 </ParamField>
-
 
 </Accordion>
 
-<Accordion title="Full example">
+<Accordion title="完整示例">
 
-The summarization middleware monitors message token counts and automatically summarizes older messages when thresholds are reached.
+摘要中间件监控消息令牌计数，并在达到阈值时自动总结较旧的消息。
 
-**Trigger conditions** control when summarization runs:
-- Single condition object (specified must be met)
-- Array of conditions (any condition must be met - OR logic)
-- Each condition can use `fraction` (of model's context size), `tokens` (absolute count), or `messages` (message count)
+**触发条件**控制摘要何时运行：
+- 单个条件对象（指定的条件必须满足）
+- 条件数组（任何条件必须满足 - OR 逻辑）
+- 每个条件可以使用 `fraction`（模型上下文大小的分数）、`tokens`（绝对计数）或 `messages`（消息计数）
 
-**Keep condition** control how much context to preserve (specify exactly one):
-- `fraction` - Fraction of model's context size to keep
-- `tokens` - Absolute token count to keep
-- `messages` - Number of recent messages to keep
-
-
+**保留条件**控制要保留的上下文量（精确指定一项）：
+- `fraction` - 要保留的模型上下文大小的分数
+- `tokens` - 要保留的绝对令牌计数
+- `messages` - 要保留的最近消息数
 
 ```typescript
 import { createAgent, summarizationMiddleware } from "langchain";
 
-// Single condition
+// 单个条件
 const agent = createAgent({
   model: "gpt-4.1",
   tools: [weatherTool, calculatorTool],
@@ -158,7 +146,7 @@ const agent = createAgent({
   ],
 });
 
-// Multiple conditions
+// 多个条件
 const agent2 = createAgent({
   model: "gpt-4.1",
   tools: [weatherTool, calculatorTool],
@@ -173,7 +161,7 @@ const agent2 = createAgent({
   ],
 });
 
-// Using fractional limits
+// 使用分数限制
 const agent3 = createAgent({
   model: "gpt-4.1",
   tools: [weatherTool, calculatorTool],
@@ -187,35 +175,30 @@ const agent3 = createAgent({
 });
 ```
 
-
 </Accordion>
 
-### Human-in-the-loop
+### 人机回环
 
-Pause agent execution for human approval, editing, or rejection of tool calls before they execute. [Human-in-the-loop](/oss/javascript/langchain/human-in-the-loop) is useful for the following:
+暂停代理执行以供人工批准、编辑或拒绝工具调用，然后才执行。[人机回环](/oss/javascript/langchain/human-in-the-loop) 适用于以下情况：
 
-- High-stakes operations requiring human approval (e.g. database writes, financial transactions).
-- Compliance workflows where human oversight is mandatory.
-- Long-running conversations where human feedback guides the agent.
-
-
+- 需要人工批准的高风险操作（例如数据库写入、金融交易）。
+- 需要人工监督的合规工作流。
+- 人工反馈指导代理的长时间运行对话。
 
 <Warning>
-    Human-in-the-loop middleware requires a [checkpointer](/oss/javascript/langgraph/persistence#checkpoints) to maintain state across interruptions.
+    人机回环中间件需要一个[检查点](/oss/javascript/langgraph/persistence#checkpoints)来在中断期间维护状态。
 </Warning>
-
-
 
 ```typescript
 import { createAgent, humanInTheLoopMiddleware } from "langchain";
 
 function readEmailTool(emailId: string): string {
-  /** Mock function to read an email by its ID. */
+  /** 通过 ID 读取电子邮件的模拟函数。 */
   return `Email content for ID: ${emailId}`;
 }
 
 function sendEmailTool(recipient: string, subject: string, body: string): string {
-  /** Mock function to send an email. */
+  /** 发送电子邮件的模拟函数。 */
   return `Email sent to ${recipient} with subject '${subject}'`;
 }
 
@@ -235,27 +218,21 @@ const agent = createAgent({
 });
 ```
 
-
 <Tip>
-    For complete examples, configuration options, and integration patterns, see the [Human-in-the-loop documentation](/oss/javascript/langchain/human-in-the-loop).
+    有关完整示例、配置选项和集成模式，请参阅[人机回环文档](/oss/javascript/langchain/human-in-the-loop)。
 </Tip>
 
-
-
 <Callout icon="player-play" iconType="solid">
-    Watch this [video guide](https://www.youtube.com/watch?v=tdOeUVERukA) demonstrating Human-in-the-loop middleware behavior.
+    观看此[视频指南](https://www.youtube.com/watch?v=tdOeUVERukA)，演示人机回环中间件行为。
 </Callout>
 
+### 模型调用限制
 
-### Model call limit
+限制模型调用次数以防止无限循环或成本过高。模型调用限制适用于以下情况：
 
-Limit the number of model calls to prevent infinite loops or excessive costs. Model call limit is useful for the following:
-
-- Preventing runaway agents from making too many API calls.
-- Enforcing cost controls on production deployments.
-- Testing agent behavior within specific call budgets.
-
-
+- 防止失控代理进行过多 API 调用。
+- 在生产部署中强制执行成本控制。
+- 在特定调用预算内测试代理行为。
 
 ```typescript
 import { createAgent, modelCallLimitMiddleware } from "langchain";
@@ -263,7 +240,7 @@ import { MemorySaver } from "@langchain/langgraph";
 
 const agent = createAgent({
   model: "gpt-4.1",
-  checkpointer: new MemorySaver(), // Required for thread limiting
+  checkpointer: new MemorySaver(), // 线程限制所需
   tools: [],
   middleware: [
     modelCallLimitMiddleware({
@@ -275,44 +252,34 @@ const agent = createAgent({
 });
 ```
 
-
-
-
 <Callout icon="player-play" iconType="solid">
-    Watch this [video guide](https://www.youtube.com/watch?v=x5jLQTFXR0Y) demonstrating Model Call Limit middleware behavior.
+    观看此[视频指南](https://www.youtube.com/watch?v=x5jLQTFXR0Y)，演示模型调用限制中间件行为。
 </Callout>
 
-
-<Accordion title="Configuration options">
-
-
+<Accordion title="配置选项">
 
 <ParamField body="threadLimit" type="number">
-    Maximum model calls across all runs in a thread. Defaults to no limit.
+    线程中所有运行的最大模型调用次数。默认为无限制。
 </ParamField>
 
 <ParamField body="runLimit" type="number">
-    Maximum model calls per single invocation. Defaults to no limit.
+    单次调用的最大模型调用次数。默认为无限制。
 </ParamField>
 
 <ParamField body="exitBehavior" type="string" default="end">
-    Behavior when limit is reached. Options: `'end'` (graceful termination) or `'error'` (throw exception)
+    达到限制时的行为。选项：`'end'`（优雅终止）或 `'error'`（抛出异常）
 </ParamField>
-
 
 </Accordion>
 
+### 工具调用限制
 
-### Tool call limit
+通过限制工具调用次数来控制代理执行，可以全局限制所有工具，也可以针对特定工具。工具调用限制适用于以下情况：
 
-Control agent execution by limiting the number of tool calls, either globally across all tools or for specific tools. Tool call limits are useful for the following:
-
-- Preventing excessive calls to expensive external APIs.
-- Limiting web searches or database queries.
-- Enforcing rate limits on specific tool usage.
-- Protecting against runaway agent loops.
-
-
+- 防止对昂贵的外部 API 进行过多调用。
+- 限制网络搜索或数据库查询。
+- 对特定工具使用强制执行速率限制。
+- 防止代理循环失控。
 
 ```typescript
 import { createAgent, toolCallLimitMiddleware } from "langchain";
@@ -331,55 +298,46 @@ const agent = createAgent({
 });
 ```
 
-
-
-
 <Callout icon="player-play" iconType="solid">
-    Watch this [video guide](https://www.youtube.com/watch?v=oL6am5UqODY) demonstrating Tool Call Limit middleware behavior.
+    观看此[视频指南](https://www.youtube.com/watch?v=oL6am5UqODY)，演示工具调用限制中间件行为。
 </Callout>
 
-
-<Accordion title="Configuration options">
-
-
+<Accordion title="配置选项">
 
 <ParamField body="toolName" type="string">
-    Name of specific tool to limit. If not provided, limits apply to **all tools globally**.
+    要限制的特定工具的名称。如果未提供，则限制适用于**所有全局工具**。
 </ParamField>
 
 <ParamField body="threadLimit" type="number">
-    Maximum tool calls across all runs in a thread (conversation). Persists across multiple invocations with the same thread ID. Requires a checkpointer to maintain state. `undefined` means no thread limit.
+    线程（对话）中所有运行的最大工具调用次数。使用相同线程 ID 的多次调用之间会持久化。需要检查点来维护状态。`undefined` 表示无线程限制。
 </ParamField>
 
 <ParamField body="runLimit" type="number">
-    Maximum tool calls per single invocation (one user message → response cycle). Resets with each new user message. `undefined` means no run limit.
+    单次调用（一个用户消息 → 响应周期）的最大工具调用次数。每个新用户消息都会重置。`undefined` 表示无运行限制。
 
-    **Note:** At least one of `threadLimit` or `runLimit` must be specified.
+    **注意：** 必须至少指定 `threadLimit` 或 `runLimit` 中的一个。
 </ParamField>
 
 <ParamField body="exitBehavior" type="string" default="continue">
-    Behavior when limit is reached:
+    达到限制时的行为：
 
-    - `'continue'` (default) - Block exceeded tool calls with error messages, let other tools and the model continue. The model decides when to end based on the error messages.
-    - `'error'` - Throw a `ToolCallLimitExceededError` exception, stopping execution immediately
-    - `'end'` - Stop execution immediately with a ToolMessage and AI message for the exceeded tool call. Only works when limiting a single tool; throws error if other tools have pending calls.
+    - `'continue'`（默认） - 用错误消息阻止超出的工具调用，让其他工具和模型继续。模型根据错误消息决定何时结束。
+    - `'error'` - 抛出 `ToolCallLimitExceededError` 异常，立即停止执行
+    - `'end'` - 立即停止执行，并为超出的工具调用提供 ToolMessage 和 AI 消息。仅在限制单个工具时有效；如果其他工具有待处理调用，则抛出错误。
 </ParamField>
-
 
 </Accordion>
 
-<Accordion title="Full example">
+<Accordion title="完整示例">
 
-Specify limits with:
-- **Thread limit** - Max calls across all runs in a conversation (requires checkpointer)
-- **Run limit** - Max calls per single invocation (resets each turn)
+使用以下方式指定限制：
+- **线程限制** - 对话中所有运行的最大调用次数（需要检查点）
+- **运行限制** - 单次调用的最大调用次数（每轮重置）
 
-Exit behaviors:
-- `'continue'` (default) - Block exceeded calls with error messages, agent continues
-- `'error'` - Raise exception immediately
-- `'end'` - Stop with ToolMessage + AI message (single-tool scenarios only)
-
-
+退出行为：
+- `'continue'`（默认） - 用错误消息阻止超出的调用，代理继续
+- `'error'` - 立即引发异常
+- `'end'` - 使用 ToolMessage + AI 消息停止（仅限单工具场景）
 
 ```typescript
 import { createAgent, toolCallLimitMiddleware } from "langchain";
@@ -396,19 +354,15 @@ const agent = createAgent({
 });
 ```
 
-
 </Accordion>
 
+### 模型回退
 
-### Model fallback
+当主模型失败时自动回退到替代模型。模型回退适用于以下情况：
 
-Automatically fallback to alternative models when the primary model fails. Model fallback is useful for the following:
-
-- Building resilient agents that handle model outages.
-- Cost optimization by falling back to cheaper models.
-- Provider redundancy across OpenAI, Anthropic, etc.
-
-
+- 构建能够处理模型中断的弹性代理。
+- 通过回退到更便宜的模型来优化成本。
+- 跨 OpenAI、Anthropic 等的提供商冗余。
 
 ```typescript
 import { createAgent, modelFallbackMiddleware } from "langchain";
@@ -425,17 +379,12 @@ const agent = createAgent({
 });
 ```
 
+<Accordion title="配置选项">
 
-
-
-<Accordion title="Configuration options">
-
-
-
-The middleware accepts a variable number of string arguments representing fallback models in order:
+中间件接受可变数量的字符串参数，表示按顺序排列的回退模型：
 
 <ParamField body="...models" type="string[]" required>
-  One or more fallback model strings to try in order when the primary model fails
+  一个或多个回退模型字符串，当主模型失败时按顺序尝试
 
   ```typescript
   modelFallbackMiddleware(
@@ -446,18 +395,15 @@ The middleware accepts a variable number of string arguments representing fallba
   ```
 </ParamField>
 
-
 </Accordion>
 
-### PII detection
+### PII 检测
 
-Detect and handle Personally Identifiable Information (PII) in conversations using configurable strategies. PII detection is useful for the following:
+使用可配置的策略检测和处理对话中的个人身份信息 (PII)。PII 检测适用于以下情况：
 
-- Healthcare and financial applications with compliance requirements.
-- Customer service agents that need to sanitize logs.
-- Any application handling sensitive user data.
-
-
+- 具有合规要求的医疗保健和金融应用程序。
+- 需要清理日志的客户服务代理。
+- 处理敏感用户数据的任何应用程序。
 
 ```typescript
 import { createAgent, piiMiddleware } from "langchain";
@@ -472,24 +418,20 @@ const agent = createAgent({
 });
 ```
 
+#### 自定义 PII 类型
 
-#### Custom PII types
+您可以通过提供 `detector` 参数创建自定义 PII 类型。这允许您检测超出内置类型的、特定于您用例的模式。
 
-You can create custom PII types by providing a `detector` parameter. This allows you to detect patterns specific to your use case beyond the built-in types.
+**创建自定义检测器的三种方法：**
 
-**Three ways to create custom detectors:**
-
-1. **Regex pattern string** - Simple pattern matching
-1. **RegExp object** - More control over regex flags
-
-1. **Custom function** - Complex detection logic with validation
-
-
+1. **正则表达式模式字符串** - 简单模式匹配
+2. **RegExp 对象** - 对正则表达式标志的更多控制
+3. **自定义函数** - 具有验证的复杂检测逻辑
 
 ```typescript
 import { createAgent, piiMiddleware, type PIIMatch } from "langchain";
 
-// Method 1: Regex pattern string
+// 方法 1：正则表达式模式字符串
 const agent1 = createAgent({
   model: "gpt-4.1",
   tools: [],
@@ -501,7 +443,7 @@ const agent1 = createAgent({
   ],
 });
 
-// Method 2: RegExp object
+// 方法 2：RegExp 对象
 const agent2 = createAgent({
   model: "gpt-4.1",
   tools: [],
@@ -513,7 +455,7 @@ const agent2 = createAgent({
   ],
 });
 
-// Method 3: Custom detector function
+// 方法 3：自定义检测器函数
 function detectSSN(content: string): PIIMatch[] {
   const matches: PIIMatch[] = [];
   const pattern = /\d{3}-\d{2}-\d{4}/g;
@@ -521,7 +463,7 @@ function detectSSN(content: string): PIIMatch[] {
 
   while ((match = pattern.exec(content)) !== null) {
     const ssn = match[0];
-    // Validate: first 3 digits shouldn't be 000, 666, or 900-999
+    // 验证：前三位数字不能是 000、666 或 900-999
     const firstThree = parseInt(ssn.substring(0, 3), 10);
     if (firstThree !== 0 && firstThree !== 666 && !(firstThree >= 900 && firstThree <= 999)) {
       matches.push({
@@ -546,18 +488,16 @@ const agent3 = createAgent({
 });
 ```
 
+**自定义检测器函数签名：**
 
-**Custom detector function signature:**
+检测器函数必须接受字符串（内容）并返回匹配项：
 
-The detector function must accept a string (content) and return matches:
-
-
-Returns an array of `PIIMatch` objects:
+返回 `PIIMatch` 对象数组：
 ```typescript
 interface PIIMatch {
-  text: string;    // The matched text
-  start: number;   // Start index in content
-  end: number;      // End index in content
+  text: string;    // 匹配的文本
+  start: number;   // 内容中的起始索引
+  end: number;      // 内容中的结束索引
 }
 
 function detector(content: string): PIIMatch[] {
@@ -568,70 +508,64 @@ function detector(content: string): PIIMatch[] {
 }
 ```
 
-
 <Tip>
-    For custom detectors:
+    对于自定义检测器：
 
-    - Use regex strings for simple patterns
-    - Use RegExp objects when you need flags (e.g., case-insensitive matching)
-    - Use custom functions when you need validation logic beyond pattern matching
-    - Custom functions give you full control over detection logic and can implement complex validation rules
+    - 对于简单模式使用正则表达式字符串
+    - 当需要标志（例如，不区分大小写的匹配）时使用 RegExp 对象
+    - 当需要超出模式匹配的验证逻辑时使用自定义函数
+    - 自定义函数让您完全控制检测逻辑，并可以实现复杂的验证规则
 </Tip>
 
-<Accordion title="Configuration options">
-
-
+<Accordion title="配置选项">
 
 <ParamField body="piiType" type="string" required>
-    Type of PII to detect. Can be a built-in type (`email`, `credit_card`, `ip`, `mac_address`, `url`) or a custom type name.
+    要检测的 PII 类型。可以是内置类型（`email`、`credit_card`、`ip`、`mac_address`、`url`）或自定义类型名称。
 </ParamField>
 
 <ParamField body="strategy" type="string" default="redact">
-    How to handle detected PII. Options:
+    如何处理检测到的 PII。选项：
 
-    - `'block'` - Throw error when detected
-    - `'redact'` - Replace with `[REDACTED_TYPE]`
-    - `'mask'` - Partially mask (e.g., `****-****-****-1234`)
-    - `'hash'` - Replace with deterministic hash (e.g., `<email_hash:a1b2c3d4>`)
+    - `'block'` - 检测到时抛出错误
+    - `'redact'` - 替换为 `[REDACTED_TYPE]`
+    - `'mask'` - 部分掩码（例如，`****-****-****-1234`）
+    - `'hash'` - 替换为确定性哈希（例如，`<email_hash:a1b2c3d4>`）
 </ParamField>
 
 <ParamField body="detector" type="RegExp | string | function">
-    Custom detector. Can be:
+    自定义检测器。可以是：
 
-    - `RegExp` - Regex pattern for matching
-    - `string` - Regex pattern string (e.g., `"sk-[a-zA-Z0-9]{32}"`)
-    - `function` - Custom detector function `(content: string) => PIIMatch[]`
+    - `RegExp` - 用于匹配的正则表达式模式
+    - `string` - 正则表达式模式字符串（例如，`"sk-[a-zA-Z0-9]{32}"`）
+    - `function` - 自定义检测器函数 `(content: string) => PIIMatch[]`
 
-    If not provided, uses built-in detector for the PII type.
+    如果未提供，则使用 PII 类型的内置检测器。
 </ParamField>
 
 <ParamField body="applyToInput" type="boolean" default="true">
-    Check user messages before model call
+    在模型调用前检查用户消息
 </ParamField>
 
 <ParamField body="applyToOutput" type="boolean" default="false">
-    Check AI messages after model call
+    在模型调用后检查 AI 消息
 </ParamField>
 
 <ParamField body="applyToToolResults" type="boolean" default="false">
-    Check tool result messages after execution
+    在执行后检查工具结果消息
 </ParamField>
-
 
 </Accordion>
 
-### To-do list
+### 待办事项列表
 
-Equip agents with task planning and tracking capabilities for complex multi-step tasks. To-do lists are useful for the following:
+为代理配备任务规划和跟踪能力，以处理复杂的多步骤任务。待办事项列表适用于以下情况：
 
-- Complex multi-step tasks requiring coordination across multiple tools.
-- Long-running operations where progress visibility is important.
+- 需要跨多个工具协调的复杂多步骤任务。
+- 进度可见性很重要的长时间运行操作。
 
 <Note>
-    This middleware automatically provides agents with a `write_todos` tool and system prompts to guide effective task planning.
+    此中间件自动为代理提供 `write_todos` 工具和系统提示，以指导有效的任务规划。
 </Note>
-
-
 
 ```typescript
 import { createAgent, todoListMiddleware } from "langchain";
@@ -643,34 +577,25 @@ const agent = createAgent({
 });
 ```
 
-
-
-
 <Callout icon="player-play" iconType="solid">
-    Watch this [video guide](https://www.youtube.com/watch?v=dwvhZ1z_Pas) demonstrating To-do List middleware behavior.
+    观看此[视频指南](https://www.youtube.com/watch?v=dwvhZ1z_Pas)，演示待办事项列表中间件行为。
 </Callout>
 
+<Accordion title="配置选项">
 
-<Accordion title="Configuration options">
-
-
-
-No configuration options available (uses defaults).
-
+无可用配置选项（使用默认值）。
 
 </Accordion>
 
-### LLM tool selector
+### LLM 工具选择器
 
-Use an LLM to intelligently select relevant tools before calling the main model. LLM tool selectors are useful for the following:
+在调用主模型之前使用 LLM 智能选择相关工具。LLM 工具选择器适用于以下情况：
 
-- Agents with many tools (10+) where most aren't relevant per query.
-- Reducing token usage by filtering irrelevant tools.
-- Improving model focus and accuracy.
+- 具有许多工具（10+）的代理，其中大多数与每个查询无关。
+- 通过过滤无关工具来减少令牌使用。
+- 提高模型的专注度和准确性。
 
-This middleware uses structured output to ask an LLM which tools are most relevant for the current query. The structured output schema defines the available tool names and descriptions. Model providers often add this structured output information to the system prompt behind the scenes.
-
-
+此中间件使用结构化输出来询问 LLM 哪些工具与当前查询最相关。结构化输出模式定义了可用的工具名称和描述。模型提供商通常会在后台将此结构化输出信息添加到系统提示中。
 
 ```typescript
 import { createAgent, llmToolSelectorMiddleware } from "langchain";
@@ -688,42 +613,35 @@ const agent = createAgent({
 });
 ```
 
-
-<Accordion title="Configuration options">
-
-
+<Accordion title="配置选项">
 
 <ParamField body="model" type="string | BaseChatModel">
-    Model for tool selection. Can be a model identifier string (e.g., `'openai:gpt-4.1-mini'`) or a `BaseChatModel` instance. Defaults to the agent's main model.
+    用于工具选择的模型。可以是模型标识符字符串（例如，`'openai:gpt-4.1-mini'`）或 `BaseChatModel` 实例。默认为代理的主模型。
 </ParamField>
 
 <ParamField body="systemPrompt" type="string">
-    Instructions for the selection model. Uses built-in prompt if not specified.
+    选择模型的指令。如果未指定，则使用内置提示。
 </ParamField>
 
 <ParamField body="maxTools" type="number">
-    Maximum number of tools to select. If the model selects more, only the first maxTools will be used. No limit if not specified.
+    要选择的最大工具数。如果模型选择更多，则仅使用前 maxTools 个。如果未指定，则无限制。
 </ParamField>
 
 <ParamField body="alwaysInclude" type="string[]">
-    Tool names to always include regardless of selection. These do not count against the maxTools limit.
+    无论选择如何都始终包含的工具名称。这些不计入 maxTools 限制。
 </ParamField>
-
 
 </Accordion>
 
+### 工具重试
 
-### Tool retry
+使用可配置的指数退避自动重试失败的工具调用。工具重试适用于以下情况：
 
-Automatically retry failed tool calls with configurable exponential backoff. Tool retry is useful for the following:
+- 处理外部 API 调用中的瞬时故障。
+- 提高依赖网络的工具的可靠性。
+- 构建能够优雅处理临时错误的弹性代理。
 
-- Handling transient failures in external API calls.
-- Improving reliability of network-dependent tools.
-- Building resilient agents that gracefully handle temporary errors.
-
-
-
-**API reference:** [`toolRetryMiddleware`](https://reference.langchain.com/javascript/langchain/index/toolRetryMiddleware)
+**API 参考：** [`toolRetryMiddleware`](https://reference.langchain.com/javascript/langchain/index/toolRetryMiddleware)
 
 ```typescript
 import { createAgent, toolRetryMiddleware } from "langchain";
@@ -741,93 +659,85 @@ const agent = createAgent({
 });
 ```
 
-
-<Accordion title="Configuration options">
-
-
+<Accordion title="配置选项">
 
 <ParamField body="maxRetries" type="number" default="2">
-    Maximum number of retry attempts after the initial call (3 total attempts with default). Must be >= 0.
+    初始调用后的最大重试尝试次数（默认情况下总共 3 次尝试）。必须 >= 0。
 </ParamField>
 
 <ParamField body="tools" type="(ClientTool | ServerTool | string)[]">
-    Optional array of tools or tool names to apply retry logic to. Can be a list of `BaseTool` instances or tool name strings. If `undefined`, applies to all tools.
+    要应用重试逻辑的可选工具或工具名称数组。可以是 `BaseTool` 实例列表或工具名称字符串。如果 `undefined`，则应用于所有工具。
 </ParamField>
 
 <ParamField body="retryOn" type="((error: Error) => boolean) | (new (...args: any[]) => Error)[]" default="() => true">
-    Either an array of error constructors to retry on, or a function that takes an error and returns `true` if it should be retried. Default is to retry on all errors.
+    要重试的错误构造函数数组，或接受错误并返回 `true`（如果应重试）的函数。默认为重试所有错误。
 </ParamField>
 
 <ParamField body="onFailure" type="'error' | 'continue' | ((error: Error) => string)" default="continue">
-    Behavior when all retries are exhausted. Options:
-    - `'continue'` (default) - Return a `ToolMessage` with error details, allowing the LLM to handle the failure and potentially recover
-    - `'error'` - Re-raise the exception, stopping agent execution
-    - Custom function - Function that takes the exception and returns a string for the `ToolMessage` content, allowing custom error formatting
+    所有重试耗尽时的行为。选项：
+    - `'continue'`（默认） - 返回带有错误详细信息的 `ToolMessage`，允许 LLM 处理故障并可能恢复
+    - `'error'` - 重新引发异常，停止代理执行
+    - 自定义函数 - 接受异常并返回 `ToolMessage` 内容字符串的函数，允许自定义错误格式
 
-    **Deprecated values:** `'raise'` (use `'error'` instead) and `'return_message'` (use `'continue'` instead). These deprecated values still work but will show a warning.
+    **已弃用的值：** `'raise'`（改用 `'error'`）和 `'return_message'`（改用 `'continue'`）。这些已弃用的值仍然有效，但会显示警告。
 </ParamField>
 
 <ParamField body="backoffFactor" type="number" default="2.0">
-    Multiplier for exponential backoff. Each retry waits `initialDelayMs * (backoffFactor ** retryNumber)` milliseconds. Set to `0.0` for constant delay. Must be >= 0.
+    指数退避的乘数。每次重试等待 `initialDelayMs * (backoffFactor ** retryNumber)` 毫秒。设置为 `0.0` 表示恒定延迟。必须 >= 0。
 </ParamField>
 
 <ParamField body="initialDelayMs" type="number" default="1000">
-    Initial delay in milliseconds before first retry. Must be >= 0.
+    首次重试前的初始延迟（毫秒）。必须 >= 0。
 </ParamField>
 
 <ParamField body="maxDelayMs" type="number" default="60000">
-    Maximum delay in milliseconds between retries (caps exponential backoff growth). Must be >= 0.
+    重试之间的最大延迟（毫秒）（限制指数退避增长）。必须 >= 0。
 </ParamField>
 
 <ParamField body="jitter" type="boolean" default="true">
-    Whether to add random jitter (`±25%`) to delay to avoid thundering herd
+    是否向延迟添加随机抖动（`±25%`）以避免惊群效应
 </ParamField>
-
 
 </Accordion>
 
-<Accordion title="Full example">
+<Accordion title="完整示例">
 
-The middleware automatically retries failed tool calls with exponential backoff.
+中间件使用指数退避自动重试失败的工具调用。
 
+**关键配置：**
+- `maxRetries` - 重试尝试次数（默认：2）
+- `backoffFactor` - 指数退避乘数（默认：2.0）
+- `initialDelayMs` - 起始延迟（毫秒）（默认：1000ms）
+- `maxDelayMs` - 延迟增长上限（默认：60000ms）
+- `jitter` - 添加随机变化（默认：true）
 
-**Key configuration:**
-- `maxRetries` - Number of retry attempts (default: 2)
-- `backoffFactor` - Multiplier for exponential backoff (default: 2.0)
-- `initialDelayMs` - Starting delay in milliseconds (default: 1000ms)
-- `maxDelayMs` - Cap on delay growth (default: 60000ms)
-- `jitter` - Add random variation (default: true)
-
-**Failure handling:**
-- `onFailure: "continue"` (default) - Return error message
-- `onFailure: "error"` - Re-raise exception
-- Custom function - Function returning error message
-
-
-
+**故障处理：**
+- `onFailure: "continue"`（默认） - 返回错误消息
+- `onFailure: "error"` - 重新引发异常
+- 自定义函数 - 返回错误消息的函数
 
 ```typescript
 import { createAgent, toolRetryMiddleware } from "langchain";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 
-// Basic usage with default settings (2 retries, exponential backoff)
+// 使用默认设置的基本用法（2 次重试，指数退避）
 const agent = createAgent({
   model: "gpt-4.1",
   tools: [searchTool, databaseTool],
   middleware: [toolRetryMiddleware()],
 });
 
-// Retry specific exceptions only
+// 仅重试特定异常
 const retry = toolRetryMiddleware({
   maxRetries: 4,
   retryOn: [TimeoutError, NetworkError],
   backoffFactor: 1.5,
 });
 
-// Custom exception filtering
+// 自定义异常过滤
 function shouldRetry(error: Error): boolean {
-  // Only retry on 5xx errors
+  // 仅重试 5xx 错误
   if (error.name === "HTTPError" && "statusCode" in error) {
     const statusCode = (error as any).statusCode;
     return 500 <= statusCode && statusCode < 600;
@@ -840,9 +750,9 @@ const retryWithFilter = toolRetryMiddleware({
   retryOn: shouldRetry,
 });
 
-// Apply to specific tools with custom error handling
+// 应用于特定工具并使用自定义错误处理
 const formatError = (error: Error) =>
-  "Database temporarily unavailable. Please try again later.";
+  "数据库暂时不可用。请稍后再试。";
 
 const retrySpecificTools = toolRetryMiddleware({
   maxRetries: 4,
@@ -850,52 +760,49 @@ const retrySpecificTools = toolRetryMiddleware({
   onFailure: formatError,
 });
 
-// Apply to specific tools using BaseTool instances
+// 使用 BaseTool 实例应用于特定工具
 const searchDatabase = tool(
   async ({ query }) => {
-    // Search implementation
+    // 搜索实现
     return results;
   },
   {
     name: "search_database",
-    description: "Search the database",
+    description: "搜索数据库",
     schema: z.object({ query: z.string() }),
   }
 );
 
 const retryWithToolInstance = toolRetryMiddleware({
   maxRetries: 4,
-  tools: [searchDatabase], // Pass BaseTool instance
+  tools: [searchDatabase], // 传递 BaseTool 实例
 });
 
-// Constant backoff (no exponential growth)
+// 恒定退避（无指数增长）
 const constantBackoff = toolRetryMiddleware({
   maxRetries: 5,
-  backoffFactor: 0.0, // No exponential growth
-  initialDelayMs: 2000, // Always wait 2 seconds
+  backoffFactor: 0.0, // 无指数增长
+  initialDelayMs: 2000, // 始终等待 2 秒
 });
 
-// Raise exception on failure
+// 故障时引发异常
 const strictRetry = toolRetryMiddleware({
   maxRetries: 2,
-  onFailure: "error", // Re-raise exception instead of returning message
+  onFailure: "error", // 重新引发异常而不是返回消息
 });
 ```
 
-
 </Accordion>
 
-### Model retry
+### 模型重试
 
-Automatically retry failed model calls with configurable exponential backoff. Model retry is useful for the following:
+使用可配置的指数退避自动重试失败的模型调用。模型重试适用于以下情况：
 
-- Handling transient failures in model API calls.
-- Improving reliability of network-dependent model requests.
-- Building resilient agents that gracefully handle temporary model errors.
+- 处理模型 API 调用中的瞬时故障。
+- 提高依赖网络的模型请求的可靠性。
+- 构建能够优雅处理临时模型错误的弹性代理。
 
-
-
-**API reference:** [`modelRetryMiddleware`](https://reference.langchain.com/javascript/langchain/index/modelRetryMiddleware)
+**API 参考：** [`modelRetryMiddleware`](https://reference.langchain.com/javascript/langchain/index/modelRetryMiddleware)
 
 ```typescript
 import { createAgent, modelRetryMiddleware } from "langchain";
@@ -913,55 +820,49 @@ const agent = createAgent({
 });
 ```
 
-
-<Accordion title="Configuration options">
-
-
+<Accordion title="配置选项">
 
 <ParamField body="maxRetries" type="number" default="2">
-    Maximum number of retry attempts after the initial call (3 total attempts with default). Must be >= 0.
+    初始调用后的最大重试尝试次数（默认情况下总共 3 次尝试）。必须 >= 0。
 </ParamField>
 
 <ParamField body="retryOn" type="((error: Error) => boolean) | (new (...args: any[]) => Error)[]" default="() => true">
-    Either an array of error constructors to retry on, or a function that takes an error and returns `true` if it should be retried. Default is to retry on all errors.
+    要重试的错误构造函数数组，或接受错误并返回 `true`（如果应重试）的函数。默认为重试所有错误。
 </ParamField>
 
 <ParamField body="onFailure" type="'error' | 'continue' | ((error: Error) => string)" default="continue">
-    Behavior when all retries are exhausted. Options:
-    - `'continue'` (default) - Return an `AIMessage` with error details, allowing the agent to potentially handle the failure gracefully
-    - `'error'` - Re-raise the exception, stopping agent execution
-    - Custom function - Function that takes the exception and returns a string for the `AIMessage` content, allowing custom error formatting
+    所有重试耗尽时的行为。选项：
+    - `'continue'`（默认） - 返回带有错误详细信息的 `AIMessage`，允许代理可能优雅地处理故障
+    - `'error'` - 重新引发异常，停止代理执行
+    - 自定义函数 - 接受异常并返回 `AIMessage` 内容字符串的函数，允许自定义错误格式
 </ParamField>
 
 <ParamField body="backoffFactor" type="number" default="2.0">
-    Multiplier for exponential backoff. Each retry waits `initialDelayMs * (backoffFactor ** retryNumber)` milliseconds. Set to `0.0` for constant delay. Must be >= 0.
+    指数退避的乘数。每次重试等待 `initialDelayMs * (backoffFactor ** retryNumber)` 毫秒。设置为 `0.0` 表示恒定延迟。必须 >= 0。
 </ParamField>
 
 <ParamField body="initialDelayMs" type="number" default="1000">
-    Initial delay in milliseconds before first retry. Must be >= 0.
+    首次重试前的初始延迟（毫秒）。必须 >= 0。
 </ParamField>
 
 <ParamField body="maxDelayMs" type="number" default="60000">
-    Maximum delay in milliseconds between retries (caps exponential backoff growth). Must be >= 0.
+    重试之间的最大延迟（毫秒）（限制指数退避增长）。必须 >= 0。
 </ParamField>
 
 <ParamField body="jitter" type="boolean" default="true">
-    Whether to add random jitter (`±25%`) to delay to avoid thundering herd
+    是否向延迟添加随机抖动（`±25%`）以避免惊群效应
 </ParamField>
-
 
 </Accordion>
 
-<Accordion title="Full example">
+<Accordion title="完整示例">
 
-The middleware automatically retries failed model calls with exponential backoff.
-
-
+中间件使用指数退避自动重试失败的模型调用。
 
 ```typescript
 import { createAgent, modelRetryMiddleware } from "langchain";
 
-// Basic usage with default settings (2 retries, exponential backoff)
+// 使用默认设置的基本用法（2 次重试，指数退避）
 const agent = createAgent({
   model: "gpt-4.1",
   tools: [searchTool],
@@ -975,20 +876,20 @@ class NetworkError extends Error {
     // ...
 }
 
-// Retry specific exceptions only
+// 仅重试特定异常
 const retry = modelRetryMiddleware({
   maxRetries: 4,
   retryOn: [TimeoutError, NetworkError],
   backoffFactor: 1.5,
 });
 
-// Custom exception filtering
+// 自定义异常过滤
 function shouldRetry(error: Error): boolean {
-  // Only retry on rate limit errors
+  // 仅重试速率限制错误
   if (error.name === "RateLimitError") {
     return true;
   }
-  // Or check for specific HTTP status codes
+  // 或检查特定的 HTTP 状态代码
   if (error.name === "HTTPError" && "statusCode" in error) {
     const statusCode = (error as any).statusCode;
     return statusCode === 429 || statusCode === 503;
@@ -1001,47 +902,44 @@ const retryWithFilter = modelRetryMiddleware({
   retryOn: shouldRetry,
 });
 
-// Return error message instead of raising
+// 返回错误消息而不是引发
 const retryContinue = modelRetryMiddleware({
   maxRetries: 4,
-  onFailure: "continue", // Return AIMessage with error instead of throwing
+  onFailure: "continue", // 返回 AIMessage 错误而不是抛出
 });
 
-// Custom error message formatting
+// 自定义错误消息格式
 const formatError = (error: Error) =>
-  `Model call failed: ${error.message}. Please try again later.`;
+  `模型调用失败：${error.message}。请稍后再试。`;
 
 const retryWithFormatter = modelRetryMiddleware({
   maxRetries: 4,
   onFailure: formatError,
 });
 
-// Constant backoff (no exponential growth)
+// 恒定退避（无指数增长）
 const constantBackoff = modelRetryMiddleware({
   maxRetries: 5,
-  backoffFactor: 0.0, // No exponential growth
-  initialDelayMs: 2000, // Always wait 2 seconds
+  backoffFactor: 0.0, // 无指数增长
+  initialDelayMs: 2000, // 始终等待 2 秒
 });
 
-// Raise exception on failure
+// 故障时引发异常
 const strictRetry = modelRetryMiddleware({
   maxRetries: 2,
-  onFailure: "error", // Re-raise exception instead of returning message
+  onFailure: "error", // 重新引发异常而不是返回消息
 });
 ```
 
-
 </Accordion>
 
-### LLM tool emulator
+### LLM 工具模拟器
 
-Emulate tool execution using an LLM for testing purposes, replacing actual tool calls with AI-generated responses. LLM tool emulators are useful for the following:
+使用 LLM 模拟工具执行以用于测试目的，用 AI 生成的响应替换实际工具调用。LLM 工具模拟器适用于以下情况：
 
-- Testing agent behavior without executing real tools.
-- Developing agents when external tools are unavailable or expensive.
-- Prototyping agent workflows before implementing actual tools.
-
-
+- 测试代理行为而不执行真实工具。
+- 在外部工具不可用或昂贵时开发代理。
+- 在实现实际工具之前原型化代理工作流。
 
 ```typescript
 import { createAgent, toolEmulatorMiddleware } from "langchain";
@@ -1050,32 +948,26 @@ const agent = createAgent({
   model: "gpt-4.1",
   tools: [getWeather, searchDatabase, sendEmail],
   middleware: [
-    toolEmulatorMiddleware(), // Emulate all tools
+    toolEmulatorMiddleware(), // 模拟所有工具
   ],
 });
 ```
 
-
-<Accordion title="Configuration options">
-
-
+<Accordion title="配置选项">
 
 <ParamField body="tools" type="(string | ClientTool | ServerTool)[]">
-    List of tool names (string) or tool instances to emulate. If `undefined` (default), ALL tools will be emulated. If empty array `[]`, no tools will be emulated. If array with tool names/instances, only those tools will be emulated.
+    要模拟的工具名称（字符串）或工具实例列表。如果 `undefined`（默认），将模拟所有工具。如果空数组 `[]`，则不模拟任何工具。如果包含工具名称/实例的数组，则仅模拟这些工具。
 </ParamField>
 
 <ParamField body="model" type="string | BaseChatModel">
-    Model to use for generating emulated tool responses. Can be a model identifier string (e.g., `'anthropic:claude-sonnet-4-6'`) or a `BaseChatModel` instance. Defaults to the agent's model if not specified.
+    用于生成模拟工具响应的模型。可以是模型标识符字符串（例如，`'anthropic:claude-sonnet-4-6'`）或 `BaseChatModel` 实例。如果未指定，则默认为代理的模型。
 </ParamField>
-
 
 </Accordion>
 
-<Accordion title="Full example">
+<Accordion title="完整示例">
 
-The middleware uses an LLM to generate plausible responses for tool calls instead of executing the actual tools.
-
-
+中间件使用 LLM 为工具调用生成合理的响应，而不是执行实际工具。
 
 ```typescript
 import { createAgent, toolEmulatorMiddleware, tool } from "langchain";
@@ -1103,14 +995,14 @@ const sendEmail = tool(
   }
 );
 
-// Emulate all tools (default behavior)
+// 模拟所有工具（默认行为）
 const agent = createAgent({
   model: "gpt-4.1",
   tools: [getWeather, sendEmail],
   middleware: [toolEmulatorMiddleware()],
 });
 
-// Emulate specific tools by name
+// 按名称模拟特定工具
 const agent2 = createAgent({
   model: "gpt-4.1",
   tools: [getWeather, sendEmail],
@@ -1121,7 +1013,7 @@ const agent2 = createAgent({
   ],
 });
 
-// Emulate specific tools by passing tool instances
+// 通过传递工具实例模拟特定工具
 const agent3 = createAgent({
   model: "gpt-4.1",
   tools: [getWeather, sendEmail],
@@ -1132,7 +1024,7 @@ const agent3 = createAgent({
   ],
 });
 
-// Use custom model for emulation
+// 使用自定义模型进行模拟
 const agent5 = createAgent({
   model: "gpt-4.1",
   tools: [getWeather, sendEmail],
@@ -1144,18 +1036,15 @@ const agent5 = createAgent({
 });
 ```
 
-
 </Accordion>
 
-### Context editing
+### 上下文编辑
 
-Manage conversation context by clearing older tool call outputs when token limits are reached, while preserving recent results. This helps keep context windows manageable in long conversations with many tool calls. Context editing is useful for the following:
+通过在令牌限制达到时清除较旧的工具调用输出来管理对话上下文，同时保留最近的结果。这有助于在具有许多工具调用的长时间对话中保持上下文窗口可管理。上下文编辑适用于以下情况：
 
-- Long conversations with many tool calls that exceed token limits
-- Reducing token costs by removing older tool outputs that are no longer relevant
-- Maintaining only the most recent N tool results in context
-
-
+- 具有许多工具调用且超过令牌限制的长时间对话
+- 通过删除不再相关的较旧工具输出来降低令牌成本
+- 在上下文中仅保留最近的 N 个工具结果
 
 ```typescript
 import { createAgent, contextEditingMiddleware, ClearToolUsesEdit } from "langchain";
@@ -1176,55 +1065,49 @@ const agent = createAgent({
 });
 ```
 
-
-<Accordion title="Configuration options">
-
-
+<Accordion title="配置选项">
 
 <ParamField body="edits" type="ContextEdit[]" default="[new ClearToolUsesEdit()]">
-    Array of [`ContextEdit`](https://reference.langchain.com/javascript/langchain/index/ContextEdit) strategies to apply
+    要应用的 [`ContextEdit`](https://reference.langchain.com/javascript/langchain/index/ContextEdit) 策略数组
 </ParamField>
 
-**[`ClearToolUsesEdit`](https://reference.langchain.com/javascript/langchain/index/ClearToolUsesEdit) options:**
+**[`ClearToolUsesEdit`](https://reference.langchain.com/javascript/langchain/index/ClearToolUsesEdit) 选项：**
 
 <ParamField body="triggerTokens" type="number" default="100000">
-    Token count that triggers the edit. When the conversation exceeds this token count, older tool outputs will be cleared.
+    触发编辑的令牌计数。当对话超过此令牌计数时，将清除较旧的工具输出。
 </ParamField>
 
 <ParamField body="clearAtLeast" type="number" default="0">
-    Minimum number of tokens to reclaim when the edit runs. If set to 0, clears as much as needed.
+    编辑运行时要回收的最小令牌数。如果设置为 0，则根据需要清除。
 </ParamField>
 
 <ParamField body="keep" type="number" default="3">
-    Number of most recent tool results that must be preserved. These will never be cleared.
+    必须保留的最近工具结果数。这些永远不会被清除。
 </ParamField>
 
 <ParamField body="clearToolInputs" type="boolean" default="false">
-    Whether to clear the originating tool call parameters on the AI message. When `true`, tool call arguments are replaced with empty objects.
+    是否清除 AI 消息上的原始工具调用参数。当为 `true` 时，工具调用参数将替换为空对象。
 </ParamField>
 
 <ParamField body="excludeTools" type="string[]" default="[]">
-    List of tool names to exclude from clearing. These tools will never have their outputs cleared.
+    要从清除中排除的工具名称列表。这些工具的输出永远不会被清除。
 </ParamField>
 
 <ParamField body="placeholder" type="string" default="[cleared]">
-    Placeholder text inserted for cleared tool outputs. This replaces the original tool message content.
+    为清除的工具输出插入的占位符文本。这将替换原始工具消息内容。
 </ParamField>
-
 
 </Accordion>
 
-<Accordion title="Full example">
+<Accordion title="完整示例">
 
-The middleware applies context editing strategies when token limits are reached. The most common strategy is `ClearToolUsesEdit`, which clears older tool results while preserving recent ones.
+当令牌限制达到时，中间件应用上下文编辑策略。最常见的策略是 `ClearToolUsesEdit`，它清除较旧的工具结果，同时保留最近的工具结果。
 
-**How it works:**
-1. Monitor token count in conversation
-2. When threshold is reached, clear older tool outputs
-3. Keep most recent N tool results
-4. Optionally preserve tool call arguments for context
-
-
+**工作原理：**
+1. 监控对话中的令牌计数
+2. 达到阈值时，清除较旧的工具输出
+3. 保留最近的 N 个工具结果
+4. 可选择保留工具调用参数以保留上下文
 
 ```typescript
 import { createAgent, contextEditingMiddleware, ClearToolUsesEdit } from "langchain";
@@ -1248,51 +1131,43 @@ const agent = createAgent({
 });
 ```
 
-
 </Accordion>
 
+### 文件系统中间件
 
+上下文工程是构建有效代理的主要挑战。当使用返回可变长度结果的工具（例如 `web_search` 和 RAG）时，这尤其困难，因为长工具结果会快速填满您的上下文窗口。
 
-### Filesystem middleware
+来自 [Deep Agents](/oss/javascript/deepagents/overview) 的 `FilesystemMiddleware` 提供了四个用于与短期和长期内存交互的工具：
 
-Context engineering is a main challenge in building effective agents. This is particularly difficult when using tools that return variable-length results (for example, `web_search` and RAG), as long tool results can quickly fill your context window.
-
-`FilesystemMiddleware` from [Deep Agents](/oss/javascript/deepagents/overview) provides four tools for interacting with both short-term and long-term memory:
-
-- `ls`: List the files in the filesystem
-- `read_file`: Read an entire file or a certain number of lines from a file
-- `write_file`: Write a new file to the filesystem
-- `edit_file`: Edit an existing file in the filesystem
-
-
+- `ls`：列出文件系统中的文件
+- `read_file`：读取整个文件或文件的特定行数
+- `write_file`：将新文件写入文件系统
+- `edit_file`：编辑文件系统中的现有文件
 
 ```typescript
 import { createAgent } from "langchain";
 import { createFilesystemMiddleware } from "deepagents";
 
-// FilesystemMiddleware is included by default in createDeepAgent
-// You can customize it if building a custom agent
+// FilesystemMiddleware 默认包含在 createDeepAgent 中
+// 如果构建自定义代理，可以自定义它
 const agent = createAgent({
   model: "claude-sonnet-4-6",
   middleware: [
     createFilesystemMiddleware({
-      backend: undefined,  // Optional: custom backend (defaults to StateBackend)
-      systemPrompt: "Write to the filesystem when...",  // Optional custom system prompt override
+      backend: undefined,  // 可选：自定义后端（默认为 StateBackend）
+      systemPrompt: "Write to the filesystem when...",  // 可选：自定义系统提示覆盖
       customToolDescriptions: {
         ls: "Use the ls tool when...",
         read_file: "Use the read_file tool to...",
-      },  // Optional: Custom descriptions for filesystem tools
+      },  // 可选：文件系统工具的自定义描述
     }),
   ],
 });
 ```
 
+#### 短期与长期文件系统
 
-#### Short-term vs. long-term filesystem
-
-By default, these tools write to a local "filesystem" in your graph state. To enable persistent storage across threads, configure a `CompositeBackend` that routes specific paths (like `/memories/`) to a `StoreBackend`.
-
-
+默认情况下，这些工具写入图状态中的本地“文件系统”。要启用跨线程的持久存储，请配置一个 `CompositeBackend`，将特定路径（如 `/memories/`）路由到 `StoreBackend`。
 
 ```typescript
 import { createAgent } from "langchain";
@@ -1310,26 +1185,23 @@ const agent = createAgent({
         new StateBackend(),
         { "/memories/": new StoreBackend() }
       ),
-      systemPrompt: "Write to the filesystem when...", // Optional custom system prompt override
+      systemPrompt: "Write to the filesystem when...", // 可选：自定义系统提示覆盖
       customToolDescriptions: {
         ls: "Use the ls tool when...",
         read_file: "Use the read_file tool to...",
-      }, // Optional: Custom descriptions for filesystem tools
+      }, // 可选：文件系统工具的自定义描述
     }),
   ],
 });
 ```
 
+当您为 `/memories/` 配置带有 `StoreBackend` 的 `CompositeBackend` 时，任何以 **/memories/** 为前缀的文件都会保存到持久存储中，并在不同线程中保留。没有此前缀的文件保留在临时状态存储中。
 
-When you configure a `CompositeBackend` with a `StoreBackend` for `/memories/`, any files prefixed with **/memories/** are saved to persistent storage and survive across different threads. Files without this prefix remain in ephemeral state storage.
+### 子代理
 
-### Subagent
+将任务移交给子代理可以隔离上下文，保持主（监督）代理的上下文窗口干净，同时仍然深入处理任务。
 
-Handing off tasks to subagents isolates context, keeping the main (supervisor) agent's context window clean while still going deep on a task.
-
-The subagents middleware from [Deep Agents](/oss/javascript/deepagents/overview) allows you to supply subagents through a `task` tool.
-
-
+来自 [Deep Agents](/oss/javascript/deepagents/overview) 的子代理中间件允许您通过 `task` 工具提供子代理。
 
 ```typescript
 import { tool } from "langchain";
@@ -1371,12 +1243,9 @@ const agent = createAgent({
 });
 ```
 
+子代理使用**名称**、**描述**、**系统提示**和**工具**定义。您还可以为子代理提供自定义**模型**或附加**中间件**。当您希望子代理具有与主代理共享的附加状态键时，这可能特别有用。
 
-A subagent is defined with a **name**, **description**, **system prompt**, and **tools**. You can also provide a subagent with a custom **model**, or with additional **middleware**. This can be particularly useful when you want to give the subagent an additional state key to share with the main agent.
-
-For more complex use cases, you can also provide your own prebuilt LangGraph graph as a subagent.
-
-
+对于更复杂的用例，您还可以提供您自己的预构建 LangGraph 图作为子代理。
 
 ```typescript
 import { tool, createAgent } from "langchain";
@@ -1417,19 +1286,16 @@ const agent = createAgent({
 });
 ```
 
+除了任何用户定义的子代理外，主代理始终可以访问一个 `general-purpose` 子代理。此子代理具有与主代理相同的指令和所有可用工具。`general-purpose` 子代理的主要目的是上下文隔离——主代理可以将复杂任务委托给此子代理，并获得简洁的答案，而不会因中间工具调用而膨胀。
 
-In addition to any user-defined subagents, the main agent has access to a `general-purpose` subagent at all times. This subagent has the same instructions as the main agent and all the tools it has access to. The primary purpose of the `general-purpose` subagent is context isolation—the main agent can delegate a complex task to this subagent and get a concise answer back without bloat from intermediate tool calls.
+## 提供商特定的中间件
 
-## Provider-specific middleware
-
-These middleware are optimized for specific LLM providers. See each provider's documentation for full details and examples.
+这些中间件针对特定的 LLM 提供商进行了优化。有关完整详细信息和示例，请参阅每个提供商的文档。
 
 <Columns cols={2}>
 
-
-
     <Card title="Anthropic" href="/oss/javascript/integrations/middleware/anthropic" icon="/images/providers/anthropic-icon.svg" arrow>
-        Prompt caching, bash tool, text editor, memory, and file search middleware for Claude models.
+        适用于 Claude 模型的提示缓存、bash 工具、文本编辑器、内存和文件搜索中间件。
     </Card>
 
 </Columns>
@@ -1438,9 +1304,9 @@ These middleware are optimized for specific LLM providers. See each provider's d
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/middleware/built-in.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/middleware/built-in.mdx) 或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档](/use-these-docs) 通过 MCP 连接到 Claude、VSCode 等，以获取实时答案。
 </Callout>
 </div>

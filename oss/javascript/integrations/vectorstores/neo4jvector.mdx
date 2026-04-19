@@ -1,34 +1,33 @@
 ---
-title: "Neo4j vector index integration"
-description: "Integrate with the Neo4j vector index vector store using LangChain JavaScript."
+title: "Neo4j 向量索引集成"
+description: "使用 LangChain JavaScript 与 Neo4j 向量索引向量存储进行集成。"
 ---
 
-Neo4j is an open-source graph database with integrated support for vector similarity search.
-It supports:
+Neo4j 是一个开源图数据库，集成了向量相似性搜索支持。它支持：
 
-- approximate nearest neighbor search
-- Euclidean similarity and cosine similarity
-- Hybrid search combining vector and keyword searches
+- 近似最近邻搜索
+- 欧几里得相似性和余弦相似性
+- 结合向量和关键词搜索的混合搜索
 
-## Setup
+## 设置
 
-To work with Neo4j Vector Index, you need to install the `neo4j-driver` package:
+要使用 Neo4j 向量索引，您需要安装 `neo4j-driver` 包：
 
 ```bash npm
 npm install neo4j-driver
 ```
 <Tip>
-See [this section for general instructions on installing LangChain packages](/oss/javascript/langchain/install).
+请参阅[此部分获取安装 LangChain 包的一般说明](/oss/javascript/langchain/install)。
 </Tip>
 
 ```bash npm
 npm install @langchain/openai @langchain/community @langchain/core
 ```
 
-### Setup a `Neo4j` self hosted instance with `docker-compose`
+### 使用 `docker-compose` 设置 `Neo4j` 自托管实例
 
-`Neo4j` provides a prebuilt Docker image that can be used to quickly setup a self-hosted Neo4j database instance.
-Create a file below named `docker-compose.yml`:
+`Neo4j` 提供了一个预构建的 Docker 镜像，可用于快速设置自托管的 Neo4j 数据库实例。
+创建一个名为 `docker-compose.yml` 的文件：
 
 ```yml docker-compose.yml
 services:
@@ -41,27 +40,27 @@ services:
       - NEO4J_AUTH=neo4j/pleaseletmein
 ```
 
-And then in the same directory, run `docker compose up` to start the container.
+然后在同一目录下运行 `docker compose up` 以启动容器。
 
-You can find more information on how to setup `Neo4j` on their [website](https://neo4j.com/docs/operations-manual/current/installation/).
+您可以在他们的[网站](https://neo4j.com/docs/operations-manual/current/installation/)上找到有关如何设置 `Neo4j` 的更多信息。
 
-## Usage
+## 用法
 
 ```typescript
 import { OpenAIEmbeddings } from "@langchain/openai";
 import { Neo4jVectorStore } from "@langchain/community/vectorstores/neo4j_vector";
 
-// Configuration object for Neo4j connection and other related settings
+// Neo4j 连接和其他相关设置的配置对象
 const config = {
-  url: "bolt://localhost:7687", // URL for the Neo4j instance
-  username: "neo4j", // Username for Neo4j authentication
-  password: "pleaseletmein", // Password for Neo4j authentication
-  indexName: "vector", // Name of the vector index
-  keywordIndexName: "keyword", // Name of the keyword index if using hybrid search
-  searchType: "vector" as const, // Type of search (e.g., vector, hybrid)
-  nodeLabel: "Chunk", // Label for the nodes in the graph
-  textNodeProperty: "text", // Property of the node containing text
-  embeddingNodeProperty: "embedding", // Property of the node containing embedding
+  url: "bolt://localhost:7687", // Neo4j 实例的 URL
+  username: "neo4j", // Neo4j 认证的用户名
+  password: "pleaseletmein", // Neo4j 认证的密码
+  indexName: "vector", // 向量索引的名称
+  keywordIndexName: "keyword", // 如果使用混合搜索，关键词索引的名称
+  searchType: "vector" as const, // 搜索类型（例如，向量、混合）
+  nodeLabel: "Chunk", // 图中节点的标签
+  textNodeProperty: "text", // 包含文本的节点属性
+  embeddingNodeProperty: "embedding", // 包含嵌入的节点属性
 };
 
 const documents = [
@@ -86,43 +85,42 @@ console.log(results);
 await neo4jVectorIndex.close();
 ```
 
-### Use retrievalQuery parameter to customize responses
+### 使用 retrievalQuery 参数自定义响应
 
 ```typescript
 import { OpenAIEmbeddings } from "@langchain/openai";
 import { Neo4jVectorStore } from "@langchain/community/vectorstores/neo4j_vector";
 
 /*
- * The retrievalQuery is a customizable Cypher query fragment used in the Neo4jVectorStore class to define how
- * search results should be retrieved and presented from the Neo4j database. It allows developers to specify
- * the format and structure of the data returned after a similarity search.
- * Mandatory columns for `retrievalQuery`:
+ * retrievalQuery 是一个可自定义的 Cypher 查询片段，用于在 Neo4jVectorStore 类中定义如何
+ * 从 Neo4j 数据库检索和呈现搜索结果。它允许开发人员指定
+ * 相似性搜索后返回数据的格式和结构。
+ * `retrievalQuery` 的必需列：
  *
  * 1. text:
- *    - Description: Represents the textual content of the node.
- *    - Type: String
+ *    - 描述：表示节点的文本内容。
+ *    - 类型：字符串
  *
  * 2. score:
- *    - Description: Represents the similarity score of the node in relation to the search query. A
- *      higher score indicates a closer match.
- *    - Type: Float (ranging between 0 and 1, where 1 is a perfect match)
+ *    - 描述：表示节点相对于搜索查询的相似性得分。得分越高表示匹配越接近。
+ *    - 类型：浮点数（范围在 0 到 1 之间，其中 1 表示完美匹配）
  *
  * 3. metadata:
- *    - Description: Contains additional properties and information about the node. This can include
- *      any other attributes of the node that might be relevant to the application.
- *    - Type: Object (key-value pairs)
- *    - Example: { "id": "12345", "category": "Books", "author": "John Doe" }
+ *    - 描述：包含节点的附加属性和信息。这可以包括
+ *      节点的任何其他可能与应用程序相关的属性。
+ *    - 类型：对象（键值对）
+ *    - 示例：{ "id": "12345", "category": "Books", "author": "John Doe" }
  *
- * Note: While you can customize the `retrievalQuery` to fetch additional columns or perform
- * transformations, never omit the mandatory columns. The names of these columns (`text`, `score`,
- * and `metadata`) should remain consistent. Renaming them might lead to errors or unexpected behavior.
+ * 注意：虽然您可以自定义 `retrievalQuery` 以获取附加列或执行
+ * 转换，但切勿省略必需列。这些列的名称（`text`、`score`
+ * 和 `metadata`）应保持一致。重命名它们可能导致错误或意外行为。
  */
 
-// Configuration object for Neo4j connection and other related settings
+// Neo4j 连接和其他相关设置的配置对象
 const config = {
-  url: "bolt://localhost:7687", // URL for the Neo4j instance
-  username: "neo4j", // Username for Neo4j authentication
-  password: "pleaseletmein", // Password for Neo4j authentication
+  url: "bolt://localhost:7687", // Neo4j 实例的 URL
+  username: "neo4j", // Neo4j 认证的用户名
+  password: "pleaseletmein", // Neo4j 认证的密码
   retrievalQuery: `
     RETURN node.text AS text, score, {a: node.a * 2} AS metadata
   `,
@@ -150,30 +148,30 @@ console.log(results);
 await neo4jVectorIndex.close();
 ```
 
-### Instantiate Neo4jVectorStore from existing graph
+### 从现有图实例化 Neo4jVectorStore
 
 ```typescript
 import { OpenAIEmbeddings } from "@langchain/openai";
 import { Neo4jVectorStore } from "@langchain/community/vectorstores/neo4j_vector";
 
 /**
- * `fromExistingGraph` Method:
+ * `fromExistingGraph` 方法：
  *
- * Description:
- * This method initializes a `Neo4jVectorStore` instance using an existing graph in the Neo4j database.
- * It's designed to work with nodes that already have textual properties but might not have embeddings.
- * The method will compute and store embeddings for nodes that lack them.
+ * 描述：
+ * 此方法使用 Neo4j 数据库中的现有图初始化 `Neo4jVectorStore` 实例。
+ * 它旨在处理已具有文本属性但可能没有嵌入的节点。
+ * 该方法将计算并存储缺少嵌入的节点的嵌入。
  *
- * Note:
- * This method is particularly useful when you have a pre-existing graph with textual data and you want
- * to enhance it with vector embeddings for similarity searches without altering the original data structure.
+ * 注意：
+ * 当您拥有一个包含文本数据的预存图，并且希望
+ * 通过向量嵌入增强它以进行相似性搜索，而不改变原始数据结构时，此方法特别有用。
  */
 
-// Configuration object for Neo4j connection and other related settings
+// Neo4j 连接和其他相关设置的配置对象
 const config = {
-  url: "bolt://localhost:7687", // URL for the Neo4j instance
-  username: "neo4j", // Username for Neo4j authentication
-  password: "pleaseletmein", // Password for Neo4j authentication
+  url: "bolt://localhost:7687", // Neo4j 实例的 URL
+  username: "neo4j", // Neo4j 认证的用户名
+  password: "pleaseletmein", // Neo4j 认证的密码
   indexName: "wikipedia",
   nodeLabel: "Wikipedia",
   textNodeProperties: ["title", "description"],
@@ -181,7 +179,7 @@ const config = {
   searchType: "hybrid" as const,
 };
 
-// You should have a populated Neo4j database to use this method
+// 您应该有一个已填充的 Neo4j 数据库才能使用此方法
 const neo4jVectorIndex = await Neo4jVectorStore.fromExistingGraph(
   new OpenAIEmbeddings(),
   config
@@ -190,52 +188,52 @@ const neo4jVectorIndex = await Neo4jVectorStore.fromExistingGraph(
 await neo4jVectorIndex.close();
 ```
 
-### Metadata filtering
+### 元数据过滤
 
 ```typescript
 import { OpenAIEmbeddings } from "@langchain/openai";
 import { Neo4jVectorStore } from "@langchain/community/vectorstores/neo4j_vector";
 
 /**
- * `similaritySearch` Method with Metadata Filtering:
+ * 带元数据过滤的 `similaritySearch` 方法：
  *
- * Description:
- * This method facilitates advanced similarity searches within a Neo4j vector index, leveraging both text embeddings and metadata attributes.
- * The third parameter, `filter`, allows for the specification of metadata-based conditions that pre-filter the nodes before performing the similarity search.
- * This approach enhances the search precision by allowing users to query based on complex metadata criteria alongside textual similarity.
- * Metadata filtering also support the following operators:
+ * 描述：
+ * 此方法在 Neo4j 向量索引中促进高级相似性搜索，利用文本嵌入和元数据属性。
+ * 第三个参数 `filter` 允许指定基于元数据的条件，以在执行相似性搜索之前对节点进行预过滤。
+ * 这种方法通过允许用户基于复杂的元数据标准以及文本相似性进行查询，从而提高了搜索精度。
+ * 元数据过滤还支持以下运算符：
  *
- *  $eq: Equal
- *  $ne: Not Equal
- *  $lt: Less than
- *  $lte: Less than or equal
- *  $gt: Greater than
- *  $gte: Greater than or equal
- *  $in: In a list of values
- *  $nin: Not in a list of values
- *  $between: Between two values
- *  $like: Text contains value
- *  $ilike: lowered text contains value
+ *  $eq: 等于
+ *  $ne: 不等于
+ *  $lt: 小于
+ *  $lte: 小于或等于
+ *  $gt: 大于
+ *  $gte: 大于或等于
+ *  $in: 在值列表中
+ *  $nin: 不在值列表中
+ *  $between: 在两个值之间
+ *  $like: 文本包含值
+ *  $ilike: 小写文本包含值
  *
- * The filter supports a range of query operations such as equality checks, range queries, and compound conditions (using logical operators like $and, $or).
- * This makes it highly adaptable to varied use cases requiring detailed and specific retrieval of documents based on both content and contextual information.
+ * 该过滤器支持一系列查询操作，例如相等性检查、范围查询和复合条件（使用逻辑运算符如 $and、$or）。
+ * 这使其高度适应需要基于内容和上下文信息进行详细和特定检索的各种用例。
  *
- * Note:
- * Effective use of this method requires a well-structured Neo4j database where nodes are enriched with both text and metadata properties.
- * The method is particularly useful in scenarios where the integration of text analysis with detailed metadata querying is crucial, such as in content recommendation systems, detailed archival searches, or any application where contextual relevance is key.
+ * 注意：
+ * 有效使用此方法需要一个结构良好的 Neo4j 数据库，其中节点富含文本和元数据属性。
+ * 在文本分析与详细元数据查询集成至关重要的场景中，此方法特别有用，例如内容推荐系统、详细档案搜索或任何上下文相关性是关键的应用程序。
  */
 
-// Configuration object for Neo4j connection and other related settings
+// Neo4j 连接和其他相关设置的配置对象
 const config = {
-  url: "bolt://localhost:7687", // URL for the Neo4j instance
-  username: "neo4j", // Username for Neo4j authentication
-  password: "pleaseletmein", // Password for Neo4j authentication
-  indexName: "vector", // Name of the vector index
-  keywordIndexName: "keyword", // Name of the keyword index if using hybrid search
-  searchType: "vector" as const, // Type of search (e.g., vector, hybrid)
-  nodeLabel: "Chunk", // Label for the nodes in the graph
-  textNodeProperty: "text", // Property of the node containing text
-  embeddingNodeProperty: "embedding", // Property of the node containing embedding
+  url: "bolt://localhost:7687", // Neo4j 实例的 URL
+  username: "neo4j", // Neo4j 认证的用户名
+  password: "pleaseletmein", // Neo4j 认证的密码
+  indexName: "vector", // 向量索引的名称
+  keywordIndexName: "keyword", // 如果使用混合搜索，关键词索引的名称
+  searchType: "vector" as const, // 搜索类型（例如，向量、混合）
+  nodeLabel: "Chunk", // 图中节点的标签
+  textNodeProperty: "text", // 包含文本的节点属性
+  embeddingNodeProperty: "embedding", // 包含嵌入的节点属性
 };
 
 const documents = [
@@ -261,31 +259,26 @@ console.log(results);
 await neo4jVectorIndex.close();
 ```
 
-# Disclaimer ⚠️
+# 免责声明 ⚠️
 
-_Security note_: Make sure that the database connection uses credentials
-that are narrowly-scoped to only include necessary permissions.
-Failure to do so may result in data corruption or loss, since the calling
-code may attempt commands that would result in deletion, mutation
-of data if appropriately prompted or reading sensitive data if such
-data is present in the database.
-The best way to guard against such negative outcomes is to (as appropriate)
-limit the permissions granted to the credentials used with this tool.
-For example, creating read only users for the database is a good way to
-ensure that the calling code cannot mutate or delete data.
+_安全提示_：确保数据库连接使用的凭据范围严格限定，仅包含必要的权限。
+否则可能导致数据损坏或丢失，因为调用代码可能会尝试执行导致删除、
+数据变异（如果适当提示）或读取敏感数据（如果数据库中存在此类数据）的命令。
+防止此类负面结果的最佳方法是（根据情况）限制授予与此工具一起使用的凭据的权限。
+例如，为数据库创建只读用户是确保调用代码无法变异或删除数据的好方法。
 
-## Related
+## 相关
 
-- Vector store [conceptual guide](/oss/javascript/integrations/vectorstores)
-- Vector store [how-to guides](/oss/javascript/integrations/vectorstores)
+- 向量存储[概念指南](/oss/javascript/integrations/vectorstores)
+- 向量存储[操作指南](/oss/javascript/integrations/vectorstores)
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/javascript/integrations/vectorstores/neo4jvector.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/javascript/integrations/vectorstores/neo4jvector.mdx) 或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [通过 MCP 将这些文档](/use-these-docs)连接到 Claude、VSCode 等，以获取实时答案。
 </Callout>
 </div>
