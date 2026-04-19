@@ -86,7 +86,7 @@ USER_PROMPT = """\
 # ── 工作目录 ──────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent
 PROGRESS_FILE = BASE_DIR / "mdx-translation-progress.md"
-MAX_CONCURRENCY = 10
+MAX_CONCURRENCY = 20
 
 
 def parse_file_list() -> list[str]:
@@ -103,11 +103,10 @@ def parse_file_list() -> list[str]:
 def build_chain():
     """构建 LangChain 翻译链。"""
     llm = ChatOpenAI(
-        base_url="http://localhost:1234/v1",
-        api_key="lm-studio",  # lm-studio 不需要真实 key
-        model="qwen-2.5-7b-instruct-k-m",
-        temperature=0.3,
-        max_tokens=8192,
+        base_url="https://api.xiaomimimo.com/v1",
+        api_key="",
+        model="mimo-v2-flash",
+        temperature=0.1,
     )
 
     terms_str = "、".join(TECHNICAL_TERMS)
