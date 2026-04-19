@@ -1,35 +1,35 @@
 ---
-title: Build a custom SQL agent
-sidebarTitle: Custom SQL agent
+title: 构建自定义 SQL 代理
+sidebarTitle: 自定义 SQL 代理
 ---
 
 import ChatModelTabsPy from '/snippets/chat-model-tabs.mdx';
 import ChatModelTabsJS from '/snippets/chat-model-tabs-js.mdx';
 
 
-In this tutorial we will build a custom agent that can answer questions about a SQL database using LangGraph.
+在本教程中，我们将构建一个自定义代理，该代理可以使用 LangGraph 回答关于 SQL 数据库的问题。
 
-LangChain offers built-in [agent](/oss/python/langchain/agents) implementations, implemented using [LangGraph](/oss/python/langgraph/overview) primitives. If deeper customization is required, agents can be implemented directly in LangGraph. This guide demonstrates an example implementation of a SQL agent. For a practical introduction, see [building a SQL agent using higher-level LangChain abstractions](/oss/python/langchain/sql-agent).
+LangChain 提供了内置的 [代理](/oss/python/langchain/agents) 实现，这些实现使用 [LangGraph](/oss/python/langgraph/overview) 原语构建。如果需要更深层次的定制，可以直接在 LangGraph 中实现代理。本指南演示了一个 SQL 代理的示例实现。有关实际介绍，请参阅 [使用更高级的 LangChain 抽象构建 SQL 代理](/oss/python/langchain/sql-agent)。
 
 <Warning>
-Building Q&A systems of SQL databases requires executing model-generated SQL queries. There are inherent risks in doing this. Make sure that your database connection permissions are always scoped as narrowly as possible for your agent's needs. This will mitigate, though not eliminate, the risks of building a model-driven system.
+构建 SQL 数据库的问答系统需要执行模型生成的 SQL 查询。这样做存在固有风险。请确保您的数据库连接权限始终根据代理的需求尽可能严格地限定范围。这将减轻（但不能消除）构建模型驱动系统的风险。
 </Warning>
 
-The [prebuilt agent](/oss/python/langchain/sql-agent) lets us get started quickly, but we relied on the system prompt to constrain its behavior—for example, we instructed the agent to always start with the "list tables" tool, and to always run a query-checker tool before executing the query.
+[预构建代理](/oss/python/langchain/sql-agent) 让我们可以快速开始，但我们依赖系统提示来约束其行为——例如，我们指示代理始终从“列出表”工具开始，并在执行查询之前始终运行查询检查器工具。
 
-We can enforce a higher degree of control in LangGraph by customizing the agent. Here, we implement a simple ReAct-agent setup, with dedicated nodes for specific tool-calls. We will use the same [state] as the prebuilt agent.
+我们可以通过在 LangGraph 中自定义代理来实施更高级别的控制。在这里，我们实现一个简单的 ReAct 代理设置，为特定的工具调用设置专用节点。我们将使用与预构建代理相同的 [状态]。
 
-### Concepts
+### 概念
 
-We will cover the following concepts:
+我们将涵盖以下概念：
 
-- [Tools](/oss/python/langchain/tools) for reading from SQL databases
-- The LangGraph [Graph API](/oss/python/langgraph/graph-api), including state, nodes, edges, and conditional edges.
-- [Human-in-the-loop](/oss/python/langgraph/interrupts) processes
+- 用于从 SQL 数据库读取的 [工具](/oss/python/langchain/tools)
+- LangGraph [图 API](/oss/python/langgraph/graph-api)，包括状态、节点、边和条件边。
+- [人机回环](/oss/python/langgraph/interrupts) 流程
 
-## Setup
+## 设置
 
-### Installation
+### 安装
 
     <CodeGroup>
     ```bash pip
@@ -40,28 +40,28 @@ We will cover the following concepts:
 
 
 ### LangSmith
-Set up [LangSmith](https://smith.langchain.com) to inspect what is happening inside your chain or agent. Then set the following environment variables:
+设置 [LangSmith](https://smith.langchain.com) 以检查链或代理内部发生的情况。然后设置以下环境变量：
 
     ```shell
     export LANGSMITH_TRACING="true"
     export LANGSMITH_API_KEY="..."
     ```
 
-## 1. Select an LLM
+## 1. 选择 LLM
 
-Select a model that supports [tool-calling](/oss/python/integrations/providers/overview):
+选择一个支持 [工具调用](/oss/python/integrations/providers/overview) 的模型：
 
 <ChatModelTabsPy />
 
 
 
-The output shown in the examples below used OpenAI.
+下面示例中显示的输出使用了 OpenAI。
 
-## 2. Configure the database
+## 2. 配置数据库
 
-You will be creating a [SQLite database](https://www.sqlitetutorial.net/sqlite-sample-database/) for this tutorial. SQLite is a lightweight database that is easy to set up and use. We will be loading the `chinook` database, which is a sample database that represents a digital media store.
+您将为本教程创建一个 [SQLite 数据库](https://www.sqlitetutorial.net/sqlite-sample-database/)。SQLite 是一个轻量级数据库，易于设置和使用。我们将加载 `chinook` 数据库，这是一个代表数字媒体商店的示例数据库。
 
-For convenience, we have hosted the database (`Chinook.db`) on a public GCS bucket.
+为方便起见，我们将数据库 (`Chinook.db`) 托管在公共 GCS 存储桶中。
 
 ```python
 import requests, pathlib
@@ -80,7 +80,7 @@ else:
         print(f"Failed to download the file. Status code: {response.status_code}")
 ```
 
-We will use a handy SQL database wrapper available in the `langchain_community` package to interact with the database. The wrapper provides a simple interface to execute SQL queries and fetch results:
+我们将使用 `langchain_community` 包中提供的便捷 SQL 数据库包装器与数据库交互。该包装器提供了一个简单的接口来执行 SQL 查询并获取结果：
 
 ```python
 from langchain_community.utilities import SQLDatabase
@@ -99,9 +99,9 @@ Sample output: [(1, 'AC/DC'), (2, 'Accept'), (3, 'Aerosmith'), (4, 'Alanis Moris
 
 
 
-## 3. Add tools for database interactions
+## 3. 添加用于数据库交互的工具
 
-Use the `SQLDatabase` wrapper available in the `langchain_community` package to interact with the database. The wrapper provides a simple interface to execute SQL queries and fetch results:
+使用 `langchain_community` 包中提供的 `SQLDatabase` 包装器与数据库交互。该包装器提供了一个简单的接口来执行 SQL 查询并获取结果：
 
 ```python
 from langchain_community.agent_toolkits import SQLDatabaseToolkit
@@ -125,16 +125,16 @@ sql_db_query_checker: Use this tool to double check if your query is correct bef
 
 
 
-## 4. Define application steps
+## 4. 定义应用程序步骤
 
-We construct dedicated nodes for the following steps:
+我们为以下步骤构建专用节点：
 
-- Listing DB tables
-- Calling the "get schema" tool
-- Generating a query
-- Checking the query
+- 列出数据库表
+- 调用“获取模式”工具
+- 生成查询
+- 检查查询
 
-Putting these steps in dedicated nodes lets us (1) force tool-calls when needed, and (2) customize the prompts associated with each step.
+将这些步骤放在专用节点中，让我们可以 (1) 在需要时强制工具调用，以及 (2) 自定义与每个步骤关联的提示。
 
 ```python
 from typing import Literal
@@ -152,7 +152,7 @@ run_query_tool = next(tool for tool in tools if tool.name == "sql_db_query")
 run_query_node = ToolNode([run_query_tool], name="run_query")
 
 
-# Example: create a predetermined tool call
+# 示例：创建预定的工具调用
 def list_tables(state: MessagesState):
     tool_call = {
         "name": "sql_db_list_tables",
@@ -169,10 +169,10 @@ def list_tables(state: MessagesState):
     return {"messages": [tool_call_message, tool_message, response]}
 
 
-# Example: force a model to create a tool call
+# 示例：强制模型创建工具调用
 def call_get_schema(state: MessagesState):
-    # Note that LangChain enforces that all models accept `tool_choice="any"`
-    # as well as `tool_choice=<string name of tool>`.
+    # 注意，LangChain 强制所有模型接受 `tool_choice="any"`
+    # 以及 `tool_choice=<string name of tool>`。
     llm_with_tools = model.bind_tools([get_schema_tool], tool_choice="any")
     response = llm_with_tools.invoke(state["messages"])
 
@@ -202,8 +202,7 @@ def generate_query(state: MessagesState):
         "role": "system",
         "content": generate_query_system_prompt,
     }
-    # We do not force a tool call here, to allow the model to
-    # respond naturally when it obtains the solution.
+    # 我们在这里不强制工具调用，以允许模型在获得解决方案时自然响应。
     llm_with_tools = model.bind_tools([run_query_tool])
     response = llm_with_tools.invoke([system_message] + state["messages"])
 
@@ -235,7 +234,7 @@ def check_query(state: MessagesState):
         "content": check_query_system_prompt,
     }
 
-    # Generate an artificial user message to check
+    # 生成人工用户消息以进行检查
     tool_call = state["messages"][-1].tool_calls[0]
     user_message = {"role": "user", "content": tool_call["args"]["query"]}
     llm_with_tools = model.bind_tools([run_query_tool], tool_choice="any")
@@ -247,9 +246,9 @@ def check_query(state: MessagesState):
 
 
 
-## 5. Implement the agent
+## 5. 实现代理
 
-We can now assemble these steps into a workflow using the [Graph API](/oss/python/langgraph/graph-api). We define a [conditional edge](/oss/python/langgraph/graph-api#conditional-edges) at the query generation step that will route to the query checker if a query is generated, or end if there are no tool calls present, such that the LLM has delivered a response to the query.
+我们现在可以使用 [图 API](/oss/python/langgraph/graph-api) 将这些步骤组装成一个工作流。我们在查询生成步骤定义一个 [条件边](/oss/python/langgraph/graph-api#conditional-edges)，如果生成了查询，则路由到查询检查器，或者如果没有工具调用存在（即 LLM 已提供对查询的响应），则结束。
 
 ```python
 def should_continue(state: MessagesState) -> Literal[END, "check_query"]:
@@ -282,7 +281,7 @@ builder.add_edge("run_query", "generate_query")
 
 agent = builder.compile()
 ```
-We visualize the application below:
+我们在下面可视化应用程序：
 ```python
 from IPython.display import Image, display
 from langchain_core.runnables.graph import CurveStyle, MermaidDrawMethod, NodeStyles
@@ -297,7 +296,7 @@ display(Image(agent.get_graph().draw_mermaid_png()))
   style={{ height: "800px" }}
 />
 
-We can now invoke the graph:
+我们现在可以调用图：
 ```python
 question = "Which genre on average has the longest tracks?"
 
@@ -385,18 +384,18 @@ Name: sql_db_query
 The genre with the longest tracks on average is "Sci Fi & Fantasy," with an average track length of approximately 2,911,783 milliseconds. Other genres with relatively long tracks include "Science Fiction," "Drama," "TV Shows," and "Comedy."
 ```
 <Tip>
-See [LangSmith trace](https://smith.langchain.com/public/94b8c9ac-12f7-4692-8706-836a1f30f1ea/r) for the above run.
+请参阅 [LangSmith 追踪](https://smith.langchain.com/public/94b8c9ac-12f7-4692-8706-836a1f30f1ea/r) 了解上述运行。
 </Tip>
 
 
 
-## 6. Implement human-in-the-loop review
+## 6. 实现人机回环审查
 
-It can be prudent to check the agent's SQL queries before they are executed for any unintended actions or inefficiencies.
+在执行代理的 SQL 查询之前，检查是否存在任何意外操作或低效行为是明智的。
 
-Here we leverage LangGraph's [human-in-the-loop](/oss/python/langgraph/interrupts) features to pause the run before executing a SQL query and wait for human review. Using LangGraph's [persistence layer](/oss/python/langgraph/persistence), we can pause the run indefinitely (or at least as long as the persistence layer is alive).
+这里我们利用 LangGraph 的 [人机回环](/oss/python/langgraph/interrupts) 功能，在执行 SQL 查询之前暂停运行并等待人工审查。使用 LangGraph 的 [持久化层](/oss/python/langgraph/persistence)，我们可以无限期地暂停运行（或至少在持久化层存活期间）。
 
-Let's wrap the `sql_db_query` tool in a node that receives human input. We can implement this using the [interrupt](/oss/python/langgraph/interrupts) function. Below, we allow for input to approve the tool call, edit its arguments, or provide user feedback.
+让我们将 `sql_db_query` 工具包装在一个接收人工输入的节点中。我们可以使用 [中断](/oss/python/langgraph/interrupts) 函数来实现这一点。下面，我们允许输入来批准工具调用、编辑其参数或提供用户反馈。
 
 ```python
 from langchain_core.runnables import RunnableConfig
@@ -415,14 +414,14 @@ def run_query_tool_with_interrupt(config: RunnableConfig, **tool_input):
         "description": "Please review the tool call"
     }
     response = interrupt([request]) # [!code highlight]
-    # approve the tool call
+    # 批准工具调用
     if response["type"] == "accept":
         tool_response = run_query_tool.invoke(tool_input, config)
-    # update tool call args
+    # 更新工具调用参数
     elif response["type"] == "edit":
         tool_input = response["args"]["args"]
         tool_response = run_query_tool.invoke(tool_input, config)
-    # respond to the LLM with user feedback
+    # 使用用户反馈响应 LLM
     elif response["type"] == "response":
         user_feedback = response["args"]
         tool_response = user_feedback
@@ -431,17 +430,17 @@ def run_query_tool_with_interrupt(config: RunnableConfig, **tool_input):
 
     return tool_response
 
-# Redefine the tool node to use the interrupt version
+# 重新定义工具节点以使用中断版本
 run_query_node = ToolNode([run_query_tool_with_interrupt], name="run_query") # [!code highlight]
 ```
 
 
 
 <Note>
-The above implementation follows the [tool interrupt example](/oss/python/langgraph/interrupts#interrupts-in-tools) in the broader [human-in-the-loop](/oss/python/langgraph/interrupts) guide. Refer to that guide for details and alternatives.
+上述实现遵循了更广泛的 [人机回环](/oss/python/langgraph/interrupts) 指南中的 [工具中断示例](/oss/python/langgraph/interrupts#interrupts-in-tools)。有关详细信息和替代方案，请参阅该指南。
 </Note>
 
-Let's now re-assemble our graph. We will replace the programmatic check with human review. Note that we now include a [checkpointer](/oss/python/langgraph/persistence); this is required to pause and resume the run.
+现在让我们重新组装我们的图。我们将用人机审查替换程序化检查。请注意，我们现在包含了一个 [检查点](/oss/python/langgraph/persistence)；这是暂停和恢复运行所必需的。
 
 ```python
 from langgraph.checkpoint.memory import InMemorySaver
@@ -477,7 +476,7 @@ agent = builder.compile(checkpointer=checkpointer) # [!code highlight]
 
 
 
-We can invoke the graph as before. This time, execution is interrupted:
+我们可以像以前一样调用图。这次，执行被中断：
 
 ```python
 import json
@@ -516,7 +515,7 @@ INTERRUPTED:
   "description": "Please review the tool call"
 }
 ```
-We can accept or edit the tool call using [Command](/oss/python/langgraph/use-graph-api#combine-control-flow-and-state-updates-with-command):
+我们可以使用 [Command](/oss/python/langgraph/use-graph-api#combine-control-flow-and-state-updates-with-command) 接受或编辑工具调用：
 
 ```python
 from langgraph.types import Command
@@ -557,18 +556,18 @@ Name: sql_db_query
 The genre with the longest average track length is "Sci Fi & Fantasy" with an average length of about 2,911,783 milliseconds. Other genres with long average track lengths include "Science Fiction," "Drama," "TV Shows," and "Comedy."
 ```
 
-Refer to the [human-in-the-loop guide](/oss/python/langgraph/interrupts) for details.
+有关详细信息，请参阅 [人机回环指南](/oss/python/langgraph/interrupts)。
 
-## Next steps
-Check out the [Evaluate a graph](/langsmith/evaluate-graph) guide for evaluating LangGraph applications, including SQL agents like this one, using LangSmith.
+## 后续步骤
+查看 [评估图](/langsmith/evaluate-graph) 指南，了解如何使用 LangSmith 评估 LangGraph 应用程序，包括像这样的 SQL 代理。
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/sql-agent.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/sql-agent.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [通过 MCP 将这些文档](/use-these-docs) 连接到 Claude、VSCode 等，以获取实时答案。
 </Callout>
 </div>

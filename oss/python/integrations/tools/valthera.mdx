@@ -1,25 +1,25 @@
 ---
-title: "Valthera integration"
-description: "Integrate with the Valthera tool using LangChain Python."
+title: "Valthera 集成"
+description: "使用 LangChain Python 与 Valthera 工具集成。"
 ---
 
-Enable AI agents to engage users when they're most likely to respond.
+使 AI 代理能够在用户最有可能响应时与他们互动。
 
-## Overview
+## 概述
 
-Valthera is an open-source framework that enables LLM Agents to engage users in a more meaningful way. It is built on BJ Fogg's Behavior Model (B=MAT) and leverages data from multiple sources (such as HubSpot, PostHog, and Snowflake) to assess a user's **motivation** and **ability** before triggering an action.
+Valthera 是一个开源框架，使 LLM 代理能够以更有意义的方式与用户互动。它基于 BJ Fogg 的行为模型 (B=MAT) 构建，并利用来自多个来源（如 HubSpot、PostHog 和 Snowflake）的数据，在触发操作前评估用户的**动机**和**能力**。
 
-In this guide, you'll learn:
+在本指南中，您将学习：
 
-- **Core Concepts:** Overview of the components (Data Aggregator, Scorer, Reasoning Engine, and Trigger Generator).
-- **System Architecture:** How data flows through the system and how decisions are made.
-- **Customization:** How to extend connectors, scoring metrics, and decision rules to fit your needs.
+- **核心概念：** 组件概述（数据聚合器、评分器、推理引擎和触发器生成器）。
+- **系统架构：** 数据如何在系统中流动以及如何做出决策。
+- **自定义：** 如何扩展连接器、评分指标和决策规则以满足您的需求。
 
-Let's dive in!
+让我们开始吧！
 
-## Setup
+## 设置
 
-This section covers installation of dependencies and setting up custom data connectors for Valthera.
+本节介绍依赖项的安装以及为 Valthera 设置自定义数据连接器。
 
 ```python
 pip install openai langchain langchain_openai valthera langchain_valthera langgraph
@@ -33,19 +33,18 @@ from valthera.connectors.base import BaseConnector
 
 class MockHubSpotConnector(BaseConnector):
     """
-    Simulates data retrieval from HubSpot. Provides information such as lead score,
-    lifecycle stage, and marketing metrics.
+    模拟从 HubSpot 检索数据。提供潜在客户评分、生命周期阶段和营销指标等信息。
     """
 
     def get_user_data(self, user_id: str) -> Dict[str, Any]:
         """
-        Retrieve mock HubSpot data for a given user.
+        检索给定用户的模拟 HubSpot 数据。
 
         Args:
-            user_id: The unique identifier for the user
+            user_id: 用户的唯一标识符
 
         Returns:
-            A dictionary containing HubSpot user data
+            包含 HubSpot 用户数据的字典
         """
         return {
             "hubspot_contact_id": "999-ZZZ",
@@ -61,18 +60,18 @@ class MockHubSpotConnector(BaseConnector):
 
 class MockPostHogConnector(BaseConnector):
     """
-    Simulates data retrieval from PostHog. Provides session data and engagement events.
+    模拟从 PostHog 检索数据。提供会话数据和参与事件。
     """
 
     def get_user_data(self, user_id: str) -> Dict[str, Any]:
         """
-        Retrieve mock PostHog data for a given user.
+        检索给定用户的模拟 PostHog 数据。
 
         Args:
-            user_id: The unique identifier for the user
+            user_id: 用户的唯一标识符
 
         Returns:
-            A dictionary containing PostHog user data
+            包含 PostHog 用户数据的字典
         """
         return {
             "distinct_ids": [user_id, f"email_{user_id}"],
@@ -88,18 +87,18 @@ class MockPostHogConnector(BaseConnector):
 
 class MockSnowflakeConnector(BaseConnector):
     """
-    Simulates retrieval of additional user profile data from Snowflake.
+    模拟从 Snowflake 检索其他用户配置文件数据。
     """
 
     def get_user_data(self, user_id: str) -> Dict[str, Any]:
         """
-        Retrieve mock Snowflake data for a given user.
+        检索给定用户的模拟 Snowflake 数据。
 
         Args:
-            user_id: The unique identifier for the user
+            user_id: 用户的唯一标识符
 
         Returns:
-            A dictionary containing Snowflake user data
+            包含 Snowflake 用户数据的字典
         """
         return {
             "user_id": user_id,
@@ -113,14 +112,14 @@ class MockSnowflakeConnector(BaseConnector):
         }
 ```
 
-## Instantiation
+## 实例化
 
-In this section, we instantiate the core components. First, we create a Data Aggregator to combine data from the custom connectors. Then, we configure the scoring metrics for motivation and ability.
+在本节中，我们将实例化核心组件。首先，我们创建一个数据聚合器来组合来自自定义连接器的数据。然后，我们为动机和能力配置评分指标。
 
 ```python
 from valthera.aggregator import DataAggregator
 
-# Constants for configuration
+# 配置常量
 LEAD_SCORE_MAX = 100
 EVENTS_COUNT_MAX = 50
 EMAILS_OPENED_FACTOR = 10.0
@@ -129,7 +128,7 @@ ONBOARDING_STEPS_FACTOR = 5.0
 SESSION_COUNT_FACTOR_2 = 10.0
 BEHAVIOR_COMPLEXITY_MAX = 5.0
 
-# Initialize data aggregator
+# 初始化数据聚合器
 data_aggregator = DataAggregator(
     connectors={
         "hubspot": MockHubSpotConnector(),
@@ -138,7 +137,7 @@ data_aggregator = DataAggregator(
     }
 )
 
-# You can now fetch unified user data by calling data_aggregator.get_user_context(user_id)
+# 现在可以通过调用 data_aggregator.get_user_context(user_id) 获取统一的用户数据
 ```
 
 ```python
@@ -147,43 +146,43 @@ from typing import Callable, Union
 from valthera.scorer import ValtheraScorer
 
 
-# Define transform functions with proper type annotations
+# 使用适当的类型注解定义转换函数
 def transform_lead_score(x: Union[int, float]) -> float:
-    """Transform lead score to a value between 0 and 1."""
+    """将潜在客户评分转换为 0 到 1 之间的值。"""
     return min(x, LEAD_SCORE_MAX) / LEAD_SCORE_MAX
 
 
 def transform_events_count(x: Union[int, float]) -> float:
-    """Transform events count to a value between 0 and 1."""
+    """将事件计数转换为 0 到 1 之间的值。"""
     return min(x, EVENTS_COUNT_MAX) / EVENTS_COUNT_MAX
 
 
 def transform_emails_opened(x: Union[int, float]) -> float:
-    """Transform emails opened to a value between 0 and 1."""
+    """将打开的电子邮件数转换为 0 到 1 之间的值。"""
     return min(x / EMAILS_OPENED_FACTOR, 1.0)
 
 
 def transform_session_count_1(x: Union[int, float]) -> float:
-    """Transform session count for motivation to a value between 0 and 1."""
+    """将会话计数（用于动机）转换为 0 到 1 之间的值。"""
     return min(x / SESSION_COUNT_FACTOR_1, 1.0)
 
 
 def transform_onboarding_steps(x: Union[int, float]) -> float:
-    """Transform onboarding steps to a value between 0 and 1."""
+    """将入门步骤转换为 0 到 1 之间的值。"""
     return min(x / ONBOARDING_STEPS_FACTOR, 1.0)
 
 
 def transform_session_count_2(x: Union[int, float]) -> float:
-    """Transform session count for ability to a value between 0 and 1."""
+    """将会话计数（用于能力）转换为 0 到 1 之间的值。"""
     return min(x / SESSION_COUNT_FACTOR_2, 1.0)
 
 
 def transform_behavior_complexity(x: Union[int, float]) -> float:
-    """Transform behavior complexity to a value between 0 and 1."""
+    """将行为复杂度转换为 0 到 1 之间的值。"""
     return 1 - (min(x, BEHAVIOR_COMPLEXITY_MAX) / BEHAVIOR_COMPLEXITY_MAX)
 
 
-# Scoring configuration for user motivation
+# 用户动机的评分配置
 motivation_config = [
     {"key": "hubspot_lead_score", "weight": 0.30, "transform": transform_lead_score},
     {
@@ -203,7 +202,7 @@ motivation_config = [
     },
 ]
 
-# Scoring configuration for user ability
+# 用户能力的评分配置
 ability_config = [
     {
         "key": "posthog_onboarding_steps_completed",
@@ -222,13 +221,13 @@ ability_config = [
     },
 ]
 
-# Instantiate the scorer
+# 实例化评分器
 scorer = ValtheraScorer(motivation_config, ability_config)
 ```
 
-## Invocation
+## 调用
 
-Next, we set up the Reasoning Engine and Trigger Generator, then bring all components together by instantiating the Valthera Tool. Finally, we execute the agent workflow to process an input message.
+接下来，我们设置推理引擎和触发器生成器，然后通过实例化 Valthera 工具将所有组件组合在一起。最后，我们执行代理工作流以处理输入消息。
 
 ```python
 import os
@@ -236,20 +235,20 @@ import os
 from langchain_openai import ChatOpenAI
 from valthera.reasoning_engine import ReasoningEngine
 
-# Define threshold as constant
+# 将阈值定义为常量
 SCORE_THRESHOLD = 0.75
 
 
-# Function to safely get API key
+# 安全获取 API 密钥的函数
 def get_openai_api_key() -> str:
-    """Get OpenAI API key with error handling."""
+    """获取 OpenAI API 密钥并处理错误。"""
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         raise ValueError("OPENAI_API_KEY not found in environment variables")
     return api_key
 
 
-# Decision rules using constant
+# 使用常量的决策规则
 decision_rules = [
     {
         "condition": f"motivation >= {SCORE_THRESHOLD} and ability >= {SCORE_THRESHOLD}",
@@ -289,7 +288,7 @@ except ValueError as e:
 from valthera.trigger_generator import TriggerGenerator
 
 try:
-    api_key = get_openai_api_key()  # Reuse the function for consistency
+    api_key = get_openai_api_key()  # 重用该函数以保持一致性
     trigger_generator = TriggerGenerator(
         llm=ChatOpenAI(
             model_name="gpt-4-turbo", temperature=0.7, openai_api_key=api_key
@@ -307,7 +306,7 @@ from langchain.agents import create_agent
 try:
     api_key = get_openai_api_key()
 
-    # Initialize Valthera tool
+    # 初始化 Valthera 工具
     valthera_tool = ValtheraTool(
         data_aggregator=data_aggregator,
         motivation_config=motivation_config,
@@ -316,17 +315,17 @@ try:
         trigger_generator=trigger_generator,
     )
 
-    # Create agent with LLM
+    # 使用 LLM 创建代理
     model = ChatOpenAI(model_name="gpt-4-turbo", temperature=0.0, openai_api_key=api_key)
     tools = [valthera_tool]
     graph = create_agent(model, tools=tools)
 
-    # Define input message for testing
+    # 定义用于测试的输入消息
     inputs = {
         "messages": [("user", "Evaluate behavior for user_12345: Finish Onboarding")]
     }
 
-    # Process the input and display responses
+    # 处理输入并显示响应
     print("Running Valthera agent workflow...")
     for response in graph.stream(inputs, stream_mode="values"):
         print(response)
@@ -335,31 +334,31 @@ except Exception as e:
     print(f"Error running Valthera workflow: {e}")
 ```
 
-## Chaining
+## 链式操作
 
-This integration does not currently support chaining operations. Future releases may include chaining support.
+此集成目前不支持链式操作。未来的版本可能会包含链式操作支持。
 
 ---
 
-## API reference
+## API 参考
 
-Below is an overview of the key APIs provided by the Valthera integration:
+以下是 Valthera 集成提供的关键 API 概述：
 
-- **Data Aggregator:** Use `data_aggregator.get_user_context(user_id)` to fetch aggregated user data.
-- **Scorer:** The `ValtheraScorer` computes motivation and ability scores based on the provided configurations.
-- **Reasoning Engine:** The `ReasoningEngine` evaluates decision rules to determine the appropriate action (trigger, improve motivation, improve ability, or defer).
-- **Trigger Generator:** Generates personalized trigger messages using the LLM.
-- **Valthera Tool:** Integrates all the components to process inputs and execute the agent workflow.
+- **数据聚合器：** 使用 `data_aggregator.get_user_context(user_id)` 获取聚合的用户数据。
+- **评分器：** `ValtheraScorer` 根据提供的配置计算动机和能力分数。
+- **推理引擎：** `ReasoningEngine` 评估决策规则以确定适当的操作（触发、改进动机、改进能力或推迟）。
+- **触发器生成器：** 使用 LLM 生成个性化的触发消息。
+- **Valthera 工具：** 集成所有组件以处理输入并执行代理工作流。
 
-For detailed usage, refer to the inline documentation in the source code.
+有关详细用法，请参阅源代码中的内联文档。
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/tools/valthera.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/tools/valthera.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [通过 MCP 将这些文档连接到 Claude、VSCode 等](/use-these-docs) 以获取实时答案。
 </Callout>
 </div>

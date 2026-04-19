@@ -1,59 +1,56 @@
 ---
-title: "ThirdAI NeuralDB integration"
-description: "Integrate with the ThirdAI NeuralDB vector store using LangChain Python."
+title: "ThirdAI NeuralDB 集成"
+description: "使用 LangChain Python 与 ThirdAI NeuralDB 向量存储进行集成。"
 ---
 
->[NeuralDB](https://www.thirdai.com/neuraldb-enterprise/) is a CPU-friendly and fine-tunable vector store developed by [ThirdAI](https://www.thirdai.com/).
+>[NeuralDB](https://www.thirdai.com/neuraldb-enterprise/) 是由 [ThirdAI](https://www.thirdai.com/) 开发的 CPU 友好且可微调的向量存储。
 
-## Initialization
+## 初始化
 
-There are two initialization methods:
+有两种初始化方法：
 
-- From Scratch: Basic model
-- From Checkpoint: Load a model that was previously saved
+- 从头开始：基础模型
+- 从检查点：加载先前保存的模型
 
-For all of the following initialization methods, the `thirdai_key` parameter can be omitted if the `THIRDAI_KEY` environment variable is set.
+对于以下所有初始化方法，如果设置了 `THIRDAI_KEY` 环境变量，则可以省略 `thirdai_key` 参数。
 
-ThirdAI API keys can be obtained at [www.thirdai.com/try-bolt/](https://www.thirdai.com/try-bolt/)
+ThirdAI API 密钥可在 [www.thirdai.com/try-bolt/](https://www.thirdai.com/try-bolt/) 获取。
 
-You'll need to install `langchain-community` with `pip install -qU langchain-community` to use this integration
+您需要使用 `pip install -qU langchain-community` 安装 `langchain-community` 才能使用此集成。
 
 ```python
 from langchain_community.vectorstores import NeuralDBVectorStore
 
-# From scratch
+# 从头开始
 vectorstore = NeuralDBVectorStore.from_scratch(thirdai_key="your-thirdai-key")
 
-# From checkpoint
+# 从检查点
 vectorstore = NeuralDBVectorStore.from_checkpoint(
-    # Path to a NeuralDB checkpoint. For example, if you call
-    # vectorstore.save("/path/to/checkpoint.ndb") in one script, then you can
-    # call NeuralDBVectorStore.from_checkpoint("/path/to/checkpoint.ndb") in
-    # another script to load the saved model.
+    # NeuralDB 检查点的路径。例如，如果您在一个脚本中调用
+    # vectorstore.save("/path/to/checkpoint.ndb")，那么您可以在
+    # 另一个脚本中调用 NeuralDBVectorStore.from_checkpoint("/path/to/checkpoint.ndb") 来加载保存的模型。
     checkpoint="/path/to/checkpoint.ndb",
     thirdai_key="your-thirdai-key",
 )
 ```
 
-## Inserting document sources
+## 插入文档源
 
 ```python
 vectorstore.insert(
-    # If you have PDF, DOCX, or CSV files, you can directly pass the paths to the documents
+    # 如果您有 PDF、DOCX 或 CSV 文件，可以直接传递文档路径
     sources=["/path/to/doc.pdf", "/path/to/doc.docx", "/path/to/doc.csv"],
-    # When True this means that the underlying model in the NeuralDB will
-    # undergo unsupervised pretraining on the inserted files. Defaults to True.
+    # 当为 True 时，表示 NeuralDB 中的基础模型将对插入的文件进行无监督预训练。默认为 True。
     train=True,
-    # Much faster insertion with a slight drop in performance. Defaults to True.
+    # 插入速度更快，但性能略有下降。默认为 True。
     fast_mode=True,
 )
 
 from thirdai import neural_db as ndb
 
 vectorstore.insert(
-    # If you have files in other formats, or prefer to configure how
-    # your files are parsed, then you can pass in NeuralDB document objects
-    # like this.
+    # 如果您有其他格式的文件，或者更喜欢配置文件的解析方式，
+    # 那么您可以像这样传入 NeuralDB 文档对象。
     sources=[
         ndb.PDF(
             "/path/to/doc.pdf",
@@ -66,36 +63,36 @@ vectorstore.insert(
 )
 ```
 
-## Similarity search
+## 相似性搜索
 
-To query the vectorstore, you can use the standard LangChain vectorstore method `similarity_search`, which returns a list of LangChain Document objects. Each document object represents a chunk of text from the indexed files. For example, it may contain a paragraph from one of the indexed PDF files. In addition to the text, the document's metadata field contains information such as the document's ID, the source of this document (which file it came from), and the score of the document.
+要查询向量存储，您可以使用标准的 LangChain 向量存储方法 `similarity_search`，该方法返回一个 LangChain Document 对象列表。每个文档对象表示索引文件中的一个文本块。例如，它可能包含来自某个索引 PDF 文件的一个段落。除了文本之外，文档的元数据字段还包含文档 ID、文档来源（来自哪个文件）以及文档得分等信息。
 
 ```python
-# This returns a list of LangChain Document objects
+# 这将返回一个 LangChain Document 对象列表
 documents = vectorstore.similarity_search("query", k=10)
 ```
 
-## Fine tuning
+## 微调
 
-NeuralDBVectorStore can be fine-tuned to user behavior and domain-specific knowledge. It can be fine-tuned in two ways:
+NeuralDBVectorStore 可以针对用户行为和特定领域知识进行微调。它可以通过两种方式进行微调：
 
-1. Association: the vectorstore associates a source phrase with a target phrase. When the vectorstore sees the source phrase, it will also consider results that are relevant to the target phrase.
-2. Upvoting: the vectorstore upweights the score of a document for a specific query. This is useful when you want to fine-tune the vectorstore to user behavior. For example, if a user searches "how is a car manufactured" and likes the returned document with id 52, then we can upvote the document with id 52 for the query "how is a car manufactured".
+1. 关联：向量存储将源短语与目标短语关联起来。当向量存储看到源短语时，它也会考虑与目标短语相关的结果。
+2. 投票：向量存储会提高特定查询的文档得分。这在您希望针对用户行为微调向量存储时非常有用。例如，如果用户搜索“汽车是如何制造的”并喜欢返回的 ID 为 52 的文档，那么我们可以为查询“汽车是如何制造的”对 ID 为 52 的文档进行投票。
 
 ```python
-vectorstore.associate(source="source phrase", target="target phrase")
+vectorstore.associate(source="源短语", target="目标短语")
 vectorstore.associate_batch(
     [
-        ("source phrase 1", "target phrase 1"),
-        ("source phrase 2", "target phrase 2"),
+        ("源短语 1", "目标短语 1"),
+        ("源短语 2", "目标短语 2"),
     ]
 )
 
-vectorstore.upvote(query="how is a car manufactured", document_id=52)
+vectorstore.upvote(query="汽车是如何制造的", document_id=52)
 vectorstore.upvote_batch(
     [
-        ("query 1", 52),
-        ("query 2", 20),
+        ("查询 1", 52),
+        ("查询 2", 20),
     ]
 )
 ```
@@ -104,9 +101,9 @@ vectorstore.upvote_batch(
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/vectorstores/thirdai_neuraldb.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/vectorstores/thirdai_neuraldb.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [连接这些文档](/use-these-docs) 到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 </div>

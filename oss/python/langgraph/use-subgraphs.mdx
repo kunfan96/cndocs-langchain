@@ -1,16 +1,16 @@
 ---
-title: Subgraphs
-sidebarTitle: Subgraphs
+title: 子图
+sidebarTitle: 子图
 ---
 
-This guide explains the mechanics of using subgraphs. A subgraph is a [graph](/oss/python/langgraph/graph-api#graphs) that is used as a [node](/oss/python/langgraph/graph-api#nodes) in another graph.
+本指南解释了使用子图的机制。子图是一个[图](/oss/python/langgraph/graph-api#graphs)，它在另一个图中被用作[节点](/oss/python/langgraph/graph-api#nodes)。
 
-Subgraphs are useful for:
-- Building [multi-agent systems](/oss/python/langchain/multi-agent)
-- Reusing a set of nodes in multiple graphs
-- Distributing development: when you want different teams to work on different parts of the graph independently, you can define each part as a subgraph, and as long as the subgraph interface (the input and output schemas) is respected, the parent graph can be built without knowing any details of the subgraph
+子图对于以下情况非常有用：
+- 构建[多智能体系统](/oss/python/langchain/multi-agent)
+- 在多个图中复用一组节点
+- 分布式开发：当您希望不同团队独立处理图的不同部分时，可以将每个部分定义为子图，只要遵守子图接口（输入和输出模式），父图就可以在不了解子图任何细节的情况下构建。
 
-## Setup
+## 设置
 
 <CodeGroup>
 ```bash pip
@@ -22,30 +22,26 @@ uv add langgraph
 ```
 </CodeGroup>
 
-
-
-
 <Tip>
-**Set up LangSmith for LangGraph development**
-Sign up for [LangSmith](https://smith.langchain.com) to quickly spot issues and improve the performance of your LangGraph projects. LangSmith lets you use trace data to debug, test, and monitor your LLM apps built with LangGraph—read more about [how to get started with LangSmith](https://docs.smith.langchain.com).
+**为 LangGraph 开发设置 LangSmith**
+注册 [LangSmith](https://smith.langchain.com) 以快速发现问题并改进 LangGraph 项目的性能。LangSmith 允许您使用跟踪数据来调试、测试和监控使用 LangGraph 构建的 LLM 应用程序——阅读更多关于[如何开始使用 LangSmith](https://docs.smith.langchain.com)的信息。
 </Tip>
 
+## 定义子图通信
 
-## Define subgraph communication
+添加子图时，需要定义父图和子图之间的通信方式：
 
-When adding subgraphs, you need to define how the parent graph and the subgraph communicate:
-
-| Pattern | When to use | State schemas |
+| 模式 | 使用时机 | 状态模式 |
 |---------|------------|--------------|
-| [Call a subgraph inside a node](#call-a-subgraph-inside-a-node) | Parent and subgraph have **different state schemas** (no shared keys), or you need to transform state between them | You write a wrapper function that maps parent state to subgraph input and subgraph output back to parent state |
-| [Add a subgraph as a node](#add-a-subgraph-as-a-node) | Parent and subgraph **share state keys**—the subgraph reads from and writes to the same channels as the parent | You pass the compiled subgraph directly to `add_node`—no wrapper function needed |
+| [在节点内调用子图](#call-a-subgraph-inside-a-node) | 父图和子图具有**不同的状态模式**（无共享键），或者您需要在它们之间转换状态 | 您编写一个包装函数，将父状态映射到子图输入，并将子图输出映射回父状态 |
+| [将子图添加为节点](#add-a-subgraph-as-a-node) | 父图和子图**共享状态键**——子图从与父图相同的通道读取和写入 | 您直接将编译后的子图传递给 `add_node`——不需要包装函数 |
 
 <a id="invoke-a-graph-from-a-node"></a>
-### Call a subgraph inside a node
+### 在节点内调用子图
 
-When the parent graph and subgraph have **different state schemas** (no shared keys), invoke the subgraph inside a node function. This is common when you want to keep a private message history for each agent in a [multi-agent](/oss/python/langchain/multi-agent) system.
+当父图和子图具有**不同的状态模式**（无共享键）时，在节点函数内调用子图。这在您希望为[多智能体](/oss/python/langchain/multi-agent)系统中的每个智能体保留私有消息历史时很常见。
 
-The node function transforms the parent state to the subgraph state before invoking the subgraph, and transforms the results back to the parent state before returning.
+节点函数在调用子图之前将父状态转换为子图状态，并在返回之前将结果转换回父状态。
 
 ```python
 from typing_extensions import TypedDict
@@ -54,7 +50,7 @@ from langgraph.graph.state import StateGraph, START
 class SubgraphState(TypedDict):
     bar: str
 
-# Subgraph
+# 子图
 
 def subgraph_node_1(state: SubgraphState):
     return {"bar": "hi! " + state["bar"]}
@@ -64,15 +60,15 @@ subgraph_builder.add_node(subgraph_node_1)
 subgraph_builder.add_edge(START, "subgraph_node_1")
 subgraph = subgraph_builder.compile()
 
-# Parent graph
+# 父图
 
 class State(TypedDict):
     foo: str
 
 def call_subgraph(state: State):
-    # Transform the state to the subgraph state
+    # 将状态转换为子图状态
     subgraph_output = subgraph.invoke({"bar": state["foo"]})  # [!code highlight]
-    # Transform response back to the parent state
+    # 将响应转换回父状态
     return {"foo": subgraph_output["bar"]}
 
 builder = StateGraph(State)
@@ -81,17 +77,14 @@ builder.add_edge(START, "node_1")
 graph = builder.compile()
 ```
 
-
-
-
-<Accordion title="Full example: different state schemas">
+<Accordion title="完整示例：不同的状态模式">
   ```python
   from typing_extensions import TypedDict
   from langgraph.graph.state import StateGraph, START
 
-  # Define subgraph
+  # 定义子图
   class SubgraphState(TypedDict):
-      # note that none of these keys are shared with the parent graph state
+      # 注意，这些键均未与父图状态共享
       bar: str
       baz: str
 
@@ -108,7 +101,7 @@ graph = builder.compile()
   subgraph_builder.add_edge("subgraph_node_1", "subgraph_node_2")
   subgraph = subgraph_builder.compile()
 
-  # Define parent graph
+  # 定义父图
   class ParentState(TypedDict):
       foo: str
 
@@ -116,9 +109,9 @@ graph = builder.compile()
       return {"foo": "hi! " + state["foo"]}
 
   def node_2(state: ParentState):
-      # Transform the state to the subgraph state
+      # 将状态转换为子图状态
       response = subgraph.invoke({"bar": state["foo"]})
-      # Transform response back to the parent state
+      # 将响应转换回父状态
       return {"foo": response["bar"]}
 
 
@@ -141,15 +134,13 @@ graph = builder.compile()
   () {'node_2': {'foo': 'hi! foobaz'}}
   ```
 
-
-
 </Accordion>
 
-<Accordion title="Full example: different state schemas (two levels of subgraphs)">
-  This is an example with two levels of subgraphs: parent -> child -> grandchild.
+<Accordion title="完整示例：不同的状态模式（两级子图）">
+  这是一个包含两级子图的示例：父图 -> 子图 -> 孙图。
 
   ```python
-  # Grandchild graph
+  # 孙图
   from typing_extensions import TypedDict
   from langgraph.graph.state import StateGraph, START, END
 
@@ -157,7 +148,7 @@ graph = builder.compile()
       my_grandchild_key: str
 
   def grandchild_1(state: GrandChildState) -> GrandChildState:
-      # NOTE: child or parent keys will not be accessible here
+      # 注意：子图或父图的键在此处不可访问
       return {"my_grandchild_key": state["my_grandchild_key"] + ", how are you"}
 
 
@@ -169,29 +160,29 @@ graph = builder.compile()
 
   grandchild_graph = grandchild.compile()
 
-  # Child graph
+  # 子图
   class ChildState(TypedDict):
       my_child_key: str
 
   def call_grandchild_graph(state: ChildState) -> ChildState:
-      # NOTE: parent or grandchild keys won't be accessible here
+      # 注意：父图或孙图的键在此处不可访问
       grandchild_graph_input = {"my_grandchild_key": state["my_child_key"]}
       grandchild_graph_output = grandchild_graph.invoke(grandchild_graph_input)
       return {"my_child_key": grandchild_graph_output["my_grandchild_key"] + " today?"}
 
   child = StateGraph(ChildState)
-  # We're passing a function here instead of just compiled graph (`grandchild_graph`)
+  # 我们在此传递一个函数，而不是仅传递编译后的图（`grandchild_graph`）
   child.add_node("child_1", call_grandchild_graph)
   child.add_edge(START, "child_1")
   child.add_edge("child_1", END)
   child_graph = child.compile()
 
-  # Parent graph
+  # 父图
   class ParentState(TypedDict):
       my_key: str
 
   def parent_1(state: ParentState) -> ParentState:
-      # NOTE: child or grandchild keys won't be accessible here
+      # 注意：子图或孙图的键在此处不可访问
       return {"my_key": "hi " + state["my_key"]}
 
   def parent_2(state: ParentState) -> ParentState:
@@ -204,7 +195,7 @@ graph = builder.compile()
 
   parent = StateGraph(ParentState)
   parent.add_node("parent_1", parent_1)
-  # We're passing a function here instead of just a compiled graph (`child_graph`)
+  # 我们在此传递一个函数，而不是仅传递编译后的图（`child_graph`）
   parent.add_node("child", call_child_graph)
   parent.add_node("parent_2", parent_2)
 
@@ -228,25 +219,23 @@ graph = builder.compile()
   () {'parent_2': {'my_key': 'hi Bob, how are you today? bye!'}}
   ```
 
-
-
 </Accordion>
 
 <a id="add-a-graph-as-a-node"></a>
-### Add a subgraph as a node
+### 将子图添加为节点
 
-When the parent graph and subgraph **share state keys**, you can pass a compiled subgraph directly to `add_node`. No wrapper function is needed—the subgraph reads from and writes to the parent's state channels automatically. For example, in [multi-agent](/oss/python/langchain/multi-agent) systems, the agents often communicate over a shared [messages](/oss/python/langgraph/graph-api#why-use-messages) key.
+当父图和子图**共享状态键**时，您可以直接将编译后的子图传递给 `add_node`。不需要包装函数——子图会自动从父状态通道读取和写入。例如，在[多智能体](/oss/python/langchain/multi-agent)系统中，智能体通常通过共享的[消息](/oss/python/langgraph/graph-api#why-use-messages)键进行通信。
 
 <img
   src="/oss/images/subgraph.png"
-  alt="SQL agent graph"
+  alt="SQL 智能体图"
   style={{ height: "450px" }}
 />
 
-If your subgraph shares state keys with the parent graph, you can follow these steps to add it to your graph:
+如果您的子图与父图共享状态键，可以按照以下步骤将其添加到图中：
 
-1. Define the subgraph workflow (`subgraph_builder` in the example below) and compile it
-2. Pass compiled subgraph to the [`add_node`](https://reference.langchain.com/python/langgraph/graph/state/StateGraph/add_node) method when defining the parent graph workflow
+1. 定义子图工作流（下面示例中的 `subgraph_builder`）并编译它
+2. 在定义父图工作流时，将编译后的子图传递给 [`add_node`](https://reference.langchain.com/python/langgraph/graph/state/StateGraph/add_node) 方法
 
 ```python
 from typing_extensions import TypedDict
@@ -255,7 +244,7 @@ from langgraph.graph.state import StateGraph, START
 class State(TypedDict):
     foo: str
 
-# Subgraph
+# 子图
 
 def subgraph_node_1(state: State):
     return {"foo": "hi! " + state["foo"]}
@@ -265,7 +254,7 @@ subgraph_builder.add_node(subgraph_node_1)
 subgraph_builder.add_edge(START, "subgraph_node_1")
 subgraph = subgraph_builder.compile()
 
-# Parent graph
+# 父图
 
 builder = StateGraph(State)
 builder.add_node("node_1", subgraph)  # [!code highlight]
@@ -273,25 +262,22 @@ builder.add_edge(START, "node_1")
 graph = builder.compile()
 ```
 
-
-
-
-<Accordion title="Full example: shared state schemas">
+<Accordion title="完整示例：共享状态模式">
   ```python
   from typing_extensions import TypedDict
   from langgraph.graph.state import StateGraph, START
 
-  # Define subgraph
+  # 定义子图
   class SubgraphState(TypedDict):
-      foo: str  # shared with parent graph state
-      bar: str  # private to SubgraphState
+      foo: str  # 与父图状态共享
+      bar: str  # SubgraphState 私有
 
   def subgraph_node_1(state: SubgraphState):
       return {"bar": "bar"}
 
   def subgraph_node_2(state: SubgraphState):
-      # note that this node is using a state key ('bar') that is only available in the subgraph
-      # and is sending update on the shared state key ('foo')
+      # 注意，此节点使用仅在子图中可用的状态键 ('bar')
+      # 并在共享状态键 ('foo') 上发送更新
       return {"foo": state["foo"] + state["bar"]}
 
   subgraph_builder = StateGraph(SubgraphState)
@@ -301,7 +287,7 @@ graph = builder.compile()
   subgraph_builder.add_edge("subgraph_node_1", "subgraph_node_2")
   subgraph = subgraph_builder.compile()
 
-  # Define parent graph
+  # 定义父图
   class ParentState(TypedDict):
       foo: str
 
@@ -325,47 +311,45 @@ graph = builder.compile()
   {'node_2': {'foo': 'hi! foobar'}}
   ```
 
-
-
 </Accordion>
 
-## Subgraph persistence
+## 子图持久化
 
-When you use a subgraph, you need to decide what happens to its internal data between calls. Consider a customer support bot that delegates to specialist subagents: should the "billing expert" subagent remember the customer's earlier questions, or start fresh each time it's called?
+使用子图时，您需要决定其内部数据在调用之间如何处理。考虑一个委托给专业子智能体的客户支持机器人：“计费专家”子智能体是应该记住客户的早期问题，还是每次调用时都重新开始？
 
-The `checkpointer` parameter on `.compile()` controls subgraph persistence:
+`.compile()` 上的 `checkpointer` 参数控制子图持久化：
 
-| Mode | `checkpointer=` | Behavior |
+| 模式 | `checkpointer=` | 行为 |
 |------|-----------------|----------|
-| [Per-invocation](#per-invocation-default) | `None` (default) | Each call starts fresh and inherits the parent's checkpointer to support [interrupts](/oss/python/langgraph/interrupts) and [durable execution](/oss/python/langgraph/durable-execution) within a single call. |
-| [Per-thread](#per-thread) | `True` | State accumulates across calls on the same thread. Each call picks up where the last one left off. |
-| [Stateless](#stateless) | `False` | No checkpointing at all—runs like a plain function call. No interrupts or durable execution. |
+| [每次调用](#per-invocation-default) | `None` (默认) | 每次调用都重新开始，并继承父图的检查点以支持单次调用内的[中断](/oss/python/langgraph/interrupts)和[持久执行](/oss/python/langgraph/durable-execution)。 |
+| [每个线程](#per-thread) | `True` | 状态在同一线程上的多次调用中累积。每次调用从上一次调用结束的地方继续。 |
+| [无状态](#stateless) | `False` | 完全不进行检查点——像普通函数调用一样运行。不支持中断或持久执行。 |
 
-Per-invocation is the right choice for most applications, including [multi-agent](/oss/python/langchain/multi-agent) systems where subagents handle independent requests. Use per-thread when a subagent needs multi-turn conversation memory (for example, a research assistant that builds context over several exchanges).
+每次调用是大多数应用程序的正确选择，包括子智能体处理独立请求的[多智能体](/oss/python/langchain/multi-agent)系统。当子智能体需要多轮对话记忆时（例如，一个研究助手在几次交流中建立上下文），请使用每个线程。
 
 <Note>
-The parent graph must be compiled with a checkpointer for subgraph persistence features (interrupts, state inspection, per-thread memory) to work. See [persistence](/oss/python/langgraph/persistence).
+父图必须使用检查点进行编译，子图持久化功能（中断、状态检查、每个线程内存）才能工作。请参阅[持久化](/oss/python/langgraph/persistence)。
 </Note>
 
 <Info>
-The examples below use LangChain's [`create_agent`](https://reference.langchain.com/python/langchain/agents/factory/create_agent), which is a common way to build agents. `create_agent` produces a [LangGraph graph](/oss/python/langgraph/graph-api) under the hood, so all subgraph persistence concepts apply directly. If you're building with raw LangGraph `StateGraph`, the same patterns and configuration options apply—see the [Graph API](/oss/python/langgraph/graph-api) for details.
+下面的示例使用 LangChain 的 [`create_agent`](https://reference.langchain.com/python/langchain/agents/factory/create_agent)，这是构建智能体的常用方法。`create_agent` 在底层生成一个 [LangGraph 图](/oss/python/langgraph/graph-api)，因此所有子图持久化概念都直接适用。如果您使用原始的 LangGraph `StateGraph` 构建，相同的模式和配置选项也适用——有关详细信息，请参阅[图 API](/oss/python/langgraph/graph-api)。
 </Info>
 
-### Stateful
+### 有状态
 
-Stateful subgraphs inherit the parent graph's checkpointer, which enables [interrupts](/oss/python/langgraph/interrupts), [durable execution](/oss/python/langgraph/durable-execution), and state inspection. The two stateful modes differ in how long state is retained.
+有状态子图继承父图的检查点，从而支持[中断](/oss/python/langgraph/interrupts)、[持久执行](/oss/python/langgraph/durable-execution)和状态检查。两种有状态模式在状态保留时间上有所不同。
 
-#### Per-invocation (default)
+#### 每次调用（默认）
 
 <Tip>
-This is the recommended mode for most applications, including [multi-agent](/oss/python/langchain/multi-agent) systems where subagents are invoked as tools. It supports interrupts, [durable execution](/oss/python/langgraph/durable-execution), and parallel calls while keeping each invocation isolated.
+这是大多数应用程序的推荐模式，包括子智能体作为工具调用的[多智能体](/oss/python/langchain/multi-agent)系统。它支持中断、[持久执行](/oss/python/langgraph/durable-execution)和并行调用，同时保持每次调用隔离。
 </Tip>
 
-Use per-invocation persistence when each call to the subgraph is independent and the subagent doesn't need to remember anything from previous calls. This is the most common pattern, especially for [multi-agent](/oss/python/langchain/multi-agent) systems where subagents handle one-off requests like "look up this customer's order" or "summarize this document."
+当每次对子图的调用都是独立的，并且子智能体不需要记住任何先前调用的内容时，使用每次调用持久化。这是最常见的模式，特别是对于处理一次性请求（如“查找此客户的订单”或“总结此文档”）的[多智能体](/oss/python/langchain/multi-agent)系统。
 
-Omit `checkpointer` or set it to `None`. Each call starts fresh, but within a single call the subgraph inherits the parent's checkpointer and can use `interrupt()` to pause and resume.
+省略 `checkpointer` 或将其设置为 `None`。每次调用都重新开始，但在单次调用内，子图继承父图的检查点，并可以使用 `interrupt()` 暂停和恢复。
 
-The following examples use two subagents (fruit expert, veggie expert) wrapped as tools for an outer agent:
+以下示例使用两个子智能体（水果专家、蔬菜专家）包装为外部智能体的工具：
 
 ```python
 from langchain.agents import create_agent
@@ -375,31 +359,31 @@ from langgraph.types import Command, interrupt
 
 @tool
 def fruit_info(fruit_name: str) -> str:
-    """Look up fruit info."""
-    return f"Info about {fruit_name}"
+    """查找水果信息。"""
+    return f"关于 {fruit_name} 的信息"
 
 @tool
 def veggie_info(veggie_name: str) -> str:
-    """Look up veggie info."""
-    return f"Info about {veggie_name}"
+    """查找蔬菜信息。"""
+    return f"关于 {veggie_name} 的信息"
 
-# Subagents - no checkpointer setting (inherits parent)
+# 子智能体 - 未设置检查点（继承父图）
 fruit_agent = create_agent(
     model="gpt-4.1-mini",
     tools=[fruit_info],
-    prompt="You are a fruit expert. Use the fruit_info tool. Respond in one sentence.",
+    prompt="您是水果专家。使用 fruit_info 工具。用一句话回答。",
 )
 
 veggie_agent = create_agent(
     model="gpt-4.1-mini",
     tools=[veggie_info],
-    prompt="You are a veggie expert. Use the veggie_info tool. Respond in one sentence.",
+    prompt="您是蔬菜专家。使用 veggie_info 工具。用一句话回答。",
 )
 
-# Wrap subagents as tools for the outer agent
+# 将子智能体包装为外部智能体的工具
 @tool
 def ask_fruit_expert(question: str) -> str:
-    """Ask the fruit expert. Use for ALL fruit questions."""
+    """询问水果专家。用于所有水果问题。"""
     response = fruit_agent.invoke(
         {"messages": [{"role": "user", "content": question}]},
     )
@@ -407,105 +391,102 @@ def ask_fruit_expert(question: str) -> str:
 
 @tool
 def ask_veggie_expert(question: str) -> str:
-    """Ask the veggie expert. Use for ALL veggie questions."""
+    """询问蔬菜专家。用于所有蔬菜问题。"""
     response = veggie_agent.invoke(
         {"messages": [{"role": "user", "content": question}]},
     )
     return response["messages"][-1].content
 
-# Outer agent with checkpointer
+# 带检查点的外部智能体
 agent = create_agent(
     model="gpt-4.1-mini",
     tools=[ask_fruit_expert, ask_veggie_expert],
     prompt=(
-        "You have two experts: ask_fruit_expert and ask_veggie_expert. "
-        "ALWAYS delegate questions to the appropriate expert."
+        "您有两个专家：ask_fruit_expert 和 ask_veggie_expert。"
+        "始终将问题委托给相应的专家。"
     ),
     checkpointer=MemorySaver(),
 )
 ```
 
 <Tabs>
-  <Tab title="Interrupts">
-  Each invocation can use `interrupt()` to pause and resume. Add `interrupt()` to a tool function to require user approval before proceeding:
+  <Tab title="中断">
+  每次调用都可以使用 `interrupt()` 暂停和恢复。在工具函数中添加 `interrupt()` 以在继续之前需要用户批准：
 
   ```python
   @tool
   def fruit_info(fruit_name: str) -> str:
-      """Look up fruit info."""
-      interrupt("continue?")  # [!code highlight]
-      return f"Info about {fruit_name}"
+      """查找水果信息。"""
+      interrupt("继续？")  # [!code highlight]
+      return f"关于 {fruit_name} 的信息"
   ```
 
   ```python
   config = {"configurable": {"thread_id": "1"}}
 
-  # Invoke - the subagent's tool calls interrupt()
+  # 调用 - 子智能体的工具调用 interrupt()
   response = agent.invoke(
-      {"messages": [{"role": "user", "content": "Tell me about apples"}]},
+      {"messages": [{"role": "user", "content": "告诉我关于苹果的信息"}]},
       config=config,
   )
-  # response contains __interrupt__
+  # response 包含 __interrupt__
 
-  # Resume - approve the interrupt
+  # 恢复 - 批准中断
   response = agent.invoke(Command(resume=True), config=config)  # [!code highlight]
-  # Subagent message count: 4
+  # 子智能体消息计数：4
   ```
   </Tab>
-  <Tab title="Multi-turn">
-  Each invocation starts with a fresh subagent state. The subagent does not remember previous calls:
+  <Tab title="多轮">
+  每次调用都以新的子智能体状态开始。子智能体不记得先前的调用：
 
   ```python
   config = {"configurable": {"thread_id": "1"}}
 
-  # First call
+  # 第一次调用
   response = agent.invoke(
-      {"messages": [{"role": "user", "content": "Tell me about apples"}]},
+      {"messages": [{"role": "user", "content": "告诉我关于苹果的信息"}]},
       config=config,
   )
-  # Subagent message count: 4
+  # 子智能体消息计数：4
 
-  # Second call - subagent starts fresh, no memory of apples
+  # 第二次调用 - 子智能体重新开始，不记得苹果
   response = agent.invoke(
-      {"messages": [{"role": "user", "content": "Now tell me about bananas"}]},
+      {"messages": [{"role": "user", "content": "现在告诉我关于香蕉的信息"}]},
       config=config,
   )
-  # Subagent message count: 4 (still fresh!)
+  # 子智能体消息计数：4（仍然是新的！）
   ```
   </Tab>
-  <Tab title="Multiple subgraph calls">
-  Multiple calls to the same subgraph work without conflicts, since each invocation gets its own checkpoint namespace:
+  <Tab title="多次子图调用">
+  对同一子图的多次调用可以无冲突地工作，因为每次调用都有自己的检查点命名空间：
 
   ```python
   config = {"configurable": {"thread_id": "1"}}
 
-  # LLM calls ask_fruit_expert for both apples and bananas
+  # LLM 调用 ask_fruit_expert 处理苹果和香蕉
   response = agent.invoke(
-      {"messages": [{"role": "user", "content": "Tell me about apples and bananas"}]},
+      {"messages": [{"role": "user", "content": "告诉我关于苹果和香蕉的信息"}]},
       config=config,
   )
-  # Subagent message count: 4 (apples - fresh)
-  # Subagent message count: 4 (bananas - fresh)
+  # 子智能体消息计数：4（苹果 - 新的）
+  # 子智能体消息计数：4（香蕉 - 新的）
   ```
   </Tab>
 </Tabs>
 
+#### 每个线程
 
+当子智能体需要记住先前的交互时，使用每个线程持久化。例如，一个研究助手在几次交流中建立上下文，或者一个编码助手跟踪其已编辑的文件。子智能体的对话历史和数据在同一线程上的多次调用中累积。每次调用从上一次调用结束的地方继续。
 
-
-#### Per-thread
-
-Use per-thread persistence when a subagent needs to remember previous interactions. For example, a research assistant that builds up context over several exchanges, or a coding assistant that tracks what files it has already edited. The subagent's conversation history and data accumulate across calls on the same thread. Each call picks up where the last one left off.
-
-Compile with `checkpointer=True` to enable this behavior.
+使用 `checkpointer=True` 编译以启用此行为。
 
 <Warning>
-Per-thread subgraphs do not support parallel tool calls. When an LLM has access to a per-thread subagent as a tool, it may try to call that tool multiple times in parallel (for example, asking the fruit expert about apples and bananas simultaneously). This causes checkpoint conflicts because both calls write to the same namespace.
+每个线程子图不支持并行工具调用。当 LLM 可以访问每个线程子智能体作为工具时，它可能会尝试并行多次调用该工具（例如，同时询问水果专家关于苹果和香蕉的信息）。这会导致检查点冲突，因为两个调用都写入相同的命名空间。
 
-The examples below use LangChain's `ToolCallLimitMiddleware` to prevent this. If you're building with pure LangGraph `StateGraph`, you need to prevent parallel tool calls yourself—for example, by configuring your model to disable parallel tool calling or by adding logic to ensure the same subgraph is not invoked multiple times in parallel.
+下面的示例使用 LangChain 的 `ToolCallLimitMiddleware` 来防止这种情况。如果您使用纯 LangGraph `StateGraph` 构建，您需要自己防止并行工具调用——例如，通过配置模型禁用并行工具调用，或添加逻辑确保同一子图不会被并行多次调用。
 </Warning>
 
-The following examples use a fruit expert subagent compiled with `checkpointer=True`:
+以下示例使用使用 `checkpointer=True` 编译的水果专家子智能体：
 
 ```python
 from langchain.agents import create_agent
@@ -516,33 +497,33 @@ from langgraph.types import Command, interrupt
 
 @tool
 def fruit_info(fruit_name: str) -> str:
-    """Look up fruit info."""
-    return f"Info about {fruit_name}"
+    """查找水果信息。"""
+    return f"关于 {fruit_name} 的信息"
 
-# Subagent with checkpointer=True for persistent state
+# 带 checkpointer=True 的子智能体，用于持久状态
 fruit_agent = create_agent(
     model="gpt-4.1-mini",
     tools=[fruit_info],
-    prompt="You are a fruit expert. Use the fruit_info tool. Respond in one sentence.",
+    prompt="您是水果专家。使用 fruit_info 工具。用一句话回答。",
     checkpointer=True,  # [!code highlight]
 )
 
-# Wrap subagent as a tool for the outer agent
+# 将子智能体包装为外部智能体的工具
 @tool
 def ask_fruit_expert(question: str) -> str:
-    """Ask the fruit expert. Use for ALL fruit questions."""
+    """询问水果专家。用于所有水果问题。"""
     response = fruit_agent.invoke(
         {"messages": [{"role": "user", "content": question}]},
     )
     return response["messages"][-1].content
 
-# Outer agent with checkpointer
-# Use ToolCallLimitMiddleware to prevent parallel calls to per-thread subagents,
-# which would cause checkpoint conflicts.
+# 带检查点的外部智能体
+# 使用 ToolCallLimitMiddleware 防止对每个线程子智能体的并行调用，
+# 这会导致检查点冲突。
 agent = create_agent(
     model="gpt-4.1-mini",
     tools=[ask_fruit_expert],
-    prompt="You have a fruit expert. ALWAYS delegate fruit questions to ask_fruit_expert.",
+    prompt="您有一个水果专家。始终将水果问题委托给 ask_fruit_expert。",
     middleware=[  # [!code highlight]
         ToolCallLimitMiddleware(tool_name="ask_fruit_expert", run_limit=1),  # [!code highlight]
     ],  # [!code highlight]
@@ -551,68 +532,68 @@ agent = create_agent(
 ```
 
 <Tabs>
-  <Tab title="Interrupts">
-  Per-thread subagents support `interrupt()` just like per-invocation. Add `interrupt()` to a tool function to require user approval:
+  <Tab title="中断">
+  每个线程子智能体支持 `interrupt()`，就像每次调用一样。在工具函数中添加 `interrupt()` 以需要用户批准：
 
   ```python
   @tool
   def fruit_info(fruit_name: str) -> str:
-      """Look up fruit info."""
-      interrupt("continue?")  # [!code highlight]
-      return f"Info about {fruit_name}"
+      """查找水果信息。"""
+      interrupt("继续？")  # [!code highlight]
+      return f"关于 {fruit_name} 的信息"
   ```
 
   ```python
   config = {"configurable": {"thread_id": "1"}}
 
-  # Invoke - the subagent's tool calls interrupt()
+  # 调用 - 子智能体的工具调用 interrupt()
   response = agent.invoke(
-      {"messages": [{"role": "user", "content": "Tell me about apples"}]},
+      {"messages": [{"role": "user", "content": "告诉我关于苹果的信息"}]},
       config=config,
   )
-  # response contains __interrupt__
+  # response 包含 __interrupt__
 
-  # Resume - approve the interrupt
+  # 恢复 - 批准中断
   response = agent.invoke(Command(resume=True), config=config)  # [!code highlight]
-  # Subagent message count: 4
+  # 子智能体消息计数：4
   ```
   </Tab>
-  <Tab title="Multi-turn">
-  State accumulates across invocations—the subagent remembers past conversations:
+  <Tab title="多轮">
+  状态在多次调用中累积——子智能体记住过去的对话：
 
   ```python
   config = {"configurable": {"thread_id": "1"}}
 
-  # First call
+  # 第一次调用
   response = agent.invoke(
-      {"messages": [{"role": "user", "content": "Tell me about apples"}]},
+      {"messages": [{"role": "user", "content": "告诉我关于苹果的信息"}]},
       config=config,
   )
-  # Subagent message count: 4
+  # 子智能体消息计数：4
 
-  # Second call - subagent REMEMBERS apples conversation
+  # 第二次调用 - 子智能体记住苹果对话
   response = agent.invoke(
-      {"messages": [{"role": "user", "content": "Now tell me about bananas"}]},
+      {"messages": [{"role": "user", "content": "现在告诉我关于香蕉的信息"}]},
       config=config,
   )
-  # Subagent message count: 8 (accumulated!)
+  # 子智能体消息计数：8（累积！）
   ```
   </Tab>
-  <Tab title="Multiple subgraph calls">
+  <Tab title="多次子图调用">
 
-  When you have multiple **different** per-thread subgraphs (for example, a fruit expert and a veggie expert), each one needs its own storage space so their checkpoints don't overwrite each other. This is called **namespace isolation**.
+  当您有多个**不同**的每个线程子图时（例如，水果专家和蔬菜专家），每个子图都需要自己的存储空间，这样它们的检查点就不会相互覆盖。这称为**命名空间隔离**。
 
-  If you [call subgraphs inside a node](#call-a-subgraph-inside-a-node), LangGraph assigns namespaces based on call order (first call, second call, etc.). This means reordering your calls can mix up which subgraph loads which state. To avoid this, wrap each subagent in its own `StateGraph` with a unique node name—this gives each subgraph a stable, unique namespace:
+  如果您[在节点内调用子图](#call-a-subgraph-inside-a-node)，LangGraph 会根据调用顺序（第一次调用、第二次调用等）分配命名空间。这意味着重新排序调用可能会混淆哪个子图加载哪个状态。为了避免这种情况，将每个子智能体包装在自己的 `StateGraph` 中，并使用唯一的节点名称——这为每个子图提供稳定、唯一的命名空间：
 
   ```python
   from langgraph.graph import MessagesState, StateGraph
 
   def create_sub_agent(model, *, name, **kwargs):
-      """Wrap an agent with a unique node name for namespace isolation."""
+      """使用唯一节点名称包装智能体以实现命名空间隔离。"""
       agent = create_agent(model=model, name=name, **kwargs)
       return (
           StateGraph(MessagesState)
-          .add_node(name, agent)  # unique name → stable namespace  # [!code highlight]
+          .add_node(name, agent)  # 唯一名称 → 稳定命名空间  # [!code highlight]
           .add_edge("__start__", name)
           .compile()
       )
@@ -628,36 +609,33 @@ agent = create_agent(
 
   config = {"configurable": {"thread_id": "1"}}
 
-  # First call - LLM calls both fruit and veggie experts
+  # 第一次调用 - LLM 同时调用水果和蔬菜专家
   response = agent.invoke(
-      {"messages": [{"role": "user", "content": "Tell me about cherries and broccoli"}]},
+      {"messages": [{"role": "user", "content": "告诉我关于樱桃和西兰花的信息"}]},
       config=config,
   )
-  # Fruit subagent message count: 4
-  # Veggie subagent message count: 4
+  # 水果子智能体消息计数：4
+  # 蔬菜子智能体消息计数：4
 
-  # Second call - both agents accumulate independently
+  # 第二次调用 - 两个智能体独立累积
   response = agent.invoke(
-      {"messages": [{"role": "user", "content": "Now tell me about oranges and carrots"}]},
+      {"messages": [{"role": "user", "content": "现在告诉我关于橙子和胡萝卜的信息"}]},
       config=config,
   )
-  # Fruit subagent message count: 8 (remembers cherries!)
-  # Veggie subagent message count: 8 (remembers broccoli!)
+  # 水果子智能体消息计数：8（记住樱桃！）
+  # 蔬菜子智能体消息计数：8（记住西兰花！）
   ```
 
-  Subgraphs [added as nodes](#add-a-subgraph-as-a-node) already get name-based namespaces automatically, so they don't need this wrapper.
+  [添加为节点](#add-a-subgraph-as-a-node)的子图已经自动获得基于名称的命名空间，因此不需要此包装器。
   </Tab>
 </Tabs>
 
+### 无状态
 
-
-
-### Stateless
-
-Use this when you want to run a subagent like a plain function call with no checkpointing overhead. The subgraph cannot pause/resume and does not benefit from [durable execution](/oss/python/langgraph/persistence). Compile with `checkpointer=False`.
+当您希望像普通函数调用一样运行子智能体而没有检查点开销时，使用此模式。子图无法暂停/恢复，并且不受益于[持久执行](/oss/python/langgraph/persistence)。使用 `checkpointer=False` 编译。
 
 <Warning>
-Without checkpointing, the subgraph has no durable execution. If the process crashes mid-run, the subgraph cannot recover and must be re-run from the beginning.
+没有检查点，子图就没有持久执行。如果进程在运行过程中崩溃，子图无法恢复，必须从头开始重新运行。
 </Warning>
 
 ```python
@@ -665,46 +643,40 @@ subgraph_builder = StateGraph(...)
 subgraph = subgraph_builder.compile(checkpointer=False)  # [!code highlight]
 ```
 
+### 检查点参考
 
-
-
-### Checkpointer reference
-
-Control subgraph persistence with the `checkpointer` parameter on `.compile()`:
+使用 `.compile()` 上的 `checkpointer` 参数控制子图持久化：
 
 ```python
-subgraph = builder.compile(checkpointer=False)  # or True / None
+subgraph = builder.compile(checkpointer=False)  # 或 True / None
 ```
 
-
-
-
-| Feature | Per-invocation (default) | Per-thread | Stateless |
+| 功能 | 每次调用（默认） | 每个线程 | 无状态 |
 |---|---|---|---|
 | `checkpointer=` | `None` | `True` | `False` |
-| Interrupts (HITL) | ✅ | ✅ | ❌ |
-| Multi-turn memory | ❌ | ✅ | ❌ |
-| Multiple calls (different subgraphs) | ✅ | <Tooltip tip="Calls to multiple per-thread subgraphs in the same node can cause namespace conflicts. Workarounds are available.">⚠️</Tooltip> | ✅ |
-| Multiple calls (same subgraph) | ✅ | ❌ | ✅ |
-| State inspection | <Tooltip tip="State inspection with per-invocation persistence is available for the current invocation only (while interrupted). Each invocation starts fresh, so there is no accumulated state to inspect after the invocation completes.">⚠️</Tooltip> | ✅ | ❌ |
+| 中断 (HITL) | ✅ | ✅ | ❌ |
+| 多轮记忆 | ❌ | ✅ | ❌ |
+| 多次调用（不同子图） | ✅ | <Tooltip tip="在同一节点中调用多个每个线程子图可能导致命名空间冲突。有可用的解决方法。">⚠️</Tooltip> | ✅ |
+| 多次调用（同一子图） | ✅ | ❌ | ✅ |
+| 状态检查 | <Tooltip tip="使用每次调用持久化的状态检查仅对当前调用可用（中断时）。每次调用都重新开始，因此调用完成后没有累积状态可供检查。">⚠️</Tooltip> | ✅ | ❌ |
 
-- **Interrupts (HITL)**: The subgraph can use [interrupt()](/oss/python/langgraph/interrupts) to pause execution and wait for user input, then resume where it left off.
-- **Multi-turn memory**: The subgraph retains its state across multiple invocations within the same [thread](/oss/python/langgraph/persistence#threads). Each call picks up where the last one left off rather than starting fresh.
-- **Multiple calls (different subgraphs)**: Multiple different subgraph instances can be invoked within a single node without checkpoint namespace conflicts.
-- **Multiple calls (same subgraph)**: The same subgraph instance can be invoked multiple times within a single node. With stateful persistence, these calls write to the same checkpoint namespace and conflict—use per-invocation persistence instead.
-- **State inspection**: The subgraph's state is available via `get_state(config, subgraphs=True)` for debugging and monitoring.
+- **中断 (HITL)**：子图可以使用 [interrupt()](/oss/python/langgraph/interrupts) 暂停执行并等待用户输入，然后从暂停处恢复。
+- **多轮记忆**：子图在同一线程内的多次调用中保留其状态。每次调用从上一次调用结束的地方继续，而不是重新开始。
+- **多次调用（不同子图）**：可以在单个节点内调用多个不同的子图实例，而不会出现检查点命名空间冲突。
+- **多次调用（同一子图）**：可以在单个节点内多次调用同一子图实例。使用有状态持久化时，这些调用会写入相同的检查点命名空间并发生冲突——请改用每次调用持久化。
+- **状态检查**：子图的状态可通过 `get_state(config, subgraphs=True)` 用于调试和监控。
 
-## View subgraph state
+## 查看子图状态
 
-When you enable [persistence](/oss/python/langgraph/persistence), you can inspect the subgraph state using the subgraphs option. With [stateless](#stateless) checkpointing (`checkpointer=False`), no subgraph checkpoints are saved, so subgraph state is not available.
+启用[持久化](/oss/python/langgraph/persistence)后，您可以使用子图选项检查子图状态。使用[无状态](#stateless)检查点（`checkpointer=False`）时，不会保存子图检查点，因此子图状态不可用。
 
 <Note>
-Viewing subgraph state requires that LangGraph can **statically discover** the subgraph—i.e., it is [added as a node](#add-a-subgraph-as-a-node) or [called inside a node](#call-a-subgraph-inside-a-node). It does not work when a subgraph is called inside a [tool](/oss/python/langchain/tools) function or other indirection (e.g., the [subagents](/oss/python/langchain/multi-agent/subagents) pattern). Interrupts still propagate to the top-level graph regardless of nesting.
+查看子图状态要求 LangGraph 能够**静态发现**子图——即，它被[添加为节点](#add-a-subgraph-as-a-node)或[在节点内调用](#call-a-subgraph-inside-a-node)。当子图在[工具](/oss/python/langchain/tools)函数或其他间接调用（例如，[子智能体](/oss/python/langchain/multi-agent/subagents)模式）内调用时，此功能无效。无论嵌套如何，中断都会传播到顶层图。
 </Note>
 
 <Tabs>
-  <Tab title="Per-invocation">
-  Returns subgraph state for the **current invocation only**. Each invocation starts fresh.
+  <Tab title="每次调用">
+  返回**当前调用**的子图状态。每次调用都重新开始。
 
   ```python
   from langgraph.graph import START, StateGraph
@@ -715,17 +687,17 @@ Viewing subgraph state requires that LangGraph can **statically discover** the s
   class State(TypedDict):
       foo: str
 
-  # Subgraph
+  # 子图
   def subgraph_node_1(state: State):
-      value = interrupt("Provide value:")
+      value = interrupt("提供值：")
       return {"foo": state["foo"] + value}
 
   subgraph_builder = StateGraph(State)
   subgraph_builder.add_node(subgraph_node_1)
   subgraph_builder.add_edge(START, "subgraph_node_1")
-  subgraph = subgraph_builder.compile()  # inherits parent checkpointer
+  subgraph = subgraph_builder.compile()  # 继承父图检查点
 
-  # Parent graph
+  # 父图
   builder = StateGraph(State)
   builder.add_node("node_1", subgraph)
   builder.add_edge(START, "node_1")
@@ -737,26 +709,26 @@ Viewing subgraph state requires that LangGraph can **statically discover** the s
 
   graph.invoke({"foo": ""}, config)
 
-  # View subgraph state for the current invocation
+  # 查看当前调用的子图状态
   subgraph_state = graph.get_state(config, subgraphs=True).tasks[0].state  # [!code highlight]
 
-  # Resume the subgraph
+  # 恢复子图
   graph.invoke(Command(resume="bar"), config)
   ```
   </Tab>
-  <Tab title="Per-thread">
-  Returns **accumulated** subgraph state across all invocations on this thread.
+  <Tab title="每个线程">
+  返回此线程上所有调用的**累积**子图状态。
 
   ```python
   from langgraph.graph import START, StateGraph, MessagesState
   from langgraph.checkpoint.memory import MemorySaver
 
-  # Subgraph with its own persistent state
+  # 带有自身持久状态的子图
   subgraph_builder = StateGraph(MessagesState)
-  # ... add nodes and edges
+  # ... 添加节点和边
   subgraph = subgraph_builder.compile(checkpointer=True)  # [!code highlight]
 
-  # Parent graph
+  # 父图
   builder = StateGraph(MessagesState)
   builder.add_node("agent", subgraph)
   builder.add_edge(START, "agent")
@@ -769,22 +741,19 @@ Viewing subgraph state requires that LangGraph can **statically discover** the s
   graph.invoke({"messages": [{"role": "user", "content": "hi"}]}, config)
   graph.invoke({"messages": [{"role": "user", "content": "what did I say?"}]}, config)
 
-  # View accumulated subgraph state (includes messages from both invocations)
+  # 查看累积的子图状态（包括两次调用的消息）
   subgraph_state = graph.get_state(config, subgraphs=True).tasks[0].state  # [!code highlight]
   ```
   </Tab>
 </Tabs>
 
+## 流式传输子图输出
 
-
-
-## Stream subgraph outputs
-
-To include outputs from subgraphs in the streamed outputs, you can set the subgraphs option in the stream method of the parent graph. This will stream outputs from both the parent graph and any subgraphs.
+要将子图的输出包含在流式输出中，您可以在父图的流方法中设置子图选项。这将流式传输父图和任何子图的输出。
 
 <Tabs>
     <Tab title="v2 (LangGraph >= 1.1)">
-    With `version="v2"`, subgraph events use the same `StreamPart` format. The `ns` field identifies the source graph:
+    使用 `version="v2"`，子图事件使用相同的 `StreamPart` 格式。`ns` 字段标识源图：
 
     ```python
     for chunk in graph.stream(
@@ -794,11 +763,11 @@ To include outputs from subgraphs in the streamed outputs, you can set the subgr
         version="v2", # [!code highlight]
     ):
         print(chunk["type"])  # "updates"
-        print(chunk["ns"])    # () for root, ("node_2:<task_id>",) for subgraph
+        print(chunk["ns"])    # () 表示根，("node_2:<task_id>",) 表示子图
         print(chunk["data"])  # {"node_name": {"key": "value"}}
     ```
     </Tab>
-    <Tab title="v1 (default)">
+    <Tab title="v1 (默认)">
     ```python
     for chunk in graph.stream(
         {"foo": "foo"},
@@ -810,15 +779,12 @@ To include outputs from subgraphs in the streamed outputs, you can set the subgr
     </Tab>
 </Tabs>
 
-
-
-
-<Accordion title="Stream from subgraphs">
+<Accordion title="从子图流式传输">
   ```python
   from typing_extensions import TypedDict
   from langgraph.graph.state import StateGraph, START
 
-  # Define subgraph
+  # 定义子图
   class SubgraphState(TypedDict):
       foo: str
       bar: str
@@ -827,8 +793,8 @@ To include outputs from subgraphs in the streamed outputs, you can set the subgr
       return {"bar": "bar"}
 
   def subgraph_node_2(state: SubgraphState):
-      # note that this node is using a state key ('bar') that is only available in the subgraph
-      # and is sending update on the shared state key ('foo')
+      # 注意，此节点使用仅在子图中可用的状态键 ('bar')
+      # 并在共享状态键 ('foo') 上发送更新
       return {"foo": state["foo"] + state["bar"]}
 
   subgraph_builder = StateGraph(SubgraphState)
@@ -838,7 +804,7 @@ To include outputs from subgraphs in the streamed outputs, you can set the subgr
   subgraph_builder.add_edge("subgraph_node_1", "subgraph_node_2")
   subgraph = subgraph_builder.compile()
 
-  # Define parent graph
+  # 定义父图
   class ParentState(TypedDict):
       foo: str
 
@@ -869,17 +835,15 @@ To include outputs from subgraphs in the streamed outputs, you can set the subgr
   () {'node_2': {'foo': 'hi! foobar'}}
   ```
 
-
-
 </Accordion>
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/use-subgraphs.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/use-subgraphs.mdx) 或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [通过 MCP 将这些文档](/use-these-docs)连接到 Claude、VSCode 等，以获取实时答案。
 </Callout>
 </div>

@@ -1,23 +1,23 @@
 ---
-title: Build customer support with handoffs
-sidebarTitle: "Handoffs: Customer support"
+title: 使用交接构建客户支持
+sidebarTitle: "交接：客户支持"
 ---
 
 import ChatModelTabsPy from '/snippets/chat-model-tabs.mdx';
 import ChatModelTabsJs from '/snippets/chat-model-tabs-js.mdx';
 
-The [state machine pattern](/oss/python/langchain/multi-agent/handoffs) describes workflows where an agent's behavior changes as it moves through different states of a task. This tutorial shows how to implement a state machine by using tool calls to dynamically change a single agent's configuration—updating its available tools and instructions based on the current state. The state can be determined from multiple sources: the agent's past actions (tool calls), external state (such as API call results), or even initial user input (for example, by running a classifier to determine user intent).
+[状态机模式](/oss/python/langchain/multi-agent/handoffs)描述了代理行为随着任务在不同状态间移动而变化的工作流。本教程展示如何通过使用工具调用动态更改单个代理的配置来实现状态机——根据当前状态更新其可用工具和指令。状态可以从多个来源确定：代理的过去操作（工具调用）、外部状态（例如 API 调用结果），甚至初始用户输入（例如，通过运行分类器来确定用户意图）。
 
-In this tutorial, you'll build a customer support agent that does the following:
+在本教程中，您将构建一个客户支持代理，该代理执行以下操作：
 
-- Collects warranty information before proceeding.
-- Classifies issues as hardware or software.
-- Provides solutions or escalates to human support.
-- Maintains conversation state across multiple turns.
+- 在继续之前收集保修信息。
+- 将问题分类为硬件或软件。
+- 提供解决方案或将问题升级给人类支持。
+- 在多个对话轮次中维护对话状态。
 
-Unlike the [subagents pattern](/oss/python/langchain/multi-agent/subagents-personal-assistant) where sub-agents are called as tools, the **state machine pattern** uses a single agent whose configuration changes based on workflow progress. Each "step" is just a different configuration (system prompt + tools) of the same underlying agent, selected dynamically based on state.
+与[子代理模式](/oss/python/langchain/multi-agent/subagents-personal-assistant)（其中子代理作为工具被调用）不同，**状态机模式**使用单个代理，其配置根据工作流进度而变化。每个“步骤”只是同一底层代理的不同配置（系统提示 + 工具），根据状态动态选择。
 
-Here's the workflow we'll build:
+以下是我们将构建的工作流：
 
 ```mermaid
 %%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#4CAF50','primaryTextColor':'#fff','primaryBorderColor':'#2E7D32','lineColor':'#666','secondaryColor':'#FF9800','tertiaryColor':'#2196F3'}}}%%
@@ -54,11 +54,11 @@ flowchart TD
     class Escalate escalateNode
 ```
 
-## Setup
+## 设置
 
-### Installation
+### 安装
 
-This tutorial requires the `langchain` package:
+本教程需要 `langchain` 包：
 
 <CodeGroup>
 ```bash pip
@@ -72,14 +72,11 @@ conda install langchain -c conda-forge
 ```
 </CodeGroup>
 
-
-
-
-For more details, see our [Installation guide](/oss/python/langchain/install).
+更多详情，请参阅我们的[安装指南](/oss/python/langchain/install)。
 
 ### LangSmith
 
-Set up [LangSmith](https://smith.langchain.com) to inspect what is happening inside your agent. Then set the following environment variables:
+设置 [LangSmith](https://smith.langchain.com) 以检查代理内部发生的情况。然后设置以下环境变量：
 
 <CodeGroup>
 ```bash bash
@@ -95,21 +92,15 @@ os.environ["LANGSMITH_API_KEY"] = getpass.getpass()
 ```
 </CodeGroup>
 
+### 选择 LLM
 
-
-
-### Select an LLM
-
-Select a chat model from LangChain's suite of integrations:
+从 LangChain 的集成套件中选择一个聊天模型：
 
 <ChatModelTabsPy />
 
+## 1. 定义自定义状态
 
-
-
-## 1. Define custom state
-
-First, define a custom state schema that tracks which step is currently active:
+首先，定义一个自定义状态模式，用于跟踪当前活动的步骤：
 
 ```python
 from langchain.agents import AgentState
@@ -126,16 +117,13 @@ class SupportState(AgentState):  # [!code highlight]
     issue_type: NotRequired[Literal["hardware", "software"]]
 ```
 
+`current_step` 字段是状态机模式的核心——它决定了在每个轮次加载哪个配置（提示 + 工具）。
 
+## 2. 创建管理工作流状态的工具
 
+创建更新工作流状态的工具。这些工具允许代理记录信息并转换到下一步。
 
-The `current_step` field is the core of the state machine pattern - it determines which configuration (prompt + tools) is loaded on each turn.
-
-## 2. Create tools that manage workflow state
-
-Create tools that update the workflow state. These tools allow the agent to record information and transition to the next step.
-
-The key is using `Command` to update state, including the `current_step` field:
+关键在于使用 `Command` 来更新状态，包括 `current_step` 字段：
 
 ```python
 from langchain.tools import tool, ToolRuntime
@@ -195,16 +183,13 @@ def provide_solution(solution: str) -> str:
     return f"Solution provided: {solution}"
 ```
 
+请注意 `record_warranty_status` 和 `record_issue_type` 如何返回 `Command` 对象，这些对象同时更新数据（`warranty_status`、`issue_type`）和 `current_step`。这就是状态机的工作原理——工具控制工作流的进展。
 
+## 3. 定义步骤配置
 
+为每个步骤定义提示和工具。首先，为每个步骤定义提示：
 
-Notice how `record_warranty_status` and `record_issue_type` return `Command` objects that update both the data (`warranty_status`, `issue_type`) AND the `current_step`. This is how the state machine works - tools control workflow progression.
-
-## 3. Define step configurations
-
-Define prompts and tools for each step. First, define the prompts for each step:
-
-<Accordion title="View complete prompt definitions">
+<Accordion title="查看完整的提示定义">
 
 ```python
 # Define prompts as constants for easy reference
@@ -245,12 +230,9 @@ At this step, you need to:
 Be specific and helpful in your solutions."""
 ```
 
-
-
-
 </Accordion>
 
-Then map step names to their configurations using a dictionary:
+然后使用字典将步骤名称映射到其配置：
 
 ```python
 # Step configuration: maps step name to (prompt, tools, required_state)
@@ -273,18 +255,15 @@ STEP_CONFIG = {
 }
 ```
 
+这种基于字典的配置使得以下操作变得容易：
+- 一目了然地查看所有步骤
+- 添加新步骤（只需添加另一个条目）
+- 理解工作流依赖关系（`requires` 字段）
+- 使用带有状态变量的提示模板（例如 `{warranty_status}`）
 
+## 4. 创建基于步骤的中间件
 
-
-This dictionary-based configuration makes it easy to:
-- See all steps at a glance
-- Add new steps (just add another entry)
-- Understand the workflow dependencies (`requires` field)
-- Use prompt templates with state variables (e.g., `{warranty_status}`)
-
-## 4. Create step-based middleware
-
-Create middleware that reads `current_step` from state and applies the appropriate configuration. We'll use the `@wrap_model_call` decorator for a clean implementation:
+创建从状态读取 `current_step` 并应用相应配置的中间件。我们将使用 `@wrap_model_call` 装饰器来实现简洁的实现：
 
 ```python
 from langchain.agents.middleware import wrap_model_call, ModelRequest, ModelResponse
@@ -320,22 +299,19 @@ def apply_step_config(
     return handler(request)
 ```
 
+此中间件：
 
+1. **读取当前步骤**：从状态获取 `current_step`（默认为 "warranty_collector"）。
+2. **查找配置**：在 `STEP_CONFIG` 中找到匹配的条目。
+3. **验证依赖关系**：确保必需的状态字段存在。
+4. **格式化提示**：将状态值注入提示模板。
+5. **应用配置**：覆盖系统提示和可用工具。
 
+`request.override()` 方法是关键——它允许我们根据状态动态更改代理的行为，而无需创建单独的代理实例。
 
-This middleware:
+## 5. 创建代理
 
-1. **Reads current step**: Gets `current_step` from state (defaults to "warranty_collector").
-2. **Looks up configuration**: Finds the matching entry in `STEP_CONFIG`.
-3. **Validates dependencies**: Ensures required state fields exist.
-4. **Formats prompt**: Injects state values into the prompt template.
-5. **Applies configuration**: Overrides the system prompt and available tools.
-
-The `request.override()` method is key - it allows us to dynamically change the agent's behavior based on state without creating separate agent instances.
-
-## 5. Create the agent
-
-Now create the agent with the step-based middleware and a checkpointer for state persistence:
+现在创建具有基于步骤的中间件和用于状态持久化的检查点器的代理：
 
 ```python
 from langchain.agents import create_agent
@@ -359,16 +335,13 @@ agent = create_agent(
 )
 ```
 
-
-
-
 <Note>
-**Why a checkpointer?** The checkpointer maintains state across conversation turns. Without it, the `current_step` state would be lost between user messages, breaking the workflow.
+**为什么需要检查点器？** 检查点器维护跨对话轮次的状态。如果没有它，`current_step` 状态将在用户消息之间丢失，从而破坏工作流。
 </Note>
 
-## 6. Test the workflow
+## 6. 测试工作流
 
-Test the complete workflow:
+测试完整的工作流：
 
 ```python
 from langchain.messages import HumanMessage
@@ -417,19 +390,16 @@ for msg in result['messages']:
     msg.pretty_print()
 ```
 
+预期流程：
+1. **保修验证步骤**：询问保修状态
+2. **问题分类步骤**：询问问题，确定是硬件问题
+3. **解决步骤**：提供保修维修说明
 
+## 7. 理解状态转换
 
+让我们追踪每一轮发生的情况：
 
-Expected flow:
-1. **Warranty verification step**: Asks about warranty status
-2. **Issue classification step**: Asks about the problem, determines it's hardware
-3. **Resolution step**: Provides warranty repair instructions
-
-## 7. Understanding state transitions
-
-Let's trace what happens at each turn:
-
-### Turn 1: Initial message
+### 第 1 轮：初始消息
 
 ```python
 {
@@ -438,16 +408,13 @@ Let's trace what happens at each turn:
 }
 ```
 
+中间件应用：
+- 系统提示：`WARRANTY_COLLECTOR_PROMPT`
+- 工具：`[record_warranty_status]`
 
+### 第 2 轮：记录保修后
 
-
-Middleware applies:
-- System prompt: `WARRANTY_COLLECTOR_PROMPT`
-- Tools: `[record_warranty_status]`
-
-### Turn 2: After warranty recorded
-
-Tool call: `record_warranty_status("in_warranty")` returns:
+工具调用：`record_warranty_status("in_warranty")` 返回：
 ```python
 Command(update={
     "warranty_status": "in_warranty",
@@ -455,16 +422,13 @@ Command(update={
 })
 ```
 
+下一轮，中间件应用：
+- 系统提示：`ISSUE_CLASSIFIER_PROMPT`（使用 `warranty_status="in_warranty"` 格式化）
+- 工具：`[record_issue_type]`
 
+### 第 3 轮：问题分类后
 
-
-Next turn, middleware applies:
-- System prompt: `ISSUE_CLASSIFIER_PROMPT` (formatted with `warranty_status="in_warranty"`)
-- Tools: `[record_issue_type]`
-
-### Turn 3: After issue classified
-
-Tool call: `record_issue_type("hardware")` returns:
+工具调用：`record_issue_type("hardware")` 返回：
 ```python
 Command(update={
     "issue_type": "hardware",
@@ -472,18 +436,15 @@ Command(update={
 })
 ```
 
+下一轮，中间件应用：
+- 系统提示：`RESOLUTION_SPECIALIST_PROMPT`（使用 `warranty_status` 和 `issue_type` 格式化）
+- 工具：`[provide_solution, escalate_to_human]`
 
+关键见解：**工具通过更新 `current_step` 来驱动工作流**，而**中间件通过在下一轮应用适当的配置来响应**。
 
+## 8. 管理消息历史
 
-Next turn, middleware applies:
-- System prompt: `RESOLUTION_SPECIALIST_PROMPT` (formatted with `warranty_status` and `issue_type`)
-- Tools: `[provide_solution, escalate_to_human]`
-
-The key insight: **Tools drive the workflow** by updating `current_step`, and **middleware responds** by applying the appropriate configuration on the next turn.
-
-## 8. Manage message history
-
-As the agent progresses through steps, message history grows. Use [summarization middleware](/oss/python/langchain/short-term-memory#summarize-messages) to compress earlier messages while preserving conversational context:
+随着代理逐步推进，消息历史会增长。使用[总结中间件](/oss/python/langchain/short-term-memory#summarize-messages)来压缩早期消息，同时保留对话上下文：
 
 ```python
 from langchain.agents import create_agent
@@ -506,20 +467,17 @@ agent = create_agent(
 )
 ```
 
+请参阅[短期记忆指南](/oss/python/langchain/short-term-memory)了解其他内存管理技术。
 
+## 9. 添加灵活性：返回
 
-
-See the [short-term memory guide](/oss/python/langchain/short-term-memory) for other memory management techniques.
-
-## 9. Add flexibility: Go back
-
-Some workflows need to allow users to return to previous steps to correct information (e.g., changing warranty status or issue classification). However, not all transitions make sense—for example, you typically can't go back once a refund has been processed. For this support workflow, we'll add tools to return to the warranty verification and issue classification steps.
+某些工作流需要允许用户返回到先前的步骤以更正信息（例如，更改保修状态或问题分类）。然而，并非所有转换都有意义——例如，一旦退款处理完毕，通常无法返回。对于此支持工作流，我们将添加工具以返回到保修验证和问题分类步骤。
 
 <Tip>
-If your workflow requires arbitrary transitions between most steps, consider whether you need a structured workflow at all. This pattern works best when steps follow a clear sequential progression with occasional backwards transitions for corrections.
+如果您的工作流需要在大多数步骤之间进行任意转换，请考虑是否真的需要结构化工作流。此模式在步骤遵循清晰的顺序进展且偶尔需要向后转换以进行更正时效果最佳。
 </Tip>
 
-Add "go back" tools to the resolution step:
+向解决步骤添加“返回”工具：
 
 ```python
 @tool
@@ -541,10 +499,7 @@ STEP_CONFIG["resolution_specialist"]["tools"].extend([
 ])
 ```
 
-
-
-
-Update the resolution specialist's prompt to mention these tools:
+更新解决专家的提示以提及这些工具：
 
 ```python
 RESOLUTION_SPECIALIST_PROMPT = """You are a customer support agent helping with device issues.
@@ -565,10 +520,7 @@ If the customer indicates any information was wrong, use:
 Be specific and helpful in your solutions."""
 ```
 
-
-
-
-Now the agent can handle corrections:
+现在代理可以处理更正：
 
 ```python
 result = agent.invoke(
@@ -578,14 +530,11 @@ result = agent.invoke(
 # Agent will call go_back_to_warranty and restart the warranty verification step
 ```
 
+## 完整示例
 
+以下是所有内容组合在一起的可运行脚本：
 
-
-## Complete example
-
-Here's everything together in a runnable script:
-
-<Expandable title="Complete code" defaultOpen={false}>
+<Expandable title="完整代码" defaultOpen={false}>
 ```python
 """
 Customer Support State Machine Example
@@ -819,24 +768,22 @@ if __name__ == "__main__":
         msg.pretty_print()
 ```
 
-
-
 </Expandable>
 
-## Next steps
+## 后续步骤
 
-- Learn about the [subagents pattern](/oss/python/langchain/multi-agent/subagents-personal-assistant) for centralized orchestration
-- Explore [middleware](/oss/python/langchain/middleware) for more dynamic behaviors
-- Read the [multi-agent overview](/oss/python/langchain/multi-agent) to compare patterns
-- Use [LangSmith](https://smith.langchain.com) to debug and monitor your multi-agent system
+- 了解用于集中式编排的[子代理模式](/oss/python/langchain/multi-agent/subagents-personal-assistant)
+- 探索[中间件](/oss/python/langchain/middleware)以实现更多动态行为
+- 阅读[多代理概述](/oss/python/langchain/multi-agent)以比较模式
+- 使用 [LangSmith](https://smith.langchain.com) 调试和监控您的多代理系统
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/multi-agent/handoffs-customer-support.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/multi-agent/handoffs-customer-support.mdx) 或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [通过 MCP 将这些文档连接到 Claude、VSCode 等](/use-these-docs) 以获取实时答案。
 </Callout>
 </div>

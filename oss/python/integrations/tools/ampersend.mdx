@@ -1,35 +1,35 @@
 ---
-title: "Ampersend integration"
-description: Enable LangChain agents to pay for and use remote AI agent services.
+title: "Ampersend 集成"
+description: 使 LangChain 代理能够支付并使用远程 AI 代理服务。
 ---
 
-[Ampersend](https://ampersend.ai) enables LangChain agents to pay for and use remote AI agent services. Payments are handled transparently via the [x402](https://www.x402.org/) protocol, with [A2A](https://google.github.io/A2A/) as the communication layer.
+[Ampersend](https://ampersend.ai) 使 LangChain 代理能够支付并使用远程 AI 代理服务。支付通过 [x402](https://www.x402.org/) 协议透明处理，通信层使用 [A2A](https://google.github.io/A2A/)。
 
-## Overview
+## 概述
 
-### Integration details
+### 集成详情
 
-| Class | Package | Serializable | JS support | Version |
+| 类 | 包 | 可序列化 | JS 支持 | 版本 |
 | :--- | :--- | :---: | :---: | :---: |
 | `A2AToolkit` | `langchain-ampersend` | ❌ | ❌ | ![PyPI - Version](https://img.shields.io/pypi/v/langchain-ampersend?style=flat-square&label=%20) |
 
-### Tool features
+### 工具特性
 
-1. **a2a_get_agent_details** - Get capabilities of the remote agent
-2. **a2a_send_message** - Send messages to the remote agent (payments handled automatically)
+1. **a2a_get_agent_details** - 获取远程代理的能力
+2. **a2a_send_message** - 向远程代理发送消息（支付自动处理）
 
-### Key features
+### 关键特性
 
-- **Spend controls**: Pluggable payment authorization with limits and policies
-- **Transparent payments**: x402 protocol handles payment negotiation automatically
+- **支出控制**：可插拔的支付授权，包含限额和策略
+- **透明支付**：x402 协议自动处理支付协商
 
 ---
 
-## Setup
+## 设置
 
-### Installation
+### 安装
 
-Install the `langchain-ampersend` package:
+安装 `langchain-ampersend` 包：
 
 <CodeGroup>
     ```python pip
@@ -40,11 +40,11 @@ Install the `langchain-ampersend` package:
     ```
 </CodeGroup>
 
-### Credentials
+### 凭证
 
-The toolkit requires a session key and smart account address, which you can obtain from the [Ampersend dashboard](https://app.ampersend.ai).
+该工具包需要会话密钥和智能账户地址，您可以从 [Ampersend 仪表板](https://app.ampersend.ai) 获取。
 
-```python Set up credentials icon="key"
+```python 设置凭证 icon="key"
 import os
 
 SESSION_KEY = os.environ.get("AMPERSEND_SESSION_KEY")  # 0x...
@@ -53,9 +53,9 @@ SMART_ACCOUNT_ADDRESS = os.environ.get("AMPERSEND_SMART_ACCOUNT_ADDRESS")  # 0x.
 
 ---
 
-## Instantiation
+## 实例化
 
-```python Initialize toolkit icon="robot"
+```python 初始化工具包 icon="robot"
 from langchain_ampersend import (
     A2AToolkit,
     AmpersendTreasurer,
@@ -65,7 +65,7 @@ from langchain_ampersend import (
     SmartAccountWallet,
 )
 
-# Setup wallet
+# 设置钱包
 wallet = SmartAccountWallet(
     config=SmartAccountConfig(
         session_key=SESSION_KEY,
@@ -73,7 +73,7 @@ wallet = SmartAccountWallet(
     )
 )
 
-# Setup treasurer
+# 设置财务官
 treasurer = AmpersendTreasurer(
     api_client=ApiClient(
         options=ApiClientOptions(
@@ -84,7 +84,7 @@ treasurer = AmpersendTreasurer(
     wallet=wallet,
 )
 
-# Create toolkit
+# 创建工具包
 toolkit = A2AToolkit(
     remote_agent_url="https://agent.example.com",
     treasurer=treasurer,
@@ -95,74 +95,74 @@ await toolkit.initialize()
 
 ---
 
-## Invocation
+## 调用
 
-Send a message to the remote agent:
+向远程代理发送消息：
 
-```python Send message icon="message"
+```python 发送消息 icon="message"
 tools = toolkit.get_tools()
 send_tool = tools[1]  # a2a_send_message
-response = await send_tool.ainvoke({"message": "Analyze the sales trends in Q4"})
+response = await send_tool.ainvoke({"message": "分析第四季度的销售趋势"})
 print(response)
 ```
 
 ---
 
-## Use within an agent
+## 在代理中使用
 
-```python Create agent icon="robot"
+```python 创建代理 icon="robot"
 from langchain.agents import create_agent
 from langchain_anthropic import ChatAnthropic
 
-# Initialize the LLM
+# 初始化 LLM
 llm = ChatAnthropic(model="claude-sonnet-4-20250514")
 
-# Get tools from the toolkit
+# 从工具包获取工具
 tools = toolkit.get_tools()
 
-# Create the agent
+# 创建代理
 agent = create_agent(llm, tools)
 ```
 
-Example usage:
+示例用法：
 
-```python Run agent icon="rocket"
+```python 运行代理 icon="rocket"
 result = await agent.ainvoke({
-    "messages": [("user", "What can this agent do, and then ask it to analyze recent trends")]
+    "messages": [("user", "这个代理能做什么，然后让它分析近期趋势")]
 })
 
-# The agent will call the remote agent and handle payments automatically
+# 代理将调用远程代理并自动处理支付
 ```
 
 ---
 
-## How payments work
+## 支付工作原理
 
-When the remote agent requires payment (HTTP 402), the toolkit:
+当远程代理需要支付时（HTTP 402），工具包：
 
-1. Receives the payment requirement
-2. Calls the treasurer to authorize the payment
-3. Signs the payment with the configured wallet
-4. Retries the request with the payment attached
+1. 接收支付要求
+2. 调用财务官授权支付
+3. 使用配置的钱包签名支付
+4. 附加支付重试请求
 
-This is transparent to your LangChain agent.
+这对您的 LangChain 代理是透明的。
 
-The `AmpersendTreasurer` provides managed payment sessions with spend limits and analytics. Alternative treasurer implementations are available in `ampersend_sdk`.
+`AmpersendTreasurer` 提供具有支出限额和分析功能的托管支付会话。替代的财务官实现在 `ampersend_sdk` 中可用。
 
 ---
 
-## API reference
+## API 参考
 
-- [Ampersend Documentation](https://docs.ampersend.ai)
-- [x402 Protocol Specification](https://www.x402.org/)
+- [Ampersend 文档](https://docs.ampersend.ai)
+- [x402 协议规范](https://www.x402.org/)
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/tools/ampersend.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/tools/ampersend.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [通过 MCP 连接这些文档](/use-these-docs) 到 Claude、VSCode 等，以获取实时答案。
 </Callout>
 </div>

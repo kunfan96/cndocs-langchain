@@ -1,41 +1,37 @@
 ---
-title: "Splitting by token - Text splitter integration guide"
+title: "按令牌拆分 - 文本拆分器集成指南"
 ---
 
-Language models have a token limit. You should not exceed the token limit. When you [split your text](/oss/python/integrations/splitters/) into chunks it is therefore a good idea to count the number of tokens. There are many tokenizers. When you count tokens in your text you should use the same tokenizer as used in the language model.
+语言模型有令牌限制。您不应超过令牌限制。当您[拆分文本](/oss/python/integrations/splitters/)为块时，计算令牌数量是一个好主意。有许多分词器。当您计算文本中的令牌时，应使用与语言模型中相同的分词器。
 
 ## tiktoken
 
 <Note>
-**[tiktoken](https://github.com/openai/tiktoken) is a fast `BPE` tokenizer created by `OpenAI`.**
+**[tiktoken](https://github.com/openai/tiktoken) 是由 `OpenAI` 创建的快速 `BPE` 分词器。**
 </Note>
 
+我们可以使用 `tiktoken` 来估计使用的令牌。对于 OpenAI 模型，它可能更准确。
 
-We can use `tiktoken` to estimate tokens used. It will probably be more accurate for the OpenAI models.
+1. 文本拆分方式：按传入的字符拆分。
+2. 块大小测量方式：通过 `tiktoken` 分词器。
 
-1. How the text is split: by character passed in.
-2. How the chunk size is measured: by `tiktoken` tokenizer.
-
-[CharacterTextSplitter](https://reference.langchain.com/python/langchain-text-splitters/character/CharacterTextSplitter), [RecursiveCharacterTextSplitter](https://reference.langchain.com/python/langchain-text-splitters/character/RecursiveCharacterTextSplitter), and [TokenTextSplitter](https://reference.langchain.com/python/langchain-text-splitters/base/TokenTextSplitter) can be used with `tiktoken` directly.
-
+[CharacterTextSplitter](https://reference.langchain.com/python/langchain-text-splitters/character/CharacterTextSplitter)、[RecursiveCharacterTextSplitter](https://reference.langchain.com/python/langchain-text-splitters/character/RecursiveCharacterTextSplitter) 和 [TokenTextSplitter](https://reference.langchain.com/python/langchain-text-splitters/base/TokenTextSplitter) 可以直接与 `tiktoken` 一起使用。
 
 ```python
 pip install --upgrade --quiet langchain-text-splitters tiktoken
 ```
 
-
 ```python
 from langchain_text_splitters import CharacterTextSplitter
 
-# This is a long document we can split up.
+# 这是一个可以拆分的长文档。
 with open("state_of_the_union.txt") as f:
     state_of_the_union = f.read()
 ```
 
-To split with a [CharacterTextSplitter](https://reference.langchain.com/python/langchain-text-splitters/character/CharacterTextSplitter) and then merge chunks with `tiktoken`, use its `.from_tiktoken_encoder()` method. Note that splits from this method can be larger than the chunk size measured by the `tiktoken` tokenizer.
+要使用 [CharacterTextSplitter](https://reference.langchain.com/python/langchain-text-splitters/character/CharacterTextSplitter) 拆分，然后使用 `tiktoken` 合并块，请使用其 `.from_tiktoken_encoder()` 方法。请注意，此方法产生的拆分可能大于 `tiktoken` 分词器测量的块大小。
 
-The `.from_tiktoken_encoder()` method takes either `encoding_name` as an argument (e.g. `cl100k_base`), or the `model_name` (e.g. `gpt-4`). All additional arguments like `chunk_size`, `chunk_overlap`, and `separators` are used to instantiate `CharacterTextSplitter`:
-
+`.from_tiktoken_encoder()` 方法接受 `encoding_name` 作为参数（例如 `cl100k_base`），或 `model_name`（例如 `gpt-4`）。所有其他参数，如 `chunk_size`、`chunk_overlap` 和 `separators`，都用于实例化 `CharacterTextSplitter`：
 
 ```python
 text_splitter = CharacterTextSplitter.from_tiktoken_encoder(
@@ -43,7 +39,6 @@ text_splitter = CharacterTextSplitter.from_tiktoken_encoder(
 )
 texts = text_splitter.split_text(state_of_the_union)
 ```
-
 
 ```python
 print(texts[0])
@@ -57,8 +52,7 @@ Tonight, we meet as Democrats Republicans and Independents. But most importantly
 
 With a duty to one another to the American people to the Constitution.
 ```
-To implement a hard constraint on the chunk size, we can use `RecursiveCharacterTextSplitter.from_tiktoken_encoder`, where each split will be recursively split if it has a larger size:
-
+要实现对块大小的硬性约束，我们可以使用 `RecursiveCharacterTextSplitter.from_tiktoken_encoder`，其中如果拆分大小较大，将递归拆分：
 
 ```python
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -70,8 +64,7 @@ text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
 )
 ```
 
-We can also load a `TokenTextSplitter` splitter, which works with `tiktoken` directly and will ensure each split is smaller than chunk size.
-
+我们也可以加载 `TokenTextSplitter` 拆分器，它直接与 `tiktoken` 配合工作，并确保每个拆分都小于块大小。
 
 ```python
 from langchain_text_splitters import TokenTextSplitter
@@ -84,34 +77,28 @@ print(texts[0])
 ```text
 Madam Speaker, Madam Vice President, our
 ```
-Some written languages (e.g. Chinese and Japanese) have characters which encode to two or more tokens. Using the `TokenTextSplitter` directly can split the tokens for a character between two chunks causing malformed Unicode characters. Use `RecursiveCharacterTextSplitter.from_tiktoken_encoder` or `CharacterTextSplitter.from_tiktoken_encoder` to ensure chunks contain valid Unicode strings.
-
-
-
+某些书面语言（例如中文和日文）包含编码为两个或更多令牌的字符。直接使用 `TokenTextSplitter` 可能会将字符的令牌拆分到两个块中，导致 Unicode 字符格式错误。使用 `RecursiveCharacterTextSplitter.from_tiktoken_encoder` 或 `CharacterTextSplitter.from_tiktoken_encoder` 可确保块包含有效的 Unicode 字符串。
 
 ## spaCy
 
 <Note>
-[spaCy](https://spacy.io/) is an open-source software library for advanced natural language processing, written in the programming languages Python and Cython.
+[spaCy](https://spacy.io/) 是一个用于高级自然语言处理的开源软件库，使用 Python 和 Cython 编程语言编写。
 </Note>
 
-LangChain implements splitters based on the [spaCy tokenizer](https://spacy.io/api/tokenizer).
+LangChain 基于 [spaCy 分词器](https://spacy.io/api/tokenizer) 实现了拆分器。
 
-1. How the text is split: by `spaCy` tokenizer.
-2. How the chunk size is measured: by number of characters.
-
+1. 文本拆分方式：通过 `spaCy` 分词器拆分。
+2. 块大小测量方式：按字符数测量。
 
 ```python
 pip install --upgrade --quiet  spacy
 ```
 
-
 ```python
-# This is a long document we can split up.
+# 这是一个可以拆分的长文档。
 with open("state_of_the_union.txt") as f:
     state_of_the_union = f.read()
 ```
-
 
 ```python
 from langchain_text_splitters import SpacyTextSplitter
@@ -172,14 +159,13 @@ From President Zelenskyy to every Ukrainian, their fearlessness, their courage, 
 ```
 ## SentenceTransformers
 
-The [`SentenceTransformersTokenTextSplitter`](https://reference.langchain.com/python/langchain-text-splitters/sentence_transformers/SentenceTransformersTokenTextSplitter) is a specialized text splitter for use with the sentence-transformer models. The default behaviour is to split the text into chunks that fit the token window of the sentence transformer model that you would like to use.
+[`SentenceTransformersTokenTextSplitter`](https://reference.langchain.com/python/langchain-text-splitters/sentence_transformers/SentenceTransformersTokenTextSplitter) 是一个专用于 sentence-transformer 模型的文本拆分器。默认行为是将文本拆分为适合您要使用的句子转换器模型令牌窗口的块。
 
-To split text and constrain token counts according to the sentence-transformers tokenizer, instantiate a `SentenceTransformersTokenTextSplitter`. You can optionally specify:
+要根据 sentence-transformers 分词器拆分文本并约束令牌计数，请实例化 `SentenceTransformersTokenTextSplitter`。您可以选择指定：
 
-- `chunk_overlap`: integer count of token overlap;
-- `model_name`: sentence-transformer model name, defaulting to `"sentence-transformers/all-mpnet-base-v2"`;
-- `tokens_per_chunk`: desired token count per chunk.
-
+- `chunk_overlap`：令牌重叠的整数计数；
+- `model_name`：sentence-transformer 模型名称，默认为 `"sentence-transformers/all-mpnet-base-v2"`；
+- `tokens_per_chunk`：每个块所需的令牌计数。
 
 ```python
 from langchain_text_splitters import SentenceTransformersTokenTextSplitter
@@ -198,7 +184,7 @@ print(text_token_count)
 ```python
 token_multiplier = splitter.maximum_tokens_per_chunk // text_token_count + 1
 
-# `text_to_split` does not fit in a single chunk
+# `text_to_split` 不适合单个块
 text_to_split = text * token_multiplier
 
 print(f"tokens in text to split: {splitter.count_tokens(text=text_to_split)}")
@@ -218,34 +204,29 @@ lorem
 ## NLTK
 
 <Note>
-**[The Natural Language Toolkit](https://en.wikipedia.org/wiki/Natural_Language_Toolkit), or more commonly [NLTK](https://www.nltk.org/), is a suite of libraries and programs for symbolic and statistical natural language processing (NLP) for English written in the Python programming language.**
+**[自然语言工具包](https://en.wikipedia.org/wiki/Natural_Language_Toolkit)，或更常见的 [NLTK](https://www.nltk.org/)，是一个用于英语符号和统计自然语言处理（NLP）的库和程序套件，使用 Python 编程语言编写。**
 </Note>
 
+我们可以使用 `NLTK` 基于 [NLTK 分词器](https://www.nltk.org/api/nltk.tokenize.html) 拆分，而不是仅按 "\n\n" 拆分。
 
-Rather than just splitting on "\n\n", we can use `NLTK` to split based on [NLTK tokenizers](https://www.nltk.org/api/nltk.tokenize.html).
-
-1. How the text is split: by `NLTK` tokenizer.
-2. How the chunk size is measured: by number of characters.
-
+1. 文本拆分方式：通过 `NLTK` 分词器拆分。
+2. 块大小测量方式：按字符数测量。
 
 ```python
 # pip install nltk
 ```
 
-
 ```python
-# This is a long document we can split up.
+# 这是一个可以拆分的长文档。
 with open("state_of_the_union.txt") as f:
     state_of_the_union = f.read()
 ```
-
 
 ```python
 from langchain_text_splitters import NLTKTextSplitter
 
 text_splitter = NLTKTextSplitter(chunk_size=1000)
 ```
-
 
 ```python
 texts = text_splitter.split_text(state_of_the_union)
@@ -289,29 +270,26 @@ Groups of citizens blocking tanks with their bodies.
 ## KoNLPY
 
 <Note>
-[KoNLPy: Korean NLP in Python](https://konlpy.org/en/latest/) is a Python package for natural language processing (NLP) of the Korean language.
+[KoNLPY: Korean NLP in Python](https://konlpy.org/en/latest/) 是一个用于韩语自然语言处理（NLP）的 Python 包。
 </Note>
 
-Token splitting involves the segmentation of text into smaller, more manageable units called tokens. These tokens are often words, phrases, symbols, or other meaningful elements crucial for further processing and analysis. In languages like English, token splitting typically involves separating words by spaces and punctuation marks. The effectiveness of token splitting largely depends on the tokenizer's understanding of the language structure, ensuring the generation of meaningful tokens. Since tokenizers designed for the English language are not equipped to understand the unique semantic structures of other languages, such as Korean, they cannot be effectively used for Korean language processing.
+令牌拆分涉及将文本分割为更小、更易管理的单元，称为令牌。这些令牌通常是单词、短语、符号或其他对进一步处理和分析至关重要的有意义元素。在英语等语言中，令牌拆分通常涉及按空格和标点符号分隔单词。令牌拆分的有效性在很大程度上取决于分词器对语言结构的理解，确保生成有意义的令牌。由于为英语设计的分词器无法理解其他语言（如韩语）的独特语义结构，因此无法有效用于韩语处理。
 
-### Token splitting for korean with KoNLPy's kkma analyzer
-In case of Korean text, KoNLPY includes at morphological analyzer called `Kkma` (Korean Knowledge Morpheme Analyzer). `Kkma` provides detailed morphological analysis of Korean text. It breaks down sentences into words and words into their respective morphemes, identifying parts of speech for each token. It can segment a block of text into individual sentences, which is particularly useful for processing long texts.
+### 使用 KoNLPY 的 kkma 分析器进行韩语令牌拆分
+对于韩语文本，KoNLPY 包含一个名为 `Kkma`（韩语知识语素分析器）的形态学分析器。`Kkma` 提供韩语文本的详细形态学分析。它将句子分解为单词，将单词分解为其各自的语素，并识别每个令牌的词性。它可以将文本块分割为单个句子，这对于处理长文本特别有用。
 
-### Usage considerations
-While `Kkma` is renowned for its detailed analysis, it is important to note that this precision may impact processing speed. Thus, `Kkma` is best suited for applications where analytical depth is prioritized over rapid text processing.
-
+### 使用注意事项
+虽然 `Kkma` 以其详细分析而闻名，但请注意，这种精度可能会影响处理速度。因此，`Kkma` 最适合分析深度优先于快速文本处理的应用。
 
 ```python
 # pip install konlpy
 ```
 
-
 ```python
-# This is a long Korean document that we want to split up into its component sentences.
+# 这是一个我们想要拆分成其组成句子的韩语长文档。
 with open("./your_korean_doc.txt") as f:
     korean_document = f.read()
 ```
-
 
 ```python
 from langchain_text_splitters import KonlpyTextSplitter
@@ -319,10 +297,9 @@ from langchain_text_splitters import KonlpyTextSplitter
 text_splitter = KonlpyTextSplitter()
 ```
 
-
 ```python
 texts = text_splitter.split_text(korean_document)
-# The sentences are split with "\n\n" characters.
+# 句子使用 "\n\n" 字符拆分。
 print(texts[0])
 ```
 ```text
@@ -356,15 +333,14 @@ print(texts[0])
 
 - 춘향전 (The Tale of Chunhyang)
 ```
-## Hugging Face tokenizer
+## Hugging Face 分词器
 
-[Hugging Face](https://huggingface.co/docs/tokenizers/index) has many tokenizers.
+[Hugging Face](https://huggingface.co/docs/tokenizers/index) 有许多分词器。
 
-We use Hugging Face tokenizer, the [GPT2TokenizerFast](https://huggingface.co/Ransaka/gpt2-tokenizer-fast) to count the text length in tokens.
+我们使用 Hugging Face 分词器 [GPT2TokenizerFast](https://huggingface.co/Ransaka/gpt2-tokenizer-fast) 来计算文本长度（以令牌计）。
 
-1. How the text is split: by character passed in.
-2. How the chunk size is measured: by number of tokens calculated by the `Hugging Face` tokenizer.
-
+1. 文本拆分方式：按传入的字符拆分。
+2. 块大小测量方式：通过 `Hugging Face` 分词器计算的令牌数。
 
 ```python
 from transformers import GPT2TokenizerFast
@@ -372,14 +348,12 @@ from transformers import GPT2TokenizerFast
 tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
 ```
 
-
 ```python
-# This is a long document we can split up.
+# 这是一个可以拆分的长文档。
 with open("state_of_the_union.txt") as f:
     state_of_the_union = f.read()
 from langchain_text_splitters import CharacterTextSplitter
 ```
-
 
 ```python
 text_splitter = CharacterTextSplitter.from_huggingface_tokenizer(
@@ -387,7 +361,6 @@ text_splitter = CharacterTextSplitter.from_huggingface_tokenizer(
 )
 texts = text_splitter.split_text(state_of_the_union)
 ```
-
 
 ```python
 print(texts[0])
@@ -406,9 +379,9 @@ With a duty to one another to the American people to the Constitution.
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/integrations/splitters/split_by_token.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/integrations/splitters/split_by_token.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [连接这些文档](/use-these-docs) 到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 </div>

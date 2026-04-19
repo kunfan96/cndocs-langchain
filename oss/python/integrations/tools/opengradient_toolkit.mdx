@@ -1,62 +1,62 @@
 ---
-title: "OpenGradientToolkit integration"
-description: "Integrate with the OpenGradientToolkit tool using LangChain Python."
+title: "OpenGradientToolkit 集成"
+description: "使用 LangChain Python 与 OpenGradientToolkit 工具集成。"
 ---
 
-This notebook shows how to build tools using the OpenGradient toolkit. This toolkit gives users the ability to create custom tools based on models and workflows on the [OpenGradient network](https://www.opengradient.ai/).
+本笔记本展示如何使用 OpenGradient 工具包构建工具。该工具包使用户能够基于 [OpenGradient 网络](https://www.opengradient.ai/) 上的模型和工作流创建自定义工具。
 
-## Setup
+## 设置
 
-Ensure that you have an OpenGradient API key in order to access the OpenGradient network. If you already have an API key, simply set the environment variable:
+确保您拥有 OpenGradient API 密钥以访问 OpenGradient 网络。如果您已有 API 密钥，只需设置环境变量：
 
 ```python
 !export OPENGRADIENT_PRIVATE_KEY="your-api-key"
 ```
 
-If you need to set up a new API key, download the opengradient SDK and follow the instructions to initialize a new configuration.
+如果您需要设置新的 API 密钥，请下载 opengradient SDK 并按照说明初始化新配置。
 
 ```python
 !pip install opengradient
 !opengradient config init
 ```
 
-### Installation
+### 安装
 
-This toolkit lives in the `langchain-opengradient` package:
+此工具包位于 `langchain-opengradient` 包中：
 
 ```python
 pip install -qU langchain-opengradient
 ```
 
-## Instantiation
+## 实例化
 
-Now we can instantiate our toolkit with the API key from before.
+现在我们可以使用之前的 API 密钥实例化我们的工具包。
 
 ```python
 from langchain_opengradient import OpenGradientToolkit
 
 toolkit = OpenGradientToolkit(
-    # Not required if you have already set the environment variable OPENGRADIENT_PRIVATE_KEY
+    # 如果您已经设置了环境变量 OPENGRADIENT_PRIVATE_KEY，则不需要此项
     private_key="your-api-key"
 )
 ```
 
-## Build your own tools
+## 构建您自己的工具
 
-The OpenGradientToolkit offers two main methods for creating custom tools:
+OpenGradientToolkit 提供两种主要方法来创建自定义工具：
 
-### 1. Create a tool to run ML models
+### 1. 创建运行机器学习模型的工具
 
-You can create tools that leverage ML models deployed on the [OpenGradient model hub](https://hub.opengradient.ai/). User-created models can be uploaded, inferenced, and shared to the model hub through the [OpenGradient SDK](https://docs.opengradient.ai/developers/sdk/model_management.html).
+您可以创建利用部署在 [OpenGradient 模型中心](https://hub.opengradient.ai/) 上的机器学习模型的工具。用户创建的模型可以通过 [OpenGradient SDK](https://docs.opengradient.ai/developers/sdk/model_management.html) 上传、推理并共享到模型中心。
 
 ```python
 import opengradient as og
 from pydantic import BaseModel, Field
 
 
-# Example 1: Simple tool with no input schema
+# 示例 1：无输入模式的简单工具
 def price_data_provider():
-    """Function that provides input data to the model."""
+    """为模型提供输入数据的函数。"""
     return {
         "open_high_low_close": [
             [2535.79, 2535.79, 2505.37, 2515.36],
@@ -74,28 +74,28 @@ def price_data_provider():
 
 
 def format_volatility(inference_result):
-    """Function that formats the model output."""
+    """格式化模型输出的函数。"""
     return format(float(inference_result.model_output["Y"].item()), ".3%")
 
 
-# Create the tool
+# 创建工具
 volatility_tool = toolkit.create_run_model_tool(
     model_cid="QmRhcpDXfYCKsimTmJYrAVM4Bbvck59Zb2onj3MHv9Kw5N",
     tool_name="eth_volatility",
     model_input_provider=price_data_provider,
     model_output_formatter=format_volatility,
-    tool_description="Generates volatility measurement for ETH/USDT trading pair",
+    tool_description="生成 ETH/USDT 交易对的波动率测量值",
     inference_mode=og.InferenceMode.VANILLA,
 )
 
 
-# Example 2: Tool with input schema from the agent
+# 示例 2：具有来自代理的输入模式的工具
 class TokenInputSchema(BaseModel):
-    token: str = Field(description="Token name (ethereum or bitcoin)")
+    token: str = Field(description="代币名称（ethereum 或 bitcoin）")
 
 
 def token_data_provider(**inputs):
-    """Dynamic function that changes behavior based on agent input."""
+    """根据代理输入动态改变行为的函数。"""
     token = inputs.get("token")
     if token == "bitcoin":
         return {"price_series": [100001.1, 100013.2, 100149.2, 99998.1]}
@@ -103,74 +103,74 @@ def token_data_provider(**inputs):
         return {"price_series": [2010.1, 2012.3, 2020.1, 2019.2]}
 
 
-# Create the tool with schema
+# 使用模式创建工具
 token_tool = toolkit.create_run_model_tool(
     model_cid="QmZdSfHWGJyzBiB2K98egzu3MypPcv4R1ASypUxwZ1MFUG",
     tool_name="token_volatility",
     model_input_provider=token_data_provider,
     model_output_formatter=lambda x: format(float(x.model_output["std"].item()), ".3%"),
     tool_input_schema=TokenInputSchema,
-    tool_description="Measures return volatility for a specified token",
+    tool_description="测量指定代币的回报波动率",
 )
 
-# Add tools to the toolkit
+# 将工具添加到工具包
 toolkit.add_tool(volatility_tool)
 toolkit.add_tool(token_tool)
 ```
 
-### 2. Create a tool to read workflow results
+### 2. 创建读取工作流结果的工具
 
-Read workflows are scheduled inferences that regularly run models stored on smart-contracts with live oracle data. More information on these can be [found here](https://docs.opengradient.ai/developers/sdk/ml_workflows.html).
+读取工作流是定期运行的推理，使用实时预言机数据在智能合约上运行存储的模型。有关这些的更多信息可以[在此处找到](https://docs.opengradient.ai/developers/sdk/ml_workflows.html)。
 
-You can create tools that read results from workflow smart contracts:
+您可以创建从工作流智能合约读取结果的工具：
 
 ```python
-# Create a tool to read from a workflow
+# 创建从工作流读取的工具
 forecast_tool = toolkit.create_read_workflow_tool(
     workflow_contract_address="0x58826c6dc9A608238d9d57a65bDd50EcaE27FE99",
     tool_name="ETH_Price_Forecast",
-    tool_description="Reads latest forecast for ETH price from deployed workflow",
-    output_formatter=lambda x: f"Price change forecast: {format(float(x.numbers['regression_output'].item()), '.2%')}",
+    tool_description="从部署的工作流读取 ETH 价格的最新预测",
+    output_formatter=lambda x: f"价格变化预测: {format(float(x.numbers['regression_output'].item()), '.2%')}",
 )
 
-# Add the tool to the toolkit
+# 将工具添加到工具包
 toolkit.add_tool(forecast_tool)
 ```
 
-## Tools
+## 工具
 
-Use the built in `get_tools()` method to view a list of the available tools within the OpenGradient toolkit.
+使用内置的 `get_tools()` 方法查看 OpenGradient 工具包中可用工具的列表。
 
 ```python
 tools = toolkit.get_tools()
 
-# View tools
+# 查看工具
 for tool in tools:
     print(tool)
 ```
 
-## Use within an agent
+## 在代理中使用
 
-Here's how to use your OpenGradient tools with a LangChain agent:
+以下是如何将您的 OpenGradient 工具与 LangChain 代理一起使用：
 
 ```python
 from langchain_openai import ChatOpenAI
 from langchain.agents import create_agent
 
 
-# Initialize LLM
+# 初始化 LLM
 model = ChatOpenAI(model="gpt-4.1")
 
-# Create tools from the toolkit
+# 从工具包创建工具
 tools = toolkit.get_tools()
 
-# Create agent
+# 创建代理
 agent_executor = create_agent(model, tools)
 
-# Example query for the agent
-example_query = "What's the current volatility of ETH?"
+# 代理的示例查询
+example_query = "ETH 的当前波动率是多少？"
 
-# Execute the agent
+# 执行代理
 events = agent_executor.stream(
     {"messages": [("user", example_query)]},
     stream_mode="values",
@@ -179,12 +179,12 @@ for event in events:
     event["messages"][-1].pretty_print()
 ```
 
-Here's a sample output of everything put together:
+以下是所有内容组合在一起的示例输出：
 
 ```
 ================================ Human Message =================================
 
-What's the current volatility of ETH?
+ETH 的当前波动率是多少？
 ================================== Ai Message ==================================
 Tool Calls:
   eth_volatility (chatcmpl-tool-d66ab9ee8f2c40e5a2634d90c7aeb17d)
@@ -196,22 +196,22 @@ Name: eth_volatility
 0.038%
 ================================== Ai Message ==================================
 
-The current volatility of the ETH/USDT trading pair is 0.038%.
+ETH/USDT 交易对的当前波动率为 0.038%。
 ```
 
 ---
 
-## API reference
+## API 参考
 
-See the [GitHub page](https://github.com/OpenGradient/og-langchain) for more detail.
+有关更多详细信息，请参阅 [GitHub 页面](https://github.com/OpenGradient/og-langchain)。
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/tools/opengradient_toolkit.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/tools/opengradient_toolkit.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [通过 MCP 将这些文档连接到 Claude、VSCode 等](/use-these-docs) 以获取实时答案。
 </Callout>
 </div>

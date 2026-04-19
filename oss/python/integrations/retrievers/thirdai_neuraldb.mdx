@@ -1,57 +1,55 @@
 ---
-title: "NeuralDB integration"
-description: "Integrate with the NeuralDB retriever using LangChain Python."
+title: "NeuralDB 集成"
+description: "使用 LangChain Python 与 NeuralDB 检索器集成。"
 ---
 
-NeuralDB is a CPU-friendly and fine-tunable retrieval engine developed by ThirdAI.
+NeuralDB 是由 ThirdAI 开发的 CPU 友好且可微调的检索引擎。
 
-### **Initialization**
+### **初始化**
 
-There are two initialization methods:
+有两种初始化方法：
 
-- From Scratch: Basic model
-- From Checkpoint: Load a model that was previously saved
+- 从头开始：基础模型
+- 从检查点：加载先前保存的模型
 
-For all of the following initialization methods, the `thirdai_key` parameter can be ommitted if the `THIRDAI_KEY` environment variable is set.
+对于以下所有初始化方法，如果设置了 `THIRDAI_KEY` 环境变量，则可以省略 `thirdai_key` 参数。
 
-ThirdAI API keys can be obtained at [www.thirdai.com/try-bolt/](https://www.thirdai.com/try-bolt/)
+ThirdAI API 密钥可在 [www.thirdai.com/try-bolt/](https://www.thirdai.com/try-bolt/) 获取。
 
 ```python
 from langchain_community.retrievers import NeuralDBRetriever
 
-# From scratch
+# 从头开始
 retriever = NeuralDBRetriever.from_scratch(thirdai_key="your-thirdai-key")
 
-# From checkpoint
+# 从检查点
 retriever = NeuralDBRetriever.from_checkpoint(
-    # Path to a NeuralDB checkpoint. For example, if you call
-    # retriever.save("/path/to/checkpoint.ndb") in one script, then you can
-    # call NeuralDBRetriever.from_checkpoint("/path/to/checkpoint.ndb") in
-    # another script to load the saved model.
+    # NeuralDB 检查点的路径。例如，如果您在一个脚本中调用
+    # retriever.save("/path/to/checkpoint.ndb")，那么您可以在
+    # 另一个脚本中调用 NeuralDBRetriever.from_checkpoint("/path/to/checkpoint.ndb") 来加载保存的模型。
     checkpoint="/path/to/checkpoint.ndb",
     thirdai_key="your-thirdai-key",
 )
 ```
 
-### **Inserting document sources**
+### **插入文档源**
 
 ```python
 retriever.insert(
-    # If you have PDF, DOCX, or CSV files, you can directly pass the paths to the documents
+    # 如果您有 PDF、DOCX 或 CSV 文件，可以直接传递文档路径
     sources=["/path/to/doc.pdf", "/path/to/doc.docx", "/path/to/doc.csv"],
-    # When True this means that the underlying model in the NeuralDB will
-    # undergo unsupervised pretraining on the inserted files. Defaults to True.
+    # 当为 True 时，表示 NeuralDB 中的基础模型将
+    # 对插入的文件进行无监督预训练。默认为 True。
     train=True,
-    # Much faster insertion with a slight drop in performance. Defaults to True.
+    # 插入速度更快，但性能略有下降。默认为 True。
     fast_mode=True,
 )
 
 from thirdai import neural_db as ndb
 
 retriever.insert(
-    # If you have files in other formats, or prefer to configure how
-    # your files are parsed, then you can pass in NeuralDB document objects
-    # like this.
+    # 如果您有其他格式的文件，或者更喜欢配置文件的解析方式，
+    # 那么您可以像这样传递 NeuralDB 文档对象。
     sources=[
         ndb.PDF(
             "/path/to/doc.pdf",
@@ -64,36 +62,36 @@ retriever.insert(
 )
 ```
 
-### **Retrieving documents**
+### **检索文档**
 
-To query the retriever, you can use the standard LangChain retriever method `get_relevant_documents`, which returns a list of LangChain Document objects. Each document object represents a chunk of text from the indexed files. For example, it may contain a paragraph from one of the indexed PDF files. In addition to the text, the document's metadata field contains information such as the document's ID, the source of this document (which file it came from), and the score of the document.
+要查询检索器，您可以使用标准的 LangChain 检索器方法 `get_relevant_documents`，该方法返回一个 LangChain Document 对象列表。每个文档对象表示索引文件中的一个文本块。例如，它可能包含来自某个索引 PDF 文件的一个段落。除了文本之外，文档的元数据字段还包含文档 ID、文档来源（来自哪个文件）以及文档得分等信息。
 
 ```python
-# This returns a list of LangChain Document objects
+# 这将返回一个 LangChain Document 对象列表
 documents = retriever.invoke("query", top_k=10)
 ```
 
-### **Fine tuning**
+### **微调**
 
-NeuralDBRetriever can be fine-tuned to user behavior and domain-specific knowledge. It can be fine-tuned in two ways:
+NeuralDBRetriever 可以针对用户行为和特定领域知识进行微调。它可以通过两种方式进行微调：
 
-1. Association: the retriever associates a source phrase with a target phrase. When the retriever sees the source phrase, it will also consider results that are relevant to the target phrase.
-2. Upvoting: the retriever upweights the score of a document for a specific query. This is useful when you want to fine-tune the retriever to user behavior. For example, if a user searches "how is a car manufactured" and likes the returned document with id 52, then we can upvote the document with id 52 for the query "how is a car manufactured".
+1. 关联：检索器将源短语与目标短语关联起来。当检索器看到源短语时，它也会考虑与目标短语相关的结果。
+2. 点赞：检索器会提高特定查询的文档得分。这在您希望针对用户行为微调检索器时非常有用。例如，如果用户搜索“汽车是如何制造的”并喜欢返回的 ID 为 52 的文档，那么我们可以为查询“汽车是如何制造的”点赞 ID 为 52 的文档。
 
 ```python
-retriever.associate(source="source phrase", target="target phrase")
+retriever.associate(source="源短语", target="目标短语")
 retriever.associate_batch(
     [
-        ("source phrase 1", "target phrase 1"),
-        ("source phrase 2", "target phrase 2"),
+        ("源短语 1", "目标短语 1"),
+        ("源短语 2", "目标短语 2"),
     ]
 )
 
-retriever.upvote(query="how is a car manufactured", document_id=52)
+retriever.upvote(query="汽车是如何制造的", document_id=52)
 retriever.upvote_batch(
     [
-        ("query 1", 52),
-        ("query 2", 20),
+        ("查询 1", 52),
+        ("查询 2", 20),
     ]
 )
 ```
@@ -102,9 +100,9 @@ retriever.upvote_batch(
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/retrievers/thirdai_neuraldb.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/retrievers/thirdai_neuraldb.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [通过 MCP 将这些文档连接到 Claude、VSCode 等，以获取实时答案](/use-these-docs)。
 </Callout>
 </div>

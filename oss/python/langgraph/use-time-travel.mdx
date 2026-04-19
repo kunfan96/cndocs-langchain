@@ -1,31 +1,31 @@
 ---
-title: Use time-travel
-sidebarTitle: Time travel
-description: Replay past executions and fork to explore alternative paths in LangGraph
+title: 使用时间旅行
+sidebarTitle: 时间旅行
+description: 在 LangGraph 中重放过去的执行并分叉以探索替代路径
 ---
 
-## Overview
+## 概述
 
-LangGraph supports time travel through [checkpoints](/oss/python/langgraph/persistence#checkpoints):
+LangGraph 通过[检查点](/oss/python/langgraph/persistence#checkpoints)支持时间旅行：
 
-- **[Replay](#replay)**: Retry from a prior checkpoint.
-- **[Fork](#fork)**: Branch from a prior checkpoint with modified state to explore an alternative path.
+- **[重放](#replay)**：从先前的检查点重试。
+- **[分叉](#fork)**：从先前的检查点分支，使用修改后的状态探索替代路径。
 
-Both work by resuming from a prior checkpoint. Nodes before the checkpoint are not re-executed (results are already saved). Nodes after the checkpoint re-execute, including any LLM calls, API requests, and [interrupts](/oss/python/langgraph/interrupts) (which may produce different results).
+两者都通过从先前的检查点恢复来工作。检查点之前的节点不会重新执行（结果已保存）。检查点之后的节点会重新执行，包括任何 LLM 调用、API 请求和[中断](/oss/python/langgraph/interrupts)（这些可能会产生不同的结果）。
 
-## Replay
+## 重放
 
-Invoke the graph with a prior checkpoint's config to replay from that point.
+使用先前检查点的配置调用图，从该点重放。
 
 <Warning>
 
-Replay re-executes nodes—it doesn't just read from cache. LLM calls, API requests, and [interrupts](/oss/python/langgraph/interrupts) fire again and may return different results. Replaying from the final checkpoint (no `next` nodes) is a no-op.
+重放会重新执行节点——它不仅仅是从缓存中读取。LLM 调用、API 请求和[中断](/oss/python/langgraph/interrupts)会再次触发，并可能返回不同的结果。从最终检查点（没有 `next` 节点）重放是一个无操作。
 
 </Warning>
 
-![Replay](/oss/images/re_play.png)
+![重放](/oss/images/re_play.png)
 
-Use [`get_state_history`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.CompiledStateGraph.get_state_history) to find the checkpoint you want to replay from, then call [`invoke`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.CompiledStateGraph.invoke) with that checkpoint's config:
+使用 [`get_state_history`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.CompiledStateGraph.get_state_history) 查找要从中重放的检查点，然后使用该检查点的配置调用 [`invoke`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.CompiledStateGraph.invoke)：
 
 ```python
 from langgraph.graph import StateGraph, START
@@ -76,15 +76,15 @@ replay_result = graph.invoke(None, before_joke.config)
 
 
 
-## Fork
+## 分叉
 
-Fork creates a new branch from a past checkpoint with modified state. Call [`update_state`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.CompiledStateGraph.update_state) on a prior checkpoint to create the fork, then [`invoke`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.CompiledStateGraph.invoke) with `None` to continue execution.
+分叉从过去的检查点创建一个新分支，并修改状态。在先前的检查点调用 [`update_state`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.CompiledStateGraph.update_state) 以创建分叉，然后使用 `None` 调用 [`invoke`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.CompiledStateGraph.invoke) 以继续执行。
 
-![Fork](/oss/images/checkpoints_full_story.jpg)
+![分叉](/oss/images/checkpoints_full_story.jpg)
 
 <Warning>
 
-`update_state` does **not** roll back a thread. It creates a new checkpoint that branches from the specified point. The original execution history remains intact.
+`update_state` **不会**回滚线程。它会创建一个从指定点分支的新检查点。原始执行历史保持不变。
 
 </Warning>
 
@@ -107,17 +107,17 @@ print(fork_result["joke"])  # A joke about chickens, not socks
 
 
 
-### From a specific node
+### 从特定节点
 
-When you call [`update_state`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.CompiledStateGraph.update_state), values are applied using the specified node's writers (including [reducers](/oss/python/langgraph/graph-api#reducers)). The checkpoint records that node as having produced the update, and execution resumes from that node's successors.
+当您调用 [`update_state`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.CompiledStateGraph.update_state) 时，值使用指定节点的写入器（包括[归约器](/oss/python/langgraph/graph-api#reducers)）应用。检查点记录该节点产生了更新，并从该节点的后继者恢复执行。
 
-By default, LangGraph infers `as_node` from the checkpoint's version history. When forking from a specific checkpoint, this inference is almost always correct.
+默认情况下，LangGraph 从检查点的版本历史推断 `as_node`。当从特定检查点分叉时，此推断几乎总是正确的。
 
-Specify `as_node` explicitly when:
+在以下情况下明确指定 `as_node`：
 
-- **Parallel branches**: Multiple nodes updated state in the same step, and LangGraph can't determine which was last (`InvalidUpdateError`).
-- **No execution history**: Setting up state on a fresh thread (common in [testing](/oss/python/langgraph/test)).
-- **Skipping nodes**: Set `as_node` to a later node to make the graph think that node already ran.
+- **并行分支**：多个节点在同一步骤中更新了状态，LangGraph 无法确定哪个是最后一个（`InvalidUpdateError`）。
+- **无执行历史**：在新线程上设置状态（在[测试](/oss/python/langgraph/test)中常见）。
+- **跳过节点**：将 `as_node` 设置为后面的节点，使图认为该节点已运行。
 
 ```python
 # graph: generate_topic -> write_joke
@@ -134,9 +134,9 @@ fork_config = graph.update_state(
 
 
 
-## Interrupts
+## 中断
 
-If your graph uses [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) for [human-in-the-loop](/oss/python/langgraph/interrupts) workflows, interrupts are always re-triggered during time travel. The node containing the interrupt re-executes, and `interrupt()` pauses for a new `Command(resume=...)`.
+如果您的图使用 [`interrupt`](https://reference.langchain.com/python/langgraph/types/interrupt) 进行[人机回环](/oss/python/langgraph/interrupts)工作流，中断在时间旅行期间总是会重新触发。包含中断的节点会重新执行，并且 `interrupt()` 会暂停以等待新的 `Command(resume=...)`。
 
 ```python
 from langgraph.types import interrupt, Command
@@ -187,9 +187,9 @@ graph.invoke(Command(resume="Bob"), fork_config)
 
 
 
-### Multiple interrupts
+### 多个中断
 
-If your graph collects input at several points (for example, a multi-step form), you can fork from between the interrupts to change a later answer without re-asking earlier questions.
+如果您的图在多个点收集输入（例如，一个多步骤表单），您可以在中断之间分叉以更改后面的答案，而无需重新询问前面的问题。
 
 ```python
 def ask_name(state):
@@ -216,16 +216,16 @@ result = graph.invoke(None, fork_config)
 
 
 
-## Subgraphs
+## 子图
 
-Time travel with [subgraphs](/oss/python/langgraph/use-subgraphs) depends on whether the subgraph has its own checkpointer. This determines the granularity of checkpoints you can time travel from.
+使用[子图](/oss/python/langgraph/use-subgraphs)进行时间旅行取决于子图是否拥有自己的检查点。这决定了您可以从中进行时间旅行的检查点粒度。
 
 <Tabs>
-<Tab title="Inherited checkpointer (default)">
+<Tab title="继承检查点（默认）">
 
-By default, a subgraph inherits the parent's checkpointer. The parent treats the entire subgraph as a **single super-step** — there is only one parent-level checkpoint for the whole subgraph execution. Time traveling from before the subgraph re-executes it from scratch.
+默认情况下，子图继承父级的检查点。父级将整个子图视为**单个超级步骤**——整个子图执行只有一个父级检查点。从子图之前进行时间旅行会从头开始重新执行它。
 
-You cannot time travel to a point *between* nodes in a default subgraph — you can only time travel from the parent level.
+您无法在默认子图中时间旅行到节点*之间*的点——您只能从父级进行时间旅行。
 
 ```python
 # Subgraph without its own checkpointer (default)
@@ -266,11 +266,11 @@ result = graph.invoke(None, fork_config)
 
 
 </Tab>
-<Tab title="Subgraph checkpointer">
+<Tab title="子图检查点">
 
-Set `checkpointer=True` on the subgraph to give it its own checkpoint history. This creates checkpoints at each step **within** the subgraph, allowing you to time travel from a specific point inside it — for example, between two interrupts.
+在子图上设置 `checkpointer=True` 以赋予其自己的检查点历史。这会在子图**内部**的每个步骤创建检查点，允许您从中特定点进行时间旅行——例如，在两个中断之间。
 
-Use [`get_state`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.CompiledStateGraph.get_state) with `subgraphs=True` to access the subgraph's own checkpoint config, then fork from it:
+使用 [`get_state`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.CompiledStateGraph.get_state) 并设置 `subgraphs=True` 以访问子图自己的检查点配置，然后从中分叉：
 
 ```python
 # Subgraph with its own checkpointer
@@ -314,15 +314,15 @@ result = graph.invoke(None, fork_config)
 </Tab>
 </Tabs>
 
-See [subgraph persistence](/oss/python/langgraph/use-subgraphs#subgraph-persistence) for more on configuring subgraph checkpointers.
+有关配置子图检查点器的更多信息，请参见[子图持久化](/oss/python/langgraph/use-subgraphs#subgraph-persistence)。
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/use-time-travel.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/use-time-travel.mdx) 或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [通过 MCP 将这些文档连接到 Claude、VSCode 等](/use-these-docs) 以获取实时答案。
 </Callout>
 </div>

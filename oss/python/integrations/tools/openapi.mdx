@@ -1,27 +1,27 @@
 ---
-title: "OpenAPI toolkit integration"
-description: "Integrate with the OpenAPI toolkit using LangChain Python."
+title: "OpenAPI 工具包集成"
+description: "使用 LangChain Python 与 OpenAPI 工具包集成。"
 ---
 
-We can construct agents to consume arbitrary APIs, here APIs conformant to the `OpenAPI`/`Swagger` specification.
+我们可以构建代理来消费任意 API，这些 API 符合 `OpenAPI`/`Swagger` 规范。
 
 ```python
-# NOTE: In this example. We must set `allow_dangerous_request=True` to enable the OpenAPI Agent to automatically use the Request Tool.
-# This can be dangerous for calling unwanted requests. Please make sure your custom OpenAPI spec (yaml) is safe.
+# 注意：在此示例中。我们必须设置 `allow_dangerous_request=True` 以启用 OpenAPI 代理自动使用请求工具。
+# 这对于调用不需要的请求可能是危险的。请确保您的自定义 OpenAPI 规范 (yaml) 是安全的。
 ALLOW_DANGEROUS_REQUEST = True
 ```
 
-## 1st example: hierarchical planning agent
+## 第一个示例：分层规划代理
 
-In this example, we'll consider an approach called hierarchical planning, common in robotics and appearing in recent works for LLMs X robotics. We'll see it's a viable approach to start working with a massive API spec AND to assist with user queries that require multiple steps against the API.
+在此示例中，我们将考虑一种称为分层规划的方法，这种方法在机器人技术中很常见，并且最近出现在 LLM X 机器人技术的研究中。我们将看到这是一种可行的方法，可以开始处理庞大的 API 规范，并协助用户查询需要针对 API 执行多个步骤的情况。
 
-The idea is simple: to get coherent agent behavior over long sequences behavior & to save on tokens, we'll separate concerns: a "planner" will be responsible for what endpoints to call and a "controller" will be responsible for how to call them.
+这个想法很简单：为了在长序列行为上获得连贯的代理行为并节省令牌，我们将分离关注点：一个“规划器”负责确定要调用哪些端点，一个“控制器”负责如何调用它们。
 
-In the initial implementation, the planner is an LLM chain that has the name and a short description for each endpoint in context. The controller is an LLM agent that is instantiated with documentation for only the endpoints for a particular plan. There's a lot left to get this working very robustly :)
+在初始实现中，规划器是一个 LLM 链，其上下文中包含每个端点的名称和简短描述。控制器是一个 LLM 代理，仅使用特定计划的端点文档进行实例化。要使此功能非常健壮，还有很多工作要做 :)
 
 ---
 
-### To start, let's collect some OpenAPI specs
+### 首先，收集一些 OpenAPI 规范
 
 ```python
 import os
@@ -29,7 +29,7 @@ import os
 import yaml
 ```
 
-You will be able to get OpenAPI specs from here: [APIs-guru/openapi-directory](https://github.com/APIs-guru/openapi-directory)
+您可以从这里获取 OpenAPI 规范：[APIs-guru/openapi-directory](https://github.com/APIs-guru/openapi-directory)
 
 ```python
 !wget https://raw.githubusercontent.com/openai/openai-openapi/master/openapi.yaml -O openai_openapi.yaml
@@ -92,10 +92,10 @@ spotify_api_spec = reduce_openapi_spec(raw_spotify_api_spec)
 
 ---
 
-We'll work with the Spotify API as one of the examples of a somewhat complex API. There's a bit of auth-related setup to do if you want to replicate this.
+我们将使用 Spotify API 作为稍微复杂 API 的示例之一。如果您想复制此示例，需要进行一些与身份验证相关的设置。
 
-- You'll have to set up an application in the Spotify developer console, documented in the [Spotify authorization guide](https://developer.spotify.com/documentation/general/guides/authorization/), to get credentials: `CLIENT_ID`, `CLIENT_SECRET`, and `REDIRECT_URI`.
-- To get an access tokens (and keep them fresh), you can implement the oauth flows, or you can use `spotipy`. If you've set your Spotify creedentials as environment variables `SPOTIPY_CLIENT_ID`, `SPOTIPY_CLIENT_SECRET`, and `SPOTIPY_REDIRECT_URI`, you can use the helper functions below:
+- 您必须在 Spotify 开发者控制台中设置一个应用程序，记录在 [Spotify 授权指南](https://developer.spotify.com/documentation/general/guides/authorization/) 中，以获取凭据：`CLIENT_ID`、`CLIENT_SECRET` 和 `REDIRECT_URI`。
+- 要获取访问令牌（并保持其新鲜），您可以实现 oauth 流程，或者使用 `spotipy`。如果您已将 Spotify 凭据设置为环境变量 `SPOTIPY_CLIENT_ID`、`SPOTIPY_CLIENT_SECRET` 和 `SPOTIPY_REDIRECT_URI`，则可以使用以下辅助函数：
 
 ```python
 import spotipy.util as util
@@ -112,12 +112,12 @@ def construct_spotify_auth_headers(raw_spec: dict):
     return {"Authorization": f"Bearer {access_token}"}
 
 
-# Get API credentials.
+# 获取 API 凭证。
 headers = construct_spotify_auth_headers(raw_spotify_api_spec)
 requests_wrapper = RequestsWrapper(headers=headers)
 ```
 
-### How big is this spec?
+### 此规范有多大？
 
 ```python
 endpoints = [
@@ -150,9 +150,9 @@ count_tokens(yaml.dump(raw_spotify_api_spec))
 80326
 ```
 
-### Let's see some examples
+### 看一些示例
 
-Starting with GPT-4. (Some robustness iterations under way for GPT-3 family.)
+从 GPT-4 开始。（GPT-3 系列正在进行一些健壮性迭代。）
 
 ```python
 from langchain_community.agent_toolkits.openapi import planner
@@ -169,7 +169,7 @@ llm = ChatOpenAI(model_name="gpt-4", temperature=0.0)
 ```
 
 ```python
-# NOTE: set allow_dangerous_requests manually for security concern
+# 注意：出于安全考虑，手动设置 allow_dangerous_requests
 spotify_agent = planner.create_openapi_agent(
     spotify_api_spec,
     requests_wrapper,
@@ -287,7 +287,7 @@ Final Answer: The recommended blues song for you is "Get Away Jordan" with the t
 'The recommended blues song for you is "Get Away Jordan" with the track ID: 03lXHmokj9qsXspNsPoirR.'
 ```
 
-#### Try another API
+#### 尝试另一个 API
 
 ```python
 headers = {"Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}"}
@@ -391,11 +391,11 @@ Final Answer: A short piece of advice for improving communication skills is to m
 'A short piece of advice for improving communication skills is to make sure to listen.'
 ```
 
-Takes awhile to get there!
+需要一段时间才能达到目标！
 
-## 2nd example: "json explorer" agent
+## 第二个示例：“json 探索器”代理
 
-Here's an agent that's not particularly practical, but neat! The agent has access to 2 toolkits. One comprises tools to interact with json: one tool to list the keys of a json object and another tool to get the value for a given key. The other toolkit comprises `requests` wrappers to send GET and POST requests. This agent consumes a lot calls to the language model, but does a surprisingly decent job.
+这是一个不太实用但很巧妙的代理！该代理可以访问 2 个工具包。一个包含与 json 交互的工具：一个工具用于列出 json 对象的键，另一个工具用于获取给定键的值。另一个工具包包含用于发送 GET 和 POST 请求的 `requests` 包装器。此代理消耗大量语言模型调用，但做得出奇地好。
 
 ```python
 from langchain_community.agent_toolkits import OpenAPIToolkit, create_openapi_agent
@@ -544,9 +544,9 @@ Final Answer: The response of the POST request is {"id":"cmpl-70Ivzip3dazrIXU8DS
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/tools/openapi.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/tools/openapi.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [连接这些文档](/use-these-docs) 到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 </div>

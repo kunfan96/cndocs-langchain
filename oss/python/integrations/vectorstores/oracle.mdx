@@ -1,22 +1,22 @@
 ---
-title: "Oracle AI vector search - integration"
-description: "Integrate with the Oracle AI vector search - vector store using LangChain Python."
+title: "Oracle AI 向量搜索 - 集成"
+description: "使用 LangChain Python 与 Oracle AI 向量搜索 - 向量存储进行集成。"
 ---
 
-Oracle AI Database supports AI workloads where you query data by **meaning** (semantics), not just keywords. It combines **semantic search over unstructured content** with **relational filtering over business data** in a single system—so you can build retrieval workflows (like RAG) without introducing a separate vector database and fragmenting data across multiple platforms.
+Oracle AI 数据库支持 AI 工作负载，您可以通过**含义**（语义）而不仅仅是关键词来查询数据。它将**非结构化内容的语义搜索**与**业务数据的关系型过滤**结合在一个系统中——因此您可以构建检索工作流（如 RAG），而无需引入单独的向量数据库或将数据分散在多个平台上。
 
-This guide demonstrates how to use `OracleVS` (the LangChain vector store integration for Oracle AI Vector Search) to:
+本指南演示如何使用 `OracleVS`（Oracle AI 向量搜索的 LangChain 向量存储集成）来：
 
-- Ingest documents and embeddings into Oracle
-- Run similarity search
-- Create HNSW and IVF indexes
-- Apply metadata filters for advanced retrieval
-- Enable hybrid search (keyword + semantic) in Oracle Database 26ai
-- Run full-text search using Oracle Text
+- 将文档和嵌入摄取到 Oracle 中
+- 运行相似性搜索
+- 创建 HNSW 和 IVF 索引
+- 应用元数据过滤以进行高级检索
+- 在 Oracle Database 26ai 中启用混合搜索（关键词 + 语义）
+- 使用 Oracle Text 运行全文搜索
 
-### Prerequisites
+### 先决条件
 
-Install `langchain-oracledb`. The `python-oracledb` driver will be installed automatically as a dependency.
+安装 `langchain-oracledb`。`python-oracledb` 驱动程序将作为依赖项自动安装。
 
 <CodeGroup>
 ```bash pip
@@ -27,14 +27,14 @@ uv add langchain-oracledb
 ```
 </CodeGroup>
 
-### Connect to Oracle Database
+### 连接到 Oracle 数据库
 
-The following sample code will show how to connect to Oracle Database. By default, python-oracledb runs in a ‘Thin’ mode which connects directly to Oracle Database. This mode does not need Oracle Client libraries. However, some additional functionality is available when python-oracledb uses them. Python-oracledb is said to be in ‘Thick’ mode when Oracle Client libraries are used. Both modes have comprehensive functionality supporting the Python Database API v2.0 Specification. See the following [guide](https://python-oracledb.readthedocs.io/en/latest/user_guide/appendix_a.html#featuresummary) that talks about features supported in each mode. You might want to switch to thick-mode if you are unable to use thin-mode.
+以下示例代码将展示如何连接到 Oracle 数据库。默认情况下，python-oracledb 在“Thin”模式下运行，该模式直接连接到 Oracle 数据库。此模式不需要 Oracle 客户端库。但是，当 python-oracledb 使用它们时，会提供一些额外的功能。当使用 Oracle 客户端库时，python-oracledb 被称为“Thick”模式。两种模式都全面支持 Python 数据库 API v2.0 规范。请参阅以下[指南](https://python-oracledb.readthedocs.io/en/latest/user_guide/appendix_a.html#featuresummary)，了解每种模式支持的功能。如果您无法使用 Thin 模式，您可能需要切换到 Thick 模式。
 
 ```python
 import oracledb
 
-# Please update with your username, password, hostname, port and service_name
+# 请使用您的用户名、密码、主机名、端口和服务名称进行更新
 username = "<username>"
 password = "<password>"
 dsn = "<hostname>:<port>/<service_name>"
@@ -43,7 +43,7 @@ connection = oracledb.connect(user=username, password=password, dsn=dsn)
 print("Connection successful!")
 ```
 
-### Import the required dependencies
+### 导入所需的依赖项
 
 ```python
 from langchain_oracledb.vectorstores import oraclevs
@@ -53,37 +53,37 @@ from langchain_core.documents import Document
 from langchain_huggingface import HuggingFaceEmbeddings
 ```
 
-### Load documents
+### 加载文档
 
 ```python
-# Define a list of documents (The examples below are 5 random documents from Oracle Concepts Manual )
+# 定义文档列表（以下示例是 Oracle 概念手册中的 5 个随机文档）
 
 documents_json_list = [
     {
         "id": "cncpt_15.5.3.2.2_P4",
-        "text": "If the answer to any preceding questions is yes, then the database stops the search and allocates space from the specified tablespace; otherwise, space is allocated from the database default shared temporary tablespace.",
+        "text": "如果任何先前问题的答案为是，则数据库停止搜索并从指定的表空间分配空间；否则，从数据库默认的共享临时表空间分配空间。",
         "link": "https://docs.oracle.com/en/database/oracle/oracle-database/23/cncpt/logical-storage-structures.html#GUID-5387D7B2-C0CA-4C1E-811B-C7EB9B636442",
     },
     {
         "id": "cncpt_15.5.5_P1",
-        "text": "A tablespace can be online (accessible) or offline (not accessible) whenever the database is open.\nA tablespace is usually online so that its data is available to users. The SYSTEM tablespace and temporary tablespaces cannot be taken offline.",
+        "text": "表空间可以在数据库打开时在线（可访问）或离线（不可访问）。\n表空间通常在线，以便其数据可供用户使用。SYSTEM 表空间和临时表空间不能离线。",
         "link": "https://docs.oracle.com/en/database/oracle/oracle-database/23/cncpt/logical-storage-structures.html#GUID-D02B2220-E6F5-40D9-AFB5-BC69BCEF6CD4",
     },
     {
         "id": "cncpt_22.3.4.3.1_P2",
-        "text": "The database stores LOBs differently from other data types. Creating a LOB column implicitly creates a LOB segment and a LOB index. The tablespace containing the LOB segment and LOB index, which are always stored together, may be different from the tablespace containing the table.\nSometimes the database can store small amounts of LOB data in the table itself rather than in a separate LOB segment.",
+        "text": "数据库存储 LOB 的方式与其他数据类型不同。创建 LOB 列会隐式创建 LOB 段和 LOB 索引。包含 LOB 段和 LOB 索引的表空间（它们始终存储在一起）可能与包含表的表空间不同。\n有时数据库可以将少量 LOB 数据存储在表本身中，而不是单独的 LOB 段中。",
         "link": "https://docs.oracle.com/en/database/oracle/oracle-database/23/cncpt/concepts-for-database-developers.html#GUID-3C50EAB8-FC39-4BB3-B680-4EACCE49E866",
     },
     {
         "id": "cncpt_22.3.4.3.1_P3",
-        "text": "The LOB segment stores data in pieces called chunks. A chunk is a logically contiguous set of data blocks and is the smallest unit of allocation for a LOB. A row in the table stores a pointer called a LOB locator, which points to the LOB index. When the table is queried, the database uses the LOB index to quickly locate the LOB chunks.",
+        "text": "LOB 段以称为块的片段存储数据。块是数据块的逻辑连续集合，是 LOB 分配的最小单位。表中的一行存储一个称为 LOB 定位器的指针，该指针指向 LOB 索引。当查询表时，数据库使用 LOB 索引快速定位 LOB 块。",
         "link": "https://docs.oracle.com/en/database/oracle/oracle-database/23/cncpt/concepts-for-database-developers.html#GUID-3C50EAB8-FC39-4BB3-B680-4EACCE49E866",
     },
 ]
 ```
 
 ```python
-# Create LangChain Documents
+# 创建 LangChain 文档
 
 documents_langchain = []
 
@@ -93,22 +93,21 @@ for doc in documents_json_list:
     documents_langchain.append(doc_langchain)
 ```
 
-### Create vector stores with different distance metrics
+### 使用不同的距离度量创建向量存储
 
-First we will create three vector stores each with different distance functions. Since we have not created indices in them yet, they will just create tables for now. Later we will use these vector stores to create HNSW indicies. To understand more about the different types of indices Oracle AI Vector Search supports, refer to the following [guide](https://docs.oracle.com/en/database/oracle/oracle-database/23/vecse/manage-different-categories-vector-indexes.html).
+首先，我们将创建三个具有不同距离函数的向量存储。由于我们尚未在其中创建索引，它们目前只会创建表。稍后我们将使用这些向量存储来创建 HNSW 索引。要了解有关 Oracle AI 向量搜索支持的不同索引类型的更多信息，请参阅以下[指南](https://docs.oracle.com/en/database/oracle/oracle-database/23/vecse/manage-different-categories-vector-indexes.html)。
 
-You can manually connect to the Oracle Database and will see three tables :
-`Documents_DOT`, `Documents_COSINE` and `Documents_EUCLIDEAN`.
+您可以手动连接到 Oracle 数据库，并将看到三个表：
+`Documents_DOT`、`Documents_COSINE` 和 `Documents_EUCLIDEAN`。
 
-We will then create three additional tables `Documents_DOT_IVF`, `Documents_COSINE_IVF` and `Documents_EUCLIDEAN_IVF` which will be used
-to create IVF indicies on the tables instead of HNSW indices.
+然后，我们将创建三个额外的表 `Documents_DOT_IVF`、`Documents_COSINE_IVF` 和 `Documents_EUCLIDEAN_IVF`，这些表将用于在表上创建 IVF 索引，而不是 HNSW 索引。
 
 ```python
-# Ingest documents into Oracle Vector Store using different distance strategies
+# 使用不同的距离策略将文档摄取到 Oracle 向量存储中
 
-# When using our API calls, start by initializing your vector store with a subset of your documents
-# through from_documents(), then incrementally add more documents using add_texts().
-# This approach prevents system overload and ensures efficient document processing.
+# 使用我们的 API 调用时，首先通过 from_documents() 使用文档子集初始化向量存储，
+# 然后使用 add_texts() 逐步添加更多文档。
+# 这种方法可以防止系统过载并确保高效的文档处理。
 
 model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
 
@@ -134,7 +133,7 @@ vector_store_euclidean = OracleVS.from_documents(
     distance_strategy=DistanceStrategy.EUCLIDEAN_DISTANCE,
 )
 
-# Ingest documents into Oracle Vector Store using different distance strategies
+# 使用不同的距离策略将文档摄取到 Oracle 向量存储中
 vector_store_dot_ivf = OracleVS.from_documents(
     documents_langchain,
     model,
@@ -158,16 +157,16 @@ vector_store_euclidean_ivf = OracleVS.from_documents(
 )
 ```
 
-### Add and delete operations for texts, along with basic similarity search
+### 文本的添加和删除操作以及基本相似性搜索
 
 ```python
 def manage_texts(vector_stores):
     """
-    Adds texts to each vector store, demonstrates error handling for duplicate additions,
-    and performs deletion of texts. Showcases similarity searches and index creation for each vector store.
+    向每个向量存储添加文本，演示重复添加的错误处理，并执行文本删除。
+    展示相似性搜索和为每个向量存储创建索引。
 
     Args:
-    - vector_stores (list): A list of OracleVS instances.
+    - vector_stores (list): OracleVS 实例列表。
     """
     texts = ["Rohan", "Shailendra"]
     metadata = [
@@ -176,20 +175,20 @@ def manage_texts(vector_stores):
     ]
 
     for i, vs in enumerate(vector_stores, start=1):
-        # Adding texts
+        # 添加文本
         try:
             vs.add_texts(texts, metadata)
-            print(f"\n\n\nAdd texts complete for vector store {i}\n\n\n")
+            print(f"\n\n\n向量存储 {i} 的文本添加完成\n\n\n")
         except Exception as ex:
-            print(f"\n\n\nExpected error on duplicate add for vector store {i}\n\n\n")
+            print(f"\n\n\n向量存储 {i} 的预期重复添加错误\n\n\n")
 
-        # Deleting texts using the value of 'id'
+        # 使用 'id' 的值删除文本
         vs.delete([metadata[0]["id"]])
-        print(f"\n\n\nDelete texts complete for vector store {i}\n\n\n")
+        print(f"\n\n\n向量存储 {i} 的文本删除完成\n\n\n")
 
-        # Similarity search
+        # 相似性搜索
         results = vs.similarity_search("How are LOBS stored in Oracle Database", 2)
-        print(f"\n\n\nSimilarity search results for vector store {i}: {results}\n\n\n")
+        print(f"\n\n\n向量存储 {i} 的相似性搜索结果: {results}\n\n\n")
 
 
 vector_store_list = [
@@ -203,24 +202,24 @@ vector_store_list = [
 manage_texts(vector_store_list)
 ```
 
-### Index creation with specific parameters
+### 使用特定参数创建索引
 
 ```python
 def create_search_indices(connection):
     """
-    Creates search indices for the vector stores, each with specific parameters tailored to their distance strategy.
+    为向量存储创建搜索索引，每个索引都针对其距离策略进行了特定参数调整。
     """
-    # Index for DOT_PRODUCT strategy
-    # Notice we are creating a HNSW index with default parameters
-    # This will default to creating a HNSW index with 8 Parallel Workers and use the Default Accuracy used by Oracle AI Vector Search
+    # DOT_PRODUCT 策略的索引
+    # 注意我们正在使用默认参数创建 HNSW 索引
+    # 这将默认创建具有 8 个并行工作线程的 HNSW 索引，并使用 Oracle AI 向量搜索的默认精度
     oraclevs.create_index(
         connection,
         vector_store_dot,
         params={"idx_name": "hnsw_idx1", "idx_type": "HNSW"},
     )
 
-    # Index for COSINE strategy with specific parameters
-    # Notice we are creating a HNSW index with parallel 16 and Target Accuracy Specification as 97 percent
+    # COSINE 策略的索引，具有特定参数
+    # 注意我们正在创建具有并行 16 和目标精度规范为 97% 的 HNSW 索引
     oraclevs.create_index(
         connection,
         vector_store_max,
@@ -232,8 +231,8 @@ def create_search_indices(connection):
         },
     )
 
-    # Index for EUCLIDEAN_DISTANCE strategy with specific parameters
-    # Notice we are creating a HNSW index by specifying Power User Parameters which are neighbors = 64 and efConstruction = 100
+    # EUCLIDEAN_DISTANCE 策略的索引，具有特定参数
+    # 注意我们正在通过指定高级用户参数（neighbors = 64 和 efConstruction = 100）创建 HNSW 索引
     oraclevs.create_index(
         connection,
         vector_store_euclidean,
@@ -245,9 +244,9 @@ def create_search_indices(connection):
         },
     )
 
-    # Index for DOT_PRODUCT strategy with specific parameters
-    # Notice we are creating an IVF index with default parameters
-    # This will default to creating an IVF index with 8 Parallel Workers and use the Default Accuracy used by Oracle AI Vector Search
+    # DOT_PRODUCT 策略的索引，具有特定参数
+    # 注意我们正在使用默认参数创建 IVF 索引
+    # 这将默认创建具有 8 个并行工作线程的 IVF 索引，并使用 Oracle AI 向量搜索的默认精度
     oraclevs.create_index(
         connection,
         vector_store_dot_ivf,
@@ -257,8 +256,8 @@ def create_search_indices(connection):
         },
     )
 
-    # Index for COSINE strategy with specific parameters
-    # Notice we are creating an IVF index with parallel 32 and Target Accuracy Specification as 90 percent
+    # COSINE 策略的索引，具有特定参数
+    # 注意我们正在创建具有并行 32 和目标精度规范为 90% 的 IVF 索引
     oraclevs.create_index(
         connection,
         vector_store_max_ivf,
@@ -270,75 +269,75 @@ def create_search_indices(connection):
         },
     )
 
-    # Index for EUCLIDEAN_DISTANCE strategy with specific parameters
-    # Notice we are creating an IVF index by specifying Power User Parameters which is neighbor_part = 64
+    # EUCLIDEAN_DISTANCE 策略的索引，具有特定参数
+    # 注意我们正在通过指定高级用户参数（neighbor_part = 64）创建 IVF 索引
     oraclevs.create_index(
         connection,
         vector_store_euclidean_ivf,
         params={"idx_name": "ivf_idx3", "idx_type": "IVF", "neighbor_part": 64},
     )
 
-    print("Index creation complete.")
+    print("索引创建完成。")
 
 
 create_search_indices(connection)
 ```
 
-### Advanced search
+### 高级搜索
 
-Oracle Database 23ai supports pre-filtering, in-filtering, and post-filtering to enhance AI Vector Search capabilities. These filtering mechanisms allow users to apply constraints before, during, and after performing vector similarity searches, improving search performance and accuracy.
+Oracle Database 23ai 支持预过滤、过滤中和后过滤，以增强 AI 向量搜索功能。这些过滤机制允许用户在执行向量相似性搜索之前、期间和之后应用约束，从而提高搜索性能和准确性。
 
-Key Points about Filtering in Oracle 23ai:
+Oracle 23ai 中过滤的关键点：
 
-1. Pre-filtering
-    Applies traditional SQL filters to reduce the dataset before performing the vector similarity search.
-    Helps improve efficiency by limiting the amount of data processed by AI algorithms.
-2. In-filtering
-    Utilizes AI Vector Search to perform similarity searches directly on vector embeddings, using optimized indexes and algorithms.
-    Efficiently filters results based on vector similarity without requiring full dataset scans.
-3. Post-filtering
-    Applies additional SQL filtering to refine the results after the vector similarity search.
-    Allows further refinement based on business logic or additional metadata conditions.
+1. 预过滤
+    应用传统 SQL 过滤器，在执行向量相似性搜索之前减少数据集。
+    通过限制 AI 算法处理的数据量来帮助提高效率。
+2. 过滤中
+    利用 AI 向量搜索直接在向量嵌入上执行相似性搜索，使用优化的索引和算法。
+    基于向量相似性高效过滤结果，而无需扫描整个数据集。
+3. 后过滤
+    在向量相似性搜索之后应用额外的 SQL 过滤以优化结果。
+    允许根据业务逻辑或其他元数据条件进行进一步优化。
 
-**Why is this Important?**
+**为什么这很重要？**
 
-- Performance Optimization: Pre-filtering significantly reduces query execution time, making searches on massive datasets more efficient.
-- Accuracy Enhancement: In-filtering ensures that vector searches are semantically meaningful, improving the quality of search results.
+- 性能优化：预过滤显著减少了查询执行时间，使在海量数据集上的搜索更加高效。
+- 准确性增强：过滤中确保向量搜索在语义上有意义，提高搜索结果的质量。
 
-#### Filter details
+#### 过滤详情
 
-`OracleVS` supports a set of filters that can be applied to `metadata` fields using `filter` parameter. These filters allow you to select and refine data based on various criteria.
+`OracleVS` 支持一组可以使用 `filter` 参数应用于 `metadata` 字段的过滤器。这些过滤器允许您根据各种条件选择和优化数据。
 
-**Available Filter Operators:**
+**可用的过滤器操作符：**
 
-| Operator                   | Description                                                                                                  |
+| 操作符                   | 描述                                                                                                  |
 |----------------------------|--------------------------------------------------------------------------------------------------------------|
-| `\$exists`                 | Field exists.                                                                                                |
-| `\$eq`                     | Field value equals the operand value (`=`).                                                                  |
-| `\$ne`                     | Field exists and value does not equal the operand value (`!=`).                                              |
-| `\$gt`                     | Field value is greater than the operand value (`>`).                                                         |
-| `\$lt`                     | Field value is less than the operand value (`<`).                                                            |
-| `\$gte`                    | Field value is greater than or equal to the operand value (`>=`).                                            |
-| `\$lte`                    | Field value is less than or equal to the operand value (`<=`).                                               |
-| `\$between`                | Field value is between (or equal to) two values in the operand array.                                        |
-| `\$startsWith`             | Field value starts with the operand value.                                                                   |
-| `\$hasSubstring`           | Field value contains the operand as a substring.                                                             |
-| `\$instr`                  | Field value contains the operand as a substring.                                                             |
-| `\$regex`                  | Field value matches the given regular expression pattern.                                                    |
-| `\$like`                   | Field value matches the operand pattern (using SQL-like syntax).                                             |
-| `\$in`                     | Field value equals at least one value in the operand array.                                                  |
-| `\$nin`                    | Field exists, but its value is not equal to any in the operand array, or the field does not exist.           |
-| `\$all`                    | Field value is an array containing all items from the operand array, or a scalar matching a single operand.  |
+| `\$exists`                 | 字段存在。                                                                                                |
+| `\$eq`                     | 字段值等于操作数值 (`=`)。                                                                  |
+| `\$ne`                     | 字段存在且值不等于操作数值 (`!=`)。                                              |
+| `\$gt`                     | 字段值大于操作数值 (`>`)。                                                         |
+| `\$lt`                     | 字段值小于操作数值 (`<`)。                                                            |
+| `\$gte`                    | 字段值大于或等于操作数值 (`>=`)。                                            |
+| `\$lte`                    | 字段值小于或等于操作数值 (`<=`)。                                               |
+| `\$between`                | 字段值在操作数数组中的两个值之间（或等于）。                                        |
+| `\$startsWith`             | 字段值以操作数值开头。                                                                   |
+| `\$hasSubstring`           | 字段值包含操作数作为子字符串。                                                             |
+| `\$instr`                  | 字段值包含操作数作为子字符串。                                                             |
+| `\$regex`                  | 字段值匹配给定的正则表达式模式。                                                    |
+| `\$like`                   | 字段值匹配操作数模式（使用类似 SQL 的语法）。                                             |
+| `\$in`                     | 字段值等于操作数数组中的至少一个值。                                                  |
+| `\$nin`                    | 字段存在，但其值不等于操作数数组中的任何值，或者字段不存在。           |
+| `\$all`                    | 字段值是一个数组，包含操作数数组中的所有项，或者与单个操作数匹配的标量。  |
 
-- You can combine these filters using logical operators:
+- 您可以使用逻辑操作符组合这些过滤器：
 
-| Logical Operator   | Description          |
+| 逻辑操作符   | 描述          |
 |--------------------|----------------------|
-| `\$and`            | Logical AND          |
-| `\$or`             | Logical OR           |
-| `\$nor`            | Logical NOR          |
+| `\$and`            | 逻辑 AND          |
+| `\$or`             | 逻辑 OR           |
+| `\$nor`            | 逻辑 NOR          |
 
-**Example Filter:**
+**示例过滤器：**
 
 ```json
 {
@@ -361,9 +360,9 @@ Key Points about Filtering in Oracle 23ai:
 }
 ```
 
-**Additional Usage Tips:**
+**其他使用技巧：**
 
-- You can omit `$and` when all filters in an object must be satisfied. These two are equivalent:
+- 当对象中的所有过滤器都必须满足时，可以省略 `$and`。这两者是等效的：
 
 ```json
 { "$and": [
@@ -379,26 +378,26 @@ Key Points about Filtering in Oracle 23ai:
 }
 ```
 
-- The `$not` clause can negate a comparison operator:
+- `$not` 子句可以否定比较操作符：
 
 ```json
 { "address.zip": { "$not": { "$eq": "90001" } } }
 ```
 
-- Using `field: scalar` is equivalent to `field: { "$eq": scalar }`:
+- 使用 `field: scalar` 等同于 `field: { "$eq": scalar }`：
 
 ```json
 { "animal": "cat" }
 ```
 
-For more filter examples, refer to the [test specification](https://github.com/oracle/langchain-oracle/blob/main/libs/oracledb/tests/integration_tests/vectorstores/test_oraclevs.py).
+有关更多过滤器示例，请参阅[测试规范](https://github.com/oracle/langchain-oracle/blob/main/libs/oracledb/tests/integration_tests/vectorstores/test_oraclevs.py)。
 
 ```python
-# Conduct advanced searches after creating the indices
+# 创建索引后进行高级搜索
 def conduct_advanced_searches(vector_stores):
     query = "How are LOBS stored in Oracle Database"
-    # Constructing a filter for direct comparison against document metadata
-    # This filter aims to include documents whose metadata 'id' is exactly '2'
+    # 构建一个用于直接与文档元数据进行比较的过滤器
+    # 此过滤器旨在包含元数据 'id' 恰好为 '2' 的文档
     db_filter = {
         "$and": [
             {"id": "101"},  # FilterCondition
@@ -418,29 +417,29 @@ def conduct_advanced_searches(vector_stores):
     }
 
     for i, vs in enumerate(vector_stores, start=1):
-        print(f"\n--- Vector Store {i} Advanced Searches ---")
-        # Similarity search without a filter
-        print("\nSimilarity search results without filter:")
+        print(f"\n--- 向量存储 {i} 高级搜索 ---")
+        # 不带过滤器的相似性搜索
+        print("\n不带过滤器的相似性搜索结果:")
         print(vs.similarity_search(query, 2))
 
-        # Similarity search with a filter
-        print("\nSimilarity search results with filter:")
+        # 带过滤器的相似性搜索
+        print("\n带过滤器的相似性搜索结果:")
         print(vs.similarity_search(query, 2, filter=db_filter))
 
-        # Similarity search with relevance score
-        print("\nSimilarity search with relevance score:")
+        # 带相关性分数的相似性搜索
+        print("\n带相关性分数的相似性搜索:")
         print(vs.similarity_search_with_score(query, 2))
 
-        # Similarity search with relevance score with filter
-        print("\nSimilarity search with relevance score with filter:")
+        # 带过滤器的带相关性分数的相似性搜索
+        print("\n带过滤器的带相关性分数的相似性搜索:")
         print(vs.similarity_search_with_score(query, 2, filter=db_filter))
 
-        # Max marginal relevance search
-        print("\nMax marginal relevance search results:")
+        # 最大边际相关性搜索
+        print("\n最大边际相关性搜索结果:")
         print(vs.max_marginal_relevance_search(query, 2, fetch_k=20, lambda_mult=0.5))
 
-        # Max marginal relevance search with filter
-        print("\nMax marginal relevance search results with filter:")
+        # 带过滤器的最大边际相关性搜索
+        print("\n带过滤器的最大边际相关性搜索结果:")
         print(
             vs.max_marginal_relevance_search(
                 query, 2, fetch_k=20, lambda_mult=0.5, filter=db_filter
@@ -451,17 +450,17 @@ def conduct_advanced_searches(vector_stores):
 conduct_advanced_searches(vector_store_list)
 ```
 
-### Hybrid search
+### 混合搜索
 
-Oracle Database 26ai supports hybrid search, combining keyword (full-text) and semantic (vector) search into a single retrieval capability. The `langchain-oracledb` integration exposes:
+Oracle Database 26ai 支持混合搜索，将关键词（全文）和语义（向量）搜索结合到单一的检索功能中。`langchain-oracledb` 集成公开了：
 
-- `OracleVectorizerPreference`: creates a DB-side vectorizer preference used by hybrid indexes.
-- `create_hybrid_index` / `acreate_hybrid_index`: creates a HYBRID VECTOR INDEX.
-- `OracleHybridSearchRetriever`: executes keyword, semantic, or hybrid retrieval over an `OracleVS` table.
+- `OracleVectorizerPreference`：创建由混合索引使用的数据库端向量化器首选项。
+- `create_hybrid_index` / `acreate_hybrid_index`：创建 HYBRID VECTOR INDEX。
+- `OracleHybridSearchRetriever`：在 `OracleVS` 表上执行关键词、语义或混合检索。
 
-#### Prerequisites and model configuration
+#### 先决条件和模型配置
 
-When using hybrid search, configure your `OracleVS` with `OracleEmbeddings` so the vectorizer preference exactly matches the embedding configuration. You can further tune the hybrid vector index by supplying additional parameters via `OracleVectorizerPreference`. For details, see the [documentation](https://docs.oracle.com/en/database/oracle/oracle-database/26/vecse/create_preference.html).
+使用混合搜索时，请使用 `OracleEmbeddings` 配置您的 `OracleVS`，以便向量化器首选项与嵌入配置完全匹配。您可以通过 `OracleVectorizerPreference` 提供额外参数来进一步调整混合向量索引。有关详细信息，请参阅[文档](https://docs.oracle.com/en/database/oracle/oracle-database/26/vecse/create_preference.html)。
 
 ```python
 from langchain_core.documents import Document
@@ -473,87 +472,87 @@ from langchain_oracledb.retrievers.hybrid_search import (
     OracleHybridSearchRetriever,
 )
 
-# Use OracleEmbeddings (database-resident model shown)
+# 使用 OracleEmbeddings（显示数据库驻留模型）
 embeddings = OracleEmbeddings(conn=connection, params={"provider": "database", "model": "DB_MODEL"})
 
-# Create/load your vector store
+# 创建/加载您的向量存储
 vs = OracleVS(connection, table_name="DOCS", embedding_function=embeddings)
 
-# Create a vectorizer preference
+# 创建向量化器首选项
 pref = OracleVectorizerPreference.create_preference(
     vector_store=vs, preference_name="PREF_DOCS"
 )
 
-# Create a HYBRID VECTOR INDEX
+# 创建 HYBRID VECTOR INDEX
 create_hybrid_index(
     connection,
     idx_name="IDX_DOCS_HYB",
     vectorizer_preference=pref
 )
 
-# Build a retriever and search
+# 构建检索器并搜索
 retriever = OracleHybridSearchRetriever(
     vector_store=vs,
     idx_name="IDX_DOCS_HYB",
     search_mode="hybrid",     # "hybrid" | "keyword" | "semantic"
     k=5,
-    return_scores=True,       # includes score, text_score, vector_score in metadata
+    return_scores=True,       # 在元数据中包含 score、text_score、vector_score
 )
 
 docs = retriever.invoke("refund policy for premium plan")
 for d in docs:
     print(d.page_content, d.metadata.get("score"), d.metadata.get("text_score"), d.metadata.get("vector_score"))
 
-# Optional cleanup when done with the preference:
+# 完成首选项后的可选清理：
 # pref.drop_preference()
 ```
 
-*Alternative* create the index without an explicit preference:
+*替代方案* 不使用显式首选项创建索引：
 
-- If you don't want to manage a named preference, pass the `vector_store` instead. The function will create a temporary preference, build the index, then drop the preference automatically.
+- 如果您不想管理命名首选项，请传递 `vector_store`。该函数将创建临时首选项，构建索引，然后自动删除首选项。
 
 ```python
 create_hybrid_index(
     connection,
     idx_name="IDX_DOCS_HYB2",
-    vector_store=vs,          # mutually exclusive with vectorizer_preference
+    vector_store=vs,          # 与 vectorizer_preference 互斥
     params={"parallel": 8},
 )
 ```
 
-Notes and tips:
+注意事项和技巧：
 
-- search_mode decides which signals are used:
-  - "keyword": keyword-only
-  - "semantic": vector-only
-  - "hybrid" (default): both combined
-- Pass `DBMS_HYBRID_VECTOR` parameters via the retriever’s params argument.
-- `return_scores=True` adds overall score and component text_score and vector_score to Document.metadata.
-- Async usage is supported via `acreate_hybrid_index` and `OracleHybridSearchRetriever.ainvoke`.
+- search_mode 决定使用哪些信号：
+  - "keyword"：仅关键词
+  - "semantic"：仅向量
+  - "hybrid"（默认）：两者结合
+- 通过检索器的 params 参数传递 `DBMS_HYBRID_VECTOR` 参数。
+- `return_scores=True` 将总体分数以及组件 text_score 和 vector_score 添加到 Document.metadata。
+- 通过 `acreate_hybrid_index` 和 `OracleHybridSearchRetriever.ainvoke` 支持异步用法。
 
-More information:
+更多信息：
 
-- [Understand Hybrid Search](https://docs.oracle.com/en/database/oracle/oracle-database/26/vecse/understand-hybrid-search.html)
+- [了解混合搜索](https://docs.oracle.com/en/database/oracle/oracle-database/26/vecse/understand-hybrid-search.html)
 - [`CREATE_PREFERENCE`](https://docs.oracle.com/en/database/oracle/oracle-database/26/vecse/create_preference.html)
 - [`CREATE_HYBRID_VECTOR_INDEX`](https://docs.oracle.com/en/database/oracle/oracle-database/26/vecse/create-hybrid-vector-index.html)
 - [`DBMS_HYBRID_VECTOR.SEARCH`](https://docs.oracle.com/en/database/oracle/oracle-database/26/vecse/search.html)
 
-### Full-text search (Oracle Text)
+### 全文搜索（Oracle Text）
 
-You can run high-quality keyword search directly against Oracle Database using Oracle Text. The `langchain-oracledb` integration exposes:
+您可以使用 Oracle Text 直接在 Oracle 数据库上运行高质量的关键词搜索。`langchain-oracledb` 集成公开了：
 
-- `create_text_index` / `acreate_text_index`: creates an Oracle Text `SEARCH INDEX` on a column.
-- `OracleTextSearchRetriever`: runs `CONTAINS` queries and returns LangChain `Document` objects.
+- `create_text_index` / `acreate_text_index`：在列上创建 Oracle Text `SEARCH INDEX`。
+- `OracleTextSearchRetriever`：运行 `CONTAINS` 查询并返回 LangChain `Document` 对象。
 
-Indexing options:
+索引选项：
 
-- If you have an `OracleVS` vector store, you can index its built-in "text" column.
-- You can also index any other table/column by providing `table_name` + `column_name` directly.
+- 如果您有 `OracleVS` 向量存储，您可以索引其内置的 "text" 列。
+- 您也可以通过直接提供 `table_name` + `column_name` 来索引任何其他表/列。
 
 ```python
 from langchain_oracledb.retrievers.text_search import create_text_index, OracleTextSearchRetriever
 
-# Using an OracleVS table (indexes the 'text' column)
+# 使用 OracleVS 表（索引 'text' 列）
 retriever_text = None
 create_text_index(
     connection,
@@ -561,66 +560,66 @@ create_text_index(
     vector_store=vs,
 )
 
-# Build a retriever. With OracleVS, returned_columns defaults to ["metadata"].
+# 构建检索器。对于 OracleVS，returned_columns 默认为 ["metadata"]。
 retriever_text = OracleTextSearchRetriever(
     vector_store=vs,
     k=5,
-    fuzzy=True,          # applies Oracle Text FUZZY per token when operator_search=False
-    return_scores=True,  # adds SCORE(1) as metadata["score"]
+    fuzzy=True,          # 当 operator_search=False 时，对每个令牌应用 Oracle Text FUZZY
+    return_scores=True,  # 将 SCORE(1) 添加为 metadata["score"]
 )
 docs = retriever_text.invoke("refund policy")
 for d in docs:
     print(d.page_content, d.metadata.get("score"))
 
-# Alternatively, index an arbitrary table/column:
+# 或者，索引任意表/列：
 # create_text_index(connection, idx_name="IDX_MYDOCS_TEXT", table_name="MYDOCS", column_name="CONTENT")
 # retriever_text = OracleTextSearchRetriever(client=connection, table_name="MYDOCS", column_name="CONTENT", k=5)
 ```
 
-Operator mode and advanced queries:
+操作符模式和高级查询：
 
-- Default behavior (`operator_search=False`):
-  - Input is treated as literal text, tokenized on non-word characters, and rewritten as an ACCUM expression.
-  - With `fuzzy=True`, each token is wrapped as `FUZZY("token")` to match misspellings.
-- Operator mode (`operator_search=True`):
-  - Pass an Oracle Text expression unchanged (`NEAR`, `ABOUT`, `AND`, `OR`, `NOT`, `WITHIN`, etc.). In this mode, fuzzy is ignored.
+- 默认行为 (`operator_search=False`)：
+  - 输入被视为字面文本，在非单词字符上进行标记化，并重写为 ACCUM 表达式。
+  - 当 `fuzzy=True` 时，每个令牌被包装为 `FUZZY("token")` 以匹配拼写错误。
+- 操作符模式 (`operator_search=True`)：
+  - 传递 Oracle Text 表达式不变（`NEAR`、`ABOUT`、`AND`、`OR`、`NOT`、`WITHIN` 等）。在此模式下，fuzzy 被忽略。
 
-Returned columns:
+返回的列：
 
-- When targeting a raw table, include extra columns in results via `returned_columns`; they are attached to `Document.metadata`.
-- With `OracleVS`, `returned_columns` defaults to ["metadata"].
+- 当定位原始表时，通过 `returned_columns` 在结果中包含额外列；它们附加到 `Document.metadata`。
+- 对于 `OracleVS`，`returned_columns` 默认为 ["metadata"]。
 
 ```python
-# Operator mode example
+# 操作符模式示例
 retriever_text_ops = OracleTextSearchRetriever(
     vector_store=vs,
-    operator_search=True,   # pass Oracle Text expression directly
+    operator_search=True,   # 直接传递 Oracle Text 表达式
     return_scores=True,
 )
 docs = retriever_text_ops.invoke('NEAR((policy, refund), 2, TRUE)')
 ```
 
-Notes and tips:
+注意事项和技巧：
 
-- When using `operator_search=True`, fuzzy is ignored (by design).
-- Async usage is supported via `acreate_text_index` and `OracleTextSearchRetriever.ainvoke`.
+- 当使用 `operator_search=True` 时，fuzzy 被忽略（按设计）。
+- 通过 `acreate_text_index` 和 `OracleTextSearchRetriever.ainvoke` 支持异步用法。
 
-More information:
+更多信息：
 
-- [Oracle Text `CONTAINS` Query Operators](https://docs.oracle.com/en/database/oracle/oracle-database/26/ccref/oracle-text-CONTAINS-query-operators.html)
-- [Fuzzy Matching and Stemming](https://docs.oracle.com/en/database/oracle/oracle-database/26/ccapp/fuzzy-matching-and-stemming.html)
+- [Oracle Text `CONTAINS` 查询操作符](https://docs.oracle.com/en/database/oracle/oracle-database/26/ccref/oracle-text-CONTAINS-query-operators.html)
+- [模糊匹配和词干提取](https://docs.oracle.com/en/database/oracle/oracle-database/26/ccapp/fuzzy-matching-and-stemming.html)
 
-### End to end demo
+### 端到端演示
 
-Please refer to our complete demo guide [Oracle AI Vector Search End-to-End Demo Guide](https://github.com/langchain-ai/langchain/blob/v0.3/cookbook/oracleai_demo.ipynb) to build an end to end RAG pipeline with the help of Oracle AI Vector Search.
+请参阅我们的完整演示指南 [Oracle AI 向量搜索端到端演示指南](https://github.com/langchain-ai/langchain/blob/v0.3/cookbook/oracleai_demo.ipynb)，以借助 Oracle AI 向量搜索构建端到端 RAG 管道。
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/vectorstores/oracle.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/vectorstores/oracle.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [连接这些文档](/use-these-docs) 到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 </div>

@@ -1,23 +1,23 @@
 ---
-title: "Pinecone hybrid search integration"
-description: "Integrate with the Pinecone hybrid search retriever using LangChain Python."
+title: "Pinecone 混合搜索集成"
+description: "使用 LangChain Python 与 Pinecone 混合搜索检索器集成。"
 ---
 
->[Pinecone](https://docs.pinecone.io/docs/overview) is a vector database with broad functionality.
+>[Pinecone](https://docs.pinecone.io/docs/overview) 是一个功能广泛的向量数据库。
 
-This notebook goes over how to use a retriever that under the hood uses Pinecone and Hybrid Search.
+本笔记本介绍如何使用一个底层使用 Pinecone 和混合搜索的检索器。
 
-The logic of this retriever is taken from [this documentation](https://docs.pinecone.io/docs/hybrid-search)
+此检索器的逻辑取自[此文档](https://docs.pinecone.io/docs/hybrid-search)
 
-To use Pinecone, you must have an API key and an Environment.
-Here are the [installation instructions](https://docs.pinecone.io/docs/quickstart).
+要使用 Pinecone，您必须拥有 API 密钥和环境。
+以下是[安装说明](https://docs.pinecone.io/docs/quickstart)。
 
 ```python
 pip install -qU  pinecone pinecone-text pinecone-notebooks
 ```
 
 ```python
-# Connect to Pinecone and get an API key.
+# 连接到 Pinecone 并获取 API 密钥。
 from pinecone_notebooks.colab import Authenticate
 
 Authenticate()
@@ -33,7 +33,7 @@ from langchain_community.retrievers import (
 )
 ```
 
-We want to use `OpenAIEmbeddings` so we have to get the OpenAI API Key.
+我们希望使用 `OpenAIEmbeddings`，因此必须获取 OpenAI API 密钥。
 
 ```python
 import getpass
@@ -42,9 +42,9 @@ if "OPENAI_API_KEY" not in os.environ:
     os.environ["OPENAI_API_KEY"] = getpass.getpass("OpenAI API Key:")
 ```
 
-## Setup pinecone
+## 设置 Pinecone
 
-You should only have to do this part once.
+这部分只需执行一次。
 
 ```python
 import os
@@ -53,15 +53,15 @@ from pinecone import Pinecone, ServerlessSpec
 
 index_name = "langchain-pinecone-hybrid-search"
 
-# initialize Pinecone client
+# 初始化 Pinecone 客户端
 pc = Pinecone(api_key=api_key)
 
-# create the index
+# 创建索引
 if index_name not in pc.list_indexes().names():
     pc.create_index(
         name=index_name,
-        dimension=1536,  # dimensionality of dense model
-        metric="dotproduct",  # sparse values supported only for dotproduct
+        dimension=1536,  # 稠密模型的维度
+        metric="dotproduct",  # 稀疏值仅支持 dotproduct
         spec=ServerlessSpec(cloud="aws", region="us-east-1"),
     )
 ```
@@ -70,15 +70,15 @@ if index_name not in pc.list_indexes().names():
 WhoAmIResponse(username='load', user_label='label', projectname='load-test')
 ```
 
-Now that the index is created, we can use it.
+现在索引已创建，我们可以使用它了。
 
 ```python
 index = pc.Index(index_name)
 ```
 
-## Get embeddings and sparse encoders
+## 获取嵌入和稀疏编码器
 
-Embeddings are used for the dense vectors, tokenizer is used for the sparse vector
+嵌入用于稠密向量，分词器用于稀疏向量
 
 ```python
 from langchain_openai import OpenAIEmbeddings
@@ -86,37 +86,37 @@ from langchain_openai import OpenAIEmbeddings
 embeddings = OpenAIEmbeddings()
 ```
 
-To encode the text to sparse values you can either choose SPLADE or BM25. For out of domain tasks we recommend using BM25.
+要将文本编码为稀疏值，您可以选择 SPLADE 或 BM25。对于领域外任务，我们推荐使用 BM25。
 
-For more information about the sparse encoders you can checkout pinecone-text library [docs](https://pinecone-io.github.io/pinecone-text/pinecone_text.html).
+有关稀疏编码器的更多信息，您可以查看 pinecone-text 库的[文档](https://pinecone-io.github.io/pinecone-text/pinecone_text.html)。
 
 ```python
 from pinecone_text.sparse import BM25Encoder
 
-# or from pinecone_text.sparse import SpladeEncoder if you wish to work with SPLADE
+# 或者 from pinecone_text.sparse import SpladeEncoder 如果您希望使用 SPLADE
 
-# use default tf-idf values
+# 使用默认的 tf-idf 值
 bm25_encoder = BM25Encoder().default()
 ```
 
-The above code is using default tfids values. It's highly recommended to fit the tf-idf values to your own corpus. You can do it as follow:
+上面的代码使用了默认的 tf-idf 值。强烈建议将 tf-idf 值拟合到您自己的语料库。您可以按如下方式操作：
 
 ```python
 corpus = ["foo", "bar", "world", "hello"]
 
-# fit tf-idf values on your corpus
+# 在您的语料库上拟合 tf-idf 值
 bm25_encoder.fit(corpus)
 
-# store the values to a json file
+# 将值存储到 json 文件
 bm25_encoder.dump("bm25_values.json")
 
-# load to your BM25Encoder object
+# 加载到您的 BM25Encoder 对象
 bm25_encoder = BM25Encoder().load("bm25_values.json")
 ```
 
-## Load retriever
+## 加载检索器
 
-We can now construct the retriever!
+我们现在可以构建检索器了！
 
 ```python
 retriever = PineconeHybridSearchRetriever(
@@ -124,9 +124,9 @@ retriever = PineconeHybridSearchRetriever(
 )
 ```
 
-## Add texts (if necessary)
+## 添加文本（如果需要）
 
-We can optionally add texts to the retriever (if they aren't already in there)
+我们可以选择性地向检索器添加文本（如果它们尚未在其中）
 
 ```python
 retriever.add_texts(["foo", "bar", "world", "hello"])
@@ -136,9 +136,9 @@ retriever.add_texts(["foo", "bar", "world", "hello"])
 100%|██████████| 1/1 [00:02<00:00,  2.27s/it]
 ```
 
-## Use retriever
+## 使用检索器
 
-We can now use the retriever!
+我们现在可以使用检索器了！
 
 ```python
 result = retriever.invoke("foo")
@@ -156,9 +156,9 @@ Document(page_content='foo', metadata={})
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/retrievers/pinecone_hybrid_search.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/retrievers/pinecone_hybrid_search.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [通过 MCP 将这些文档连接到 Claude、VSCode 等](/use-these-docs) 以获取实时答案。
 </Callout>
 </div>

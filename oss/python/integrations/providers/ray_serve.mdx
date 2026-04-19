@@ -1,56 +1,56 @@
 ---
-title: "Ray serve integrations"
-description: "Integrate with Ray serve using LangChain Python."
+title: "Ray Serve 集成"
+description: "使用 LangChain Python 与 Ray Serve 集成。"
 ---
 
-[Ray Serve](https://docs.ray.io/en/latest/serve/index.html) is a scalable model serving library for building online inference APIs. Serve is particularly well suited for system composition, enabling you to build a complex inference service consisting of multiple chains and business logic all in Python code.
+[Ray Serve](https://docs.ray.io/en/latest/serve/index.html) 是一个可扩展的模型服务库，用于构建在线推理 API。Serve 特别适合系统组合，使您能够构建由多个链和业务逻辑组成的复杂推理服务，全部使用 Python 代码。
 
-## Goal of this notebook
+## 本笔记本的目标
 
-This notebook shows a simple example of how to deploy an OpenAI chain into production. You can extend it to deploy your own self-hosted models where you can easily define amount of hardware resources (GPUs and CPUs) needed to run your model in production efficiently. Read more about available options including autoscaling in the Ray Serve [documentation](https://docs.ray.io/en/latest/serve/getting_started.html).
+本笔记本展示了一个简单的示例，说明如何将 OpenAI 链部署到生产环境。您可以扩展它以部署您自己的自托管模型，您可以轻松定义在生产中高效运行模型所需的硬件资源（GPU 和 CPU）。阅读更多关于 Ray Serve [文档](https://docs.ray.io/en/latest/serve/getting_started.html) 中可用的选项，包括自动缩放。
 
-## Setup ray serve
+## 设置 Ray Serve
 
-Install ray with `pip install ray[serve]`.
+使用 `pip install ray[serve]` 安装 Ray。
 
-## General skeleton
+## 通用骨架
 
-The general skeleton for deploying a service is the following:
+部署服务的通用骨架如下：
 
 ```python
-# 0: Import ray serve and request from starlette
+# 0: 导入 ray serve 和 starlette 的 Request
 from ray import serve
 from starlette.requests import Request
 
 
-# 1: Define a Ray Serve deployment.
+# 1: 定义一个 Ray Serve 部署。
 @serve.deployment
 class LLMServe:
     def __init__(self) -> None:
-        # All the initialization code goes here
+        # 所有初始化代码放在这里
         pass
 
     async def __call__(self, request: Request) -> str:
-        # You can parse the request here
-        # and return a response
+        # 您可以在这里解析请求
+        # 并返回响应
         return "Hello World"
 
 
-# 2: Bind the model to deployment
+# 2: 将模型绑定到部署
 deployment = LLMServe.bind()
 
-# 3: Run the deployment
+# 3: 运行部署
 serve.api.run(deployment)
 ```
 
 ```python
-# Shutdown the deployment
+# 关闭部署
 serve.api.shutdown()
 ```
 
-## Example of deploying and OpenAI chain with custom prompts
+## 部署带有自定义提示的 OpenAI 链的示例
 
-Get an OpenAI API key from the [OpenAI API keys page](https://platform.openai.com/account/api-keys). By running the following code, you will be asked to provide your API key.
+从 [OpenAI API 密钥页面](https://platform.openai.com/account/api-keys) 获取 OpenAI API 密钥。运行以下代码时，系统会要求您提供 API 密钥。
 
 ```python
 from langchain_classic.chains import LLMChain
@@ -68,7 +68,7 @@ OPENAI_API_KEY = getpass()
 @serve.deployment
 class DeployLLM:
     def __init__(self):
-        # We initialize the LLM, template and the chain here
+        # 我们在这里初始化 LLM、模板和链
         llm = OpenAI(openai_api_key=OPENAI_API_KEY)
         template = "Question: {question}\n\nAnswer: Let's think step by step."
         prompt = PromptTemplate.from_template(template)
@@ -78,31 +78,31 @@ class DeployLLM:
         return self.chain(text)
 
     async def __call__(self, request: Request):
-        # 1. Parse the request
+        # 1. 解析请求
         text = request.query_params["text"]
-        # 2. Run the chain
+        # 2. 运行链
         resp = self._run_chain(text)
-        # 3. Return the response
+        # 3. 返回响应
         return resp["text"]
 ```
 
-Now we can bind the deployment.
+现在我们可以绑定部署。
 
 ```python
-# Bind the model to deployment
+# 将模型绑定到部署
 deployment = DeployLLM.bind()
 ```
 
-We can assign the port number and host when we want to run the deployment.
+我们可以在运行部署时指定端口号和主机。
 
 ```python
-# Example port number
+# 示例端口号
 PORT_NUMBER = 8282
-# Run the deployment
+# 运行部署
 serve.api.run(deployment, port=PORT_NUMBER)
 ```
 
-Now that service is deployed on port `localhost:8282` we can send a post request to get the results back.
+现在服务已部署在 `localhost:8282` 端口上，我们可以发送 POST 请求以获取结果。
 
 ```python
 import requests
@@ -116,9 +116,9 @@ print(response.content.decode())
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/providers/ray_serve.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/providers/ray_serve.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [连接这些文档](/use-these-docs) 到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 </div>

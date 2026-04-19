@@ -1,32 +1,24 @@
 ---
-title: Graph execution
-description: Visualize multi-step graph pipelines with per-node status and streaming content
+title: 图形执行
+description: 通过每个节点的状态和流式内容可视化多步骤图形管道
 ---
 
-LangGraph agents aren't black boxes. Every graph is composed of **named nodes**
-that execute in sequence or in parallel: classify, research, analyze,
-synthesize. Graph execution cards make this pipeline visible by rendering a card
-for each node, showing its status, streaming its content in real time, and
-tracking completion across the entire workflow. Users see exactly what the agent
-is doing, which step it's on, and what each step produced.
+LangGraph 代理并非黑盒。每个图形都由按顺序或并行执行的**命名节点**组成：分类、研究、分析、综合。图形执行卡片通过为每个节点渲染一个卡片，显示其状态、实时流式传输内容并跟踪整个工作流的完成情况，使此管道可见。用户可以准确看到代理正在做什么、处于哪个步骤以及每个步骤产生了什么。
 
 import { PatternEmbed } from "/snippets/pattern-embed.jsx"
 
 <PatternEmbed pattern="graph-execution-cards" />
 
-## How graph nodes map to UI cards
+## 图形节点如何映射到 UI 卡片
 
-A LangGraph graph defines a series of nodes, each responsible for a specific
-task. For example, a research pipeline might have:
+LangGraph 图形定义了一系列节点，每个节点负责特定任务。例如，一个研究管道可能包含：
 
-1. **Classify**: categorize the user's query
-2. **Research**: gather relevant information
-3. **Analyze**: draw conclusions from the research
-4. **Synthesize**: produce a final, polished response
+1. **分类**：对用户的查询进行分类
+2. **研究**：收集相关信息
+3. **分析**：从研究中得出结论
+4. **综合**：生成最终、精炼的响应
 
-Each node writes its output to a specific key in the graph's state. By mapping
-these node names and state keys to UI components, you can create a visual
-representation of the entire pipeline.
+每个节点将其输出写入图形状态中的特定键。通过将这些节点名称和状态键映射到 UI 组件，您可以创建整个管道的可视化表示。
 
 ```ts
 const PIPELINE_NODES = [
@@ -39,13 +31,11 @@ const PIPELINE_NODES = [
 const PIPELINE_NODE_NAMES = new Set(PIPELINE_NODES.map((n) => n.name));
 ```
 
-## Setting up useStream
+## 设置 useStream
 
-Wire up `useStream` as usual. The key properties you'll use are `messages`
-(for streaming content routing), `values` (for completed node outputs), and
-`getMessagesMetadata` (for identifying which node produced each token).
+像往常一样连接 `useStream`。您将使用的关键属性是 `messages`（用于流式内容路由）、`values`（用于已完成节点的输出）和 `getMessagesMetadata`（用于识别哪个节点生成了每个令牌）。
 
-Define a TypeScript interface matching your agent's state schema and pass it as a type parameter to `useStream` for type-safe access to state values, including custom state keys for each pipeline node. In the examples below, replace `typeof myAgent` with your interface name:
+定义一个与您的代理状态模式匹配的 TypeScript 接口，并将其作为类型参数传递给 `useStream`，以便类型安全地访问状态值，包括每个管道节点的自定义状态键。在下面的示例中，将 `typeof myAgent` 替换为您的接口名称：
 
 ```ts
 import type { BaseMessage } from "@langchain/core/messages";
@@ -171,11 +161,9 @@ export class PipelineChatComponent {
 ```
 </CodeGroup>
 
-## Routing streaming tokens to nodes
+## 将流式令牌路由到节点
 
-As the agent streams, each message is annotated with metadata that identifies
-which graph node produced it. Use `getMessagesMetadata` to extract the
-`langgraph_node` value and route tokens to the correct card:
+当代理流式传输时，每条消息都附带有元数据，标识生成它的图形节点。使用 `getMessagesMetadata` 提取 `langgraph_node` 值，并将令牌路由到正确的卡片：
 
 ```ts
 function getStreamingContent(
@@ -201,20 +189,15 @@ function getStreamingContent(
 }
 ```
 
-This gives you a map from node name to its current streaming content. As tokens
-arrive, the corresponding card updates in real time.
+这为您提供了一个从节点名称到其当前流式内容的映射。随着令牌到达，相应的卡片会实时更新。
 
 <Note>
-The `streamMetadata.langgraph_node` field is set automatically by LangGraph.
-You don't need any special configuration on the backend. Just stream messages
-as usual, and the metadata is included.
+`streamMetadata.langgraph_node` 字段由 LangGraph 自动设置。您不需要在后端进行任何特殊配置。只需像往常一样流式传输消息，元数据就会包含在内。
 </Note>
 
-## Determining node status
+## 确定节点状态
 
-Each node can be in one of four states: not started, streaming, complete, or
-idle. You derive the status from two sources: the streaming content map (for
-active nodes) and `stream.values` (for completed nodes):
+每个节点可以处于四种状态之一：未开始、流式传输、完成或空闲。您从两个来源推导状态：流式内容映射（用于活动节点）和 `stream.values`（用于已完成节点）：
 
 ```ts
 type NodeStatus = "idle" | "streaming" | "complete";
@@ -230,10 +213,9 @@ function getNodeStatus(
 }
 ```
 
-## Building the pipeline progress bar
+## 构建管道进度条
 
-A horizontal progress bar at the top gives users a bird's-eye view of the
-entire pipeline. Each step is a labeled segment that fills in as nodes complete:
+顶部的水平进度条为用户提供了整个管道的鸟瞰图。每个步骤都是一个带标签的段，随着节点完成而填充：
 
 ```tsx
 function PipelineProgress({
@@ -277,10 +259,9 @@ function PipelineProgress({
 }
 ```
 
-## Building collapsible NodeCard components
+## 构建可折叠的 NodeCard 组件
 
-Each node gets its own card that shows the status badge, content (streaming or
-final), and a collapsible body for long outputs:
+每个节点都有自己的卡片，显示状态徽章、内容（流式或最终）以及用于长输出的可折叠主体：
 
 ```tsx
 function NodeCard({
@@ -350,18 +331,16 @@ function formatContent(value: unknown): string {
 }
 ```
 
-## Streaming vs. completed content
+## 流式内容与已完成内容
 
-There are two sources of content for each node, and picking the right one
-matters for a smooth UX:
+每个节点有两种内容来源，选择正确的来源对于流畅的用户体验至关重要：
 
-| Source | When to use |
+| 来源 | 使用时机 |
 | --- | --- |
-| `streamingContent[node.name]` | While the node is actively streaming, this contains tokens as they arrive |
-| `stream.values[node.stateKey]` | After the node completes, this contains the final, committed output |
+| `streamingContent[node.name]` | 当节点正在主动流式传输时，此内容包含到达的令牌 |
+| `stream.values[node.stateKey]` | 节点完成后，此内容包含最终、已提交的输出 |
 
-The pattern is: show streaming content for live updates, fall back to the
-committed state value once the node is done.
+模式是：为实时更新显示流式内容，一旦节点完成，则回退到已提交的状态值。
 
 ```ts
 for (const node of PIPELINE_NODES) {
@@ -375,15 +354,12 @@ for (const node of PIPELINE_NODES) {
 ```
 
 <Tip>
-Streaming content may include partial tokens or markdown that hasn't been
-fully formed yet. If you render markdown, make sure your renderer handles
-incomplete syntax gracefully (e.g., an unclosed bold marker `**`).
+流式内容可能包含部分令牌或尚未完全形成的 Markdown。如果您渲染 Markdown，请确保您的渲染器能优雅地处理不完整的语法（例如，未闭合的粗体标记 `**`）。
 </Tip>
 
-## Putting it all together
+## 整合所有内容
 
-Here's the full card list that combines routing, status detection, and card
-rendering:
+以下是结合了路由、状态检测和卡片渲染的完整卡片列表：
 
 ```tsx
 function NodeCardList({
@@ -418,25 +394,19 @@ function NodeCardList({
 }
 ```
 
-## Use cases
+## 用例
 
-Graph execution cards work well for any multi-step pipeline where visibility
-matters:
+图形执行卡片适用于任何可见性至关重要的多步骤管道：
 
-- **Research pipelines**: classify → gather sources → analyze → synthesize a
-  report
-- **Content generation**: outline → draft → fact-check → edit → publish
-- **Data processing**: ingest → validate → transform → aggregate → export
-- **Code generation**: understand requirements → plan architecture → write
-  code → review → test
-- **Decision workflows**: gather context → evaluate options → score
-  alternatives → recommend
+- **研究管道**：分类 → 收集来源 → 分析 → 综合报告
+- **内容生成**：大纲 → 草稿 → 事实核查 → 编辑 → 发布
+- **数据处理**：摄取 → 验证 → 转换 → 聚合 → 导出
+- **代码生成**：理解需求 → 规划架构 → 编写代码 → 审查 → 测试
+- **决策工作流**：收集上下文 → 评估选项 → 为替代方案评分 → 推荐
 
-## Handling dynamic pipelines
+## 处理动态管道
 
-Not all graphs have a fixed set of nodes. Some pipelines add or skip nodes
-based on the input. Handle this by checking which state keys actually have
-values:
+并非所有图形都有固定的节点集。某些管道会根据输入添加或跳过节点。通过检查哪些状态键实际具有值来处理此问题：
 
 ```ts
 const activeNodes = PIPELINE_NODES.filter(
@@ -447,39 +417,28 @@ const activeNodes = PIPELINE_NODES.filter(
 );
 ```
 
-This ensures your UI only shows cards for nodes that are relevant to the
-current execution, avoiding empty placeholder cards.
+这确保您的 UI 仅显示与当前执行相关的节点的卡片，避免出现空的占位符卡片。
 
 <Info>
-If your graph has conditional branching (e.g., skip "Research" for simple
-factual queries), the skipped nodes will never appear in the streaming content
-or state values. Your pipeline progress bar should reflect this by dimming or
-hiding skipped steps.
+如果您的图形具有条件分支（例如，对于简单的事实查询跳过“研究”），则跳过的节点将永远不会出现在流式内容或状态值中。您的管道进度条应通过淡化或隐藏跳过的步骤来反映这一点。
 </Info>
 
-## Best practices
+## 最佳实践
 
-- **Define nodes declaratively**. Keep your `PIPELINE_NODES` array as a single
-  source of truth that maps node names, state keys, and display labels.
-- **Prefer streaming content for active nodes**. It gives users immediate
-  feedback. Only fall back to committed state values after the node completes.
-- **Auto-collapse completed nodes**. In long pipelines, auto-collapse finished
-  cards so users can focus on the currently active step.
-- **Show estimated timing**. If you have historical data on how long each node
-  takes, display a time estimate to set user expectations.
-- **Add a global progress indicator**. Complement per-node cards with an
-  overall progress bar (e.g., "Step 2 of 4") at the top of the pipeline view.
-- **Handle errors per node**. If a node fails, show the error in its card
-  without collapsing the entire pipeline. Other nodes may still complete
-  successfully.
+- **声明式定义节点**。将您的 `PIPELINE_NODES` 数组作为单一事实来源，映射节点名称、状态键和显示标签。
+- **优先为活动节点使用流式内容**。它为用户提供即时反馈。仅在节点完成后回退到已提交的状态值。
+- **自动折叠已完成节点**。在长管道中，自动折叠已完成的卡片，以便用户可以专注于当前活动的步骤。
+- **显示预计时间**。如果您有每个节点所需时间的历史数据，请显示时间估计以设定用户期望。
+- **添加全局进度指示器**。在管道视图顶部补充每个节点的卡片，添加整体进度条（例如，“步骤 2/4”）。
+- **按节点处理错误**。如果某个节点失败，请在其卡片中显示错误，而不会折叠整个管道。其他节点可能仍会成功完成。
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/frontend/graph-execution.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/frontend/graph-execution.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [通过 MCP 将这些文档连接到 Claude、VSCode 等](/use-these-docs) 以获取实时答案。
 </Callout>
 </div>

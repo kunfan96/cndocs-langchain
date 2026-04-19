@@ -3,37 +3,37 @@ import * as z from "zod";
 import { createAgent, tool, type ToolRuntime } from "langchain";
 import { InMemoryStore } from "@langchain/langgraph";
 
-// InMemoryStore saves data to an in-memory dictionary. Use a DB-backed store in production.
+// InMemoryStore 将数据保存到内存字典中。在生产环境中使用数据库支持的存储。
 const store = new InMemoryStore();
 const contextSchema = z.object({
   userId: z.string(),
 });
 
-// Write sample data to the store using the put method
+// 使用 put 方法将示例数据写入存储
 await store.put(
-  ["users"], // Namespace to group related data together (users namespace for user data)
-  "user_123", // Key within the namespace (user ID as key)
+  ["users"], // 命名空间，用于将相关数据分组在一起（用户数据使用 users 命名空间）
+  "user_123", // 命名空间内的键（用户 ID 作为键）
   {
     name: "John Smith",
     language: "English",
-  }, // Data to store for the given user
+  }, // 为给定用户存储的数据
 );
 
 const getUserInfo = tool(
-  // Look up user info.
+  // 查找用户信息。
   async (_, runtime: ToolRuntime<unknown, z.infer<typeof contextSchema>>) => {
-    // Access the store - same as that provided to `createAgent`
+    // 访问存储 - 与提供给 `createAgent` 的存储相同
     const userId = runtime.context.userId;
     if (!userId) {
       throw new Error("userId is required");
     }
-    // Retrieve data from store - returns StoreValue object with value and metadata
+    // 从存储中检索数据 - 返回包含值和元数据的 StoreValue 对象
     const userInfo = await runtime.store.get(["users"], userId);
     return userInfo?.value ? JSON.stringify(userInfo.value) : "Unknown user";
   },
   {
     name: "getUserInfo",
-    description: "Look up user info by userId from the store.",
+    description: "通过 userId 从存储中查找用户信息。",
     schema: z.object({}),
   },
 );
@@ -42,22 +42,22 @@ const agent = createAgent({
   model: "claude-sonnet-4-6",
   tools: [getUserInfo],
   contextSchema,
-  // Pass store to agent - enables agent to access store when running tools
+  // 将存储传递给代理 - 使代理在运行工具时能够访问存储
   store,
 });
 
-// Run the agent
+// 运行代理
 const result = await agent.invoke(
-  { messages: [{ role: "user", content: "look up user information" }] },
+  { messages: [{ role: "user", content: "查找用户信息" }] },
   { context: { userId: "user_123" } },
 );
 
 console.log(result.messages.at(-1)?.content);
 
 /**
- * Outputs:
- * User Information:
- * - **Name:** John Smith
- * - **Language:** English
+ * 输出：
+ * 用户信息：
+ * - **姓名：** John Smith
+ * - **语言：** English
  */
 ```

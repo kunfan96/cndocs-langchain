@@ -1,33 +1,31 @@
 ---
-title: "Splitting recursively - Text splitter integration guide"
+title: "递归分割 - 文本分割器集成指南"
 ---
 
-This [text splitter](/oss/python/integrations/splitters/) is the recommended one for generic text. It is parameterized by a list of characters. It tries to split on them in order until the chunks are small enough. The default list is `["\n\n", "\n", " ", ""]`. This has the effect of trying to keep all paragraphs (and then sentences, and then words) together as long as possible, as those would generically seem to be the strongest semantically related pieces of text.
+此[文本分割器](/oss/python/integrations/splitters/)是通用文本的推荐选择。它由一个字符列表参数化。它会按顺序尝试在这些字符上进行分割，直到块足够小。默认列表是 `["\n\n", "\n", " ", ""]`。这具有尝试尽可能长时间地将所有段落（然后是句子，然后是单词）保持在一起的效果，因为这些通常似乎是语义上关联性最强的文本片段。
 
-1. How the text is split: by list of characters.
-2. How the chunk size is measured: by number of characters.
+1. 文本如何分割：按字符列表。
+2. 块大小如何测量：按字符数。
 
-Below we show example usage.
+下面我们展示使用示例。
 
 ```shell
 pip install -qU langchain-text-splitters
 ```
 
+要直接获取字符串内容，请使用 `.split_text`。
 
-
-To obtain the string content directly, use `.split_text`.
-
-To create LangChain [Document](https://reference.langchain.com/python/langchain-core/documents/base/Document) objects (e.g., for use in downstream tasks), use `.create_documents`.
+要创建 LangChain [Document](https://reference.langchain.com/python/langchain-core/documents/base/Document) 对象（例如，用于下游任务），请使用 `.create_documents`。
 
 ```python
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-# Load example document
+# 加载示例文档
 with open("state_of_the_union.txt") as f:
     state_of_the_union = f.read()
 
 text_splitter = RecursiveCharacterTextSplitter(
-    # Set a really small chunk size, just to show.
+    # 设置一个非常小的块大小，仅用于演示。
     chunk_size=100,
     chunk_overlap=20,
     length_function=len,
@@ -51,26 +49,20 @@ print(text_splitter.split_text(state_of_the_union)[:2])
  'of Congress and the Cabinet. Justices of the Supreme Court. My fellow Americans.']
 ```
 
+让我们逐步了解上面为 `RecursiveCharacterTextSplitter` 设置的参数：
 
+- `chunk_size`: 块的最大大小，大小由 `length_function` 确定。
+- `chunk_overlap`: 块之间的目标重叠。重叠块有助于减轻上下文在块之间分割时的信息丢失。
+- `length_function`: 确定块大小的函数。
+- `is_separator_regex`: 分隔符列表（默认为 `["\n\n", "\n", " ", ""]`）是否应解释为正则表达式。
 
+## 分割没有单词边界的语言文本
 
-Let's go through the parameters set above for `RecursiveCharacterTextSplitter`:
+一些书写系统没有[单词边界](https://en.wikipedia.org/wiki/Category:Writing_systems_without_word_boundaries)，例如中文、日文和泰文。使用默认分隔符列表 `["\n\n", "\n", " ", ""]` 分割文本可能会导致单词在块之间被分割。为了保持单词在一起，您可以覆盖分隔符列表以包含额外的标点符号：
 
-- `chunk_size`: The maximum size of a chunk, where size is determined by the `length_function`.
-- `chunk_overlap`: Target overlap between chunks. Overlapping chunks helps to mitigate loss of information when context is divided between chunks.
-- `length_function`: Function determining the chunk size.
-- `is_separator_regex`: Whether the separator list (defaulting to `["\n\n", "\n", " ", ""]`) should be interpreted as regex.
-
-
-
-
-## Splitting text from languages without word boundaries
-
-Some writing systems do not have [word boundaries](https://en.wikipedia.org/wiki/Category:Writing_systems_without_word_boundaries), for example Chinese, Japanese, and Thai. Splitting text with the default separator list of `["\n\n", "\n", " ", ""]` can cause words to be split between chunks. To keep words together, you can override the list of separators to include additional punctuation:
-
-* Add ASCII full-stop "`.`", [Unicode fullwidth](https://en.wikipedia.org/wiki/Halfwidth_and_Fullwidth_Forms_(Unicode_block)) full stop "`．`" (used in Chinese text), and [ideographic full stop](https://en.wikipedia.org/wiki/CJK_Symbols_and_Punctuation) "`。`" (used in Japanese and Chinese)
-* Add [Zero-width space](https://en.wikipedia.org/wiki/Zero-width_space) used in Thai, Myanmar, Kmer, and Japanese.
-* Add ASCII comma "`,`", Unicode fullwidth comma "`，`", and Unicode ideographic comma "`、`"
+* 添加 ASCII 句点 "`.`"、[Unicode 全角](https://en.wikipedia.org/wiki/Halfwidth_and_Fullwidth_Forms_(Unicode_block)) 句点 "`．`"（用于中文文本）和[表意文字句点](https://en.wikipedia.org/wiki/CJK_Symbols_and_Punctuation) "`。`"（用于日文和中文）
+* 添加[零宽空格](https://en.wikipedia.org/wiki/Zero-width_space)，用于泰文、缅甸文、高棉文和日文。
+* 添加 ASCII 逗号 "`,`"、Unicode 全角逗号 "`，`" 和 Unicode 表意文字逗号 "`、`"
 
 ```python
 text_splitter = RecursiveCharacterTextSplitter(
@@ -80,14 +72,14 @@ text_splitter = RecursiveCharacterTextSplitter(
         " ",
         ".",
         ",",
-        "\u200b",  # Zero-width space
-        "\uff0c",  # Fullwidth comma
-        "\u3001",  # Ideographic comma
-        "\uff0e",  # Fullwidth full stop
-        "\u3002",  # Ideographic full stop
+        "\u200b",  # 零宽空格
+        "\uff0c",  # 全角逗号
+        "\u3001",  # 表意文字逗号
+        "\uff0e",  # 全角句点
+        "\u3002",  # 表意文字句点
         "",
     ],
-    # Existing args
+    # 现有参数
 )
 ```
 
@@ -95,9 +87,9 @@ text_splitter = RecursiveCharacterTextSplitter(
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/integrations/splitters/recursive_text_splitter.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/integrations/splitters/recursive_text_splitter.mdx) 或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [通过 MCP 将这些文档](/use-these-docs)连接到 Claude、VSCode 等，以获取实时答案。
 </Callout>
 </div>

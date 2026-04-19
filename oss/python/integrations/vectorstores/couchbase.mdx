@@ -1,32 +1,32 @@
 ---
-title: "Couchbase integration"
-description: "Integrate with the Couchbase vector store using LangChain Python."
+title: "Couchbase 集成"
+description: "使用 LangChain Python 与 Couchbase 向量存储集成。"
 ---
 
-[Couchbase](http://couchbase.com/) is an award-winning distributed NoSQL cloud database that delivers unmatched versatility, performance, scalability, and financial value for all of your cloud, mobile, AI, and edge computing applications. Couchbase embraces AI with coding assistance for developers and vector search for their applications.
+[Couchbase](http://couchbase.com/) 是一款屡获殊荣的分布式 NoSQL 云数据库，为您的所有云、移动、AI 和边缘计算应用提供无与伦比的多功能性、性能、可扩展性和经济价值。Couchbase 拥抱 AI，为开发者提供编码辅助，并为应用提供向量搜索功能。
 
-Couchbase provides two different vector store implementations for LangChain:
+Couchbase 为 LangChain 提供两种不同的向量存储实现：
 
-| Vector Store | Index Type | Minimum Version | Best For |
+| 向量存储 | 索引类型 | 最低版本 | 最佳用途 |
 |-------------|-----------|-----------------|----------|
-| `CouchbaseQueryVectorStore` | [Hyperscale Vector Index](https://docs.couchbase.com/server/current/vector-index/hyperscale-vector-index.html) or [Composite Vector Index](https://docs.couchbase.com/server/current/vector-index/composite-vector-index.html) | Couchbase Server 8.0+ | Large-scale pure vector searches or searches combining vector similarity with scalar filters |
-| `CouchbaseSearchVectorStore` | [Search Vector Index](https://docs.couchbase.com/server/current/vector-search/vector-search.html) | Couchbase Server 7.6+ | Hybrid searches combining vector similarity with Full-Text Search (FTS) and geospatial searches |
+| `CouchbaseQueryVectorStore` | [Hyperscale 向量索引](https://docs.couchbase.com/server/current/vector-index/hyperscale-vector-index.html) 或 [复合向量索引](https://docs.couchbase.com/server/current/vector-index/composite-vector-index.html) | Couchbase Server 8.0+ | 大规模纯向量搜索或结合向量相似性与标量过滤器的搜索 |
+| `CouchbaseSearchVectorStore` | [搜索向量索引](https://docs.couchbase.com/server/current/vector-search/vector-search.html) | Couchbase Server 7.6+ | 结合向量相似性与全文搜索 (FTS) 和地理空间搜索的混合搜索 |
 
-This tutorial explains how to use Vector Search in Couchbase. You can work with either [Couchbase Capella](https://www.couchbase.com/products/capella/) or your self-managed Couchbase Server.
+本教程介绍如何在 Couchbase 中使用向量搜索。您可以使用 [Couchbase Capella](https://www.couchbase.com/products/capella/) 或自管理的 Couchbase Server。
 
-## Setup
+## 设置
 
-To access the Couchbase vector stores you first need to install the `langchain-couchbase` partner package:
+要访问 Couchbase 向量存储，您首先需要安装 `langchain-couchbase` 合作伙伴包：
 
 ```bash
 pip install langchain-couchbase langchain-openai langchain-community
 ```
 
-### Credentials
+### 凭据
 
-Head over to the Couchbase [website](https://cloud.couchbase.com) and create a new connection, making sure to save your database username and password.
+访问 Couchbase [网站](https://cloud.couchbase.com) 并创建一个新连接，确保保存您的数据库用户名和密码。
 
-You will also need an OpenAI API key for the embeddings. Get one from [OpenAI](https://platform.openai.com/api-keys).
+您还需要一个用于嵌入的 OpenAI API 密钥。从 [OpenAI](https://platform.openai.com/api-keys) 获取一个。
 
 ```python
 import getpass
@@ -49,20 +49,20 @@ Enter the password for the Couchbase cluster:  ········
 Enter your OpenAI API key:  ········
 ```
 
-If you want to get best in-class automated tracing of your model calls you can also set your [LangSmith](/langsmith/home) API key by uncommenting below:
+如果您希望获得一流的模型调用自动跟踪，还可以通过取消注释下方来设置您的 [LangSmith](/langsmith/home) API 密钥：
 
 ```python
 os.environ["LANGSMITH_TRACING"] = "true"
 # os.environ["LANGSMITH_API_KEY"] = getpass.getpass()
 ```
 
-## Create Couchbase Connection Object
+## 创建 Couchbase 连接对象
 
-We create a connection to the Couchbase cluster initially and then pass the cluster object to the Vector Store.
+我们首先创建一个到 Couchbase 集群的连接，然后将集群对象传递给向量存储。
 
-Here, we are connecting using the username and password from above. You can also connect using any other supported way to your cluster.
+在这里，我们使用上面的用户名和密码进行连接。您也可以使用任何其他支持的方式连接到您的集群。
 
-For more information on connecting to the Couchbase cluster, please check the [documentation](https://docs.couchbase.com/python-sdk/current/hello-world/start-using-sdk.html#connect).
+有关连接到 Couchbase 集群的更多信息，请查看 [文档](https://docs.couchbase.com/python-sdk/current/hello-world/start-using-sdk.html#connect)。
 
 ```python
 from datetime import timedelta
@@ -80,9 +80,9 @@ cluster = Cluster(COUCHBASE_CONNECTION_STRING, options)
 cluster.wait_until_ready(timedelta(seconds=5))
 ```
 
-We will now set the bucket, scope, and collection names in the Couchbase cluster that we want to use for Vector Search.
+我们现在将设置要在 Couchbase 集群中用于向量搜索的桶、作用域和集合名称。
 
-For this example, we are using the default scope & collections.
+在此示例中，我们使用默认作用域和集合。
 
 ```python
 BUCKET_NAME = "langchain_bucket"
@@ -94,26 +94,26 @@ COLLECTION_NAME = "_default"
 
 ## CouchbaseQueryVectorStore
 
-`CouchbaseQueryVectorStore` enables the usage of Couchbase for Vector Search using the Query and Indexing Service. It supports two different types of vector indexes:
+`CouchbaseQueryVectorStore` 支持使用查询和索引服务在 Couchbase 中进行向量搜索。它支持两种不同类型的向量索引：
 
-- **Hyperscale Vector Index** - Optimized for pure vector searches on large datasets (billions of documents). Best for content discovery, recommendations, and applications requiring high accuracy with low memory footprint. Hyperscale Vector indexes compare vectors and scalar values simultaneously.
+- **Hyperscale 向量索引** - 针对大规模数据集（数十亿文档）的纯向量搜索进行了优化。最适合内容发现、推荐以及需要高精度和低内存占用的应用。Hyperscale 向量索引同时比较向量和标量值。
 
-- **Composite Vector Index** - Combines a Global Secondary Index (GSI) with a vector column. Ideal for searches combining vector similarity with scalar filters where scalars filter out large portions of the dataset. Composite Vector indexes apply scalar filters first, then perform vector searches on the filtered results.
+- **复合向量索引** - 将全局二级索引 (GSI) 与向量列相结合。非常适合结合向量相似性与标量过滤器的搜索，其中标量过滤器会过滤掉数据集的大部分。复合向量索引首先应用标量过滤器，然后在过滤后的结果上执行向量搜索。
 
-For guidance on choosing the right index type, see [Choose the Right Vector Index](https://docs.couchbase.com/cloud/vector-index/use-vector-indexes.html).
+有关选择正确索引类型的指导，请参阅 [选择正确的向量索引](https://docs.couchbase.com/cloud/vector-index/use-vector-indexes.html)。
 
-**Requirements:** Couchbase Server version 8.0 and above.
+**要求：** Couchbase Server 版本 8.0 及以上。
 
-For more information on indexes, see:
+有关索引的更多信息，请参阅：
 
-- [Hyperscale Vector Index documentation](https://docs.couchbase.com/server/current/vector-index/hyperscale-vector-index.html)
-- [Composite Vector Index documentation](https://docs.couchbase.com/server/current/vector-index/composite-vector-index.html)
+- [Hyperscale 向量索引文档](https://docs.couchbase.com/server/current/vector-index/hyperscale-vector-index.html)
+- [复合向量索引文档](https://docs.couchbase.com/server/current/vector-index/composite-vector-index.html)
 
-### Initialization
+### 初始化
 
-Below, we create the vector store object with the cluster information and the distance metric.
+下面，我们使用集群信息和距离度量创建向量存储对象。
 
-First, set up the embeddings (if not already done):
+首先，设置嵌入（如果尚未设置）：
 
 ```python
 from langchain_openai import OpenAIEmbeddings
@@ -121,7 +121,7 @@ from langchain_openai import OpenAIEmbeddings
 embeddings = OpenAIEmbeddings(model="text-embedding-3-large")
 ```
 
-Then create the vector store:
+然后创建向量存储：
 
 ```python
 from langchain_couchbase import CouchbaseQueryVectorStore
@@ -137,20 +137,20 @@ vector_store = CouchbaseQueryVectorStore(
 )
 ```
 
-### Distance Strategies
+### 距离策略
 
-The `CouchbaseQueryVectorStore` supports the following distance strategies via the `DistanceStrategy` enum:
+`CouchbaseQueryVectorStore` 通过 `DistanceStrategy` 枚举支持以下距离策略：
 
-| Strategy | Description |
+| 策略 | 描述 |
 |----------|-------------|
-| `DistanceStrategy.DOT` | Dot product similarity |
-| `DistanceStrategy.COSINE` | Cosine similarity |
-| `DistanceStrategy.EUCLIDEAN` | Euclidean distance (equivalent to L2) |
-| `DistanceStrategy.EUCLIDEAN_SQUARED` | Squared Euclidean distance (equivalent to L2_SQUARED) |
+| `DistanceStrategy.DOT` | 点积相似性 |
+| `DistanceStrategy.COSINE` | 余弦相似性 |
+| `DistanceStrategy.EUCLIDEAN` | 欧几里得距离（等同于 L2） |
+| `DistanceStrategy.EUCLIDEAN_SQUARED` | 平方欧几里得距离（等同于 L2_SQUARED） |
 
-### Specify the Text & Embeddings Field
+### 指定文本和嵌入字段
 
-You can optionally specify the text & embeddings field for the document using the `text_key` and `embedding_key` fields.
+您可以选择使用 `text_key` 和 `embedding_key` 字段为文档指定文本和嵌入字段。
 
 ```python
 vector_store_specific = CouchbaseQueryVectorStore(
@@ -165,13 +165,13 @@ vector_store_specific = CouchbaseQueryVectorStore(
 )
 ```
 
-### Manage vector store
+### 管理向量存储
 
-Once you have created your vector store, we can interact with it by adding and deleting different items.
+创建向量存储后，我们可以通过添加和删除不同项来与之交互。
 
-**Add items to vector store**
+**向向量存储添加项**
 
-We can add items to our vector store by using the `add_documents` function.
+我们可以使用 `add_documents` 函数向向量存储添加项。
 
 ```python
 from uuid import uuid4
@@ -187,41 +187,41 @@ ids = ["1", "2", "3"]
 vector_store.add_documents(documents=documents, ids=ids)
 ```
 
-**Create Vector Index**
+**创建向量索引**
 
-**Important:** The vector index must be created **after** adding documents to the vector store. Use the `create_index()` method after adding your documents to enable efficient vector searches.
+**重要提示：** 向量索引必须在向文档添加到向量存储**之后**创建。在添加文档后使用 `create_index()` 方法以启用高效的向量搜索。
 
 ```python
 from langchain_couchbase.vectorstores import IndexType
 
-# Create a Hyperscale Vector Index
+# 创建 Hyperscale 向量索引
 vector_store.create_index(
     index_type=IndexType.HYPERSCALE,
     index_description="IVF,SQ8",
 )
 ```
 
-Or create a Composite Vector Index:
+或创建复合向量索引：
 
 ```python
-# Create a Composite Vector Index
+# 创建复合向量索引
 vector_store.create_index(
     index_type=IndexType.COMPOSITE,
     index_description="IVF,SQ8",
 )
 ```
 
-**Delete items from vector store**
+**从向量存储删除项**
 
 ```python
 vector_store.delete(ids=["3"])
 ```
 
-### Query vector store
+### 查询向量存储
 
-**Similarity search**
+**相似性搜索**
 
-Performing a simple similarity search can be done as follows:
+执行简单的相似性搜索如下所示：
 
 ```python
 results = vector_store.similarity_search(query="thud", k=1)
@@ -233,9 +233,9 @@ for doc in results:
 * thud [{'bar': 'baz'}]
 ```
 
-**Similarity search with filter**
+**带过滤器的相似性搜索**
 
-You can filter results using a SQL++ WHERE clause with the `where_str` parameter:
+您可以使用 SQL++ WHERE 子句和 `where_str` 参数过滤结果：
 
 ```python
 results = vector_store.similarity_search(
@@ -249,9 +249,9 @@ for doc in results:
 * thud [{'bar': 'baz'}]
 ```
 
-**Similarity search with score**
+**带分数的相似性搜索**
 
-You can fetch the distance scores for the results by calling the `similarity_search_with_score` method. Lower distances indicate more similar documents.
+您可以通过调用 `similarity_search_with_score` 方法获取结果的距离分数。距离越小表示文档越相似。
 
 ```python
 results = vector_store.similarity_search_with_score(query="qux", k=1)
@@ -263,21 +263,21 @@ for doc, score in results:
 * [DIST=-0.500724] foo [{'baz': 'bar'}]
 ```
 
-### Async Operations
+### 异步操作
 
-`CouchbaseQueryVectorStore` supports async operations:
+`CouchbaseQueryVectorStore` 支持异步操作：
 
 ```python
-# add documents
+# 添加文档
 await vector_store.aadd_documents(documents=documents, ids=ids)
 
-# delete documents
+# 删除文档
 await vector_store.adelete(ids=["3"])
 
-# search
+# 搜索
 results = await vector_store.asimilarity_search(query="thud", k=1)
 
-# search with score
+# 带分数的搜索
 results = await vector_store.asimilarity_search_with_score(query="qux", k=1)
 for doc, score in results:
     print(f"* [DIST={score:3f}] {doc.page_content} [{doc.metadata}]")
@@ -287,9 +287,9 @@ for doc, score in results:
 * [DIST=-0.500724] foo [{'baz': 'bar'}]
 ```
 
-### Use as Retriever
+### 用作检索器
 
-You can transform the vector store into a retriever:
+您可以将向量存储转换为检索器：
 
 ```python
 retriever = vector_store.as_retriever(
@@ -302,9 +302,9 @@ retriever.invoke("thud")
 [Document(id='2', metadata={'bar': 'baz'}, page_content='thud')]
 ```
 
-### Create from texts
+### 从文本创建
 
-You can create a `CouchbaseQueryVectorStore` directly from a list of texts:
+您可以直接从文本列表创建 `CouchbaseQueryVectorStore`：
 
 ```python
 texts = ["hello", "world"]
@@ -324,36 +324,36 @@ vectorstore = CouchbaseQueryVectorStore.from_texts(
 
 ## CouchbaseSearchVectorStore
 
-`CouchbaseSearchVectorStore` enables the usage of Couchbase for Vector Search using [Search Vector Indexes](https://docs.couchbase.com/server/current/vector-search/vector-search.html). Search Vector Indexes combine a Couchbase Search index with a vector column, allowing hybrid searches that combine vector searches with Full-Text Search (FTS) and geospatial searches.
+`CouchbaseSearchVectorStore` 支持使用 [搜索向量索引](https://docs.couchbase.com/server/current/vector-search/vector-search.html) 在 Couchbase 中进行向量搜索。搜索向量索引将 Couchbase 搜索索引与向量列相结合，允许结合向量搜索与全文搜索 (FTS) 和地理空间搜索的混合搜索。
 
-**Requirements:** Couchbase Server version 7.6 and above.
+**要求：** Couchbase Server 版本 7.6 及以上。
 
-For details on how to create a Search index with support for Vector fields, please refer to the documentation:
+有关如何创建支持向量字段的搜索索引的详细信息，请参阅文档：
 
 - [Couchbase Capella](https://docs.couchbase.com/cloud/vector-search/create-vector-search-index-ui.html)
 - [Couchbase Server](https://docs.couchbase.com/server/current/vector-search/create-vector-search-index-ui.html)
 
-### Search Index Field Mappings for This Tutorial
+### 本教程的搜索索引字段映射
 
-To follow along with the examples in this documentation, your Search index should include mappings for the following fields:
+要遵循本文档中的示例，您的搜索索引应包含以下字段的映射：
 
-| Field | Type | Description |
+| 字段 | 类型 | 描述 |
 |-------|------|-------------|
-| `text` | text | The document text content |
-| `embedding` | vector | The vector embedding field (dimensions: 3072 for `text-embedding-3-large`) |
-| `metadata` | object (child mapping) | The metadata object with child fields like `source`, `author`, `rating`, `date` |
+| `text` | text | 文档文本内容 |
+| `embedding` | vector | 向量嵌入字段（维度：`text-embedding-3-large` 为 3072） |
+| `metadata` | object (子映射) | 包含子字段（如 `source`、`author`、`rating`、`date`）的元数据对象 |
 
-**Notes:**
+**注意：**
 
-- The vector field dimensions must match your embedding model (3072 for `text-embedding-3-large` used in this tutorial)
-- The metadata child fields (`source`, `author`, `rating`, `date`) are needed for the hybrid query examples
-- You can customize field names using the `text_key` and `embedding_key` parameters when initializing the vector store
+- 向量字段维度必须与您的嵌入模型匹配（本教程中使用的 `text-embedding-3-large` 为 3072）
+- 元数据子字段（`source`、`author`、`rating`、`date`）是混合查询示例所必需的
+- 您可以在初始化向量存储时使用 `text_key` 和 `embedding_key` 参数自定义字段名称
 
-### Initialization
+### 初始化
 
-Below, we create the vector store object with the cluster information and the search index name.
+下面，我们使用集群信息和搜索索引名称创建向量存储对象。
 
-First, set up the embeddings:
+首先，设置嵌入：
 
 ```python
 from langchain_openai import OpenAIEmbeddings
@@ -361,7 +361,7 @@ from langchain_openai import OpenAIEmbeddings
 embeddings = OpenAIEmbeddings(model="text-embedding-3-large")
 ```
 
-Then create the vector store:
+然后创建向量存储：
 
 ```python
 from langchain_couchbase import CouchbaseSearchVectorStore
@@ -378,9 +378,9 @@ vector_store = CouchbaseSearchVectorStore(
 )
 ```
 
-### Specify the text & embeddings field
+### 指定文本和嵌入字段
 
-You can optionally specify the text & embeddings field for the document using the `text_key` and `embedding_key` fields.
+您可以选择使用 `text_key` 和 `embedding_key` 字段为文档指定文本和嵌入字段。
 
 ```python
 vector_store_specific = CouchbaseSearchVectorStore(
@@ -395,13 +395,13 @@ vector_store_specific = CouchbaseSearchVectorStore(
 )
 ```
 
-### Manage vector store
+### 管理向量存储
 
-Once you have created your vector store, we can interact with it by adding and deleting different items.
+创建向量存储后，我们可以通过添加和删除不同项来与之交互。
 
-**Add items to vector store**
+**向向量存储添加项**
 
-We can add items to our vector store by using the `add_documents` function.
+我们可以使用 `add_documents` 函数向向量存储添加项。
 
 ```python
 from uuid import uuid4
@@ -488,7 +488,7 @@ vector_store.add_documents(documents=documents, ids=uuids)
  'd21c7feb-ad47-4e7d-84c5-785afb189160']
 ```
 
-**Delete items from vector store**
+**从向量存储删除项**
 
 ```python
 vector_store.delete(ids=[uuids[-1]])
@@ -498,13 +498,13 @@ vector_store.delete(ids=[uuids[-1]])
 True
 ```
 
-### Query vector store
+### 查询向量存储
 
-Once your vector store has been created and the relevant documents have been added you will most likely wish to query it during the running of your chain or agent.
+创建向量存储并添加相关文档后，您很可能希望在运行链或代理时查询它。
 
-**Similarity search**
+**相似性搜索**
 
-Performing a simple similarity search can be done as follows:
+执行简单的相似性搜索如下所示：
 
 ```python
 results = vector_store.similarity_search(
@@ -520,9 +520,9 @@ for res in results:
 * LangGraph is the best framework for building stateful, agentic applications! [{'source': 'tweet'}]
 ```
 
-**Similarity search with Score**
+**带分数的相似性搜索**
 
-You can also fetch the scores for the results by calling the `similarity_search_with_score` method.
+您也可以通过调用 `similarity_search_with_score` 方法获取结果的分数。
 
 ```python
 results = vector_store.similarity_search_with_score("Will it be hot tomorrow?", k=1)
@@ -534,17 +534,17 @@ for res, score in results:
 * [SIM=0.553213] The weather forecast for tomorrow is cloudy and overcast, with a high of 62 degrees. [{'source': 'news'}]
 ```
 
-### Filtering results
+### 过滤结果
 
-You can filter the search results by specifying any filter on the text or metadata in the document that is supported by the Couchbase Search service.
+您可以通过指定文档中文本或元数据的任何过滤器来过滤搜索结果，这些过滤器由 Couchbase 搜索服务支持。
 
-The `filter` can be any valid [SearchQuery](https://docs.couchbase.com/python-sdk/current/howtos/full-text-searching-with-sdk.html#search-queries) supported by the Couchbase Python SDK. These filters are applied before the Vector Search is performed.
+`filter` 可以是 Couchbase Python SDK 支持的任何有效的 [SearchQuery](https://docs.couchbase.com/python-sdk/current/howtos/full-text-searching-with-sdk.html#search-queries)。这些过滤器在执行向量搜索之前应用。
 
-If you want to filter on one of the fields in the metadata, you need to specify it using `.`
+如果您想根据元数据中的某个字段进行过滤，需要使用 `.` 指定它。
 
-For example, to fetch the `source` field in the metadata, you need to specify `metadata.source`.
+例如，要获取元数据中的 `source` 字段，您需要指定 `metadata.source`。
 
-Note that the filter needs to be supported by the Search Index.
+请注意，过滤器需要由搜索索引支持。
 
 ```python
 from couchbase import search
@@ -564,15 +564,15 @@ for res, score in results:
 * The weather forecast for tomorrow is cloudy and overcast, with a high of 62 degrees. [{'source': 'news'}] 0.10403035581111908
 ```
 
-### Specifying fields to return
+### 指定要返回的字段
 
-You can specify the fields to return from the document using `fields` parameter in the searches. These fields are returned as part of the `metadata` object in the returned Document. You can fetch any field that is stored in the Search index. The `text_key` of the document is returned as part of the document's `page_content`.
+您可以使用搜索中的 `fields` 参数指定要从文档返回的字段。这些字段作为返回文档的 `metadata` 对象的一部分返回。您可以获取存储在搜索索引中的任何字段。文档的 `text_key` 作为文档 `page_content` 的一部分返回。
 
-If you do not specify any fields to be fetched, all the fields stored in the index are returned.
+如果您不指定要获取的字段，则会返回索引中存储的所有字段。
 
-If you want to fetch one of the fields in the metadata, you need to specify it using `.`
+如果您想获取元数据中的某个字段，需要使用 `.` 指定它。
 
-For example, to fetch the `source` field in the metadata, you need to specify `metadata.source`.
+例如，要获取元数据中的 `source` 字段，您需要指定 `metadata.source`。
 
 ```python
 query = "What did I eat for breakfast today?"
@@ -584,11 +584,11 @@ print(results[0])
 page_content='I had chocolate chip pancakes and scrambled eggs for breakfast this morning.' metadata={'source': 'tweet'}
 ```
 
-### Query by turning into retriever
+### 通过转换为检索器进行查询
 
-You can also transform the vector store into a retriever for easier usage in your chains.
+您还可以将向量存储转换为检索器，以便在链中更轻松地使用。
 
-Here is how to transform your vector store into a retriever and then invoke the retreiever with a simple query and filter.
+以下是如何将向量存储转换为检索器，然后使用简单查询和过滤器调用检索器。
 
 ```python
 retriever = vector_store.as_retriever(
@@ -603,23 +603,23 @@ retriever.invoke("Stealing from the bank is a crime", filter=filter_on_source)
 [Document(id='b480c9c6-b7df-4a22-ac2e-19287af7562d', metadata={'source': 'news'}, page_content='Robbers broke into the city bank and stole $1 million in cash.')]
 ```
 
-### Hybrid queries
+### 混合查询
 
-Couchbase allows you to do hybrid searches by combining Vector Search results with searches on non-vector fields of the document like the `metadata` object.
+Couchbase 允许您通过将向量搜索结果与文档的非向量字段（如 `metadata` 对象）的搜索相结合来进行混合搜索。
 
-The results will be based on the combination of the results from both Vector Search and the searches supported by Search Service. The scores of each of the component searches are added up to get the total score of the result.
+结果将基于向量搜索和搜索服务支持的搜索的结果组合。每个组件搜索的分数相加得到结果的总分。
 
-To perform hybrid searches, there is an optional parameter, `search_options` that can be passed to all the similarity searches.
-You can find the different search/query possibilities for the `search_options` in the [Couchbase search request parameters documentation](https://docs.couchbase.com/server/current/search/search-request-params.html#query-object).
+要执行混合搜索，有一个可选参数 `search_options` 可以传递给所有相似性搜索。
+您可以在 [Couchbase 搜索请求参数文档](https://docs.couchbase.com/server/current/search/search-request-params.html#query-object) 中找到 `search_options` 的不同搜索/查询可能性。
 
-**Create Diverse Metadata for Hybrid Search**
+**为混合搜索创建多样化的元数据**
 
-In order to demonstrate hybrid search, let us create documents with diverse metadata. We add three fields to the metadata: `date` between 2010 & 2020, `rating` between 1 & 5, and `author` set to either John Doe or Jane Doe.
+为了演示混合搜索，让我们创建具有多样化元数据的文档。我们向元数据添加三个字段：`date` 在 2010 年和 2020 年之间，`rating` 在 1 到 5 之间，`author` 设置为 John Doe 或 Jane Doe。
 
 ```python
 from langchain_core.documents import Document
 
-# Create documents with diverse metadata for hybrid search examples
+# 为混合搜索示例创建具有多样化元数据的文档
 hybrid_docs = [
     Document(
         page_content="The new AI model shows impressive performance on benchmark tests.",
@@ -658,9 +658,9 @@ print(results[0].metadata)
 {'author': 'John Doe', 'date': '2020-01-01', 'rating': 4, 'source': 'tech'}
 ```
 
-**Query by Exact Value**
+**按精确值查询**
 
-We can search for exact matches on a textual field like the author in the `metadata` object.
+我们可以搜索文本字段（如 `metadata` 对象中的 author）的精确匹配。
 
 ```python
 query = "What are the latest technology updates?"
@@ -676,11 +676,11 @@ print(results[0])
 page_content='The new smartphone release features advanced camera technology.' metadata={'author': 'John Doe'}
 ```
 
-**Query by Partial Match**
+**按部分匹配查询**
 
-We can search for partial matches by specifying a fuzziness for the search. This is useful when you want to search for slight variations or misspellings of a search query.
+我们可以通过指定搜索的模糊度来搜索部分匹配。当您想搜索搜索查询的轻微变体或拼写错误时，这很有用。
 
-Here, "Jae" is close (fuzziness of 1) to "Jane".
+在这里，“Jae”接近（模糊度为 1）“Jane”。
 
 ```python
 query = "What are the financial market updates?"
@@ -698,9 +698,9 @@ print(results[0])
 page_content='Stock markets showed mixed results today with tech sector leading gains.' metadata={'author': 'Jane Doe'}
 ```
 
-**Query by Date Range Query**
+**按日期范围查询**
 
-We can search for documents that are within a date range query on a date field like `metadata.date`.
+我们可以搜索在日期字段（如 `metadata.date`）上日期范围查询内的文档。
 
 ```python
 query = "What happened in the markets?"
@@ -723,9 +723,9 @@ print(results[0])
 page_content='Stock markets showed mixed results today with tech sector leading gains.' metadata={'author': 'Jane Doe', 'date': '2017-01-01', 'rating': 3, 'source': 'finance'}
 ```
 
-**Query by Numeric Range Query**
+**按数值范围查询**
 
-We can search for documents that are within a range for a numeric field like `metadata.rating`.
+我们可以搜索数值字段（如 `metadata.rating`）范围内的文档。
 
 ```python
 query = "What are the economic indicators for the coming quarter?"
@@ -748,11 +748,11 @@ print(results[0])
 (Document(id='6aeb8413bce340bc893f175cefbb64b3', metadata={'author': 'Jane Doe', 'date': '2017-01-01', 'rating': 3, 'source': 'finance'}, page_content='Economic indicators suggest steady growth in the coming quarter.'), 0.7944117188453674)
 ```
 
-**Combining Multiple Search Queries**
+**组合多个搜索查询**
 
-Different search queries can be combined using AND (conjuncts) or OR (disjuncts) operators.
+可以使用 AND（合取）或 OR（析取）运算符组合不同的搜索查询。
 
-In this example, we are checking for documents with a rating between 3 & 4 and dated in 2017.
+在此示例中，我们检查评分在 3 到 4 之间且日期在 2017 年的文档。
 
 ```python
 query = "Tell me about finance"
@@ -774,17 +774,19 @@ print(results[0])
 (Document(id='0c9af73370c1483caddf9941440edb50', metadata={'author': 'Jane Doe', 'date': '2017-01-01', 'rating': 3, 'source': 'finance'}, page_content='Stock markets showed mixed results today with tech sector leading gains.'), 0.7275013146103568)
 ```
 
-**Note**
+**注意**
 
-The hybrid search results might contain documents that do not satisfy all the search parameters. This is due to the way the [scoring is calculated](https://docs.couchbase.com/server/current/search/run-searches.html#scoring).
-The score is a sum of both the vector search score and the queries in the hybrid search. If the Vector Search score is high, the combined score will be more than the results that match all the queries in the hybrid search.
-To avoid such results, please use the `filter` parameter instead of hybrid search.
+混合搜索结果可能包含不满足所有搜索参数的文档。这是由于 [分数计算方式](https://docs.couchbase.com/server/current/search/run-searches.html#scoring) 造成的。
 
-**Combining Hybrid Search Query with Filters**
+分数是向量搜索分数和混合搜索中查询的总和。如果向量搜索分数很高，组合分数将高于匹配混合搜索中所有查询的结果。
 
-Hybrid Search can be combined with filters to get the best of both hybrid search and the filters for results matching the requirements.
+为避免此类结果，请使用 `filter` 参数代替混合搜索。
 
-In this example, we are checking for documents with a rating between 3 & 5 and matching the string "market" in the text field.
+**将混合搜索查询与过滤器结合**
+
+混合搜索可以与过滤器结合使用，以获得混合搜索和过滤器的最佳效果，以匹配要求的结果。
+
+在此示例中，我们检查评分在 3 到 5 之间且文本字段中匹配字符串 "market" 的文档。
 
 ```python
 filter_text = search.MatchQuery("market", field="text")
@@ -811,93 +813,93 @@ print(results[0])
 (Document(id='0c9af73370c1483caddf9941440edb50', metadata={'author': 'Jane Doe', 'date': '2017-01-01', 'rating': 3, 'source': 'finance'}, page_content='Stock markets showed mixed results today with tech sector leading gains.'), 0.4503188681265006)
 ```
 
-**Other Queries**
+**其他查询**
 
-Similarly, you can use any of the supported Query methods like Geo Distance, Polygon Search, Wildcard, Regular Expressions, etc in the `search_options` parameter. Please refer to the documentation for more details on the available query methods and their syntax.
+类似地，您可以在 `search_options` 参数中使用任何支持的查询方法，如地理距离、多边形搜索、通配符、正则表达式等。请参阅文档以获取有关可用查询方法及其语法的更多详细信息。
 
 - [Couchbase Capella](https://docs.couchbase.com/cloud/search/search-request-params.html#query-object)
 - [Couchbase Server](https://docs.couchbase.com/server/current/search/search-request-params.html#query-object)
 
 ---
 
-## Usage for retrieval-augmented generation
+## 用于检索增强生成的用法
 
-For guides on how to use these vector stores for retrieval-augmented generation (RAG), see the following sections:
+有关如何将这些向量存储用于检索增强生成 (RAG) 的指南，请参阅以下部分：
 
-- [Tutorials](/oss/python/langchain/rag)
-- [How-to: Question and answer with RAG](https://python.langchain.com/docs/how_to/#qa-with-rag)
-- [Retrieval conceptual docs](https://python.langchain.com/docs/concepts/retrieval)
+- [教程](/oss/python/langchain/rag)
+- [如何：使用 RAG 进行问答](https://python.langchain.com/docs/how_to/#qa-with-rag)
+- [检索概念文档](https://python.langchain.com/docs/concepts/retrieval)
 
 ---
 
-## Frequently Asked Questions
+## 常见问题
 
-### Question: Should I create the search index before creating the CouchbaseSearchVectorStore object?
+### 问题：我应该在创建 CouchbaseSearchVectorStore 对象之前创建搜索索引吗？
 
-Yes, you need to create the Search index before creating the `CouchbaseSearchVectorStore` object.
+是的，您需要在创建 `CouchbaseSearchVectorStore` 对象之前创建搜索索引。
 
-### Question: Should I create the index before or after adding documents to CouchbaseQueryVectorStore?
+### 问题：我应该在向 CouchbaseQueryVectorStore 添加文档之前还是之后创建索引？
 
-For `CouchbaseQueryVectorStore`, you should create the index **after** adding documents using the `create_index()` method. This is different from `CouchbaseSearchVectorStore`.
+对于 `CouchbaseQueryVectorStore`，您应该在添加文档后使用 `create_index()` 方法创建索引。这与 `CouchbaseSearchVectorStore` 不同。
 
-### Question: What is the difference between CouchbaseSearchVectorStore and CouchbaseQueryVectorStore?
+### 问题：CouchbaseSearchVectorStore 和 CouchbaseQueryVectorStore 有什么区别？
 
-| Feature | `CouchbaseSearchVectorStore` | `CouchbaseQueryVectorStore` |
+| 功能 | `CouchbaseSearchVectorStore` | `CouchbaseQueryVectorStore` |
 |---------|---------------------------|--------------------------|
-| Minimum Version | Couchbase Server 7.6+ | Couchbase Server 8.0+ |
-| Index Type | Search Vector Index | Hyperscale or Composite Vector Index |
-| Index Creation | Before vector store creation | After adding documents |
-| Filtering | `SearchQuery` objects | SQL++ WHERE clauses (`where_str`) |
-| Best For | Hybrid searches (vector + FTS + geo) | Large-scale pure vector searches or vector + scalar filters |
+| 最低版本 | Couchbase Server 7.6+ | Couchbase Server 8.0+ |
+| 索引类型 | 搜索向量索引 | Hyperscale 或复合向量索引 |
+| 索引创建 | 在向量存储创建之前 | 在添加文档之后 |
+| 过滤 | `SearchQuery` 对象 | SQL++ WHERE 子句 (`where_str`) |
+| 最佳用途 | 混合搜索（向量 + FTS + 地理） | 大规模纯向量搜索或向量 + 标量过滤器 |
 
-### Question: I am not seeing all the fields that I specified in my search results
+### 问题：我看不到搜索结果中指定的所有字段
 
-In Couchbase, we can only return the fields stored in the Search index. Please ensure that the field that you are trying to access in the search results is part of the Search index.
+在 Couchbase 中，我们只能返回存储在搜索索引中的字段。请确保您尝试在搜索结果中访问的字段是搜索索引的一部分。
 
-One way to handle this is to index and store a document's fields dynamically in the index.
+处理此问题的一种方法是在索引中动态索引和存储文档的字段。
 
-- In Capella, you need to go to "Advanced Mode" then under the chevron "General Settings" you can check "[X] Store Dynamic Fields" or "[X] Index Dynamic Fields"
-- In Couchbase Server, in the Index Editor (not Quick Editor) under the chevron  "Advanced" you can check "[X] Store Dynamic Fields" or "[X] Index Dynamic Fields"
+- 在 Capella 中，您需要转到“高级模式”，然后在“常规设置”下拉菜单下，选中“[X] 存储动态字段”或“[X] 索引动态字段”
+- 在 Couchbase Server 中，在索引编辑器（非快速编辑器）中，在“高级”下拉菜单下，选中“[X] 存储动态字段”或“[X] 索引动态字段”
 
-Note that these options will increase the size of the index.
+请注意，这些选项会增加索引的大小。
 
-For more details on dynamic mappings, please refer to the [documentation](https://docs.couchbase.com/cloud/search/customize-index.html).
+有关动态映射的更多详细信息，请参阅 [文档](https://docs.couchbase.com/cloud/search/customize-index.html)。
 
-### Question: I am unable to see the metadata object in my search results
+### 问题：我无法在搜索结果中看到元数据对象
 
-This is most likely due to the `metadata` field in the document not being indexed and/or stored by the Couchbase Search index. In order to index the `metadata` field in the document, you need to add it to the index as a child mapping.
+这很可能是由于文档中的 `metadata` 字段未被 Couchbase 搜索索引索引和/或存储。为了在文档中索引 `metadata` 字段，您需要将其作为子映射添加到索引中。
 
-If you select to map all the fields in the mapping, you will be able to search by all metadata fields. Alternatively, to optimize the index, you can select the specific fields inside `metadata` object to be indexed. You can refer to the [docs](https://docs.couchbase.com/cloud/search/customize-index.html) to learn more about indexing child mappings.
+如果您选择映射映射中的所有字段，您将能够按所有元数据字段进行搜索。或者，为了优化索引，您可以选择 `metadata` 对象内的特定字段进行索引。您可以参考 [文档](https://docs.couchbase.com/cloud/search/customize-index.html) 了解有关索引子映射的更多信息。
 
-Creating Child Mappings
+创建子映射：
 
 - [Couchbase Capella](https://docs.couchbase.com/cloud/search/create-child-mapping.html)
 - [Couchbase Server](https://docs.couchbase.com/server/current/search/create-child-mapping.html)
 
-### Question: What is the difference between filter and search_options / hybrid queries?
+### 问题：过滤器和 search_options / 混合查询有什么区别？
 
-Filters are [pre-filters](https://docs.couchbase.com/server/current/vector-search/pre-filtering-vector-search.html#about-pre-filtering) that are used to restrict the documents searched in a Search index. It is available in Couchbase Server 7.6.4 & higher.
+过滤器是 [预过滤器](https://docs.couchbase.com/server/current/vector-search/pre-filtering-vector-search.html#about-pre-filtering)，用于限制在搜索索引中搜索的文档。它在 Couchbase Server 7.6.4 及更高版本中可用。
 
-Hybrid Queries are additional search queries that can be used to tune the results being returned from the search index.
+混合查询是可用于调整从搜索索引返回的结果的附加搜索查询。
 
-Both filters and hybrid search queries have the same capabilites with slightly different syntax. Filters are [SearchQuery](https://docs.couchbase.com/python-sdk/current/howtos/full-text-searching-with-sdk.html#search-queries) objects while the hybrid search queries are [dictionaries](https://docs.couchbase.com/server/current/search/search-request-params.html).
+过滤器和混合搜索查询具有相同的功能，但语法略有不同。过滤器是 [SearchQuery](https://docs.couchbase.com/python-sdk/current/howtos/full-text-searching-with-sdk.html#search-queries) 对象，而混合搜索查询是 [字典](https://docs.couchbase.com/server/current/search/search-request-params.html)。
 
 ---
 
-## API reference
+## API 参考
 
-For detailed documentation of all features and configurations:
+有关所有功能和配置的详细文档：
 
-- [`CouchbaseSearchVectorStore` API reference](https://couchbase-ecosystem.github.io/langchain-couchbase/langchain_couchbase.html#module-langchain_couchbase.vectorstores.search_vector_store)
-- [`CouchbaseQueryVectorStore` API reference](https://couchbase-ecosystem.github.io/langchain-couchbase/langchain_couchbase.html#module-langchain_couchbase.vectorstores.query_vector_store)
+- [`CouchbaseSearchVectorStore` API 参考](https://couchbase-ecosystem.github.io/langchain-couchbase/langchain_couchbase.html#module-langchain_couchbase.vectorstores.search_vector_store)
+- [`CouchbaseQueryVectorStore` API 参考](https://couchbase-ecosystem.github.io/langchain-couchbase/langchain_couchbase.html#module-langchain_couchbase.vectorstores.query_vector_store)
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/vectorstores/couchbase.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/vectorstores/couchbase.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [通过 MCP 将这些文档连接到 Claude、VSCode 等](/use-these-docs) 以获取实时答案。
 </Callout>
 </div>

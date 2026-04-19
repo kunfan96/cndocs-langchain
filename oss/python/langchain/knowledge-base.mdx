@@ -1,6 +1,6 @@
 ---
-title: Build a semantic search engine with LangChain
-sidebarTitle: Semantic search
+title: 使用 LangChain 构建语义搜索引擎
+sidebarTitle: 语义搜索
 ---
 
 import EmbeddingsTabsPy from '/snippets/embeddings-tabs-py.mdx';
@@ -8,26 +8,26 @@ import EmbeddingsTabsJS from '/snippets/embeddings-tabs-js.mdx';
 import VectorstoreTabsPy from '/snippets/vectorstore-tabs-py.mdx';
 import VectorstoreTabsJS from '/snippets/vectorstore-tabs-js.mdx';
 
-## Overview
+## 概述
 
-This tutorial will familiarize you with LangChain's [document loader](/oss/python/integrations/document_loaders), [embedding](/oss/python/integrations/embeddings), and [vector store](/oss/python/integrations/vectorstores) abstractions. These abstractions are designed to support retrieval of data--  from (vector) databases and other sources -- for integration with LLM workflows. They are important for applications that fetch data to be reasoned over as part of model inference, as in the case of retrieval-augmented generation, or [RAG](/oss/python/langchain/retrieval).
+本教程将使您熟悉 LangChain 的[文档加载器](/oss/python/integrations/document_loaders)、[嵌入](/oss/python/integrations/embeddings)和[向量存储](/oss/python/integrations/vectorstores)抽象。这些抽象旨在支持从（向量）数据库和其他来源检索数据，以便与 LLM 工作流集成。对于需要获取数据以作为模型推理一部分进行推理的应用程序（例如检索增强生成或 [RAG](/oss/python/langchain/retrieval)）来说，它们非常重要。
 
-Here we will build a search engine over a PDF document. This will allow us to retrieve passages in the PDF that are similar to an input query. The guide also includes a minimal RAG implementation on top of the search engine.
+在这里，我们将构建一个针对 PDF 文档的搜索引擎。这将使我们能够检索 PDF 中与输入查询相似的段落。该指南还包括在搜索引擎之上实现一个最小化的 RAG。
 
-### Concepts
+### 概念
 
-This guide focuses on retrieval of text data. We will cover the following concepts:
+本指南侧重于文本数据的检索。我们将涵盖以下概念：
 
-- [Documents and document loaders](/oss/python/integrations/document_loaders);
-- [Text splitters](/oss/python/integrations/splitters);
-- [Embeddings](/oss/python/integrations/embeddings);
-- [Vector stores](/oss/python/integrations/vectorstores) and [retrievers](/oss/python/integrations/retrievers).
+- [文档和文档加载器](/oss/python/integrations/document_loaders)；
+- [文本分割器](/oss/python/integrations/splitters)；
+- [嵌入](/oss/python/integrations/embeddings)；
+- [向量存储](/oss/python/integrations/vectorstores) 和 [检索器](/oss/python/integrations/retrievers)。
 
-## Setup
+## 设置
 
-### Installation
+### 安装
 
-This tutorial requires the `langchain-community` and `pypdf` packages:
+本教程需要 `langchain-community` 和 `pypdf` 包：
 
 <CodeGroup>
 ```bash pip
@@ -45,22 +45,20 @@ uv add langchain-community pypdf
 
 
 
-For more details, see our [Installation guide](/oss/python/langchain/install).
+更多详情，请参阅我们的[安装指南](/oss/python/langchain/install)。
 
 ### LangSmith
 
-Many of the applications you build with LangChain will contain multiple steps with multiple invocations of LLM calls.
-As these applications get more and more complex, it becomes crucial to be able to inspect what exactly is going on inside your chain or agent.
-The best way to do this is with [LangSmith](https://smith.langchain.com).
+您使用 LangChain 构建的许多应用程序将包含多个步骤和多次 LLM 调用。随着这些应用程序变得越来越复杂，能够检查链或代理内部究竟发生了什么变得至关重要。最好的方法是使用 [LangSmith](https://smith.langchain.com)。
 
-After you sign up at the link above, make sure to set your environment variables to start logging traces:
+在您通过上述链接注册后，请确保设置环境变量以开始记录跟踪：
 
 ```shell
 export LANGSMITH_TRACING="true"
 export LANGSMITH_API_KEY="..."
 ```
 
-Or, if in a notebook, you can set them with:
+或者，如果在笔记本中，您可以使用以下方式设置它们：
 
 ```python
 import getpass
@@ -72,19 +70,19 @@ os.environ["LANGSMITH_API_KEY"] = getpass.getpass()
 
 
 
-## 1. Documents and document loaders
+## 1. 文档和文档加载器
 
-LangChain implements a [Document](https://reference.langchain.com/python/langchain-core/documents/base/Document) abstraction, which is intended to represent a unit of text and associated metadata. It has three attributes:
+LangChain 实现了一个 [Document](https://reference.langchain.com/python/langchain-core/documents/base/Document) 抽象，旨在表示一个文本单元及其关联的元数据。它具有三个属性：
 
-- `page_content`: a string representing the content;
-- `metadata`: a dict containing arbitrary metadata;
-- `id`: (optional) a string identifier for the document.
+- `page_content`：表示内容的字符串；
+- `metadata`：包含任意元数据的字典；
+- `id`：（可选）文档的字符串标识符。
 
 
 
-The `metadata` attribute can capture information about the source of the document, its relationship to other documents, and other information. Note that an individual [`Document`](https://reference.langchain.com/python/langchain-core/documents/base/Document) object often represents a chunk of a larger document.
+`metadata` 属性可以捕获有关文档来源、其与其他文档的关系以及其他信息。请注意，单个 [`Document`](https://reference.langchain.com/python/langchain-core/documents/base/Document) 对象通常表示较大文档的一个块。
 
-We can generate sample documents when desired:
+我们可以根据需要生成示例文档：
 
 ```python
 from langchain_core.documents import Document
@@ -103,11 +101,11 @@ documents = [
 
 
 
-However, the LangChain ecosystem implements [document loaders](/oss/python/integrations/document_loaders) that integrate with hundreds of common sources. This makes it easy to incorporate data from these sources into your AI application.
+然而，LangChain 生态系统实现了[文档加载器](/oss/python/integrations/document_loaders)，可与数百个常见源集成。这使得将这些源的数据轻松纳入您的 AI 应用程序变得容易。
 
-### Loading documents
+### 加载文档
 
-Let's load a PDF into a sequence of [`Document`](https://reference.langchain.com/python/langchain-core/documents/base/Document) objects. [Here is a sample PDF](https://github.com/langchain-ai/langchain/blob/v0.3/docs/docs/example_data/nke-10k-2023.pdf) -- a 10-k filing for Nike from 2023. We can consult the LangChain documentation for [available PDF document loaders](/oss/python/integrations/document_loaders/#pdfs).
+让我们将 PDF 加载到一系列 [`Document`](https://reference.langchain.com/python/langchain-core/documents/base/Document) 对象中。[这是一个示例 PDF](https://github.com/langchain-ai/langchain/blob/v0.3/docs/docs/example_data/nke-10k-2023.pdf) -- 2023 年 Nike 的 10-K 文件。我们可以查阅 LangChain 文档以获取[可用的 PDF 文档加载器](/oss/python/integrations/document_loaders/#pdfs)。
 
 ```python
 from langchain_community.document_loaders import PyPDFLoader
@@ -123,10 +121,10 @@ print(len(docs))
 107
 ```
 
-`PyPDFLoader` loads one [`Document`](https://reference.langchain.com/python/langchain-core/documents/base/Document) object per PDF page. For each, we can easily access:
+`PyPDFLoader` 为每个 PDF 页面加载一个 [`Document`](https://reference.langchain.com/python/langchain-core/documents/base/Document) 对象。对于每个对象，我们可以轻松访问：
 
-- The string content of the page;
-- Metadata containing the file name and page number.
+- 页面的字符串内容；
+- 包含文件名和页码的元数据。
 
 
 
@@ -149,22 +147,13 @@ FO
 
 
 
-### Splitting
+### 分割
 
-For both information retrieval and downstream question-answering purposes, a page may be too coarse a representation. Our goal in the end will be to retrieve [`Document`](https://reference.langchain.com/python/langchain-core/documents/base/Document) objects that answer an input query, and further splitting our PDF will help ensure that the meanings of relevant portions of the document are not "washed out" by surrounding text.
+对于信息检索和下游问答目的而言，页面可能是一个过于粗糙的表示。我们的最终目标是检索能够回答输入查询的 [`Document`](https://reference.langchain.com/python/langchain-core/documents/base/Document) 对象，进一步分割 PDF 有助于确保文档相关部分的含义不会被周围文本“冲淡”。
 
-We can use [text splitters](/oss/python/integrations/splitters) for this purpose. Here we will use a simple text splitter that partitions based on characters. We will split our documents into chunks of 1000 characters
-with 200 characters of overlap between chunks. The overlap helps
-mitigate the possibility of separating a statement from important
-context related to it. We use the
-`RecursiveCharacterTextSplitter`,
-which will recursively split the document using common separators like
-new lines until each chunk is the appropriate size. This is the
-recommended text splitter for generic text use cases.
+我们可以使用[文本分割器](/oss/python/integrations/splitters)来实现此目的。在这里，我们将使用一个简单的基于字符进行分区的文本分割器。我们将文档分割成 1000 个字符的块，块之间有 200 个字符的重叠。重叠有助于减轻将语句与其重要上下文分离的可能性。我们使用 `RecursiveCharacterTextSplitter`，它将使用常见的分隔符（如换行符）递归分割文档，直到每个块达到合适的大小。这是通用文本用例的推荐文本分割器。
 
-We set `add_start_index=True` so that the character index where each
-split Document starts within the initial Document is preserved as
-metadata attribute “start_index”.
+我们设置 `add_start_index=True`，以便将每个分割文档在初始文档中开始的字符索引保留为元数据属性“start_index”。
 
 ```python
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -184,11 +173,11 @@ print(len(all_splits))
 ```
 
 
-## 2. Embeddings
+## 2. 嵌入
 
-Vector search is a common way to store and search over unstructured data (such as unstructured text). The idea is to store numeric vectors that are associated with the text. Given a query, we can [embed](/oss/python/integrations/embeddings) it as a vector of the same dimension and use vector similarity metrics (such as cosine similarity) to identify related text.
+向量搜索是存储和搜索非结构化数据（例如非结构化文本）的常用方法。其思想是存储与文本关联的数字向量。给定一个查询，我们可以将其[嵌入](/oss/python/integrations/embeddings)为相同维度的向量，并使用向量相似度度量（例如余弦相似度）来识别相关文本。
 
-LangChain supports embeddings from [dozens of providers](/oss/python/integrations/embeddings/). These models specify how text should be converted into a numeric vector. Let's select a model:
+LangChain 支持来自[数十个提供商](/oss/python/integrations/embeddings/)的嵌入。这些模型指定了如何将文本转换为数字向量。让我们选择一个模型：
 
 <EmbeddingsTabsPy />
 
@@ -208,19 +197,19 @@ Generated vectors of length 1536
 
 [-0.008586574345827103, -0.03341241180896759, -0.008936782367527485, -0.0036674530711025, 0.010564599186182022, 0.009598285891115665, -0.028587326407432556, -0.015824200585484505, 0.0030416189692914486, -0.012899317778646946]
 ```
-Armed with a model for generating text embeddings, we can next store them in a special data structure that supports efficient similarity search.
+掌握了用于生成文本嵌入的模型后，我们可以接下来将它们存储在支持高效相似度搜索的特殊数据结构中。
 
-## 3. Vector stores
+## 3. 向量存储
 
-LangChain [VectorStore](https://reference.langchain.com/python/langchain-core/vectorstores/base/VectorStore) objects contain methods for adding text and [`Document`](https://reference.langchain.com/python/langchain-core/documents/base/Document) objects to the store, and querying them using various similarity metrics. They are often initialized with [embedding](/oss/python/integrations/embeddings) models, which determine how text data is translated to numeric vectors.
+LangChain [VectorStore](https://reference.langchain.com/python/langchain-core/vectorstores/base/VectorStore) 对象包含用于向存储中添加文本和 [`Document`](https://reference.langchain.com/python/langchain-core/documents/base/Document) 对象的方法，以及使用各种相似度度量进行查询的方法。它们通常使用[嵌入](/oss/python/integrations/embeddings)模型初始化，这些模型决定了文本数据如何转换为数字向量。
 
-LangChain includes a suite of [integrations](/oss/python/integrations/vectorstores) with different vector store technologies. Some vector stores are hosted by a provider (e.g., various cloud providers) and require specific credentials to use; some (such as [Postgres](/oss/python/integrations/vectorstores/pgvector)) run in separate infrastructure that can be run locally or via a third-party; others can run in-memory for lightweight workloads. Let's select a vector store:
+LangChain 包含一套与不同向量存储技术的[集成](/oss/python/integrations/vectorstores)。一些向量存储由提供商托管（例如各种云提供商），需要特定的凭据才能使用；一些（如 [Postgres](/oss/python/integrations/vectorstores/pgvector)）在可以本地运行或通过第三方运行的单独基础设施中运行；其他可以在内存中运行以用于轻量级工作负载。让我们选择一个向量存储：
 
 <VectorstoreTabsPy />
 
 
 
-Having instantiated our vector store, we can now index the documents.
+实例化我们的向量存储后，我们现在可以对文档建立索引。
 
 ```python
 ids = vector_store.add_documents(documents=all_splits)
@@ -228,25 +217,25 @@ ids = vector_store.add_documents(documents=all_splits)
 
 
 
-Note that most vector store implementations will allow you to connect to an existing vector store--  e.g., by providing a client, index name, or other information. See the documentation for a specific [integration](/oss/python/integrations/vectorstores) for more detail.
+请注意，大多数向量存储实现允许您连接到现有的向量存储——例如，通过提供客户端、索引名称或其他信息。有关更多详细信息，请参阅特定[集成](/oss/python/integrations/vectorstores)的文档。
 
-Once we've instantiated a [`VectorStore`](https://reference.langchain.com/python/langchain-core/vectorstores/base/VectorStore) that contains documents, we can query it. [VectorStore](https://reference.langchain.com/python/langchain-core/vectorstores/base/VectorStore) includes methods for querying:
-- Synchronously and asynchronously;
-- By string query and by vector;
-- With and without returning similarity scores;
-- By similarity and [maximum marginal relevance](https://reference.langchain.com/python/langchain-core/vectorstores/base/VectorStore/max_marginal_relevance_search) (to balance similarity with query to diversity in retrieved results).
-
-
+一旦我们实例化了一个包含文档的 [`VectorStore`](https://reference.langchain.com/python/langchain-core/vectorstores/base/VectorStore)，我们就可以对其进行查询。[VectorStore](https://reference.langchain.com/python/langchain-core/vectorstores/base/VectorStore) 包含用于查询的方法：
+- 同步和异步；
+- 按字符串查询和按向量；
+- 带或不带返回相似度分数；
+- 按相似度和[最大边际相关性](https://reference.langchain.com/python/langchain-core/vectorstores/base/VectorStore/max_marginal_relevance_search)（以平衡相似度与检索结果的多样性）。
 
 
 
-The methods will generally include a list of [Document](https://reference.langchain.com/python/langchain-core/documents/base/Document) objects in their outputs.
 
-**Usage**
 
-Embeddings typically represent text as a "dense" vector such that texts with similar meanings are geometrically close. This lets us retrieve relevant information just by passing in a question, without knowledge of any specific key-terms used in the document.
+这些方法通常在其输出中包含一个 [Document](https://reference.langchain.com/python/langchain-core/documents/base/Document) 对象列表。
 
-Return documents based on similarity to a string query:
+**用法**
+
+嵌入通常将文本表示为“密集”向量，使得含义相似的文本在几何上接近。这使我们只需传入问题即可检索相关信息，而无需了解文档中使用的任何特定关键词。
+
+根据与字符串查询的相似度返回文档：
 
 ```python
 results = vector_store.similarity_search(
@@ -268,7 +257,7 @@ In the United States, NIKE has eight significant distribution centers. Refer to 
 
 
 
-Async query:
+异步查询：
 
 ```python
 results = await vector_store.asimilarity_search("When was Nike incorporated?")
@@ -288,11 +277,11 @@ and sales through our digital platforms (also referred to as "NIKE Brand Digital
 ```
 
 
-Return scores:
+返回分数：
 
 ```python
-# Note that providers implement different scores; the score here
-# is a distance metric that varies inversely with similarity.
+# 注意，提供商实现不同的分数；这里的分数
+# 是一个距离度量，与相似度成反比。
 
 results = vector_store.similarity_search_with_score("What was Nike's revenue in 2023?")
 doc, score = results[0]
@@ -316,7 +305,7 @@ equivalent basis.' metadata={'page': 35, 'source': '../example_data/nke-10k-2023
 
 
 
-Return documents based on similarity to an embedded query:
+根据与嵌入查询的相似度返回文档：
 
 ```python
 embedding = embeddings.embed_query("How were Nike's margins impacted in 2023?")
@@ -343,16 +332,16 @@ This was partially offset by:' metadata={'page': 36, 'source': '../example_data/
 
 
 
-Learn more:
+了解更多：
 
-- [API Reference](https://reference.langchain.com/python/langchain-core/vectorstores/base/VectorStore)
-- [Integration-specific docs](/oss/python/integrations/vectorstores)
+- [API 参考](https://reference.langchain.com/python/langchain-core/vectorstores/base/VectorStore)
+- [特定集成文档](/oss/python/integrations/vectorstores)
 
-## 4. Retrievers
+## 4. 检索器
 
-LangChain [`VectorStore`](https://reference.langchain.com/python/langchain-core/vectorstores/base/VectorStore) objects do not subclass [Runnable](https://reference.langchain.com/python/langchain-core/runnables/base/Runnable). LangChain [Retrievers](https://reference.langchain.com/python/langchain-core/retrievers/BaseRetriever) are Runnables, so they implement a standard set of methods (e.g., synchronous and asynchronous `invoke` and `batch` operations). Although we can construct retrievers from vector stores, retrievers can interface with non-vector store sources of data, as well (such as external APIs).
+LangChain [`VectorStore`](https://reference.langchain.com/python/langchain-core/vectorstores/base/VectorStore) 对象不继承 [Runnable](https://reference.langchain.com/python/langchain-core/runnables/base/Runnable)。LangChain [检索器](https://reference.langchain.com/python/langchain-core/retrievers/BaseRetriever) 是 Runnables，因此它们实现了一组标准方法（例如，同步和异步 `invoke` 和 `batch` 操作）。虽然我们可以从向量存储构造检索器，但检索器也可以与非向量存储的数据源（例如外部 API）接口。
 
-We can create a simple version of this ourselves, without subclassing `Retriever`. If we choose what method we wish to use to retrieve documents, we can create a runnable easily. Below we will build one around the `similarity_search` method:
+我们可以自己创建一个简单的版本，而无需子类化 `Retriever`。如果我们选择希望用于检索文档的方法，我们可以轻松创建一个 runnable。下面我们将围绕 `similarity_search` 方法构建一个：
 
 
 ```python
@@ -383,7 +372,7 @@ retriever.batch(
 ```
 
 
-Vectorstores implement an `as_retriever` method that will generate a Retriever, specifically a [`VectorStoreRetriever`](https://reference.langchain.com/python/langchain-core/vectorstores/base/VectorStoreRetriever). These retrievers include specific `search_type` and `search_kwargs` attributes that identify what methods of the underlying vector store to call, and how to parameterize them. For instance, we can replicate the above with the following:
+向量存储实现了一个 `as_retriever` 方法，该方法将生成一个检索器，具体来说是一个 [`VectorStoreRetriever`](https://reference.langchain.com/python/langchain-core/vectorstores/base/VectorStoreRetriever)。这些检索器包括特定的 `search_type` 和 `search_kwargs` 属性，用于标识要调用底层向量存储的哪些方法以及如何对其进行参数化。例如，我们可以使用以下方式复制上述内容：
 
 ```python
 retriever = vector_store.as_retriever(
@@ -403,43 +392,43 @@ retriever.batch(
  [Document(metadata={'page': 3, 'source': '../example_data/nke-10k-2023.pdf', 'start_index': 0}, page_content='Table of Contents\nPART I\nITEM 1. BUSINESS\nGENERAL\nNIKE, Inc. was incorporated in 1967 under the laws of the State of Oregon. As used in this Annual Report on Form 10-K (this "Annual Report"), the terms "we," "us," "our,"\n"NIKE" and the "Company" refer to NIKE, Inc. and its predecessors, subsidiaries and affiliates, collectively, unless the context indicates otherwise.\nOur principal business activity is the design, development and worldwide marketing and selling of athletic footwear, apparel, equipment, accessories and services. NIKE is\nthe largest seller of athletic footwear and apparel in the world. We sell our products through NIKE Direct operations, which are comprised of both NIKE-owned retail stores\nand sales through our digital platforms (also referred to as "NIKE Brand Digital"), to retail accounts and to a mix of independent distributors, licensees and sales')]]
 ```
 
-`VectorStoreRetriever` supports search types of `"similarity"` (default), `"mmr"` (maximum marginal relevance, described above), and `"similarity_score_threshold"`. We can use the latter to threshold documents output by the retriever by similarity score.
+`VectorStoreRetriever` 支持搜索类型 `"similarity"`（默认）、`"mmr"`（最大边际相关性，如上所述）和 `"similarity_score_threshold"`。我们可以使用后者通过相似度分数对检索器输出的文档进行阈值设置。
 
 
 
-Retrievers can easily be incorporated into more complex applications, such as [retrieval-augmented generation (RAG)](/oss/python/langchain/retrieval) applications that combine a given question with retrieved context into a prompt for a LLM. To learn more about building such an application, check out the [RAG tutorial](/oss/python/langchain/rag) tutorial.
+检索器可以轻松地集成到更复杂的应用程序中，例如[检索增强生成 (RAG)](/oss/python/langchain/retrieval) 应用程序，这些应用程序将给定问题与检索到的上下文结合到 LLM 的提示中。要了解有关构建此类应用程序的更多信息，请查看[RAG 教程](/oss/python/langchain/rag)教程。
 
 
-## Next steps
+## 后续步骤
 
-You've now seen how to build a semantic search engine over a PDF document.
+您现在已经了解了如何针对 PDF 文档构建语义搜索引擎。
 
-For more on document loaders:
+有关文档加载器的更多信息：
 
-- [Overview](/oss/python/langchain/retrieval)
-- [Available integrations](/oss/python/integrations/document_loaders/)
+- [概述](/oss/python/langchain/retrieval)
+- [可用集成](/oss/python/integrations/document_loaders/)
 
-For more on embeddings:
+有关嵌入的更多信息：
 
-- [Overview](/oss/python/langchain/retrieval)
-- [Available integrations](/oss/python/integrations/embeddings/)
+- [概述](/oss/python/langchain/retrieval)
+- [可用集成](/oss/python/integrations/embeddings/)
 
-For more on vector stores:
+有关向量存储的更多信息：
 
-- [Overview](/oss/python/langchain/retrieval)
-- [Available integrations](/oss/python/integrations/vectorstores/)
+- [概述](/oss/python/langchain/retrieval)
+- [可用集成](/oss/python/integrations/vectorstores/)
 
-For more on RAG, see:
+有关 RAG 的更多信息，请参阅：
 
-- [Build a Retrieval Augmented Generation (RAG) App](/oss/python/langchain/rag/)
+- [构建检索增强生成 (RAG) 应用](/oss/python/langchain/rag/)
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/knowledge-base.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/knowledge-base.mdx) 或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [通过 MCP 将这些文档连接到 Claude、VSCode 等](/use-these-docs) 以获取实时答案。
 </Callout>
 </div>

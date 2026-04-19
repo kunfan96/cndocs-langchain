@@ -1,33 +1,33 @@
 ---
-title: Quickstart
+title: 快速入门
 ---
 
 
 
-This quickstart demonstrates how to build a calculator agent using the LangGraph Graph API or the Functional API.
+本快速入门演示如何使用 LangGraph Graph API 或 Functional API 构建计算器代理。
 
 <Tip>
-    **Using an AI coding assistant?**
+    **正在使用 AI 编码助手？**
 
-    - Install the [LangChain Docs MCP server](/use-these-docs) to give your agent access to up-to-date LangChain documentation and examples.
-    - Install [LangChain Skills](https://github.com/langchain-ai/langchain-skills) to improve your agent's performance on LangChain ecosystem tasks.
+    - 安装 [LangChain Docs MCP 服务器](/use-these-docs)，让您的代理能够访问最新的 LangChain 文档和示例。
+    - 安装 [LangChain Skills](https://github.com/langchain-ai/langchain-skills)，以提升您的代理在 LangChain 生态系统任务上的性能。
 </Tip>
 
-- [Use the Graph API](#use-the-graph-api) if you prefer to define your agent as a graph of nodes and edges.
-- [Use the Functional API](#use-the-functional-api) if you prefer to define your agent as a single function.
+- 如果您倾向于将代理定义为节点和边的图，请[使用 Graph API](#use-the-graph-api)。
+- 如果您倾向于将代理定义为单个函数，请[使用 Functional API](#use-the-functional-api)。
 
-For conceptual information, see [Graph API overview](/oss/python/langgraph/graph-api) and [Functional API overview](/oss/python/langgraph/functional-api).
+有关概念性信息，请参阅 [Graph API 概述](/oss/python/langgraph/graph-api) 和 [Functional API 概述](/oss/python/langgraph/functional-api)。
 
 <Info>
-For this example, you will need to set up a [Claude (Anthropic)](https://www.anthropic.com/) account and get an API key. Then, set the `ANTHROPIC_API_KEY` environment variable in your terminal.
+对于此示例，您需要设置一个 [Claude (Anthropic)](https://www.anthropic.com/) 账户并获取 API 密钥。然后，在终端中设置 `ANTHROPIC_API_KEY` 环境变量。
 </Info>
 
 <Tabs>
-<Tab title="Use the Graph API">
+<Tab title="使用 Graph API">
 
-## 1. Define tools and model
+## 1. 定义工具和模型
 
-In this example, we'll use the Claude Sonnet 4.5 model and define tools for addition, multiplication, and division.
+在此示例中，我们将使用 Claude Sonnet 4.5 模型，并为加法、乘法和除法定义工具。
 
 ```python
 from langchain.tools import tool
@@ -40,7 +40,7 @@ model = init_chat_model(
 )
 
 
-# Define tools
+# 定义工具
 @tool
 def multiply(a: int, b: int) -> int:
     """Multiply `a` and `b`.
@@ -74,7 +74,7 @@ def divide(a: int, b: int) -> float:
     return a / b
 
 
-# Augment the LLM with tools
+# 使用工具增强 LLM
 tools = [add, multiply, divide]
 tools_by_name = {tool.name: tool for tool in tools}
 model_with_tools = model.bind_tools(tools)
@@ -83,14 +83,14 @@ model_with_tools = model.bind_tools(tools)
 
 
 
-## 2. Define state
+## 2. 定义状态
 
-The graph's state is used to store the messages and the number of LLM calls.
+图的状态用于存储消息和 LLM 调用次数。
 
 <Tip>
-    State in LangGraph persists throughout the agent's execution.
+    LangGraph 中的状态在整个代理执行过程中持续存在。
 
-    The `Annotated` type with `operator.add` ensures that new messages are appended to the existing list rather than replacing it.
+    使用 `operator.add` 的 `Annotated` 类型确保新消息会追加到现有列表中，而不是替换它。
 </Tip>
 
 
@@ -111,9 +111,9 @@ class MessagesState(TypedDict):
 
 
 
-## 3. Define model node
+## 3. 定义模型节点
 
-The model node is used to call the LLM and decide whether to call a tool or not.
+模型节点用于调用 LLM 并决定是否调用工具。
 
 ```python
 from langchain.messages import SystemMessage
@@ -140,9 +140,9 @@ def llm_call(state: dict):
 
 
 
-## 4. Define tool node
+## 4. 定义工具节点
 
-The tool node is used to call the tools and return the results.
+工具节点用于调用工具并返回结果。
 
 ```python
 from langchain.messages import ToolMessage
@@ -162,9 +162,9 @@ def tool_node(state: dict):
 
 
 
-## 5. Define end logic
+## 5. 定义结束逻辑
 
-The conditional edge function is used to route to the tool node or end based upon whether the LLM made a tool call.
+条件边函数用于根据 LLM 是否进行了工具调用来路由到工具节点或结束。
 
 ```python
 from typing import Literal
@@ -188,19 +188,19 @@ def should_continue(state: MessagesState) -> Literal["tool_node", END]:
 
 
 
-## 6. Build and compile the agent
+## 6. 构建并编译代理
 
-The agent is built using the [`StateGraph`](https://reference.langchain.com/python/langgraph/graph/state/StateGraph) class and compiled using the [`compile`](https://reference.langchain.com/python/langgraph/graph/state/StateGraph/compile) method.
+代理使用 [`StateGraph`](https://reference.langchain.com/python/langgraph/graph/state/StateGraph) 类构建，并使用 [`compile`](https://reference.langchain.com/python/langgraph/graph/state/StateGraph/compile) 方法编译。
 
 ```python
-# Build workflow
+# 构建工作流
 agent_builder = StateGraph(MessagesState)
 
-# Add nodes
+# 添加节点
 agent_builder.add_node("llm_call", llm_call)
 agent_builder.add_node("tool_node", tool_node)
 
-# Add edges to connect nodes
+# 添加边以连接节点
 agent_builder.add_edge(START, "llm_call")
 agent_builder.add_conditional_edges(
     "llm_call",
@@ -209,14 +209,14 @@ agent_builder.add_conditional_edges(
 )
 agent_builder.add_edge("tool_node", "llm_call")
 
-# Compile the agent
+# 编译代理
 agent = agent_builder.compile()
 
-# Show the agent
+# 显示代理
 from IPython.display import Image, display
 display(Image(agent.get_graph(xray=True).draw_mermaid_png()))
 
-# Invoke
+# 调用
 from langchain.messages import HumanMessage
 messages = [HumanMessage(content="Add 3 and 4.")]
 messages = agent.invoke({"messages": messages})
@@ -228,14 +228,14 @@ for m in messages["messages"]:
 
 
 <Tip>
-    To learn how to trace your agent with LangSmith, see the [LangSmith documentation](/langsmith/trace-with-langgraph).
+    要了解如何使用 LangSmith 追踪您的代理，请参阅 [LangSmith 文档](/langsmith/trace-with-langgraph)。
 </Tip>
 
-Congratulations! You've built your first agent using the LangGraph Graph API.
+恭喜！您已使用 LangGraph Graph API 构建了您的第一个代理。
 
-<Accordion title="Full code example">
+<Accordion title="完整代码示例">
 ```python
-# Step 1: Define tools and model
+# 步骤 1：定义工具和模型
 
 from langchain.tools import tool
 from langchain.chat_models import init_chat_model
@@ -247,7 +247,7 @@ model = init_chat_model(
 )
 
 
-# Define tools
+# 定义工具
 @tool
 def multiply(a: int, b: int) -> int:
     """Multiply `a` and `b`.
@@ -281,12 +281,12 @@ def divide(a: int, b: int) -> float:
     return a / b
 
 
-# Augment the LLM with tools
+# 使用工具增强 LLM
 tools = [add, multiply, divide]
 tools_by_name = {tool.name: tool for tool in tools}
 model_with_tools = model.bind_tools(tools)
 
-# Step 2: Define state
+# 步骤 2：定义状态
 
 from langchain.messages import AnyMessage
 from typing_extensions import TypedDict, Annotated
@@ -297,7 +297,7 @@ class MessagesState(TypedDict):
     messages: Annotated[list[AnyMessage], operator.add]
     llm_calls: int
 
-# Step 3: Define model node
+# 步骤 3：定义模型节点
 from langchain.messages import SystemMessage
 
 
@@ -319,7 +319,7 @@ def llm_call(state: dict):
     }
 
 
-# Step 4: Define tool node
+# 步骤 4：定义工具节点
 
 from langchain.messages import ToolMessage
 
@@ -334,13 +334,13 @@ def tool_node(state: dict):
         result.append(ToolMessage(content=observation, tool_call_id=tool_call["id"]))
     return {"messages": result}
 
-# Step 5: Define logic to determine whether to end
+# 步骤 5：定义用于确定是否结束的逻辑
 
 from typing import Literal
 from langgraph.graph import StateGraph, START, END
 
 
-# Conditional edge function to route to the tool node or end based upon whether the LLM made a tool call
+# 条件边函数，用于根据 LLM 是否进行了工具调用来路由到工具节点或结束
 def should_continue(state: MessagesState) -> Literal["tool_node", END]:
     """Decide if we should continue the loop or stop based upon whether the LLM made a tool call"""
 
@@ -354,16 +354,16 @@ def should_continue(state: MessagesState) -> Literal["tool_node", END]:
     # Otherwise, we stop (reply to the user)
     return END
 
-# Step 6: Build agent
+# 步骤 6：构建代理
 
-# Build workflow
+# 构建工作流
 agent_builder = StateGraph(MessagesState)
 
-# Add nodes
+# 添加节点
 agent_builder.add_node("llm_call", llm_call)
 agent_builder.add_node("tool_node", tool_node)
 
-# Add edges to connect nodes
+# 添加边以连接节点
 agent_builder.add_edge(START, "llm_call")
 agent_builder.add_conditional_edges(
     "llm_call",
@@ -372,15 +372,15 @@ agent_builder.add_conditional_edges(
 )
 agent_builder.add_edge("tool_node", "llm_call")
 
-# Compile the agent
+# 编译代理
 agent = agent_builder.compile()
 
 
 from IPython.display import Image, display
-# Show the agent
+# 显示代理
 display(Image(agent.get_graph(xray=True).draw_mermaid_png()))
 
-# Invoke
+# 调用
 from langchain.messages import HumanMessage
 messages = [HumanMessage(content="Add 3 and 4.")]
 messages = agent.invoke({"messages": messages})
@@ -394,11 +394,11 @@ for m in messages["messages"]:
 </Accordion>
 </Tab>
 
-<Tab title="Use the Functional API">
+<Tab title="使用 Functional API">
 
-## 1. Define tools and model
+## 1. 定义工具和模型
 
-In this example, we'll use the Claude Sonnet 4.5 model and define tools for addition, multiplication, and division.
+在此示例中，我们将使用 Claude Sonnet 4.5 模型，并为加法、乘法和除法定义工具。
 
 ```python
 from langchain.tools import tool
@@ -411,7 +411,7 @@ model = init_chat_model(
 )
 
 
-# Define tools
+# 定义工具
 @tool
 def multiply(a: int, b: int) -> int:
     """Multiply `a` and `b`.
@@ -445,7 +445,7 @@ def divide(a: int, b: int) -> float:
     return a / b
 
 
-# Augment the LLM with tools
+# 使用工具增强 LLM
 tools = [add, multiply, divide]
 tools_by_name = {tool.name: tool for tool in tools}
 model_with_tools = model.bind_tools(tools)
@@ -463,12 +463,12 @@ from langgraph.func import entrypoint, task
 
 
 
-## 2. Define model node
+## 2. 定义模型节点
 
-The model node is used to call the LLM and decide whether to call a tool or not.
+模型节点用于调用 LLM 并决定是否调用工具。
 
 <Tip>
-    The [`@task`](https://reference.langchain.com/python/langgraph/func/task) decorator marks a function as a task that can be executed as part of the agent. Tasks can be called synchronously or asynchronously within your entrypoint function.
+    [`@task`](https://reference.langchain.com/python/langgraph/func/task) 装饰器将函数标记为可作为代理一部分执行的任务。任务可以在您的入口点函数内同步或异步调用。
 </Tip>
 
 ```python
@@ -488,9 +488,9 @@ def call_llm(messages: list[BaseMessage]):
 
 
 
-## 3. Define tool node
+## 3. 定义工具节点
 
-The tool node is used to call the tools and return the results.
+工具节点用于调用工具并返回结果。
 
 ```python
 @task
@@ -504,12 +504,12 @@ def call_tool(tool_call: ToolCall):
 
 
 
-## 4. Define agent
+## 4. 定义代理
 
-The agent is built using the [`@entrypoint`](https://reference.langchain.com/python/langgraph/func/entrypoint) function.
+代理使用 [`@entrypoint`](https://reference.langchain.com/python/langgraph/func/entrypoint) 函数构建。
 
 <Note>
-    In the Functional API, instead of defining nodes and edges explicitly, you write standard control flow logic (loops, conditionals) within a single function.
+    在 Functional API 中，您无需显式定义节点和边，而是在单个函数内编写标准控制流逻辑（循环、条件语句）。
 </Note>
 
 ```python
@@ -521,7 +521,7 @@ def agent(messages: list[BaseMessage]):
         if not model_response.tool_calls:
             break
 
-        # Execute tools
+        # 执行工具
         tool_result_futures = [
             call_tool(tool_call) for tool_call in model_response.tool_calls
         ]
@@ -532,7 +532,7 @@ def agent(messages: list[BaseMessage]):
     messages = add_messages(messages, model_response)
     return messages
 
-# Invoke
+# 调用
 messages = [HumanMessage(content="Add 3 and 4.")]
 for chunk in agent.stream(messages, stream_mode="updates"):
     print(chunk)
@@ -543,14 +543,14 @@ for chunk in agent.stream(messages, stream_mode="updates"):
 
 
 <Tip>
-    To learn how to trace your agent with LangSmith, see the [LangSmith documentation](/langsmith/trace-with-langgraph).
+    要了解如何使用 LangSmith 追踪您的代理，请参阅 [LangSmith 文档](/langsmith/trace-with-langgraph)。
 </Tip>
 
-Congratulations! You've built your first agent using the LangGraph Functional API.
+恭喜！您已使用 LangGraph Functional API 构建了您的第一个代理。
 
-<Accordion title="Full code example" icon="code">
+<Accordion title="完整代码示例" icon="code">
 ```python
-# Step 1: Define tools and model
+# 步骤 1：定义工具和模型
 
 from langchain.tools import tool
 from langchain.chat_models import init_chat_model
@@ -562,7 +562,7 @@ model = init_chat_model(
 )
 
 
-# Define tools
+# 定义工具
 @tool
 def multiply(a: int, b: int) -> int:
     """Multiply `a` and `b`.
@@ -596,7 +596,7 @@ def divide(a: int, b: int) -> float:
     return a / b
 
 
-# Augment the LLM with tools
+# 使用工具增强 LLM
 tools = [add, multiply, divide]
 tools_by_name = {tool.name: tool for tool in tools}
 model_with_tools = model.bind_tools(tools)
@@ -611,7 +611,7 @@ from langchain_core.messages import BaseMessage
 from langgraph.func import entrypoint, task
 
 
-# Step 2: Define model node
+# 步骤 2：定义模型节点
 
 @task
 def call_llm(messages: list[BaseMessage]):
@@ -626,7 +626,7 @@ def call_llm(messages: list[BaseMessage]):
     )
 
 
-# Step 3: Define tool node
+# 步骤 3：定义工具节点
 
 @task
 def call_tool(tool_call: ToolCall):
@@ -635,7 +635,7 @@ def call_tool(tool_call: ToolCall):
     return tool.invoke(tool_call)
 
 
-# Step 4: Define agent
+# 步骤 4：定义代理
 
 @entrypoint()
 def agent(messages: list[BaseMessage]):
@@ -645,7 +645,7 @@ def agent(messages: list[BaseMessage]):
         if not model_response.tool_calls:
             break
 
-        # Execute tools
+        # 执行工具
         tool_result_futures = [
             call_tool(tool_call) for tool_call in model_response.tool_calls
         ]
@@ -656,7 +656,7 @@ def agent(messages: list[BaseMessage]):
     messages = add_messages(messages, model_response)
     return messages
 
-# Invoke
+# 调用
 messages = [HumanMessage(content="Add 3 and 4.")]
 for chunk in agent.stream(messages, stream_mode="updates"):
     print(chunk)
@@ -673,9 +673,9 @@ for chunk in agent.stream(messages, stream_mode="updates"):
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/quickstart.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/quickstart.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [通过 MCP 连接这些文档](/use-these-docs) 到 Claude、VSCode 等，以获取实时答案。
 </Callout>
 </div>

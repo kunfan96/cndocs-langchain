@@ -1,36 +1,30 @@
 ---
-title: Runtime
+title: 运行时
 ---
 
-## Overview
+## 概述
 
-LangChain's [`create_agent`](https://reference.langchain.com/python/langchain/agents/factory/create_agent) runs on LangGraph's runtime under the hood.
+LangChain 的 [`create_agent`](https://reference.langchain.com/python/langchain/agents/factory/create_agent) 在底层运行于 LangGraph 的运行时之上。
 
+LangGraph 公开了一个 [`Runtime`](https://reference.langchain.com/python/langgraph/runtime/Runtime) 对象，其中包含以下信息：
 
-LangGraph exposes a [`Runtime`](https://reference.langchain.com/python/langgraph/runtime/Runtime) object with the following information:
-
-1. **Context**: static information like user id, db connections, or other dependencies for an agent invocation
-2. **Store**: a [BaseStore](https://reference.langchain.com/python/langchain-core/stores/BaseStore) instance used for [long-term memory](/oss/python/langchain/long-term-memory)
-3. **Stream writer**: an object used for streaming information via the `"custom"` stream mode
-4. **Execution info**: identity and retry information for the current execution (thread ID, run ID, attempt number)
-5. **Server info**: server-specific metadata when running on LangGraph Server (assistant ID, graph ID, authenticated user)
+1. **上下文**：静态信息，如用户 ID、数据库连接或其他用于代理调用的依赖项
+2. **存储**：一个 [BaseStore](https://reference.langchain.com/python/langchain-core/stores/BaseStore) 实例，用于[长期记忆](/oss/python/langchain/long-term-memory)
+3. **流写入器**：一个用于通过 `"custom"` 流模式流式传输信息的对象
+4. **执行信息**：当前执行的身份和重试信息（线程 ID、运行 ID、尝试次数）
+5. **服务器信息**：在 LangGraph Server 上运行时的服务器特定元数据（助手 ID、图 ID、已认证用户）
 
 <Tip>
-Runtime context provides **dependency injection** for your tools and middleware. Instead of hardcoding values or using global state, you can inject runtime dependencies (like database connections, user IDs, or configuration) when invoking your agent. This makes your tools more testable, reusable, and flexible.
+运行时上下文为您的工具和中间件提供**依赖注入**。您可以在调用代理时注入运行时依赖项（如数据库连接、用户 ID 或配置），而不是硬编码值或使用全局状态。这使得您的工具更易于测试、重用和灵活。
 </Tip>
 
+您可以在[工具](#inside-tools)和[中间件](#inside-middleware)中访问运行时信息。
 
+## 访问
 
+使用 [`create_agent`](https://reference.langchain.com/python/langchain/agents/factory/create_agent) 创建代理时，可以指定 `context_schema` 来定义存储在代理 [`Runtime`](https://reference.langchain.com/python/langgraph/runtime/Runtime) 中的 `context` 结构。
 
-You can access the runtime information within [tools](#inside-tools) and [middleware](#inside-middleware).
-
-## Access
-
-When creating an agent with [`create_agent`](https://reference.langchain.com/python/langchain/agents/factory/create_agent), you can specify a `context_schema` to define the structure of the `context` stored in the agent [`Runtime`](https://reference.langchain.com/python/langgraph/runtime/Runtime).
-
-
-
-When invoking the agent, pass the `context` argument with the relevant configuration for the run:
+调用代理时，传递包含相关运行配置的 `context` 参数：
 
 ```python
 from dataclasses import dataclass
@@ -54,17 +48,15 @@ agent.invoke(
 )
 ```
 
+### 在工具内部
 
+您可以在工具内部访问运行时信息，以：
 
-### Inside tools
+* 访问上下文
+* 读取或写入长期记忆
+* 写入[自定义流](/oss/python/langchain/streaming#custom-updates)（例如，工具进度/更新）
 
-You can access the runtime information inside tools to:
-
-* Access the context
-* Read or write long-term memory
-* Write to the [custom stream](/oss/python/langchain/streaming#custom-updates) (ex, tool progress / updates)
-
-Use the `ToolRuntime` parameter to access the [`Runtime`](https://reference.langchain.com/python/langgraph/runtime/Runtime) object inside a tool.
+使用 `ToolRuntime` 参数在工具内部访问 [`Runtime`](https://reference.langchain.com/python/langgraph/runtime/Runtime) 对象。
 
 ```python
 from dataclasses import dataclass
@@ -87,11 +79,9 @@ def fetch_user_email_preferences(runtime: ToolRuntime[Context]) -> str:  # [!cod
     return preferences
 ```
 
+### 在工具内部的执行信息和服务器信息
 
-
-### Execution info and server info inside tools
-
-Access execution identity (thread ID, run ID) via `runtime.execution_info`, and server-specific metadata (assistant ID, authenticated user) via `runtime.server_info` when running on LangGraph Server:
+通过 `runtime.execution_info` 访问执行身份（线程 ID、运行 ID），并通过 `runtime.server_info` 访问服务器特定元数据（助手 ID、已认证用户），当在 LangGraph Server 上运行时：
 
 ```python
 from langchain.tools import tool, ToolRuntime
@@ -113,23 +103,17 @@ def context_aware_tool(runtime: ToolRuntime) -> str:
     return "done"
 ```
 
-`server_info` is `None` when not running on LangGraph Server (e.g., during local development).
-
-
-
+当不在 LangGraph Server 上运行时（例如，在本地开发期间），`server_info` 为 `None`。
 
 <Note>
-Requires `deepagents>=0.5.0` (or `langgraph>=1.1.5`) for `runtime.execution_info` and `runtime.server_info`.
+需要 `deepagents>=0.5.0`（或 `langgraph>=1.1.5`）才能使用 `runtime.execution_info` 和 `runtime.server_info`。
 </Note>
 
+### 在中间件内部
 
+您可以在中间件中访问运行时信息，以创建动态提示、修改消息或根据用户上下文控制代理行为。
 
-
-### Inside middleware
-
-You can access runtime information in middleware to create dynamic prompts, modify messages, or control agent behavior based on user context.
-
-Use the `Runtime` parameter to access the [`Runtime`](https://reference.langchain.com/python/langgraph/runtime/Runtime) object inside [node-style hooks](/oss/python/langchain/middleware/custom#node-style-hooks).  For [wrap-style hooks](/oss/python/langchain/middleware/custom#wrap-style-hooks), the `Runtime` object is available inside the [`ModelRequest`](https://reference.langchain.com/python/langchain/agents/middleware/types/ModelRequest) parameter.
+使用 `Runtime` 参数在[节点式钩子](/oss/python/langchain/middleware/custom#node-style-hooks)内部访问 [`Runtime`](https://reference.langchain.com/python/langgraph/runtime/Runtime) 对象。对于[包装式钩子](/oss/python/langchain/middleware/custom#wrap-style-hooks)，`Runtime` 对象在 [`ModelRequest`](https://reference.langchain.com/python/langchain/agents/middleware/types/ModelRequest) 参数内部可用。
 
 ```python
 from dataclasses import dataclass
@@ -176,11 +160,9 @@ agent.invoke(
 )
 ```
 
+### 在中间件内部的执行信息和服务器信息
 
-
-### Execution info and server info inside middleware
-
-Middleware hooks can also access `runtime.execution_info` and `runtime.server_info`:
+中间件钩子也可以访问 `runtime.execution_info` 和 `runtime.server_info`：
 
 ```python
 from langchain.agents import AgentState
@@ -198,20 +180,17 @@ def auth_gate(state: AgentState, runtime: Runtime) -> dict | None:
     return None
 ```
 
-
-
-
 <Note>
-Requires `deepagents>=0.5.0` (or `langgraph>=1.1.5`).
+需要 `deepagents>=0.5.0`（或 `langgraph>=1.1.5`）。
 </Note>
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/runtime.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/runtime.mdx) 或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [通过 MCP 连接这些文档](/use-these-docs) 到 Claude、VSCode 等，以获取实时答案。
 </Callout>
 </div>

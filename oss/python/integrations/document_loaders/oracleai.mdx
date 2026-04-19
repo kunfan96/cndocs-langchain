@@ -1,24 +1,24 @@
 ---
-title: "Oracle AI vector search document processing integration"
-description: "Integrate with the Oracle AI vector search document processing document loader using LangChain Python."
+title: "Oracle AI 向量搜索文档处理集成"
+description: "使用 LangChain Python 与 Oracle AI 向量搜索文档处理文档加载器集成。"
 ---
 
-Oracle AI Database supports document-centric AI workflows by combining semantic search over unstructured content with relational queries over business data in a single system. This makes it easier to build retrieval workflows (like RAG) without splitting data and vectors across multiple databases.
+Oracle AI 数据库通过将非结构化内容的语义搜索与业务数据的关系查询结合在单个系统中，支持以文档为中心的 AI 工作流。这使得构建检索工作流（如 RAG）变得更加容易，而无需将数据和向量拆分到多个数据库中。
 
-In this guide, you’ll learn how to:
+在本指南中，您将学习如何：
 
-- Connect to Oracle Database from Python
-- Load documents using `OracleDocLoader` (from database tables, files, or directories)
-- Chunk content with `OracleTextSplitter` to prepare for embeddings and retrieval
+- 从 Python 连接到 Oracle 数据库
+- 使用 `OracleDocLoader` 加载文档（从数据库表、文件或目录）
+- 使用 `OracleTextSplitter` 对内容进行分块，为嵌入和检索做准备
 
-> **Why in-database document processing?**
-> You can apply Oracle Database capabilities—security, transactions, scalability, and high availability—to the same pipeline that loads, chunks, and stores content for AI search and retrieval.
+> **为什么要在数据库内进行文档处理？**
+> 您可以将 Oracle 数据库的功能（安全性、事务、可扩展性和高可用性）应用于相同的管道，该管道用于加载、分块和存储内容以供 AI 搜索和检索。
 
-If you are just starting with Oracle Database, consider exploring the [free Oracle 26 AI](https://www.oracle.com/database/free/#resources), which provides a simple way to get set up. While working with the database, it’s often advisable to avoid using the `SYSTEM` user for application workloads; instead, create a dedicated user with the minimum required privileges. For an end-to-end setup walkthrough, see the [Oracle AI Vector Search demo notebook](https://github.com/langchain-ai/langchain/blob/v0.3/cookbook/oracleai_demo.ipynb). For background on user administration, refer to the official [Oracle guide](https://docs.oracle.com/en/database/oracle/oracle-database/19/admqs/administering-user-accounts-and-security.html#GUID-36B21D72-1BBB-46C9-A0C9-F0D2A8591B8D).
+如果您刚开始使用 Oracle 数据库，可以考虑探索 [免费的 Oracle 26 AI](https://www.oracle.com/database/free/#resources)，它提供了一种简单的设置方式。在使用数据库时，建议避免将 `SYSTEM` 用户用于应用程序工作负载；相反，应创建一个具有最低所需权限的专用用户。有关端到端设置演练，请参阅 [Oracle AI 向量搜索演示笔记本](https://github.com/langchain-ai/langchain/blob/v0.3/cookbook/oracleai_demo.ipynb)。有关用户管理的背景信息，请参考官方 [Oracle 指南](https://docs.oracle.com/en/database/oracle/oracle-database/19/admqs/administering-user-accounts-and-security.html#GUID-36B21D72-1BBB-46C9-A0C9-F0D2A8591B8D)。
 
-### Prerequisites
+### 先决条件
 
-Install `langchain-oracledb`. The `python-oracledb` driver will be installed automatically as a dependency.
+安装 `langchain-oracledb`。`python-oracledb` 驱动程序将作为依赖项自动安装。
 
 <CodeGroup>
 ```bash pip
@@ -29,16 +29,16 @@ uv add langchain-oracledb
 ```
 </CodeGroup>
 
-### Connect to Oracle Database
+### 连接到 Oracle 数据库
 
-The following sample code will show how to connect to Oracle Database. By default, python-oracledb runs in a ‘Thin’ mode which connects directly to Oracle Database. This mode does not need Oracle Client libraries. However, some additional functionality is available when python-oracledb uses them. Python-oracledb is said to be in ‘Thick’ mode when Oracle Client libraries are used. Both modes have comprehensive functionality supporting the Python Database API v2.0 Specification. See the following [guide](https://python-oracledb.readthedocs.io/en/latest/user_guide/appendix_a.html#featuresummary) that talks about features supported in each mode. You might want to switch to thick-mode if you are unable to use thin-mode.
+以下示例代码将展示如何连接到 Oracle 数据库。默认情况下，python-oracledb 在“Thin”模式下运行，该模式直接连接到 Oracle 数据库。此模式不需要 Oracle 客户端库。但是，当 python-oracledb 使用它们时，会提供一些额外的功能。当使用 Oracle 客户端库时，python-oracledb 被称为处于“Thick”模式。两种模式都具有全面的功能，支持 Python 数据库 API v2.0 规范。请参阅以下[指南](https://python-oracledb.readthedocs.io/en/latest/user_guide/appendix_a.html#featuresummary)，了解每种模式支持的功能。如果您无法使用 Thin 模式，可能需要切换到 Thick 模式。
 
 ```python
 import sys
 
 import oracledb
 
-# Please update with your username, password, hostname, port and service_name
+# 请使用您的用户名、密码、主机名、端口和服务名称进行更新
 username = "<username>"
 password = "<password>"
 dsn = "<hostname>:<port>/<service_name>"
@@ -47,7 +47,7 @@ connection = oracledb.connect(user=username, password=password, dsn=dsn)
 print("Connection successful!")
 ```
 
-Now let's create a table and insert some sample docs to test.
+现在让我们创建一个表并插入一些示例文档进行测试。
 
 ```python
 try:
@@ -63,15 +63,15 @@ try:
     rows_to_insert = [
         (
             1,
-            "If the answer to any preceding questions is yes, then the database stops the search and allocates space from the specified tablespace; otherwise, space is allocated from the database default shared temporary tablespace.",
+            "如果任何先前问题的答案是肯定的，则数据库将停止搜索并从指定的表空间分配空间；否则，将从数据库默认的共享临时表空间分配空间。",
         ),
         (
             2,
-            "A tablespace can be online (accessible) or offline (not accessible) whenever the database is open.\nA tablespace is usually online so that its data is available to users. The SYSTEM tablespace and temporary tablespaces cannot be taken offline.",
+            "表空间可以是在线（可访问）或离线（不可访问），只要数据库是打开的。\n表空间通常是在线的，以便其数据可供用户使用。SYSTEM 表空间和临时表空间不能离线。",
         ),
         (
             3,
-            "The database stores LOBs differently from other data types. Creating a LOB column implicitly creates a LOB segment and a LOB index. The tablespace containing the LOB segment and LOB index, which are always stored together, may be different from the tablespace containing the table.\nSometimes the database can store small amounts of LOB data in the table itself rather than in a separate LOB segment.",
+            "数据库存储 LOB 的方式与其他数据类型不同。创建 LOB 列会隐式创建 LOB 段和 LOB 索引。包含 LOB 段和 LOB 索引的表空间（它们始终存储在一起）可能与包含表的表空间不同。\n有时数据库可以将少量 LOB 数据存储在表本身中，而不是单独的 LOB 段中。",
         ),
     ]
     cursor.executemany(insert_row_sql, rows_to_insert)
@@ -87,70 +87,70 @@ except Exception as e:
     sys.exit(1)
 ```
 
-### Load documents
+### 加载文档
 
-Users have the flexibility to load documents from either the Oracle Database, a file system, or both, by appropriately configuring the loader parameters. For comprehensive details on these parameters, please consult the [Oracle AI Vector Search Guide](https://docs.oracle.com/en/database/oracle/oracle-database/23/arpls/dbms_vector_chain1.html#GUID-73397E89-92FB-48ED-94BB-1AD960C4EA1F).
+用户可以通过适当配置加载器参数，灵活地从 Oracle 数据库、文件系统或两者加载文档。有关这些参数的完整详细信息，请查阅 [Oracle AI 向量搜索指南](https://docs.oracle.com/en/database/oracle/oracle-database/23/arpls/dbms_vector_chain1.html#GUID-73397E89-92FB-48ED-94BB-1AD960C4EA1F)。
 
-A significant advantage of utilizing OracleDocLoader is its capability to process over 150 distinct file formats, eliminating the need for multiple loaders for different document types. For a complete list of the supported formats, please refer to the [Oracle Text Supported Document Formats](https://docs.oracle.com/en/database/oracle/oracle-database/23/ccref/oracle-text-supported-document-formats.html).
+使用 OracleDocLoader 的一个重要优势是它能够处理超过 150 种不同的文件格式，无需为不同的文档类型使用多个加载器。有关支持格式的完整列表，请参阅 [Oracle Text 支持的文档格式](https://docs.oracle.com/en/database/oracle/oracle-database/23/ccref/oracle-text-supported-document-formats.html)。
 
-Below is a sample code snippet that demonstrates how to use `OracleDocLoader`:
+以下是演示如何使用 `OracleDocLoader` 的示例代码片段：
 
 ```python
 from langchain_oracledb.document_loaders.oracleai import OracleDocLoader
 from langchain_core.documents import Document
 
 """
-# loading a local file
+# 加载本地文件
 loader_params = {}
 loader_params["file"] = "<file>"
 
-# loading from a local directory
+# 从本地目录加载
 loader_params = {}
 loader_params["dir"] = "<directory>"
 """
 
-# loading from Oracle Database table
+# 从 Oracle 数据库表加载
 loader_params = {
     "owner": "<owner>",
     "tablename": "demo_tab",
     "colname": "data",
 }
 
-""" load the docs """
+""" 加载文档 """
 loader = OracleDocLoader(conn=conn, params=loader_params)
 docs = loader.load()
 
-""" verify """
+""" 验证 """
 print(f"Number of docs loaded: {len(docs)}")
-# print(f"Document-0: {docs[0].page_content}") # content
+# print(f"Document-0: {docs[0].page_content}") # 内容
 ```
 
-### Split documents
+### 拆分文档
 
-The documents may vary in size, ranging from small to very large. Users often prefer to chunk their documents into smaller sections to facilitate the generation of embeddings. A wide array of customization options is available for this splitting process. For comprehensive details regarding these parameters, please consult the [Oracle AI Vector Search Guide](https://docs.oracle.com/en/database/oracle/oracle-database/23/arpls/dbms_vector_chain1.html#GUID-4E145629-7098-4C7C-804F-FC85D1F24240).
+文档的大小可能各不相同，从很小到非常大。用户通常更喜欢将文档分块成较小的部分，以便于生成嵌入。此拆分过程有广泛的自定义选项可用。有关这些参数的完整详细信息，请查阅 [Oracle AI 向量搜索指南](https://docs.oracle.com/en/database/oracle/oracle-database/23/arpls/dbms_vector_chain1.html#GUID-4E145629-7098-4C7C-804F-FC85D1F24240)。
 
-Below is a sample code illustrating how to implement this:
+以下是演示如何实现此操作的示例代码：
 
 ```python
 from langchain_oracledb.document_loaders.oracleai import OracleTextSplitter
 from langchain_core.documents import Document
 
 """
-# Some examples
-# split by chars, max 500 chars
+# 一些示例
+# 按字符拆分，最多 500 个字符
 splitter_params = {"split": "chars", "max": 500, "normalize": "all"}
 
-# split by words, max 100 words
+# 按单词拆分，最多 100 个单词
 splitter_params = {"split": "words", "max": 100, "normalize": "all"}
 
-# split by sentence, max 20 sentences
+# 按句子拆分，最多 20 个句子
 splitter_params = {"split": "sentence", "max": 20, "normalize": "all"}
 """
 
-# split by default parameters
+# 按默认参数拆分
 splitter_params = {"normalize": "all"}
 
-# get the splitter instance
+# 获取拆分器实例
 splitter = OracleTextSplitter(conn=conn, params=splitter_params)
 
 list_chunks = []
@@ -158,22 +158,22 @@ for doc in docs:
     chunks = splitter.split_text(doc.page_content)
     list_chunks.extend(chunks)
 
-""" verify """
+""" 验证 """
 print(f"Number of Chunks: {len(list_chunks)}")
-# print(f"Chunk-0: {list_chunks[0]}") # content
+# print(f"Chunk-0: {list_chunks[0]}") # 内容
 ```
 
-### End to end demo
+### 端到端演示
 
-Please refer to our complete demo guide [Oracle AI Vector Search End-to-End Demo Guide](https://github.com/langchain-ai/langchain/blob/v0.3/cookbook/oracleai_demo.ipynb) to build an end to end RAG pipeline with the help of Oracle AI Vector Search.
+请参阅我们的完整演示指南 [Oracle AI 向量搜索端到端演示指南](https://github.com/langchain-ai/langchain/blob/v0.3/cookbook/oracleai_demo.ipynb)，以借助 Oracle AI 向量搜索构建端到端的 RAG 管道。
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/document_loaders/oracleai.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/document_loaders/oracleai.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [连接这些文档](/use-these-docs) 到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 </div>
