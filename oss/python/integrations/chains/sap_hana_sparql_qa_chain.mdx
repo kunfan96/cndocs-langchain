@@ -1,15 +1,15 @@
 ---
-title: Question Answering with `HanaSparqlQAChain`
+title: 使用 `HanaSparqlQAChain` 进行问答
 ---
-## Setup and Installation
+## 设置与安装
 
-To use this feature, install the `langchain-hana` package:
+要使用此功能，请安装 `langchain-hana` 包：
 
 ```python
 pip install langchain_hana
 ```
 
-And then, create a connection to your SAP HANA Cloud instance.
+然后，创建到您的 SAP HANA Cloud 实例的连接。
 
 ```python
 import os
@@ -17,10 +17,10 @@ import os
 from dotenv import load_dotenv
 from hdbcli import dbapi
 
-# Load environment variables if needed
+# 如果需要，加载环境变量
 load_dotenv()
 
-# Establish connection to SAP HANA Cloud
+# 建立与 SAP HANA Cloud 的连接
 connection = dbapi.connect(
     address=os.environ.get("HANA_DB_ADDRESS"),
     port=os.environ.get("HANA_DB_PORT"),
@@ -29,22 +29,22 @@ connection = dbapi.connect(
 )
 ```
 
-`HanaSparqlQAChain` ties together:
+`HanaSparqlQAChain` 将以下内容结合在一起：
 
-1. **Schema-aware SPARQL generation**
-2. **Query execution** against SAP HANA
-3. **Natural-language answer formatting**
+1. **感知模式的 SPARQL 生成**
+2. 针对 SAP HANA 的**查询执行**
+3. **自然语言答案格式化**
 
-## Initialization
+## 初始化
 
-You need:
+您需要：
 
-* An **LLM** to generate and interpret queries
-* A **`HanaRdfGraph`** (with connection, `graph_uri`, and ontology)
+* 一个 **LLM** 来生成和解释查询
+* 一个 **`HanaRdfGraph`**（包含 connection、`graph_uri` 和 ontology）
 
-Follow the steps here [HanaRdfGraph](/oss/python/integrations/graphs/sap_hana_rdf_graph) to know more about creating a `HanaRdfGraph` instance.
+请按照以下步骤 [HanaRdfGraph](/oss/python/integrations/graphs/sap_hana_rdf_graph) 了解更多关于创建 `HanaRdfGraph` 实例的信息。
 
-Import the `HanaSparqlQAChain`
+导入 `HanaSparqlQAChain`
 
 ```python
 from langchain_hana import HanaSparqlQAChain
@@ -56,40 +56,40 @@ qa_chain = HanaSparqlQAChain.from_llm(
 )
 ```
 
-## Pipeline overview
+## 管道概述
 
-1. **SPARQL Generation**
-   * Uses `SPARQL_GENERATION_SELECT_PROMPT`
-   * Inputs:
-     * `schema` (Turtle from `graph.get_schema`)
-     * `prompt` (user’s question)
-2. **Query Post-processing**
-   * Extracts the SPARQL code from the llm output.
-   * Inject `FROM <graph_uri>` if missing
-   * Ensure required common prefixes are declared (`rdf:`, `rdfs:`, `owl:`, `xsd:`)
-3. **Execution**
-   * Calls `graph.query(generated_sparql)`
-4. **Answer Formulation**
-   * Uses `SPARQL_QA_PROMPT`
-   * Inputs:
-     * `context` (raw query results)
-     * `prompt` (original question)
+1. **SPARQL 生成**
+   * 使用 `SPARQL_GENERATION_SELECT_PROMPT`
+   * 输入：
+     * `schema`（来自 `graph.get_schema` 的 Turtle）
+     * `prompt`（用户的问题）
+2. **查询后处理**
+   * 从 llm 输出中提取 SPARQL 代码。
+   * 如果缺失则注入 `FROM <graph_uri>`
+   * 确保声明了所需的常用前缀（`rdf:`、`rdfs:`、`owl:`、`xsd:`）
+3. **执行**
+   * 调用 `graph.query(generated_sparql)`
+4. **答案构建**
+   * 使用 `SPARQL_QA_PROMPT`
+   * 输入：
+     * `context`（原始查询结果）
+     * `prompt`（原始问题）
 
-## Prompt templates
+## 提示模板
 
-### "SPARQL Generation" prompt
+### "SPARQL 生成" 提示
 
-The `sparql_generation_prompt` is used to guide the LLM in generating a SPARQL query from the user question and the provided schema.
+`sparql_generation_prompt` 用于指导 LLM 根据用户问题和提供的模式生成 SPARQL 查询。
 
-### Answering prompt
+### 回答提示
 
-The `qa_prompt` instructs the LLM to create a natural language answer based solely on the database results.
+`qa_prompt` 指示 LLM 仅根据数据库结果创建自然语言答案。
 
-The default prompts can be found here: [`prompts.py`](https://github.com/SAP/langchain-integration-for-sap-hana-cloud/blob/main/langchain_hana/chains/graph_qa/prompts.py)
+默认提示可以在这里找到：[`prompts.py`](https://github.com/SAP/langchain-integration-for-sap-hana-cloud/blob/main/langchain_hana/chains/graph_qa/prompts.py)
 
-## Customizing prompts
+## 自定义提示
 
-You can override the defaults at initialization:
+您可以在初始化时覆盖默认值：
 
 ```python
 qa_chain = HanaSparqlQAChain.from_llm(
@@ -102,25 +102,25 @@ qa_chain = HanaSparqlQAChain.from_llm(
 )
 ```
 
-> - `sparql_generation_prompt` must have the input variables: `["schema", "prompt"]`
-> - `qa_prompt` must have the input variables: `["context", "prompt"]`
+> - `sparql_generation_prompt` 必须具有输入变量：`["schema", "prompt"]`
+> - `qa_prompt` 必须具有输入变量：`["context", "prompt"]`
 
-## Example: Question answering over a “Movies” knowledge graph
+## 示例：在"Movies"知识图谱上进行问答
 
-**Prerequisite**:
-You must have an SAP HANA Cloud instance with the **triple store** feature enabled.
-For detailed instructions, refer to: [Enable Triple Store](https://help.sap.com/docs/hana-cloud-database/sap-hana-cloud-sap-hana-database-knowledge-graph-guide/enable-triple-store/)<br />
-Load the `kgdocu_movies` example data. See [Knowledge Graph Example](https://help.sap.com/docs/hana-cloud-database/sap-hana-cloud-sap-hana-database-knowledge-graph-guide/knowledge-graph-example).
+**前提条件**：
+您必须拥有一个启用了 **triple store** 功能的 SAP HANA Cloud 实例。
+有关详细说明，请参阅：[Enable Triple Store](https://help.sap.com/docs/hana-cloud-database/sap-hana-cloud-sap-hana-database-knowledge-graph-guide/enable-triple-store/)<br />
+加载 `kgdocu_movies` 示例数据。请参阅 [Knowledge Graph Example](https://help.sap.com/docs/hana-cloud-database/sap-hana-cloud-sap-hana-database-knowledge-graph-guide/knowledge-graph-example)。
 
-Below we’ll:
+下面我们将：
 
-1. Instantiate the `HanaRdfGraph` pointing at our “movies” data graph
-2. Wrap it in a `HanaSparqlQAChain` powered by an LLM
-3. Ask natural-language questions and print out the chain’s responses
+1. 实例化指向我们"movies"数据图的 `HanaRdfGraph`
+2. 将其包装在由 LLM 驱动的 `HanaSparqlQAChain` 中
+3. 提出自然语言问题并打印链的响应
 
-This demonstrates how the LLM generates SPARQL under the hood, executes it against SAP HANA, and returns a human-readable answer.
+这展示了 LLM 如何在底层生成 SPARQL，针对 SAP HANA 执行它，并返回人类可读的答案。
 
-First, create a connection to your SAP HANA Cloud instance.
+首先，创建到您的 SAP HANA Cloud 实例的连接。
 
 ```python
 import os
@@ -128,10 +128,10 @@ import os
 from dotenv import load_dotenv
 from hdbcli import dbapi
 
-# Load environment variables if needed
+# 如果需要，加载环境变量
 load_dotenv()
 
-# Establish connection to SAP HANA Cloud
+# 建立与 SAP HANA Cloud 的连接
 connection = dbapi.connect(
     address=os.environ.get("HANA_DB_ADDRESS"),
     port=os.environ.get("HANA_DB_PORT"),
@@ -140,17 +140,17 @@ connection = dbapi.connect(
 )
 ```
 
-Then, set up the knowledge graph instance
+然后，设置知识图谱实例
 
 ```python
 from gen_ai_hub.proxy.langchain.openai import ChatOpenAI
 from langchain_hana import HanaRdfGraph, HanaSparqlQAChain
 
-# from langchain_openai import ChatOpenAI  # or your chosen LLM
+# from langchain_openai import ChatOpenAI  # 或您选择的 LLM
 ```
 
 ```python
-# Set up the Knowledge Graph
+# 设置知识图谱
 graph_uri = "kgdocu_movies"
 
 graph = HanaRdfGraph(
@@ -161,7 +161,7 @@ graph = HanaRdfGraph(
 ```
 
 ```python
-# a basic graph schema is extracted from the data graph. This schema will guide the LLM to generate a proper SPARQL query.
+# 从数据图中提取基本图谱模式。此模式将指导 LLM 生成适当的 SPARQL 查询。
 schema_graph = graph.get_schema
 print(schema_graph.serialize(format="turtle"))
 ```
@@ -225,17 +225,17 @@ rdfs:label a owl:DatatypeProperty ;
     rdfs:label "Film" .
 ```
 
-After that, initialise the LLM.
+之后，初始化 LLM。
 
 ```python
-# Initialize the LLM
+# 初始化 LLM
 llm = ChatOpenAI(proxy_model_name="gpt-4o", temperature=0)
 ```
 
-Then, we create a SPARQL QA Chain
+然后，我们创建一个 SPARQL QA Chain
 
 ```python
-# Create a SPARQL QA Chain
+# 创建一个 SPARQL QA 链
 chain = HanaSparqlQAChain.from_llm(
     llm=llm,
     verbose=True,
@@ -245,12 +245,12 @@ chain = HanaSparqlQAChain.from_llm(
 ```
 
 ```python
-# output = chain.invoke("Which movies are in the data?")
-# output = chain.invoke("In which movies did Keanu Reeves and Carrie-Anne Moss play in together")
-# output = chain.invoke("which movie genres are in the data?")
-# output = chain.invoke("which are the two most assigned movie genres?")
-# output = chain.invoke("where were the actors of "Blade Runner" born?")
-# output = chain.invoke("which actors acted together in a movie and were born in the same city?")
+# output = chain.invoke("数据中有哪些电影？")
+# output = chain.invoke("Keanu Reeves 和 Carrie-Anne Moss 一起出演了哪些电影")
+# output = chain.invoke("数据中有哪些电影类型？")
+# output = chain.invoke("分配最多的两个电影类型是哪些？")
+# output = chain.invoke(""Blade Runner"的演员是在哪里出生的？")
+# output = chain.invoke("哪些演员在同一部电影中合作并且在同一个城市出生？")
 output = chain.invoke("which actors acted in Blade Runner?")
 
 print(output["result"])
@@ -311,24 +311,24 @@ http://www.wikidata.org/entity/Q230736,Sean Young
 The actors who acted in Blade Runner are Morgan Paull, William Sanderson, James Hong, M. Emmet Walsh, Brion James, Daryl Hannah, Joe Turkel, Joanna Cassidy, Rutger Hauer, Hy Pyke, Edward James Olmos, and Sean Young.
 ```
 
-## What’s happening under the hood?
+## 底层发生了什么？
 
-1. **SPARQL Generation**
-   The chain invokes the LLM with your Turtle-formatted ontology (`graph.get_schema`) and the user’s question using the `SPARQL_GENERATION_SELECT_PROMPT`. The LLM then emits a valid `SELECT` query tailored to your schema.
-2. **Pre-processing & Execution**
-   * **Extract & clean**: Pull the raw SPARQL text out of the LLM’s response.
-   * **Inject graph context**: Add `FROM <graph_uri>` if it’s missing and ensure common prefixes (`rdf:`, `rdfs:`, `owl:`, `xsd:`) are declared.
-   * **Run on HANA**: Execute the finalized query via `HanaRdfGraph.query()` over your named graph.
-3. **Answer Formulation**
-   The returned CSV (or Turtle) results feed into the LLM again—this time with the `SPARQL_QA_PROMPT`. The LLM produces a concise, human-readable answer strictly based on the retrieved data, without hallucination.
+1. **SPARQL 生成**
+   该链使用您的 Turtle 格式本体（`graph.get_schema`）和用户问题调用 LLM，使用 `SPARQL_GENERATION_SELECT_PROMPT`。然后 LLM 发出针对您的模式定制的有効 `SELECT` 查询。
+2. **预处理与执行**
+   * **提取与清理**：从 LLM 的响应中提取原始 SPARQL 文本。
+   * **注入图谱上下文**：如果缺失则添加 `FROM <graph_uri>` 并确保声明了常用前缀（`rdf:`、`rdfs:`、`owl:`、`xsd:`）。
+   * **在 HANA 上运行**：通过 `HanaRdfGraph.query()` 在您的命名图谱上执行最终查询。
+3. **答案构建**
+   返回的 CSV（或 Turtle）结果再次输入到 LLM 中——这次使用 `SPARQL_QA_PROMPT`。LLM 基于检索到的数据严格生成简洁、人类可读的答案，不会产生幻觉。
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/chains/sap_hana_sparql_qa_chain.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/chains/sap_hana_sparql_qa_chain.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [连接这些文档](/use-these-docs) 到 Claude、VSCode 等，通过 MCP 实现实时答案。
 </Callout>
 </div>

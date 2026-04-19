@@ -1,36 +1,33 @@
 ---
-title: Sandbox
-description: Build an IDE-like UI for a coding agent backed by a sandbox environment
+title: 沙盒
+description: 为基于沙盒环境的 coding agent 构建一个 IDE 般的 UI
 ---
 
-Coding agents need more than a chat window. They need a file browser, a code
-viewer, and a diff panel, an IDE experience. This pattern connects a deep
-agent to a [sandbox](/oss/python/deepagents/sandboxes) so it can read,
-write, and execute code in an isolated environment, then exposes the sandbox
-filesystem through a custom API server so the frontend can display files in
-real time as the agent works.
+Coding agent 需要的不仅仅是一个聊天窗口。它们需要文件浏览器、代码
+查看器和差异面板，一种 IDE 体验。此模式将深度代理连接到 [沙盒](/oss/python/deepagents/sandboxes)，以便它可以在隔离环境中读取、
+写入和执行代码，然后通过自定义 API 服务器暴露沙盒
+文件系统，以便前端可以在代理工作时实时显示文件。
 
 import { PatternEmbed } from "/snippets/pattern-embed.jsx";
 
 <PatternEmbed pattern="deep-agent-ide" minHeight={700} />
 
-## Architecture
+## 架构
 
-The sandbox pattern has three layers:
+沙盒模式有三层：
 
-1. **Deep agent with sandbox backend:** The agent gets filesystem tools
-   (`read_file`, `write_file`, `edit_file`, `execute`) automatically from the
-   sandbox
+1. **带有沙盒后端的深度代理：** 代理自动从沙盒获取文件系统工具
+   （`read_file`、`write_file`、`edit_file`、`execute`）
 
-2. **Custom API server** — A FastAPI app exposed via `langgraph.json`'s `http.app`
-   field, providing file browsing endpoints the frontend can call
-
+2. **自定义 API 服务器** — 一个通过 `langgraph.json` 的 `http.app`
+   字段暴露的 FastAPI 应用，提供前端可以调用的文件浏览端点
 
 
 
 
-3. **IDE frontend:** A three-panel layout (file tree, code/diff viewer, chat)
-   that syncs files in real time as the agent makes changes
+
+3. **IDE 前端：** 三面板布局（文件树、代码/差异查看器、聊天）
+   在代理进行更改时实时同步文件
 
 ```mermaid
 %%{
@@ -42,10 +39,10 @@ The sandbox pattern has three layers:
   }
 }%%
 graph LR
-  UI["IDE Frontend"]
-  API["API Server"]
+  UI["IDE 前端"]
+  API["API 服务器"]
   AGENT["createDeepAgent()"]
-  SANDBOX["Sandbox"]
+  SANDBOX["沙盒"]
 
   UI --"useStream()"--> AGENT
   UI --"/api/sandbox/:threadId/*"--> API
@@ -62,54 +59,51 @@ graph LR
   class API orangeHighlight;
 ```
 
-## Sandbox lifecycle
+## 沙盒生命周期
 
-Before diving into the code, it's important to understand how sandboxes are
-scoped. The scoping strategy determines who shares a sandbox, how long it
-lives, and how it's resolved at runtime.
+在深入代码之前，了解沙盒的作用域很重要。作用域策略决定谁共享沙盒、沙盒存活多久以及如何在运行时解析它。
 
-### Thread-scoped sandbox (recommended)
+### 线程作用域沙盒（推荐）
 
-Each LangGraph thread gets its own sandbox. The sandbox ID is stored in the
-thread's metadata and resolved at runtime via `getConfig()`.
-This is the recommended approach for most applications:
+每个 LangGraph 线程拥有自己的沙盒。沙盒 ID 存储在线程的
+metadata 中，并在运行时通过 `getConfig()` 解析。
+这是大多数应用的推荐方法：
 
-- Conversations are isolated — file changes in one thread don't affect another
-- Sandbox state persists across page reloads (same thread = same sandbox)
-- Cleanup is straightforward: when a thread is deleted, its sandbox can be too
+- 对话是隔离的 — 一个线程中的文件更改不会影响另一个
+- 沙盒状态在页面刷新后持久化（相同线程 = 相同沙盒）
+- 清理很简单：当线程被删除时，其沙盒也可以被删除
 
 ```mermaid
 sequenceDiagram
-    participant FE as Frontend
+    participant FE as 前端
     participant LG as LangGraph API
-    participant HTTP as API Server
-    participant SB as Sandbox
+    participant HTTP as API 服务器
+    participant SB as 沙盒
 
-    Note over FE: Page loads
+    Note over FE: 页面加载
     FE->>LG: POST /threads
     LG-->>FE: threadId
 
     FE->>HTTP: GET /api/sandbox/:threadId/tree
     HTTP->>LG: threads.get(threadId) → metadata.sandbox_id
-    alt No sandbox yet
+    alt 尚无沙盒
         HTTP->>SB: LangSmithSandbox.create()
         HTTP->>LG: threads.update(threadId, metadata.sandbox_id)
-    else Existing sandbox
+    else 现有沙盒
         HTTP->>SB: connect(sandbox_id)
     end
-    HTTP-->>FE: file tree
+    HTTP-->>FE: 文件树
 
-    Note over FE: User sends message
+    Note over FE: 用户发送消息
     FE->>LG: POST /threads/:threadId/runs/stream
-    LG->>LG: backend reads thread_id from config
-    LG->>SB: connect to same sandbox
+    LG->>LG: backend 从 config 读取 thread_id
+    LG->>SB: 连接到相同沙盒
 ```
 
-### Agent-scoped sandbox
+### 代理作用域沙盒
 
-All threads under the same assistant share a single sandbox. Useful for
-persistent project environments where you want changes to carry across
-conversations:
+同一助手下的所有线程共享单个沙盒。适用于
+希望更改跨对话保留的持久化项目环境：
 
 ```python
 from langgraph.config import get_config
@@ -124,10 +118,10 @@ def get_sandbox_backend_for_assistant():
 
 
 
-### User-scoped sandbox
+### 用户作用域沙盒
 
-Each user gets their own sandbox across all threads. Requires custom
-authentication and user identification:
+每个用户在所有线程中获得自己的沙盒。需要自定义
+身份验证和用户识别：
 
 ```python
 from langgraph.config import get_config
@@ -142,11 +136,11 @@ def get_sandbox_backend_for_user():
 
 
 
-### Session-scoped sandbox (client-side)
+### 会话作用域沙盒（客户端）
 
-For simpler apps without LangGraph threads, the frontend can generate a
-session ID and pass it directly. This approach doesn't persist across
-browser sessions and is best for demos or prototyping:
+对于没有 LangGraph 线程的更简单应用，前端可以生成
+session ID 并直接传递。此方法不会跨
+浏览器会话持久化，最适合演示或原型制作：
 
 ```python
 import uuid
@@ -162,17 +156,17 @@ urllib.request.urlopen(f"http://localhost:2024/api/sandbox/tree?{query}")
 
 
 
-The rest of this guide uses **thread-scoped sandboxes** as the primary example.
+本指南的其余部分使用 **线程作用域沙盒** 作为主要示例。
 
-## Setting up the agent
+## 设置代理
 
-### Choose a sandbox provider
+### 选择沙盒提供商
 
-Deep Agents supports multiple [sandbox providers](/oss/python/integrations/sandboxes). Any provider that implements the `SandboxBackendProtocol` works:
+Deep Agents 支持多个 [沙盒提供商](/oss/python/integrations/sandboxes)。任何实现 `SandboxBackendProtocol` 的提供商都可以工作：
 
 ```python
 from deepagents import create_deep_agent
-from deepagents.sandbox import LangSmithSandbox  # or DaytonaSandbox, etc.
+from deepagents.sandbox import LangSmithSandbox  # 或 DaytonaSandbox 等
 
 sandbox = LangSmithSandbox.create()
 agent = create_deep_agent(model="google_genai:gemini-3.1-pro-preview", backend=sandbox)
@@ -182,14 +176,13 @@ agent = create_deep_agent(model="google_genai:gemini-3.1-pro-preview", backend=s
 
 
 
-The agent automatically gets filesystem tools (`read_file`, `write_file`,
-`edit_file`, `ls`, `glob`, `grep`) and an `execute` tool for running shell
-commands. No tool configuration needed.
+代理自动获取文件系统工具（`read_file`、`write_file`、
+`edit_file`、`ls`、`glob`、`grep`）和用于运行 shell
+命令的 `execute` 工具。无需工具配置。
 
-### Resolve a sandbox per thread
+### 每个线程解析一个沙盒
 
-Instead of creating a sandbox at module level (which would be shared across
-all threads and may expire), resolve the sandbox per-thread at runtime. The sandbox reads `thread_id` from the LangGraph config via `getConfig()`:
+不是在模块级别创建沙盒（这将在所有线程间共享且可能过期），而是在运行时每个线程解析沙盒。沙盒通过 `getConfig()` 从 LangGraph config 读取 `thread_id`：
 
 
 
@@ -200,7 +193,7 @@ from langgraph.config import get_config
 
 
 def get_or_create_sandbox_for_thread(thread_id: str) -> LangSmithSandbox:
-    # Look up or create sandbox based on thread_id
+    # 根据 thread_id 查找或创建沙盒
     ...
 
 
@@ -218,18 +211,16 @@ agent = create_deep_agent(
 
 
 
-### Seed the sandbox
+### 初始化沙盒
 
-Before the agent runs, populate the sandbox with your project files using
-`uploadFiles`:
+在代理运行之前，使用
+`uploadFiles` 填充沙盒项目文件：
 
 <Info>
-  For **LangSmith** sandboxes, the container image and resource limits come from a
-  [sandbox template](/langsmith/sandbox-templates). Pass `templateName` when creating
-  the sandbox (see `get_or_create_sandbox_for_thread` above). `upload_files` seeds or updates
-
-
-  project files at runtime on top of that image.
+  对于 **LangSmith** 沙盒，容器镜像和资源限制来自
+  [沙盒模板](/langsmith/sandbox-templates)。创建沙盒时传递 `templateName`
+  （参见上面的 `get_or_create_sandbox_for_thread`）。`upload_files` 在该镜像之上
+  在运行时初始化或更新项目文件。
 </Info>
 
 ```ts
@@ -245,28 +236,27 @@ await sandbox.uploadFiles(
 ```
 
 <Tip>
-  Run `sandbox.execute("cd /app && npm install")` after uploading `package.json` to install
-  dependencies before the agent starts.
+  上传 `package.json` 后运行 `sandbox.execute("cd /app && npm install")` 以便在代理启动前安装
+  依赖项。
 </Tip>
 
-## Adding the file browsing API
+## 添加文件浏览 API
 
 
 
-The agent can read and write files, but the frontend also needs direct access to
-browse the sandbox filesystem. Add a custom [FastAPI](https://fastapi.tiangolo.com) API server
-and expose it through the `http.app` field in `langgraph.json`.
+代理可以读取和写入文件，但前端也需要直接访问
+浏览沙盒文件系统。添加一个自定义 [FastAPI](https://fastapi.tiangolo.com) API 服务器
+并通过 `langgraph.json` 中的 `http.app` 字段暴露它。
 
 
 
-### Create the API server
+### 创建 API 服务器
 
-The sandbox API endpoints use the thread ID as a URL path parameter. This
-ensures the frontend always accesses the correct sandbox for the current
-conversation, using the same `get_or_create_sandbox_for_thread` function as the
+沙盒 API 端点使用线程 ID 作为 URL 路径参数。这
+确保前端始终访问当前对话的正确沙盒，使用与
 
 
-agent's backend:
+代理后端相同的 `get_or_create_sandbox_for_thread` 函数：
 
 
 
@@ -312,18 +302,18 @@ async def read_file(
 
 
 <Note>
-  Both the agent's backend and the API server call the same
-  `get_or_create_sandbox_for_thread` function. This ensures they always resolve
+  代理的后端和 API 服务器都调用相同的
+  `get_or_create_sandbox_for_thread` 函数。这确保它们始终为给定线程解析
 
 
-  to the same sandbox for a given thread. The sandbox ID in thread metadata
-  is the single source of truth — no in-memory caches needed.
+  到相同的沙盒。线程 metadata 中的沙盒 ID
+  是单一事实来源 — 无需内存缓存。
 </Note>
 
-### Configure `langgraph.json`
+### 配置 `langgraph.json`
 
-Register both the agent graph and the API server. The `http.app` field tells
-the LangGraph platform to serve your custom routes alongside the default ones:
+注册代理图和 API 服务器。`http.app` 字段告诉
+LangGraph 平台 alongside 默认路由服务你的自定义路由：
 
 
 
@@ -341,25 +331,25 @@ the LangGraph platform to serve your custom routes alongside the default ones:
 
 
 
-Your custom routes are available at the same host as the LangGraph API. For
-local development with `langgraph dev`, that's `http://localhost:2024`.
+你的自定义路由在与 LangGraph API 相同的主机上可用。对于
+使用 `langgraph dev` 的本地开发，那是 `http://localhost:2024`。
 
 <Note>
-  Custom routes defined in `http.app` take priority over default LangGraph routes. This means you
-  can shadow built-in endpoints if needed, but be careful not to accidentally override routes like
-  `/threads` or `/runs`.
+  `http.app` 中定义的自定义路由优先于默认 LangGraph 路由。这意味着你可以
+  根据需要遮蔽内置端点，但注意不要意外覆盖像
+  `/threads` 或 `/runs` 这样的路由。
 </Note>
 
-## Building the frontend
+## 构建前端
 
-The frontend has three panels: a file tree sidebar, a code/diff viewer, and a
-chat panel. It uses `useStream` for the agent conversation and the custom API
-endpoints for file browsing.
+前端有三个面板：文件树侧边栏、代码/差异查看器和
+聊天面板。它使用 `useStream` 进行代理对话，使用自定义 API
+端点进行文件浏览。
 
-### Thread creation
+### 线程创建
 
-Create a LangGraph thread when the page loads and persist its ID in
-`sessionStorage` so page reloads reconnect to the same sandbox:
+页面加载时创建 LangGraph 线程并将其 ID 持久化到
+`sessionStorage`，以便页面重新连接到相同的沙盒：
 
 ```tsx
 const THREAD_KEY = "sandbox-thread-id";
@@ -382,20 +372,20 @@ function IDEPreview() {
     onThreadId: updateThreadId,
   });
 
-  // Create thread on first mount
+  // 首次挂载时创建线程
   useEffect(() => {
     if (threadId) return;
     stream.client.threads.create().then((t) => updateThreadId(t.thread_id));
   }, [stream.client, threadId, updateThreadId]);
 
-  // Pass threadId to sandbox file hooks
+  // 将 threadId 传递给沙盒文件 hooks
   const { tree, files } = useSandboxFiles(threadId);
   // ...
 }
 ```
 
-The "new thread" button clears the stored ID so the next mount creates a
-fresh thread (and sandbox):
+“新建线程”按钮清除存储的 ID，以便下次挂载创建
+新线程（和沙盒）：
 
 ```tsx
 function handleNewThread() {
@@ -404,11 +394,9 @@ function handleNewThread() {
 }
 ```
 
-### File state management
+### 文件状态管理
 
-Track two snapshots of the sandbox filesystem: the original state (before the
-agent runs) and the current state (updated in real time). The thread ID is
-included in the API URL so requests always hit the correct sandbox:
+跟踪沙盒文件系统的两个快照：原始状态（代理运行前）和当前状态（实时更新）。线程 ID 包含在 API URL 中，以便请求始终命中正确的沙盒：
 
 ```ts
 const AGENT_URL = "http://localhost:2024";
@@ -430,13 +418,12 @@ async function fetchFile(threadId: string, path: string): Promise<string | null>
 }
 ```
 
-### Real-time file sync
+### 实时文件同步
 
-The key to the IDE experience is updating files **as the agent works**, not
-after it finishes. Watch the stream's messages for `ToolMessage` instances
-from file-mutating tools. When a `write_file` or `edit_file` tool call
-completes, refresh that specific file. When `execute` completes, refresh
-everything (since a shell command could modify any file):
+IDE 体验的关键是 **在代理工作时** 更新文件，而不是
+在它完成后。监视流的 messages 以查找来自文件变更工具的 `ToolMessage` 实例。当 `write_file` 或 `edit_file` 工具调用
+完成时，刷新该特定文件。当 `execute` 完成时，刷新
+所有内容（因为 shell 命令可能修改任何文件）：
 
 <CodeGroup>
 ```tsx React
@@ -454,7 +441,7 @@ export function IDEPreview() {
   const processedIds = useRef(new Set<string>());
 
   useEffect(() => {
-    // Build a map of file-mutating tool calls from AI messages
+    // 从 AI 消息构建文件变更工具调用的映射
     const toolCallMap = new Map();
     for (const msg of stream.messages) {
       if (!AIMessage.isInstance(msg)) continue;
@@ -465,7 +452,7 @@ export function IDEPreview() {
       }
     }
 
-    // When a ToolMessage appears for a file-mutating tool, refresh
+    // 当文件变更工具出现 ToolMessage 时，刷新
     for (const msg of stream.messages) {
       if (!ToolMessage.isInstance(msg)) continue;
       const id = msg.id ?? msg.tool_call_id;
@@ -634,10 +621,10 @@ export class IdePreviewComponent {
 
 </CodeGroup>
 
-### Detecting changed files
+### 检测变更文件
 
-Before each agent run, snapshot the current file contents. After files refresh,
-compare against the snapshot to identify which files changed:
+在每次代理运行之前，快照当前文件内容。文件刷新后，
+与快照比较以识别哪些文件发生了更改：
 
 ```ts
 function detectChanges(current: FileSnapshot, original: FileSnapshot): Set<string> {
@@ -652,21 +639,21 @@ function detectChanges(current: FileSnapshot, original: FileSnapshot): Set<strin
 }
 ```
 
-When a user selects a changed file, default to the diff view so they
-immediately see what the agent modified.
+当用户选择变更文件时，默认使用差异视图，以便他们
+立即看到代理修改了什么。
 
-### Displaying diffs
+### 显示差异
 
-Use a framework-appropriate diff library to render unified diffs:
+使用适合框架的差异库来渲染统一差异：
 
 | Framework | Library                                                                    | Component                                                       |
 | --------- | -------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| React     | [`@pierre/diffs`](https://diffs.com)                                       | `<FileDiff>` with `parseDiffFromFile`                           |
-| Vue       | [`@git-diff-view/vue`](https://github.com/MrWangJustToDo/git-diff-view)    | `<DiffView>` with `generateDiffFile` from `@git-diff-view/file` |
-| Svelte    | [`@git-diff-view/svelte`](https://github.com/MrWangJustToDo/git-diff-view) | `<DiffView>` with `generateDiffFile` from `@git-diff-view/file` |
-| Angular   | [`ngx-diff`](https://github.com/rars/ngx-diff)                             | `<ngx-unified-diff>` with `[before]` and `[after]`              |
+| React     | [`@pierre/diffs`](https://diffs.com)                                       | `<FileDiff>` 配合 `parseDiffFromFile`                           |
+| Vue       | [`@git-diff-view/vue`](https://github.com/MrWangJustToDo/git-diff-view)    | `<DiffView>` 配合 `@git-diff-view/file` 的 `generateDiffFile` |
+| Svelte    | [`@git-diff-view/svelte`](https://github.com/MrWangJustToDo/git-diff-view) | `<DiffView>` 配合 `@git-diff-view/file` 的 `generateDiffFile` |
+| Angular   | [`ngx-diff`](https://github.com/rars/ngx-diff)                             | `<ngx-unified-diff>` 配合 `[before]` 和 `[after]`              |
 
-Example with `@pierre/diffs` (React):
+`@pierre/diffs` (React) 示例：
 
 ```tsx
 import { FileDiff } from "@pierre/diffs/react";
@@ -687,24 +674,24 @@ function DiffPanel({ original, current, fileName }) {
 }
 ```
 
-### Changed files summary
+### 变更文件摘要
 
-Show a summary of all modified files with line-level addition/deletion counts.
-This gives users a quick overview of the agent's impact — similar to a `git
-status`:
+显示所有修改文件的摘要，包含行级添加/删除计数。
+这让用户快速了解代理的影响 — 类似于 `git
+status`：
 
 ```tsx
 function ChangedFilesSummary({ changedFiles, files, originalFiles, onSelect }) {
   const stats = [...changedFiles].map((path) => {
     const oldLines = (originalFiles[path] ?? "").split("\n");
     const newLines = (files[path] ?? "").split("\n");
-    // Compute additions/deletions by comparing lines
+    // 通过比较行计算添加/删除
     return { path, additions, deletions };
   });
 
   return (
     <div>
-      <h3>{stats.length} Files Changed</h3>
+      <h3>{stats.length} 文件已更改</h3>
       {stats.map((file) => (
         <button key={file.path} onClick={() => onSelect(file.path)}>
           {file.path}
@@ -717,15 +704,15 @@ function ChangedFilesSummary({ changedFiles, files, originalFiles, onSelect }) {
 }
 ```
 
-## The three-panel layout
+## 三面板布局
 
-The IDE layout arranges three panels side by side:
+IDE 布局将三个面板并排排列：
 
 | Panel       | Width         | Purpose                                     |
 | ----------- | ------------- | ------------------------------------------- |
-| File tree   | Fixed (208px) | Browse sandbox files, see change indicators |
-| Code / Diff | Flexible      | View file content or unified diff           |
-| Chat        | Fixed (320px) | Interact with the agent                     |
+| 文件树   | 固定 (208px) | 浏览沙盒文件，查看变更指示器 |
+| 代码 / 差异 | 灵活      | 查看文件内容或统一差异           |
+| 聊天        | 固定 (320px) | 与代理交互                     |
 
 ```tsx
 <div className="flex h-screen">
@@ -742,55 +729,51 @@ The IDE layout arranges three panels side by side:
 </div>
 ```
 
-The file tree shows VS Code-style icons (using
-[`@iconify-json/vscode-icons`](https://www.npmjs.com/package/@iconify-json/vscode-icons))
-and amber dots on modified files. Selecting a modified file automatically
-switches to the diff tab.
+文件树显示 VS Code 风格图标（使用
+[`@iconify-json/vscode-icons`](https://www.npmjs.com/package/@iconify-json/vscode-icons)）
+和修改文件上的琥珀色圆点。选择修改文件会自动
+切换到差异标签页。
 
-## Use cases
+## 用例
 
-A sandbox is the right choice when:
+在以下情况下沙盒是合适的选择：
 
-- **Coding agents** that create, modify, and run code need a visual interface
-  beyond chat
-- **Code review workflows** where the agent suggests changes and the user
-  reviews diffs before accepting
-- **Tutorial or learning apps** where an AI assistant helps users build a
-  project step by step, showing changes in context
-- **Prototyping tools** where users describe features in natural language and
-  watch the agent implement them in real time
+- **Coding agents** 创建、修改和运行代码需要超越聊天的视觉界面
+- **代码审查工作流** 代理建议更改，用户在接受前审查差异
+- **教程或学习应用** AI 助手帮助用户逐步构建项目，在上下文中显示更改
+- **原型制作工具** 用户用自然语言描述功能，并观看代理实时实现它们
 
-## Best practices
+## 最佳实践
 
-- **Use thread-scoped sandboxes** for production apps. Store the sandbox ID in
-  thread metadata and resolve it via `getConfig()` at runtime. This avoids
-  module-level state and keeps sandboxes isolated per conversation.
-- **Share `getOrCreateSandboxForThread`** between the agent backend and the
-  API server. Both should resolve the sandbox the same way — via thread
-  metadata — so there's a single source of truth with no in-memory caches.
-- **Persist `threadId` in `sessionStorage`** so page reloads reconnect to the
-  same thread and sandbox instead of creating new ones.
-- **Sync files on every relevant tool call**, not just when the run finishes. This
-  makes the IDE feel live. Watch for `write_file`, `edit_file`, and `execute`
-  tool messages and refresh immediately.
-- **Default to diff view for changed files**. When a user clicks a file that
-  was modified by the agent, show the diff first — that's what they care about.
-- **Show compact tool results for read-only operations**. Instead of dumping
-  the full output of `read_file` in the chat, show a one-liner like
-  `Read router.js L1-42`. Reserve the full output display for mutating tools.
-- **Seed the sandbox with a real project**. Starting from an empty sandbox is
-  disorienting. Upload a working starter project so users (and the agent) have
-  context immediately.
-- **Filter `node_modules` from the file tree**. Nobody wants to browse
-  thousands of dependency files. Filter them out when fetching the tree.
+- **对生产应用使用线程作用域沙盒**。将沙盒 ID 存储在线程
+  metadata 中，并在运行时通过 `getConfig()` 解析它。这避免
+  模块级别状态并使沙盒每个对话隔离。
+- **在代理后端和 API 服务器之间共享 `getOrCreateSandboxForThread`**。
+  两者应以相同方式解析沙盒 — 通过线程
+  metadata — 以便有一个单一事实来源且无内存缓存。
+- **在 `sessionStorage` 中持久化 `threadId`**，以便页面重新连接到
+  相同线程和沙盒，而不是创建新线程。
+- **在每个相关工具调用上同步文件**，而不仅仅是在运行完成时。这
+  让 IDE 感觉是实时的。监视 `write_file`、`edit_file` 和 `execute`
+  工具消息并立即刷新。
+- **默认对变更文件使用差异视图**。当用户点击被
+  代理修改的文件时，首先显示差异 — 那是他们关心的。
+- **对只读操作显示紧凑的工具结果**。不要在聊天中转储
+  `read_file` 的完整输出，显示一行摘要如
+  `Read router.js L1-42`。为变更工具保留完整输出显示。
+- **用真实项目初始化沙盒**。从空沙盒开始会让人
+  迷失方向。上传一个可工作的 starter 项目，以便用户（和代理）立即拥有
+  上下文。
+- **从文件树过滤 `node_modules`**。没人想浏览
+  数千个依赖文件。获取树时过滤掉它们。
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/deepagents/frontend/sandbox.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/deepagents/frontend/sandbox.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    通过 MCP 将 [这些文档](/use-these-docs) 连接到 Claude、VSCode 等以获得实时答案。
 </Callout>
 </div>

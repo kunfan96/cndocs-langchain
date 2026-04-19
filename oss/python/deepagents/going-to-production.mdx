@@ -1,34 +1,34 @@
 ---
-title: Going to production
-description: Take your Deep Agent to production with persistent memory, sandboxes, resilience middleware, and deployment options
+title: 投入生产
+description: 通过持久记忆、沙盒、弹性中间件和部署选项将您的 Deep Agent 投入生产
 ---
 
-This guide covers considerations for taking a Deep Agent from a local prototype to a production deployment. It walks through scoping memory, configuring execution environments, adding guardrails, and connecting a frontend.
+本指南涵盖了将 Deep Agent 从本地原型转变为生产部署的考量因素。它将逐步介绍记忆作用域划分、配置执行环境、添加护栏以及连接前端。
 
-## Overview
+## 概述
 
-Agents use information from memory and their execution environment to accomplish tasks.
-In production, there are a few primitives that determine how information is shared and accessed:
+智能体利用来自记忆和执行环境的信息来完成任务。
+在生产环境中，有几个原语决定了信息如何共享和访问：
 
-- **Thread**: a single conversation. Message history and scratch files are scoped to the thread by default and don't carry over.
-- **User**: someone interacting with your agent. Memory and files can be private to a user or shared across users. Identity and authorization comes from your [auth layer](/langsmith/auth).
-- **Assistant**: a configured agent instance. Memory and files can be tied to one assistant or shared across all of them.
+- **线程 (Thread)**：单次对话。消息历史和暂存文件默认作用于线程，不会延续。
+- **用户 (User)**：与您的智能体交互的人。记忆和文件可以是用户私有的，也可以在用户之间共享。身份和授权来自您的 [认证层](/langsmith/auth)。
+- **助手 (Assistant)**：配置的智能体实例。记忆和文件可以绑定到一个助手，也可以在所有助手之间共享。
 
-This page covers:
-- **[LangSmith Deployments](#langsmith-deployments)**: managed infrastructure with auth, webhooks, and cron
-- **[Production considerations](#production-considerations)**: multi-tenancy, authentication, credentials, async, and durability
-- **[Memory](#memory)**: persist information across conversations
-- **[Execution environment](#execution-environment)**: file storage and code execution
-- **[Guardrails](#guardrails)**: rate limiting, error handling, and data privacy
-- **[Frontend](#frontend)**: connect your UI to a deployed agent
+本页涵盖：
+- **[LangSmith 部署](#langsmith-deployments)**：带有认证、Webhook 和 Cron 的托管基础设施
+- **[生产考量](#production-considerations)**：多租户、认证、凭据、异步和持久性
+- **[记忆](#memory)**：跨对话持久化信息
+- **[执行环境](#execution-environment)**：文件存储和代码执行
+- **[护栏](#guardrails)**：速率限制、错误处理和数据隐私
+- **[前端](#frontend)**：将您的 UI 连接到已部署的智能体
 
-## LangSmith Deployments
+## LangSmith 部署
 
-The fastest way to get a Deep Agent into production is [`deepagents deploy`](/oss/python/deepagents/deploy), which packages your agent configuration and deploys it as a LangSmith Deployment with one command. Alternatively, you can configure a [LangSmith Deployment](/langsmith/deployment) directly. Either path provisions the infrastructure your agent needs: [assistants](/langsmith/assistants), [threads](/langsmith/use-threads), [runs](/langsmith/runs), a store, and a checkpointer, so you don't have to set these up yourself. It also gives you [authentication](/langsmith/auth), [webhooks](/langsmith/use-webhooks), [cron jobs](/langsmith/cron-jobs), and [observability](/langsmith/observability) out of the box, and can expose your agent via [MCP](/langsmith/server-mcp) or [A2A](/langsmith/server-a2a).
+将 Deep Agent 投入生产的最快方法是 [`deepagents deploy`](/oss/python/deepagents/deploy)，它打包您的智能体配置并通过一条命令将其部署为 LangSmith 部署。或者，您可以直接配置 [LangSmith 部署](/langsmith/deployment)。任一路径都会配置您的智能体所需的基础设施：[助手](/langsmith/assistants)、[线程](/langsmith/use-threads)、[运行](/langsmith/runs)、存储和检查点器，因此您无需自行设置这些。它还为您提供开箱即用的 [认证](/langsmith/auth)、[Webhook](/langsmith/use-webhooks)、[Cron 任务](/langsmith/cron-jobs) 和 [可观测性](/langsmith/observability)，并可以通过 [MCP](/langsmith/server-mcp) 或 [A2A](/langsmith/server-a2a) 暴露您的智能体。
 
-For the CLI-based approach, see [Deploy with the CLI](/oss/python/deepagents/deploy). For manual setup, see the [LangSmith Deployments quickstart](/langsmith/deployment-quickstart).
+对于基于 CLI 的方法，请参阅 [使用 CLI 部署](/oss/python/deepagents/deploy)。对于手动设置，请参阅 [LangSmith 部署快速入门](/langsmith/deployment-quickstart)。
 
-All code snippets on this page use the following `langgraph.json` unless otherwise specified:
+除非另有说明，本页上的所有代码片段均使用以下 `langgraph.json`：
 
 ```json langgraph.json
 {
@@ -40,54 +40,51 @@ All code snippets on this page use the following `langgraph.json` unless otherwi
 }
 ```
 
+`langgraph.json` 是告诉 LangGraph 平台如何构建和运行您的应用的配置文件。它位于项目的根目录，对于本地开发（使用 `langgraph dev`）和生产部署都是必需的。关键字段如下：
 
-
-
-`langgraph.json` is the configuration file that tells the LangGraph platform how to build and run your application. It lives at the root of your project and is required for both local development (with `langgraph dev`) and production deployment. The key fields are:
-
-| Field | Description |
+| 字段 | 描述 |
 | --- | --- |
-| `dependencies` | Packages to install. `["."]` installs the current directory as a package (reads from `requirements.txt`, `pyproject.toml`, or `package.json`). |
-| `graphs` | Maps graph IDs to their code locations. Each entry is `"<id>": "./<file>:<variable>"`, where `<id>` is the name you use to invoke the graph via the API, and `<variable>` is the compiled graph or constructor function exported from `<file>`. |
-| `env` | Path to a `.env` file with environment variables (API keys, secrets). These are set at build time and available at runtime. |
+| `dependencies` | 要安装的包。`["."]` 将当前目录作为包安装（从 `requirements.txt`、`pyproject.toml` 或 `package.json` 读取）。 |
+| `graphs` | 将图 ID 映射到其代码位置。每个条目为 `"<id>": "./<file>:<variable>"`，其中 `<id>` 是您通过 API 调用图时使用的名称，`<variable>` 是从 `<file>` 导出的已编译图或构造函数。 |
+| `env` | 包含环境变量（API 密钥、秘密）的 `.env` 文件路径。这些在构建时设置并在运行时可用。 |
 
-For the full set of configuration options (custom Docker steps, store indexing, auth handlers, and more), see [application structure](/oss/python/langgraph/application-structure).
+有关完整配置选项（自定义 Docker 步骤、存储索引、认证处理程序等）的列表，请参阅 [应用结构](/oss/python/langgraph/application-structure)。
 
-## Production considerations
+## 生产考量
 
-### Multi-tenancy
+### 多租户
 
-When your agent serves multiple users, you need to handle three concerns: verifying who each user is, controlling what they can access, and managing the credentials the agent uses to act on their behalf.
+当您的智能体服务于多个用户时，您需要处理三个问题：验证每个用户是谁、控制他们可以访问的内容，以及管理智能体代表他们行事时使用的凭据。
 
-#### User identity and access control
+#### 用户身份和访问控制
 
-[LangSmith Deployments](/langsmith/deployment) supports [custom authentication](/langsmith/custom-auth) to establish user identity and [authorization handlers](/langsmith/auth) to control access to resources like threads, assistants, and store namespaces. Authorization handlers run after authentication succeeds and can:
+[LangSmith 部署](/langsmith/deployment) 支持 [自定义认证](/langsmith/custom-auth) 以建立用户身份，以及 [授权处理程序](/langsmith/auth) 以控制对线程、助手和存储命名空间等资源的访问。授权处理程序在认证成功后运行，可以：
 
-- Tag resources with ownership metadata (e.g., `owner: user_id`)
-- Return filters so users only see their own resources
-- Deny access with HTTP 403 for unauthorized operations
+- 使用所有权元数据标记资源（例如，`owner: user_id`）
+- 返回过滤器，以便用户只能看到自己的资源
+- 对未经授权的操作返回 HTTP 403 拒绝访问
 
-For a step-by-step tutorial, see [Make conversations private](/langsmith/resource-auth). For a walkthrough, watch the [custom auth video](https://www.youtube.com/watch?v=DkNqgCz8cjE).
+有关分步教程，请参阅 [使对话私有](/langsmith/resource-auth)。有关演练，请观看 [自定义认证视频](https://www.youtube.com/watch?v=DkNqgCz8cjE)。
 
-How you [scope memory](#scoping) and [execution environments](#execution-environment) determines what data is shared between users. See the sections below for details.
+您如何 [划分记忆作用域](#scoping) 和 [执行环境](#execution-environment) 决定了用户之间共享哪些数据。详见下文各节。
 
-#### Team access control (RBAC)
+#### 团队访问控制 (RBAC)
 
-LangSmith's [role-based access control](/langsmith/rbac) governs who on your team can deploy, configure, and monitor agents. This is separate from end-user authorization above.
+LangSmith 的 [基于角色的访问控制](/langsmith/rbac) 管理您的团队中谁可以部署、配置和监控智能体。这与上述最终用户授权是分开的。
 
-| Role | Access |
+| 角色 | 访问权限 |
 | --- | --- |
-| Workspace Admin | Full permissions including settings and member management |
-| Workspace Editor | Create and modify resources, but cannot delete runs or manage members |
-| Workspace Viewer | Read-only access |
+| 工作区管理员 (Workspace Admin) | 包括设置和成员管理在内的完全权限 |
+| 工作区编辑 (Workspace Editor) | 创建和修改资源，但不能删除运行或管理成员 |
+| 工作区查看者 (Workspace Viewer) | 只读访问 |
 
-Custom roles with granular permissions are available on Enterprise plans. See the [RBAC reference](/langsmith/rbac) for the full permission model.
+具有细粒度权限的自定义角色在企业计划中可用。请参阅 [RBAC 参考](/langsmith/rbac) 了解完整的权限模型。
 
-#### End-user credentials
+#### 最终用户凭据
 
-When your agent needs to call external APIs on behalf of a user (e.g., reading their GitHub repos, sending Slack messages, querying their data warehouse), you need a way to pass the user's credentials through to the agent without hardcoding them.
+当您的智能体需要代表用户调用外部 API 时（例如，读取他们的 GitHub 仓库、发送 Slack 消息、查询他们的数据仓库），您需要一种方法将用户的凭据传递给智能体，而无需硬编码它们。
 
-**OAuth via Agent Auth.** [Agent Auth](/langsmith/agent-auth) provides a managed OAuth 2.0 flow. Configure an OAuth provider, and the agent can request tokens scoped to each user. On first use, the agent [interrupts](/oss/python/langgraph/interrupts) execution and presents an OAuth consent URL. After the user authenticates, the agent resumes with a valid token. Tokens are stored and refreshed automatically.
+**通过 Agent Auth 进行 OAuth。** [Agent Auth](/langsmith/agent-auth) 提供托管的 OAuth 2.0 流程。配置 OAuth 提供商，智能体可以请求针对每个用户作用域的 Token。首次使用时，智能体会 [中断](/oss/python/langgraph/interrupts) 执行并呈现 OAuth 同意 URL。用户认证后，智能体使用有效 Token 恢复执行。Token 会自动存储和刷新。
 
 ```python
 from langchain_auth import Client
@@ -95,85 +92,79 @@ from langchain.tools import tool, ToolRuntime
 
 auth_client = Client()
 
-# Inside your agent's tool:
+# 在您的智能体工具内：
 @tool
 async def github_action(runtime: ToolRuntime):
-    """Perform an action on behalf of the user via GitHub."""
+    """代表用户通过 GitHub 执行操作。"""
     auth_result = await auth_client.authenticate(
         provider="github",
         scopes=["repo", "read:org"],
         user_id=runtime.server_info.user.identity,  # [!code highlight]
     )
-    # Use auth_result.token for GitHub API calls on the user's behalf
+    # 使用 auth_result.token 代表用户进行 GitHub API 调用
 ```
 
+**沙盒的凭据注入。** 如果您的智能体在 [沙盒](#sandboxes) 内运行调用外部 API 的代码，[沙盒认证代理](/langsmith/sandbox-auth-proxy) 可以自动将凭据注入出站请求，因此沙盒代码永远不会接收原始 API 密钥。有关设置详情，请参阅 [管理密钥](#managing-secrets)。
 
+**工作区秘密。** 对于所有用户共享的 API 密钥（例如您组织的 LLM 提供商密钥、搜索 API 密钥），将它们作为 [工作区秘密](/langsmith/set-up-hierarchy#configure-workspace-settings) 存储在 LangSmith 中。有关详情，请参阅 [管理密钥](#managing-secrets)。
 
+### 异步
 
-**Credential injection for sandboxes.** If your agent runs code inside a [sandbox](#sandboxes) that calls external APIs, the [sandbox auth proxy](/langsmith/sandbox-auth-proxy) can inject credentials into outbound requests automatically, so sandbox code never receives raw API keys. See [Managing secrets](#managing-secrets) for setup details.
-
-**Workspace secrets.** For API keys shared across all users (for example your organization's LLM provider keys, search API keys), store them as [workspace secrets](/langsmith/set-up-hierarchy#configure-workspace-settings) in LangSmith. See [Managing secrets](#managing-secrets) for details.
-
-### Async
-
-LLM-based applications are heavily I/O-bound: calling language models, databases, and external services. Async programming lets these operations run concurrently instead of blocking, improving throughput and responsiveness.
+基于 LLM 的应用程序 heavily I/O-bound：调用语言模型、数据库和外部服务。异步编程让这些操作并发运行而不是阻塞，从而提高吞吐量和响应能力。
 
 <Note>
-LangChain follows the convention of prefixing `a` to async method names (e.g., `ainvoke`, `abefore_agent`, `astream`). Sync and async variants live in the same class or namespace.
+LangChain 遵循在异步方法名前缀 `a` 的约定（例如，`ainvoke`、`abefore_agent`、`astream`）。同步和异步变体存在于同一个类或命名空间中。
 </Note>
 
-When building for production:
+在生产环境中构建时：
 
-- **Create async tools.** LangChain runs sync tools in a separate thread to avoid blocking, but native async avoids the threading overhead entirely.
-- **Use async middleware methods.** Custom [middleware](/oss/python/langchain/middleware/custom) should implement async hooks (e.g., `abefore_agent` instead of `before_agent`).
-- **Use async for external resource lifecycle.** Creating [sandboxes](#sandboxes) or connecting to [MCP servers](/oss/python/langchain/mcp) involves network calls and should be awaited. This is why [graph factories](/langsmith/graph-rebuild) that provision these resources are async.
+- **创建异步工具。** LangChain 在单独的线程中运行同步工具以避免阻塞，但原生异步完全避免了线程开销。
+- **使用异步中间件方法。** 自定义 [中间件](/oss/python/langchain/middleware/custom) 应实现异步钩子（例如，`abefore_agent` 而不是 `before_agent`）。
+- **对外部资源生命周期使用异步。** 创建 [沙盒](#sandboxes) 或连接到 [MCP 服务器](/oss/python/langchain/mcp) 涉及网络调用，应该被 await。这就是为什么配置这些资源的 [图工厂](/langsmith/graph-rebuild) 是异步的。
 
-### Durability
+### 持久性
 
-Deep Agents run on LangGraph, which provides [durable execution](/oss/python/langgraph/durable-execution) out of the box. The [persistence](/oss/python/langgraph/persistence) layer checkpoints state at each step, so a run interrupted by a failure, timeout, or [human-in-the-loop](/oss/python/langgraph/interrupts) pause resumes from its last recorded state without reprocessing previous steps. For long-running deep agents that spawn many subagents, this means a mid-run failure doesn't lose completed work.
+Deep Agents 运行在 LangGraph 上，后者开箱即用地提供 [持久执行](/oss/python/langgraph/durable-execution)。[持久化](/oss/python/langgraph/persistence) 层在每一步检查点化状态，因此因失败、超时或 [人机协同](/oss/python/langgraph/interrupts) 暂停而中断的运行可以从其最后记录的状态恢复，而无需重新处理之前的步骤。对于产生许多子代理的长时间运行的 Deep Agents，这意味着运行中的失败不会丢失已完成的工作。
 
-Checkpointing also enables:
+检查点化还启用：
 
-- **Indefinite [interrupts](/oss/python/langgraph/interrupts).** Human-in-the-loop workflows can pause for minutes or days and resume exactly where they left off.
-- **[Time travel](/oss/python/langgraph/use-time-travel).** Every checkpointed step is a snapshot you can rewind to, letting you replay from an earlier state if something goes wrong.
-- **Safe handling of sensitive operations.** For workflows involving payments or other irreversible actions, checkpoints provide an audit trail and a recovery point to inspect the exact state that led to an action.
+- **无限 [中断](/oss/python/langgraph/interrupts)。** 人机协同工作流可以暂停几分钟或几天，并确切地从离开的位置恢复。
+- **[时间旅行](/oss/python/langgraph/use-time-travel)。** 每个检查点化的步骤都是一个您可以倒回的快照，如果出现问题，可以让您从早期状态重放。
+- **安全处理敏感操作。** 对于涉及支付或其他不可逆操作的工作流，检查点提供审计跟踪和恢复点，以检查导致操作的确切状态。
 
 <Tip>
-[LangSmith Deployments](/langsmith/deployment) configure a persistent checkpointer automatically. If you are self-hosting, see [persistence](/oss/python/langgraph/persistence) for setup instructions.
+[LangSmith 部署](/langsmith/deployment) 自动配置持久检查点器。如果您是自托管，请参阅 [持久化](/oss/python/langgraph/persistence) 获取设置说明。
 </Tip>
 
-## Memory
+## 记忆
 
-Without memory, every conversation starts from scratch. Memory lets your agent retain information across conversations (user preferences, learned instructions, past experiences) so it can personalize its behavior over time. For an overview of memory types, see the [memory concepts guide](/oss/python/concepts/memory).
+没有记忆，每次对话都从头开始。记忆让您的智能体跨对话保留信息（用户偏好、学到的指令、过去的经验），以便它可以随时间个性化其行为。有关记忆类型的概述，请参阅 [记忆概念指南](/oss/python/concepts/memory)。
 
-### Scoping
+### 作用域划分
 
-Memory is always persistent across conversations. The main question is how it's scoped across user and assistant boundaries. The right scope depends on who should see and modify the data:
+记忆在对话之间始终是持久的。主要问题是它如何跨用户和助手边界划分作用域。正确的作用域取决于谁应该查看和修改数据：
 
-| Scope | Namespace | Use case | Example |
+| 作用域 | 命名空间 | 用例 | 示例 |
 | --- | --- | --- | --- |
-| **User** (recommended default) | `(user_id)` | Per-user preferences and context | "I prefer concise responses" |
-| **Assistant** | `(assistant_id)` | Shared instructions for one assistant | "Cap posts at 280 characters" |
-| **Global** | `(org_id)` | Read-only policies for all users and assistants | "Never disclose internal pricing" |
+| **用户** (推荐默认) | `(user_id)` | 每用户偏好和上下文 | "我偏好简洁的回复" |
+| **助手** | `(assistant_id)` | 一个助手的共享指令 | "将帖子限制在 280 个字符" |
+| **全局** | `(org_id)` | 所有用户和助手的只读策略 | "永不披露内部定价" |
 
 <Warning>
-Shared memory (assistant, user, or organization scope) is a vector for prompt injection. If one user can write to memory that another user's conversation reads, a malicious user could inject instructions into that shared state. Enforce read-only access where appropriate. For example, make organization-wide policies writable only through application code, not by the agent itself. Use [permissions](/oss/python/deepagents/permissions) to declaratively deny writes to shared paths, or [backend policy hooks](/oss/python/deepagents/backends#add-policy-hooks) for custom validation logic.
+共享记忆（助手、用户或组织作用域）是 Prompt 注入的载体。如果一个用户可以写入另一个用户的对话读取的记忆，恶意用户可以将指令注入该共享状态。在适当的地方强制只读访问。例如，使组织范围的策略只能通过应用代码写入，而不是由智能体本身写入。使用 [权限](/oss/python/deepagents/permissions) 声明式拒绝写入共享路径，或使用 [后端策略钩子](/oss/python/deepagents/backends#add-policy-hooks) 进行自定义验证逻辑。
 </Warning>
 
-### Configuration
+### 配置
 
-In Deep Agents, memory is stored as files in a virtual filesystem. By default, files only last for a single conversation. To persist them, route a path like `/memories/` to a [StoreBackend](https://reference.langchain.com/python/deepagents/backends/store/StoreBackend) that writes to the LangGraph [Store](/langsmith/custom-store). Use a [CompositeBackend](https://reference.langchain.com/python/deepagents/backends/composite/CompositeBackend) to give the agent both ephemeral scratch space and persistent [long-term memory](/oss/python/deepagents/memory).
+在 Deep Agents 中，记忆作为文件存储在虚拟文件系统中。默认情况下，文件仅持续单次对话。要持久化它们，将像 `/memories/` 这样的路径路由到写入 LangGraph [Store](/langsmith/custom-store) 的 [StoreBackend](https://reference.langchain.com/python/deepagents/backends/store/StoreBackend)。使用 [CompositeBackend](https://reference.langchain.com/python/deepagents/backends/composite/CompositeBackend) 为智能体提供临时暂存空间和持久的 [长期记忆](/oss/python/deepagents/memory)。
 
 <Note>
-The `rt.server_info` and `rt.execution_info` namespace patterns shown below require `deepagents>=0.5.0`.
+下面显示的 `rt.server_info` 和 `rt.execution_info` 命名空间模式需要 `deepagents>=0.5.0`。
 </Note>
 
-
-
-
 <Tabs>
-  <Tab title="User (recommended)">
-    Namespace by `user_id`. Each user gets their own private memory. This is the recommended default since most applications deploy a single assistant.
+  <Tab title="用户 (推荐)">
+    按 `user_id` 划分命名空间。每个用户拥有自己的私有记忆。这是推荐的默认值，因为大多数应用部署单个助手。
 
 ```python agent.py
 from deepagents import create_deep_agent
@@ -192,20 +183,17 @@ agent = create_deep_agent(
             ),
         },
     ),
-    system_prompt="""You have persistent memory at /memories/.
+    system_prompt="""您在 /memories/ 处拥有持久记忆。
 
-    Read /memories/instructions.txt at the start of each conversation for
-    accumulated knowledge and preferences. When you learn something that
-    should persist, update that file.""",
+    在每次对话开始时读取 /memories/instructions.txt 以获取
+    积累的知识和偏好。当您学到应该
+    持久化的内容时，更新该文件。""",
 )
 ```
 
-
-
-
   </Tab>
-  <Tab title="Assistant">
-    Namespace by `assistant_id`. Memory is shared across all users of the same assistant, so any user can read or update it. Use this for shared instructions or knowledge that applies to everyone using a given assistant (e.g., "always reply in formal tone").
+  <Tab title="助手">
+    按 `assistant_id` 划分命名空间。记忆在同一助手的所有用户之间共享，因此任何用户都可以读取或更新它。用于共享指令或适用于使用给定助手的每个人的知识（例如，"总是以正式语气回复"）。
 
 ```python agent.py
 from deepagents import create_deep_agent
@@ -226,12 +214,9 @@ agent = create_deep_agent(
 )
 ```
 
-
-
-
   </Tab>
-  <Tab title="User">
-    Namespace by `user_id` alone. Memory follows the user across all assistants. Use this for a global user profile (name, timezone, communication preferences) that should apply regardless of which assistant the user is talking to.
+  <Tab title="用户">
+    仅按 `user_id` 划分命名空间。记忆跟随用户跨越所有助手。用于全局用户 profile（名称、时区、通信偏好），无论用户与哪个助手交谈都应适用。
 
 ```python agent.py
 from deepagents import create_deep_agent
@@ -250,12 +235,9 @@ agent = create_deep_agent(
 )
 ```
 
-
-
-
   </Tab>
-  <Tab title="Organization">
-    Namespace by `org_id`. Memory is shared across all users and all assistants. Typically used for organization-wide policies (compliance rules, brand guidelines) that should be read-only for the agent. Write access should be restricted to application code to prevent prompt injection.
+  <Tab title="组织">
+    按 `org_id` 划分命名空间。记忆在所有用户和所有助手之间共享。通常用于组织范围的策略（合规规则、品牌指南），智能体应为只读。写入权限应限制为应用代码以防止 Prompt 注入。
 
 ```python agent.py
 from deepagents import create_deep_agent
@@ -274,57 +256,54 @@ agent = create_deep_agent(
 )
 ```
 
-
-
-
   </Tab>
 </Tabs>
 
-You can also read and write to the store from your application code using the [Store API](/langsmith/custom-store). See [Advanced usage](/oss/python/deepagents/memory#advanced-usage) for examples.
+您也可以使用 [Store API](/langsmith/custom-store) 从应用代码读取和写入存储。有关示例，请参阅 [高级用法](/oss/python/deepagents/memory#advanced-usage)。
 
-For the full namespace factory API, see [namespace factories](/oss/python/deepagents/backends#namespace-factories). For memory patterns like self-improving instructions and knowledge bases, see [long-term memory](/oss/python/deepagents/memory).
+有关完整的命名空间工厂 API，请参阅 [命名空间工厂](/oss/python/deepagents/backends#namespace-factories)。有关自我改进指令和知识库等记忆模式，请参阅 [长期记忆](/oss/python/deepagents/memory)。
 
-## Execution environment
+## 执行环境
 
-Locally, agents can read and write files on disk and run shell commands directly. In production, you need to think about isolation and persistence. The right setup depends on whether your agent needs to execute code:
+在本地，智能体可以在磁盘上读写文件并直接运行 shell 命令。在生产环境中，您需要考虑隔离和持久性。正确的设置取决于您的智能体是否需要执行代码：
 
-- **Filesystem backends** are enough if your agent only reads and writes files. Choose a backend that matches your persistence needs: ephemeral scratch space, persistent storage, or a mix of both.
-- **Sandboxes** add an isolated container with an `execute` tool for running shell commands. Use a sandbox if your agent needs to run code, install packages, or do anything beyond file I/O.
+- **文件系统后端** 如果您的智能体仅读写文件则足够。选择匹配您持久性需求的后端：临时暂存空间、持久存储或两者混合。
+- **沙盒** 添加一个带有 `execute` 工具的隔离容器用于运行 shell 命令。如果您的智能体需要运行代码、安装包或执行文件 I/O 以外的任何操作，请使用沙盒。
 
-### Filesystem
+### 文件系统
 
-Choose a backend based on what needs to persist:
+根据需要持久化的内容选择后端：
 
-- [StateBackend](https://reference.langchain.com/python/deepagents/backends/state/StateBackend) (default): ephemeral scratch space, scoped to a single conversation. Checkpointed at every step, so avoid writing large files.
-- [StoreBackend](https://reference.langchain.com/python/deepagents/backends/store/StoreBackend): persistent storage that survives across conversations. Scope with a [namespace factory](/oss/python/deepagents/backends#namespace-factories).
-- [CompositeBackend](https://reference.langchain.com/python/deepagents/backends/composite/CompositeBackend): mix both. Ephemeral scratch space by default with persistent routes for specific paths like `/memories/`.
+- [StateBackend](https://reference.langchain.com/python/deepagents/backends/state/StateBackend) (默认)：临时暂存空间，作用于单次对话。每一步都检查点化，因此避免写入大文件。
+- [StoreBackend](https://reference.langchain.com/python/deepagents/backends/store/StoreBackend)：跨对话存活的持久存储。使用 [命名空间工厂](/oss/python/deepagents/backends#namespace-factories) 划分作用域。
+- [CompositeBackend](https://reference.langchain.com/python/deepagents/backends/composite/CompositeBackend)：混合两者。默认情况下为临时暂存空间，并为特定路径（如 `/memories/`）设置持久路由。
 
-For the full list of backends and how to build custom ones, see [backends](/oss/python/deepagents/backends).
+有关后端完整列表及如何构建自定义后端，请参阅 [后端](/oss/python/deepagents/backends)。
 
 <Warning>
-`FilesystemBackend` and `LocalShellBackend` access the host directly. Don't use them in deployed agents.
+`FilesystemBackend` 和 `LocalShellBackend` 直接访问主机。不要在已部署的智能体中使用它们。
 </Warning>
 
-### Sandboxes
+### 沙盒
 
-If your agent needs to run code (not just read and write files), use a [sandbox](/oss/python/deepagents/sandboxes). Sandboxes provide both a filesystem and an `execute` tool for running shell commands, all inside an isolated container. This isolation also protects your host: if the agent's code exhausts memory or crashes, only the sandbox is affected. Your server keeps running.
+如果您的智能体需要运行代码（不仅仅是读写文件），请使用 [沙盒](/oss/python/deepagents/sandboxes)。沙盒在隔离容器内提供文件系统和用于运行 shell 命令的 `execute` 工具。这种隔离也保护您的主机：如果智能体的代码耗尽内存或崩溃，只有沙盒受影响。您的服务器保持运行。
 
-#### Lifecycle
+#### 生命周期
 
-The key decision is how long a sandbox lives. Does each conversation get a fresh one, or do conversations share a persistent environment?
+关键决策是沙盒存活多久。每次对话获得一个全新的沙盒，还是对话共享一个持久环境？
 
-| Scope | Sandbox ID stored on | Lifecycle | Example use case |
+| 作用域 | 沙盒 ID 存储于 | 生命周期 | 示例用例 |
 |---|---|---|---|
-| **Thread-scoped** | [Thread](/langsmith/use-threads) metadata | Fresh per conversation, cleaned up on TTL | A data analysis bot where each conversation starts clean |
-| **Assistant-scoped** | [Assistant](/langsmith/assistants) config | Shared across all conversations | A coding assistant that maintains a cloned repo across conversations |
+| **线程作用域** | [线程](/langsmith/use-threads) 元数据 | 每对话全新，TTL 时清理 | 每次对话干净开始的数据分析机器人 |
+| **助手作用域** | [助手](/langsmith/assistants) 配置 | 所有对话共享 | 跨对话维护克隆仓库的编码助手 |
 
 <Note>
-The examples below use an async [graph factory](/langsmith/graph-rebuild) instead of a static graph because the sandbox needs the `thread_id` or `assistant_id` to look up or create the correct sandbox. Graph factories don't receive a full `Runtime` (no `server_info` or `execution_info`); instead, accept a `RunnableConfig` and read `thread_id` and `assistant_id` from `config["configurable"]`. The factory is async because sandbox creation is an I/O-bound operation that requires per-run information only available at invocation time.
+下面的示例使用异步 [图工厂](/langsmith/graph-rebuild) 而不是静态图，因为沙盒需要 `thread_id` 或 `assistant_id` 来查找或创建正确的沙盒。图工厂不接收完整的 `Runtime`（没有 `server_info` 或 `execution_info`）；相反，接受 `RunnableConfig` 并从 `config["configurable"]` 读取 `thread_id` 和 `assistant_id`。工厂是异步的，因为沙盒创建是 I/O 绑定操作，需要仅在调用时可用的每运行信息。
 </Note>
 
 <Tabs>
-  <Tab title="Thread-scoped (most common)">
-    Each conversation gets its own sandbox. The [graph factory](/langsmith/graph-rebuild) reads `thread_id` from the run config, so each [thread](/langsmith/use-threads) automatically gets its own isolated environment. The provider's label-based lookup handles deduplication across runs. Cleaned up when the sandbox [TTL](/langsmith/configure-ttl) expires.
+  <Tab title="线程作用域 (最常见)">
+    每次对话获得自己的沙盒。[图工厂](/langsmith/graph-rebuild) 从运行配置读取 `thread_id`，因此每个 [线程](/langsmith/use-threads) 自动获得自己的隔离环境。提供商的基于标签的查找处理跨运行的去重。当沙盒 [TTL](/langsmith/configure-ttl) 过期时清理。
 
 ```python agent.py
 from daytona import CreateSandboxFromSnapshotParams, Daytona
@@ -343,18 +322,15 @@ async def agent(config: RunnableConfig):
         sandbox = await client.create(
             CreateSandboxFromSnapshotParams(
                 labels={"thread_id": thread_id},
-                auto_delete_interval=3600,  # TTL: clean up when idle
+                auto_delete_interval=3600,  # TTL: 空闲时清理
             )
         )
     return create_deep_agent(model="google_genai:gemini-3.1-pro-preview", backend=DaytonaSandbox(sandbox=sandbox))
 ```
 
-
-
-
   </Tab>
-  <Tab title="Assistant-scoped">
-    All conversations share one sandbox. The [graph factory](/langsmith/graph-rebuild) reads the [assistant](/langsmith/assistants) ID from `config["configurable"]`, so every thread on the same assistant returns to the same environment. Files, installed packages, and cloned repositories persist across conversations.
+  <Tab title="助手作用域">
+    所有对话共享一个沙盒。[图工厂](/langsmith/graph-rebuild) 从 `config["configurable"]` 读取 [助手](/langsmith/assistants) ID，因此同一助手上的每个线程返回到相同的环境。文件、已安装的包和克隆的仓库跨对话持久化。
 
 ```python agent.py
 from daytona import CreateSandboxFromSnapshotParams, Daytona
@@ -376,29 +352,26 @@ async def agent(config: RunnableConfig):
     return create_deep_agent(model="google_genai:gemini-3.1-pro-preview", backend=DaytonaSandbox(sandbox=sandbox))
 ```
 
-
-
-
     <Warning>
-        Assistant-scoped sandboxes accumulate files, installed packages, and other in-sandbox state over time. Configure a TTL with your sandbox provider, use snapshots to reset periodically, or implement cleanup logic to prevent the sandbox's disk and memory from growing unbounded.
+        助手作用域沙盒随时间积累文件、已安装的包和其他沙盒内状态。使用沙盒提供商配置 TTL，使用快照定期重置，或实现清理逻辑以防止沙盒的磁盘和内存无限增长。
     </Warning>
   </Tab>
 </Tabs>
 
-Because the `agent` variable is an async function (not a compiled graph), the server treats it as a [graph factory](/langsmith/graph-rebuild) and calls it on each run, injecting the config. The factory looks up or creates the sandbox via the provider's label-based search and returns a fresh agent graph wired to that sandbox.
+因为 `agent` 变量是异步函数（而不是已编译的图），服务器将其视为 [图工厂](/langsmith/graph-rebuild) 并在每次运行时调用它，注入配置。工厂通过提供商的基于标签的搜索查找或创建沙盒，并返回连接到该沙盒的全新智能体图。
 
-Once deployed with `langgraph deploy`, invoke the agent from your application code using the SDK. The client-side code is the same regardless of scope. The scoping is handled entirely in the agent factory above, but the behavior differs:
+一旦使用 `langgraph deploy` 部署，使用 SDK 从您的应用代码调用智能体。客户端代码无论作用域如何都是相同的。作用域完全在上述智能体工厂中处理，但行为不同：
 
 <Tabs>
-  <Tab title="Thread-scoped">
-    Each thread gets its own sandbox. Follow-up messages within the same thread reuse the same sandbox, but a new thread always starts fresh with no leftover files or installed packages from previous conversations.
+  <Tab title="线程作用域">
+    每个线程获得自己的沙盒。同一线程内的后续消息重用相同的沙盒，但新线程总是全新开始，没有来自之前对话的遗留文件或已安装的包。
 
 ```python client.py
 from langgraph_sdk import get_client
 
 client = get_client(url="<DEPLOYMENT_URL>", api_key="<LANGSMITH_API_KEY>")
 
-# Conversation 1: install pandas and analyze data
+# 对话 1：安装 pandas 并分析数据
 thread_1 = await client.threads.create()
 async for chunk in client.runs.stream(
     thread_1["thread_id"],
@@ -408,7 +381,7 @@ async for chunk in client.runs.stream(
 ):
     print(chunk.data)
 
-# Follow-up in the same conversation — pandas is still installed
+# 同一对话中的后续消息 — pandas 仍已安装
 async for chunk in client.runs.stream(
     thread_1["thread_id"],
     "agent",
@@ -417,7 +390,7 @@ async for chunk in client.runs.stream(
 ):
     print(chunk.data)
 
-# Conversation 2: fresh sandbox — pandas is NOT installed, no files from conversation 1
+# 对话 2：全新沙盒 — pandas 未安装，没有来自对话 1 的文件
 thread_2 = await client.threads.create()
 async for chunk in client.runs.stream(
     thread_2["thread_id"],
@@ -428,19 +401,16 @@ async for chunk in client.runs.stream(
     print(chunk.data)
 ```
 
-
-
-
   </Tab>
-  <Tab title="Assistant-scoped">
-    All threads share one sandbox. This is useful when the sandbox has state that's expensive to recreate, such as a cloned repo, installed dependencies, or build artifacts. Any conversation on the same assistant picks up where the last one left off without repeating setup.
+  <Tab title="助手作用域">
+    所有线程共享一个沙盒。当沙盒具有重建成本高的状态时（例如克隆的仓库、已安装的依赖或构建产物），这很有用。同一助手上的任何对话都接续上一次结束的地方，无需重复设置。
 
 ```python client.py
 from langgraph_sdk import get_client
 
 client = get_client(url="<DEPLOYMENT_URL>", api_key="<LANGSMITH_API_KEY>")
 
-# Conversation 1: clone and set up the project
+# 对话 1：克隆并设置项目
 thread_1 = await client.threads.create()
 async for chunk in client.runs.stream(
     thread_1["thread_id"],
@@ -450,7 +420,7 @@ async for chunk in client.runs.stream(
 ):
     print(chunk.data)
 
-# Conversation 2: repo and dependencies are still there
+# 对话 2：仓库和依赖仍在那里
 thread_2 = await client.threads.create()
 async for chunk in client.runs.stream(
     thread_2["thread_id"],
@@ -461,23 +431,20 @@ async for chunk in client.runs.stream(
     print(chunk.data)
 ```
 
-
-
-
   </Tab>
 </Tabs>
 
-#### File transfers
+#### 文件传输
 
-Sandboxes are isolated containers, so your application code can't directly access files inside them. Use `upload_files()` and `download_files()` to move data across the sandbox boundary:
+沙盒是隔离容器，因此您的应用代码无法直接访问其中的文件。使用 `upload_files()` 和 `download_files()` 在沙盒边界移动数据：
 
-- **Seed the sandbox before the agent runs**: upload user files, [skill](/oss/python/deepagents/skills) scripts, configuration, or [persistent memories](/oss/python/deepagents/memory) so the agent has what it needs from the start
-- **Retrieve results after the agent finishes**: download generated artifacts (reports, plots, exports) and sync updated memories back for future conversations
+- **在智能体运行前播种沙盒**：上传用户文件、[技能](/oss/python/deepagents/skills) 脚本、配置或 [持久记忆](/oss/python/deepagents/memory)，以便智能体从一开始就拥有所需内容
+- **在智能体完成后检索结果**：下载生成的产物（报告、图表、导出）并同步更新的记忆回未来对话
 
-For provider-specific file transfer examples, see [working with files](/oss/python/deepagents/sandboxes#working-with-files). For provider setup, security, and lifecycle patterns, see the full [sandboxes guide](/oss/python/deepagents/sandboxes).
+有关特定提供商的文件传输示例，请参阅 [处理文件](/oss/python/deepagents/sandboxes#working-with-files)。有关提供商设置、安全和生命周期模式，请参阅完整的 [沙盒指南](/oss/python/deepagents/sandboxes)。
 
-<Accordion title="Example: syncing skills and memories with custom middleware">
-  [Skill](/oss/python/deepagents/skills) scripts that the agent needs to execute must be uploaded into the sandbox before the agent runs. You may also want to sync [memories](/oss/python/deepagents/memory) so the agent can read and update them inside the container. Use [custom middleware](/oss/python/langchain/middleware/custom) with `before_agent` and `after_agent` hooks to move files across the sandbox boundary:
+<Accordion title="示例：使用自定义中间件同步技能和记忆">
+  智能体需要执行的 [技能](/oss/python/deepagents/skills) 脚本必须在智能体运行前上传到沙盒中。您可能还希望同步 [记忆](/oss/python/deepagents/memory)，以便智能体可以在容器内读取和更新它们。使用带有 `before_agent` 和 `after_agent` 钩子的 [自定义中间件](/oss/python/langchain/middleware/custom) 在沙盒边界移动文件：
 
 ```python agent.py
 from deepagents import create_deep_agent
@@ -486,7 +453,7 @@ from langgraph.runtime import Runtime
 
 
 def _safe_filename(key: str) -> str:
-    """Reject keys that contain path traversal or glob characters."""
+    """拒绝包含路径遍历或通配符的键。"""
     name = key.split("/")[-1]
     if ".." in name or any(c in name for c in ("*", "?")):
         raise ValueError(f"Invalid key: {key}")
@@ -494,14 +461,14 @@ def _safe_filename(key: str) -> str:
 
 
 class SandboxSyncMiddleware(AgentMiddleware):
-    """Sync skills and memories between the store and the sandbox."""
+    """在存储和沙盒之间同步技能和记忆。"""
 
     def __init__(self, backend: CompositeBackend):
         super().__init__()
         self.backend = backend
 
     async def abefore_agent(self, state: AgentState, runtime: Runtime) -> None:
-        """Upload skill scripts and memories into the sandbox."""
+        """上传技能脚本和记忆到沙盒。"""
         user_id = runtime.server_info.user.identity  # [!code highlight]
         store = runtime.store
         files = []
@@ -515,7 +482,7 @@ class SandboxSyncMiddleware(AgentMiddleware):
             await self.backend.upload_files(files)
 
     async def aafter_agent(self, state: AgentState, runtime: Runtime) -> None:
-        """Sync updated memories back to the store."""
+        """同步更新的记忆回存储。"""
         user_id = runtime.server_info.user.identity  # [!code highlight]
         store = runtime.store
         items = await store.asearch(("memories", user_id))
@@ -552,16 +519,13 @@ agent = create_deep_agent(
 )
 ```
 
-
-
-
 </Accordion>
 
-#### Managing secrets
+#### 管理密钥
 
-Sandboxes are isolated containers, so environment variables from your host aren't available inside them. There are two ways to provide API keys and other secrets to sandbox code:
+沙盒是隔离容器，因此来自您主机的环境变量在内部不可用。有两种方法为沙盒代码提供 API 密钥和其他秘密：
 
-**Auth proxy (recommended).** The [sandbox auth proxy](/langsmith/sandbox-auth-proxy) intercepts outbound requests from the sandbox and injects authentication headers automatically. Sandbox code calls external APIs normally, and the proxy adds the correct credentials based on the destination host. This means API keys never appear in sandbox code, environment variables, or logs.
+**认证代理 (推荐)。** [沙盒认证代理](/langsmith/sandbox-auth-proxy) 拦截来自沙盒的出站请求并自动注入认证头。沙盒代码正常调用外部 API，代理根据目标主机添加正确的凭据。这意味着 API 密钥从不出现在沙盒代码、环境变量或日志中。
 
 ```json
 {
@@ -586,26 +550,26 @@ Sandboxes are isolated containers, so environment variables from your host aren'
 }
 ```
 
-The `${SECRET_KEY}` references resolve against secrets stored in your LangSmith [workspace settings](/langsmith/set-up-hierarchy#configure-workspace-settings). Configure secrets there before creating a template that references them.
+`${SECRET_KEY}` 引用解析为您 LangSmith [工作区设置](/langsmith/set-up-hierarchy#configure-workspace-settings) 中存储的秘密。在创建引用它们的模板之前，在那里配置秘密。
 
-**Workspace secrets.** For API keys that don't need proxy-based injection (e.g., keys used by the agent server itself, not sandbox code), store them as [workspace secrets](/langsmith/set-up-hierarchy#configure-workspace-settings) in LangSmith. These are available as environment variables at runtime for all agents in the workspace.
+**工作区秘密。** 对于不需要基于代理注入的 API 密钥（例如，由智能体服务器本身使用，而不是沙盒代码使用的密钥），将它们作为 [工作区秘密](/langsmith/set-up-hierarchy#configure-workspace-settings) 存储在 LangSmith 中。这些在运行时作为环境变量对工作区中的所有代理可用。
 
 <Warning>
-Avoid passing secrets into sandboxes via environment variables or file uploads. Agents can read any accessible file or environment variable inside the sandbox, including credentials. The auth proxy keeps secrets out of the sandbox entirely.
+避免通过环境变量或文件上传将秘密传递到沙盒。智能体可以读取沙盒内任何可访问的文件或环境变量，包括凭据。认证代理将秘密完全保持在沙盒之外。
 </Warning>
 
-## Guardrails
+## 护栏
 
-Agents in production run autonomously, which means they can loop indefinitely, hit rate limits, or process user data that contains sensitive information. Deep Agents provide two layers of protection:
+生产中的智能体自主运行，这意味着它们可以无限循环、命中速率限制或处理包含敏感信息的用户数据。Deep Agents 提供两层保护：
 
-- **[Permissions](/oss/python/deepagents/permissions)**: declarative allow/deny rules that control which files and directories the agent can read or write. Use permissions to isolate the agent to a working directory, protect sensitive files, or enforce read-only memory.
-- **[Middleware](/oss/python/langchain/middleware/built-in)**: hooks that wrap model and tool calls for rate limiting, error handling, and data privacy.
+- **[权限](/oss/python/deepagents/permissions)**：声明式允许/拒绝规则，控制智能体可以读取或写入哪些文件和目录。使用权限将智能体隔离到工作目录、保护敏感文件或强制只读记忆。
+- **[中间件](/oss/python/langchain/middleware/built-in)**：包装模型和工具调用的钩子，用于速率限制、错误处理和数据隐私。
 
-### Rate limiting
+### 速率限制
 
-Rate limiting here refers to capping the agent's own LLM and tool usage within a run, not API gateway rate limiting for incoming requests.
+这里的速率限制指的是限制智能体自己在一次运行内的 LLM 和工具使用，而不是传入请求的 API 网关速率限制。
 
-Without limits, a confused agent can burn through your LLM API budget in minutes by looping on the same tool call or making hundreds of model calls. Set caps on both model calls and tool executions per run:
+没有限制，困惑的智能体可以通过在同一工具调用上循环或进行数百次模型调用在几分钟内耗尽您的 LLM API 预算。为每次运行的模型调用和工具执行设置上限：
 
 ```python
 from deepagents import create_deep_agent
@@ -620,16 +584,13 @@ agent = create_deep_agent(
 )
 ```
 
+使用 `run_limit` 限制单次调用内的调用（每轮重置）。使用 `thread_limit` 限制整个对话中的调用（需要检查点器）。有关完整配置，请参阅 [ModelCallLimitMiddleware](https://reference.langchain.com/python/langchain/agents/middleware/model_call_limit/ModelCallLimitMiddleware) 和 [ToolCallLimitMiddleware](https://reference.langchain.com/python/langchain/agents/middleware/tool_call_limit/ToolCallLimitMiddleware)。
 
+### 处理错误
 
+并非所有错误都应以相同方式处理。暂时性失败（网络超时、速率限制）应自动重试。LLM 可以恢复的错误（坏工具输出、解析失败）应反馈给模型。需要人工输入的错误应暂停智能体。有关带代码示例的完整分解，请参阅 [适当处理错误](/oss/python/langgraph/thinking-in-langgraph#handle-errors-appropriately)。
 
-Use `run_limit` to cap calls within a single invocation (resets each turn). Use `thread_limit` to cap calls across an entire conversation (requires a checkpointer). See [ModelCallLimitMiddleware](https://reference.langchain.com/python/langchain/agents/middleware/model_call_limit/ModelCallLimitMiddleware) and [ToolCallLimitMiddleware](https://reference.langchain.com/python/langchain/agents/middleware/tool_call_limit/ToolCallLimitMiddleware) for the full configuration.
-
-### Handling errors
-
-Not all errors should be handled the same way. Transient failures (network timeouts, rate limits) should be retried automatically. Errors the LLM can recover from (bad tool output, parsing failures) should be fed back to the model. Errors that need human input should pause the agent. For the full breakdown with code examples, see [Handle errors appropriately](/oss/python/langgraph/thinking-in-langgraph#handle-errors-appropriately).
-
-Middleware handles the transient case. Model calls and tool calls each have their own retry middleware with exponential backoff. If your primary model provider goes down entirely, the fallback middleware switches to an alternative:
+中间件处理暂时性情况。模型调用和工具调用各有自己的带指数退避的重试中间件。如果您的主要模型提供商完全宕机，回退中间件切换到替代方案：
 
 ```python
 from deepagents import create_deep_agent
@@ -642,11 +603,11 @@ from langchain.agents.middleware import (
 agent = create_deep_agent(
     model="google_genai:gemini-3.1-pro-preview",
     middleware=[
-        # Retry model calls on rate limits, timeouts, and 5xx errors
+        # 在速率限制、超时和 5xx 错误时重试模型调用
         ModelRetryMiddleware(max_retries=3, backoff_factor=2.0, initial_delay=1.0),
-        # If the primary model is fully down, fall back to an alternative
+        # 如果主要模型完全宕机，回退到替代方案
         ModelFallbackMiddleware("gpt-4.1"),
-        # Retry specific tools that hit external APIs (not all tools)
+        # 重试命中外部 API 的特定工具（不是所有工具）
         ToolRetryMiddleware(
             max_retries=2,
             tools=["search", "fetch_url"],
@@ -656,14 +617,11 @@ agent = create_deep_agent(
 )
 ```
 
+将 [ToolRetryMiddleware](https://reference.langchain.com/python/langchain/agents/middleware/tool_retry/ToolRetryMiddleware) 作用域限定到特定工具，而不是重试一切。失败的 filesystem `read_file` 不会从重试中受益，但超时的 web 搜索可能会。有关完整配置，请参阅 [ModelRetryMiddleware](https://reference.langchain.com/python/langchain/agents/middleware/model_retry/ModelRetryMiddleware) 和 [ModelFallbackMiddleware](https://reference.langchain.com/python/langchain/agents/middleware/model_fallback/ModelFallbackMiddleware)。
 
+### 数据隐私
 
-
-Scope [ToolRetryMiddleware](https://reference.langchain.com/python/langchain/agents/middleware/tool_retry/ToolRetryMiddleware) to specific tools rather than retrying everything. A filesystem `read_file` that fails won't benefit from a retry, but a web search that times out probably will. See [ModelRetryMiddleware](https://reference.langchain.com/python/langchain/agents/middleware/model_retry/ModelRetryMiddleware) and [ModelFallbackMiddleware](https://reference.langchain.com/python/langchain/agents/middleware/model_fallback/ModelFallbackMiddleware) for the full configuration.
-
-### Data privacy
-
-If your agent processes user input that might contain emails, credit card numbers, or other PII, you can detect and handle it before it reaches the model or gets stored in logs:
+如果您的智能体处理可能包含电子邮件、信用卡号或其他 PII 的用户输入，您可以在其到达模型或存储在日志中之前检测和处理它：
 
 ```python
 from deepagents import create_deep_agent
@@ -678,21 +636,16 @@ agent = create_deep_agent(
 )
 ```
 
+策略包括 `redact`（替换为 `[REDACTED_EMAIL]`）、`mask`（部分掩码，如 `****-****-****-1234`）、`hash`（确定性哈希）和 `block`（抛出错误）。您也可以为领域特定模式编写自定义检测器。
+有关完整配置，请参阅 [PIIMiddleware](https://reference.langchain.com/python/langchain/agents/middleware/pii/PIIMiddleware)。
 
+有关可用中间件的完整列表，请参阅 [预构建中间件](/oss/python/langchain/middleware/built-in)。
 
+## 前端
 
-Strategies include `redact` (replace with `[REDACTED_EMAIL]`), `mask` (partial masking like `****-****-****-1234`), `hash` (deterministic hash), and `block` (raise an error). You can also write custom detectors for domain-specific patterns.
-See [PIIMiddleware](https://reference.langchain.com/python/langchain/agents/middleware/pii/PIIMiddleware) for the full configuration.
+Deep Agents 使用 [`useStream`](/oss/python/langchain/frontend/overview) 将您的 UI 连接到智能体后端。`useStream` 是一个前端钩子（可用于 React、Vue、Svelte 和 Angular），实时流式传输来自您的智能体的消息、子代理进度和自定义状态。
 
-
-
-For the complete list of available middleware, see [prebuilt middleware](/oss/python/langchain/middleware/built-in).
-
-## Frontend
-
-Deep Agents use [`useStream`](/oss/python/langchain/frontend/overview) to connect your UI to the agent backend. `useStream` is a frontend hook (available for React, Vue, Svelte, and Angular) that streams messages, subagent progress, and custom state from your agent in real time.
-
-Locally, `useStream` points at `http://localhost:2024`. In production, point it at your [LangSmith Deployment](/langsmith/deployment) and configure reconnection so users don't lose progress if their connection drops.
+在本地，`useStream` 指向 `http://localhost:2024`。在生产环境中，将其指向您的 [LangSmith 部署](/langsmith/deployment) 并配置重连，以便用户在连接断开时不丢失进度。
 
 ```tsx
 import { useStream } from "@langchain/react";
@@ -701,15 +654,15 @@ function App() {
   const stream = useStream<typeof agent>({
     apiUrl: "https://your-deployment.langsmith.dev",
     assistantId: "agent",
-    reconnectOnMount: true,    // Resume stream after page refresh or navigation
-    fetchStateHistory: true,   // Load full thread history on mount
+    reconnectOnMount: true,    // 页面刷新或导航后恢复流
+    fetchStateHistory: true,   // 挂载时加载完整线程历史
   });
 }
 ```
 
-`reconnectOnMount` picks up an in-progress run automatically. If a user refreshes while the agent is working, they'll see it continue rather than a blank screen. `fetchStateHistory` loads the full conversation history for the thread, so returning users see previous messages.
+`reconnectOnMount` 自动接续进行中的运行。如果用户在智能体工作时刷新，他们将看到它继续而不是空白屏幕。`fetchStateHistory` 加载线程的完整对话历史，因此返回用户可以看到之前的消息。
 
-For deep agent workflows that spawn many subagents, set a high `recursionLimit` when submitting to avoid cutting off long-running executions:
+对于产生许多子代理的 Deep Agent 工作流，提交时设置高 `recursionLimit` 以避免切断长时间运行的执行：
 
 ```tsx
 stream.submit(
@@ -721,15 +674,15 @@ stream.submit(
 );
 ```
 
-For UI patterns specific to deep agents, such as subagent cards, todo lists, and custom state rendering, see the [frontend guide](/oss/python/deepagents/frontend/overview).
+有关特定于 Deep Agents 的 UI 模式，例如子代理卡片、待办列表和自定义状态渲染，请参阅 [前端指南](/oss/python/deepagents/frontend/overview)。
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/deepagents/going-to-production.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/deepagents/going-to-production.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [连接这些文档](/use-these-docs) 到 Claude、VSCode 等 via MCP 以获取实时答案。
 </Callout>
 </div>

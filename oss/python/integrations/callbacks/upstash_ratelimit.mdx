@@ -1,11 +1,11 @@
 ---
-title: "Upstash ratelimit integration"
-description: "Integrate with the Upstash ratelimit callback using LangChain Python."
+title: "Upstash ratelimit 集成"
+description: "使用 LangChain Python 集成 Upstash ratelimit Callback。"
 ---
 
-In this guide, we will go over how to add rate limiting based on number of requests or the number of tokens using `UpstashRatelimitHandler`. This handler uses [ratelimit library of Upstash](https://github.com/upstash/ratelimit-py/), which utilizes [Upstash Redis](https://upstash.com/docs/redis/overall/getstarted).
+在本指南中，我们将介绍如何使用 `UpstashRatelimitHandler` 添加基于请求数量或 token 数量的速率限制。此处理程序使用 [Upstash 的 ratelimit 库](https://github.com/upstash/ratelimit-py/)，该库利用 [Upstash Redis](https://upstash.com/docs/redis/overall/getstarted)。
 
-Upstash Ratelimit works by sending an HTTP request to Upstash Redis everytime the `limit` method is called. Remaining tokens/requests of the user are checked and updated. Based on the remaining tokens, we can stop the execution of costly operations like invoking an LLM or querying a vector store:
+Upstash Ratelimit 的工作原理是每次调用 `limit` 方法时向 Upstash Redis 发送 HTTP 请求。用户的剩余 token/请求会被检查并更新。根据剩余 token，我们可以停止执行昂贵操作，例如调用 LLM 或查询 Vector Store：
 
 ```py
 response = ratelimit.limit()
@@ -13,29 +13,29 @@ if response.allowed:
     execute_costly_operation()
 ```
 
-`UpstashRatelimitHandler` allows you to incorporate the ratelimit logic into your chain in a few minutes.
+`UpstashRatelimitHandler` 允许您在几分钟内将 ratelimit 逻辑纳入您的链中。
 
-First, you will need to go to [the Upstash Console](https://console.upstash.com/login) and create a redis database ([see our docs](https://upstash.com/docs/redis/overall/getstarted)). After creating a database, you will need to set the environment variables:
+首先，您需要前往 [Upstash Console](https://console.upstash.com/login) 创建一个 Redis 数据库（[参见我们的文档](https://upstash.com/docs/redis/overall/getstarted)）。创建数据库后，您需要设置环境变量：
 
 ```
 UPSTASH_REDIS_REST_URL="****"
 UPSTASH_REDIS_REST_TOKEN="****"
 ```
 
-Next, you will need to install Upstash Ratelimit and Redis library with:
+接下来，您需要使用以下命令安装 Upstash Ratelimit 和 Redis 库：
 
 ```
 pip install upstash-ratelimit upstash-redis
 ```
 
-You are now ready to add rate limiting to your chain!
+您现在已准备好向您的链添加速率限制！
 
-## Ratelimiting per request
+## 基于请求的速率限制
 
-Let's imagine that we want to allow our users to invoke our chain 10 times per minute. Achieving this is as simple as:
+假设我们想允许用户每分钟调用我们的链 10 次。实现这一点非常简单：
 
 ```python
-# set env variables
+# 设置环境变量
 import os
 
 os.environ["UPSTASH_REDIS_REST_URL"] = "****"
@@ -46,21 +46,21 @@ from langchain_core.runnables import RunnableLambda
 from upstash_ratelimit import FixedWindow, Ratelimit
 from upstash_redis import Redis
 
-# create ratelimit
+# 创建速率限制
 ratelimit = Ratelimit(
     redis=Redis.from_env(),
-    # 10 requests per window, where window size is 60 seconds:
+    # 每个窗口 10 个请求，窗口大小为 60 秒：
     limiter=FixedWindow(max_requests=10, window=60),
 )
 
-# create handler
-user_id = "user_id"  # should be a method which gets the user id
+# 创建处理程序
+user_id = "user_id"  # 应该是一个获取用户 id 的方法
 handler = UpstashRatelimitHandler(identifier=user_id, request_ratelimit=ratelimit)
 
-# create mock chain
+# 创建模拟链
 chain = RunnableLambda(str)
 
-# invoke chain with handler:
+# 使用处理程序调用链：
 try:
     result = chain.invoke("Hello world!", config={"callbacks": [handler]})
 except UpstashRatelimitError:
@@ -68,69 +68,69 @@ except UpstashRatelimitError:
 ```
 
 ```text
-Error in UpstashRatelimitHandler.on_chain_start callback: UpstashRatelimitError('Request limit reached!')
+UpstashRatelimitHandler.on_chain_start Callback 中的错误：UpstashRatelimitError('Request limit reached!')
 ```
 ```text
-Handling ratelimit. <class 'langchain_community.callbacks.upstash_ratelimit_callback.UpstashRatelimitError'>
+处理 ratelimit。<class 'langchain_community.callbacks.upstash_ratelimit_callback.UpstashRatelimitError'>
 ```
 
-Note that we pass the handler to the `invoke` method instead of passing the handler when defining the chain.
+请注意，我们将处理程序传递给 `invoke` 方法，而不是在定义链时传递处理程序。
 
-For rate limiting algorithms other than `FixedWindow`, see [upstash-ratelimit docs](https://github.com/upstash/ratelimit-py?tab=readme-ov-file#ratelimiting-algorithms).
+对于 `FixedWindow` 以外的速率限制算法，请参阅 [upstash-ratelimit 文档](https://github.com/upstash/ratelimit-py?tab=readme-ov-file#ratelimiting-algorithms)。
 
-Before executing any steps in our pipeline, ratelimit will check whether the user has passed the request limit. If so, `UpstashRatelimitError` is raised.
+在执行管道中的任何步骤之前，ratelimit 将检查用户是否已超过请求限制。如果是，则抛出 `UpstashRatelimitError`。
 
-## Ratelimiting per token
+## 基于 token 的速率限制
 
-Another option is to rate limit chain invokations based on:
+另一种选择是基于以下内容限制链调用的速率：
 
-1. number of tokens in prompt
-2. number of tokens in prompt and LLM completion
+1. prompt 中的 token 数量
+2. prompt 和 LLM 完成中的 token 数量
 
-This only works if you have an LLM in your chain. Another requirement is that the LLM you are using should return the token usage in it's `LLMOutput`.
+这仅在您的链中包含 LLM 时有效。另一个要求是您使用的 LLM 应在其 `LLMOutput` 中返回 token 使用情况。
 
-### How it works
+### 工作原理
 
-The handler will get the remaining tokens before calling the LLM. If the remaining tokens is more than 0, LLM will be called. Otherwise `UpstashRatelimitError` will be raised.
+处理程序将在调用 LLM 之前获取剩余 token。如果剩余 token 大于 0，则将调用 LLM。否则将抛出 `UpstashRatelimitError`。
 
-After LLM is called, token usage information will be used to subtracted from the remaining tokens of the user. No error is raised at this stage of the chain.
+调用 LLM 后，token 使用信息将用于从用户的剩余 token 中扣除。在链的这一阶段不会抛出错误。
 
-### Configuration
+### 配置
 
-For the first configuration, simply initialize the handler like this:
+对于第一种配置，只需像这样初始化处理程序：
 
 ```python
 ratelimit = Ratelimit(
         redis=Redis.from_env(),
-    # 1000 tokens per window, where window size is 60 seconds:
+    # 每个窗口 1000 个 token，窗口大小为 60 秒：
         limiter=FixedWindow(max_requests=1000, window=60),
 )
 
 handler = UpstashRatelimitHandler(identifier=user_id, token_ratelimit=ratelimit)
 ```
 
-For the second configuration, here is how to initialize the handler:
+对于第二种配置，以下是初始化处理程序的方法：
 
 ```python
 ratelimit = Ratelimit(
         redis=Redis.from_env(),
-    # 1000 tokens per window, where window size is 60 seconds:
+    # 每个窗口 1000 个 token，窗口大小为 60 秒：
         limiter=FixedWindow(max_requests=1000, window=60),
 )
 
 handler = UpstashRatelimitHandler(
         identifier=user_id,
         token_ratelimit=ratelimit,
-        include_output_tokens=True,  # set to True
+        include_output_tokens=True,  # 设置为 True
 )
 ```
 
-You can also employ ratelimiting based on requests and tokens at the same time, simply by passing both `request_ratelimit` and `token_ratelimit` parameters.
+您还可以通过同时传递 `request_ratelimit` 和 `token_ratelimit` 参数，基于请求和 token 同时采用速率限制。
 
-Here is an example with a chain utilizing an LLM:
+这是一个利用 LLM 的链的示例：
 
 ```python
-# set env variables
+# 设置环境变量
 import os
 
 os.environ["UPSTASH_REDIS_REST_URL"] = "****"
@@ -143,24 +143,24 @@ from langchain_openai import ChatOpenAI
 from upstash_ratelimit import FixedWindow, Ratelimit
 from upstash_redis import Redis
 
-# create ratelimit
+# 创建速率限制
 ratelimit = Ratelimit(
         redis=Redis.from_env(),
-    # 500 tokens per window, where window size is 60 seconds:
+    # 每个窗口 500 个 token，窗口大小为 60 秒：
         limiter=FixedWindow(max_requests=500, window=60),
 )
 
-# create handler
-user_id = "user_id"  # should be a method which gets the user id
+# 创建处理程序
+user_id = "user_id"  # 应该是一个获取用户 id 的方法
 handler = UpstashRatelimitHandler(identifier=user_id, token_ratelimit=ratelimit)
 
-# create mock chain
+# 创建模拟链
 as_str = RunnableLambda(str)
 model = ChatOpenAI()
 
 chain = as_str | model
 
-# invoke chain with handler:
+# 使用处理程序调用链：
 try:
         result = chain.invoke("Hello world!", config={"callbacks": [handler]})
 except UpstashRatelimitError:
@@ -168,19 +168,19 @@ except UpstashRatelimitError:
 ```
 
 ```text
-Error in UpstashRatelimitHandler.on_llm_start callback: UpstashRatelimitError('Token limit reached!')
+UpstashRatelimitHandler.on_llm_start Callback 中的错误：UpstashRatelimitError('Token limit reached!')
 ```
 ```text
-Handling ratelimit. <class 'langchain_community.callbacks.upstash_ratelimit_callback.UpstashRatelimitError'>
+处理 ratelimit。<class 'langchain_community.callbacks.upstash_ratelimit_callback.UpstashRatelimitError'>
 ```
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/callbacks/upstash_ratelimit.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/callbacks/upstash_ratelimit.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [连接这些文档](/use-these-docs) 到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 </div>

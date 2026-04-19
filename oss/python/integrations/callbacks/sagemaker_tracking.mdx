@@ -1,21 +1,21 @@
 ---
-title: "SageMaker tracking integration"
-description: "Integrate with the SageMaker tracking callback using LangChain Python."
+title: "SageMaker 跟踪集成"
+description: "使用 LangChain Python 与 SageMaker 跟踪回调集成。"
 ---
 
->[Amazon SageMaker](https://aws.amazon.com/sagemaker/) is a fully managed service that is used to quickly and easily build, train and deploy machine learning (ML) models.
+>[Amazon SageMaker](https://aws.amazon.com/sagemaker/) 是一项完全托管的服务，用于快速轻松地构建、训练和部署机器学习 (ML) 模型。
 
->[Amazon SageMaker Experiments](https://docs.aws.amazon.com/sagemaker/latest/dg/experiments.html) is a capability of `Amazon SageMaker` that lets you organize, track, compare and evaluate ML experiments and model versions.
+>[Amazon SageMaker Experiments](https://docs.aws.amazon.com/sagemaker/latest/dg/experiments.html) 是 `Amazon SageMaker` 的一项功能，可让您组织、跟踪、比较和评估 ML 实验和模型版本。
 
-This notebook shows how LangChain Callback can be used to log and track prompts and other LLM hyperparameters into `SageMaker Experiments`. Here, we use different scenarios to showcase the capability:
+本 Notebook 展示了如何使用 LangChain Callback 将 Prompt 和其他 LLM 超参数记录并跟踪到 `SageMaker Experiments` 中。在这里，我们使用不同的场景来展示该功能：
 
-* **Scenario 1**: *Single LLM* - A case where a single LLM model is used to generate output based on a given prompt.
-* **Scenario 2**: *Sequential Chain* - A case where a sequential chain of two LLM models is used.
-* **Scenario 3**: *Agent with Tools (Chain of Thought)* - A case where multiple tools (search and math) are used in addition to an LLM.
+* **场景 1**：*单个 LLM* - 使用单个 LLM 模型基于给定 Prompt 生成输出的情况。
+* **场景 2**：*顺序链* - 使用两个 LLM 模型的顺序链的情况。
+* **场景 3**：*带工具的 Agent（Chain of Thought）* - 除了 LLM 之外还使用多个工具（搜索和数学）的情况。
 
-In this notebook, we will create a single experiment to log the prompts from each scenario.
+在本 Notebook 中，我们将创建一个实验来记录每个场景的 Prompt。
 
-## Installation and setup
+## 安装和设置
 
 ```python
 pip install -qU  sagemaker
@@ -23,15 +23,15 @@ pip install -qU  langchain-openai
 pip install -qU  google-search-results
 ```
 
-First, setup the required API keys
+首先，设置所需的 API 密钥
 
-* OpenAI: [platform.openai.com/account/api-keys](https://platform.openai.com/account/api-keys) (For OpenAI LLM model)
-* Google SERP API: [serpapi.com/manage-api-key](https://serpapi.com/manage-api-key) (For Google Search Tool)
+* OpenAI: [platform.openai.com/account/api-keys](https://platform.openai.com/account/api-keys) (用于 OpenAI LLM 模型)
+* Google SERP API: [serpapi.com/manage-api-key](https://serpapi.com/manage-api-key) (用于 Google Search 工具)
 
 ```python
 import os
 
-## Add your API keys below
+## 在下方添加您的 API 密钥
 os.environ["OPENAI_API_KEY"] = "<ADD-KEY-HERE>"
 os.environ["SERPAPI_API_KEY"] = "<ADD-KEY-HERE>"
 ```
@@ -50,26 +50,26 @@ from sagemaker.experiments.run import Run
 from sagemaker.session import Session
 ```
 
-## LLM Prompt tracking
+## LLM Prompt 跟踪
 
 ```python
-# LLM Hyperparameters
+# LLM 超参数
 HPARAMS = {
     "temperature": 0.1,
     "model_name": "gpt-3.5-turbo-instruct",
 }
 
-# Bucket used to save prompt logs (Use `None` is used to save the default bucket or otherwise change it)
+# 用于保存 Prompt 日志的存储桶（使用 `None` 来保存默认存储桶，否则请更改）
 BUCKET_NAME = None
 
-# Experiment name
+# 实验名称
 EXPERIMENT_NAME = "langchain-sagemaker-tracker"
 
-# Create SageMaker Session with the given bucket
+# 创建带有给定存储桶的 SageMaker Session
 session = Session(default_bucket=BUCKET_NAME)
 ```
 
-### Scenario 1 - LLM
+### 场景 1 - LLM
 
 ```python
 RUN_NAME = "run-scenario-1"
@@ -81,26 +81,26 @@ INPUT_VARIABLES = {"topic": "fish"}
 with Run(
     experiment_name=EXPERIMENT_NAME, run_name=RUN_NAME, sagemaker_session=session
 ) as run:
-    # Create SageMaker Callback
+    # 创建 SageMaker Callback
     sagemaker_callback = SageMakerCallbackHandler(run)
 
-    # Define LLM model with callback
+    # 定义带有回调的 LLM 模型
     llm = OpenAI(callbacks=[sagemaker_callback], **HPARAMS)
 
-    # Create prompt template
+    # 创建 Prompt 模板
     prompt = PromptTemplate.from_template(template=PROMPT_TEMPLATE)
 
-    # Create LLM Chain
+    # 创建 LLM 链
     chain = LLMChain(llm=llm, prompt=prompt, callbacks=[sagemaker_callback])
 
-    # Run chain
+    # 运行链
     chain.run(**INPUT_VARIABLES)
 
-    # Reset the callback
+    # 重置回调
     sagemaker_callback.flush_tracker()
 ```
 
-### Scenario 2 - sequential chain
+### 场景 2 - 顺序链
 
 ```python
 RUN_NAME = "run-scenario-2"
@@ -121,35 +121,35 @@ INPUT_VARIABLES = {
 with Run(
     experiment_name=EXPERIMENT_NAME, run_name=RUN_NAME, sagemaker_session=session
 ) as run:
-    # Create SageMaker Callback
+    # 创建 SageMaker Callback
     sagemaker_callback = SageMakerCallbackHandler(run)
 
-    # Create prompt templates for the chain
+    # 创建链的 Prompt 模板
     prompt_template1 = PromptTemplate.from_template(template=PROMPT_TEMPLATE_1)
     prompt_template2 = PromptTemplate.from_template(template=PROMPT_TEMPLATE_2)
 
-    # Define LLM model with callback
+    # 定义带有回调的 LLM 模型
     llm = OpenAI(callbacks=[sagemaker_callback], **HPARAMS)
 
-    # Create chain1
+    # 创建链 1
     chain1 = LLMChain(llm=llm, prompt=prompt_template1, callbacks=[sagemaker_callback])
 
-    # Create chain2
+    # 创建链 2
     chain2 = LLMChain(llm=llm, prompt=prompt_template2, callbacks=[sagemaker_callback])
 
-    # Create Sequential chain
+    # 创建顺序链
     overall_chain = SimpleSequentialChain(
         chains=[chain1, chain2], callbacks=[sagemaker_callback]
     )
 
-    # Run overall sequential chain
+    # 运行整体顺序链
     overall_chain.run(**INPUT_VARIABLES)
 
-    # Reset the callback
+    # 重置回调
     sagemaker_callback.flush_tracker()
 ```
 
-### Scenario 3 - Agent with tools
+### 场景 3 - 带工具的 Agent
 
 ```python
 RUN_NAME = "run-scenario-3"
@@ -160,50 +160,50 @@ with Run(
     run_name=RUN_NAME,
     sagemaker_session=session,
 ) as run:
-    # Create SageMaker Callback
+    # 创建 SageMaker Callback
     sagemaker_callback = SageMakerCallbackHandler(run)
 
-    # Define LLM model with callback
+    # 定义带有回调的 LLM 模型
     llm = OpenAI(callbacks=[sagemaker_callback], **HPARAMS)
 
-    # Define tools
+    # 定义工具
     tools = load_tools(
         ["serpapi", "llm-math"],
         llm=llm,
         callbacks=[sagemaker_callback],
     )
 
-    # Create agent
+    # 创建 Agent
     agent = create_agent(
         model=llm,
         tools=tools,
         callbacks=[sagemaker_callback],
     )
 
-    # Run agent
+    # 运行 Agent
     agent.invoke(PROMPT_TEMPLATE)
 
-    # Reset callback
+    # 重置回调
     sagemaker_callback.flush_tracker()
 
 ```
 
-## Load log data
+## 加载日志数据
 
-Once the prompts are logged, we can easily load and convert them to Pandas DataFrame as follows.
+一旦 Prompt 被记录，我们可以轻松地加载它们并将其转换为 Pandas DataFrame，如下所示。
 
 ```python
-# Load
+# 加载
 logs = ExperimentAnalytics(experiment_name=EXPERIMENT_NAME)
 
-# Convert as pandas dataframe
+# 转换为 pandas dataframe
 df = logs.dataframe(force_refresh=True)
 
 print(df.shape)
 df.head()
 ```
 
-As can be seen above, there are three runs (rows) in the experiment corresponding to each scenario. Each run logs the prompts and related LLM settings/hyperparameters as json and are saved in s3 bucket. Feel free to load and explore the log data from each json path.
+如上所示，实验中有三次运行（行）对应每个场景。每次运行都将 Prompt 和相关的 LLM 设置/超参数作为 JSON 记录，并保存在 S3 存储桶中。您可以随时从每个 JSON 路径加载和探索日志数据。
 
 ```python
 
@@ -213,9 +213,9 @@ As can be seen above, there are three runs (rows) in the experiment correspondin
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/callbacks/sagemaker_tracking.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/callbacks/sagemaker_tracking.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    通过 MCP 将 [这些文档](/use-these-docs) 连接到 Claude、VSCode 等，以获取实时答案。
 </Callout>
 </div>
