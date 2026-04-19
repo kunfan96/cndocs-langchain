@@ -1,7 +1,7 @@
 ---
-title: Build a content builder agent
-sidebarTitle: Content Builder
-description: Build a content writing agent with brand memory, skills, subagents, and image generation
+title: 构建内容构建器代理
+sidebarTitle: 内容构建器
+description: 构建具备品牌记忆、技能、子代理和图像生成能力的内容写作代理
 ---
 
 import ContentBuilderToolsPy from '/snippets/code-samples/content-builder-tools-py.mdx';
@@ -11,47 +11,44 @@ import ContentBuilderToolsJs from '/snippets/code-samples/content-builder-tools-
 import ContentBuilderCreateAgentJs from '/snippets/code-samples/content-builder-create-agent-js.mdx';
 import ContentBuilderEntryPointJs from '/snippets/code-samples/content-builder-entry-point-js.mdx';
 
-## Overview
+## 概述
 
-This guide demonstrates how to build a content writing agent from scratch using [Deep Agents](/oss/python/deepagents).
+本指南演示如何使用 [Deep Agents](/oss/python/deepagents) 从头构建内容写作代理。
 
-The agent you build will:
+您构建的代理将：
 
-1. Load voice and workflow rules from `AGENTS.md` and skill folders
-1. Delegate web research to a specialized subagent with `web_search`
-1. Draft blog or social content following the loaded skill
-1. Generate cover or social images with Gemini and save files under the project directory
+1. 从 `AGENTS.md` 和技能文件夹加载语调和工作流规则
+1. 将网络研究委托给具有 `web_search` 的专业子代理
+1. 遵循加载的技能起草博客或社交内容
+1. 使用 Gemini 生成封面或社交图片，并将文件保存在项目目录下
 
-The code in this tutorial wires in image generation tools and a filesystem backend so the agent can read and write posts, research notes, and images under the project directory. For the full runnable project, see the [content-builder-agent](https://github.com/langchain-ai/deepagents/tree/main/examples/content-builder-agent) example.
+本教程中的代码接入了图像生成工具和文件系统后端，以便代理可以在项目目录下读取和写入帖子、研究笔记和图片。对于完整的可运行项目，请参阅 [content-builder-agent](https://github.com/langchain-ai/deepagents/tree/main/examples/content-builder-agent) 示例。
 
-### Key concepts
+### 核心概念
 
-This tutorial covers:
+本教程涵盖：
 
-- [Long-term memory](/oss/python/deepagents/long-term-memory) for TODO
-- [Skills](/oss/python/deepagents/skills) for TODO
-- [Subagents](/oss/python/deepagents/subagents) for TODO
-- [Filesystem backends](/oss/python/deepagents/backends) for file read and write
-- Custom [tools](/oss/python/langchain/tools) for search and image generation
+- [长期记忆](/oss/python/deepagents/long-term-memory) 用于 TODO
+- [技能](/oss/python/deepagents/skills) 用于 TODO
+- [子代理](/oss/python/deepagents/subagents) 用于 TODO
+- [文件系统后端](/oss/python/deepagents/backends) 用于文件读取和写入
+- 自定义 [工具](/oss/python/langchain/tools) 用于搜索和图像生成
 
-## Prerequisites
+## 前置条件
 
-API keys:
+API Key：
 
 - Anthropic (Claude)
-- Google (Gemini) for image generation with `gemini-2.5-flash-image`
-- [Tavily](https://www.tavily.com/) for web search (free tier)
-- [LangSmith](https://smith.langchain.com/) for tracing (optional)
+- Google (Gemini) 用于使用 `gemini-2.5-flash-image` 生成图像
+- [Tavily](https://www.tavily.com/) 用于网络搜索（免费层级）
+- [LangSmith](https://smith.langchain.com/) 用于追踪（可选）
 
-Python 3.11 or later.
+Python 3.11 或更高版本。
 
-
-
-
-## Setup
+## 设置
 
 <Steps>
-<Step title="Create project directory">
+<Step title="创建项目目录">
 
 ```bash
 mkdir content-builder-agent
@@ -59,7 +56,7 @@ cd content-builder-agent
 ```
 
 </Step>
-<Step title="Install dependencies">
+<Step title="安装依赖">
 
 <CodeGroup>
 ```bash pip wrap
@@ -73,10 +70,10 @@ uv sync
 ```
 </CodeGroup>
 
-Pin `deepagents` to a supported range in your own project (for example `>=0.3.5,<0.4.0`) to match the upstream example.
+在您自己的项目中将 `deepagents` 固定到支持的范围（例如 `>=0.3.5,<0.4.0`），以匹配上游示例。
 
 </Step>
-<Step title="Set API keys">
+<Step title="设置 API Key">
 
 ```bash
 export ANTHROPIC_API_KEY="your_anthropic_api_key"
@@ -88,18 +85,15 @@ export LANGSMITH_API_KEY="your_langsmith_api_key"     # Optional
 </Step>
 </Steps>
 
+## 添加配置文件
 
-
-
-## Add configuration files
-
-The example keeps behavior in three kinds of files: memory, skills, and subagent definitions.
+示例将行为保存在三种文件中：记忆、技能和子代理定义。
 
 <Steps>
-<Step title="Add AGENTS.md">
+<Step title="添加 AGENTS.md">
 
-Create `AGENTS.md` in the project root.
-When you later create the agent and specify this file as part of the [memory](/oss/python/deepagents/long-term-memory) parameter, it gets loaded this into the system prompt so brand voice and research expectations apply to every run.
+在项目根目录创建 `AGENTS.md`。
+当您稍后创建代理并将此文件指定为 [memory](/oss/python/deepagents/long-term-memory) 参数的一部分时，它会被加载到系统 Prompt 中，以便品牌语调和研究期望适用于每次运行。
 
 ```markdown expandable wrap
 # Content Writer Agent
@@ -146,17 +140,17 @@ Before writing on any topic:
 4. Find concrete examples or case studies to illustrate concepts
 ```
 
-To make this agent comply with your own tone, pillars, and formatting rules, update the text in `AGENTS.md`.
+要使此代理符合您自己的语调、支柱和格式规则，请更新 `AGENTS.md` 中的文本。
 
 </Step>
-<Step title="Add subagents.yaml">
+<Step title="添加 subagents.yaml">
 
-Create a file called `subagents.yaml`.
-Then add the following txt which describes a `researcher` subagent with a Tavily-backed `web_search` tool, a Haiku model id, and instructions to save findings to paths you specify when delegating from the main agent:
+创建一个名为 `subagents.yaml` 的文件。
+然后添加以下文本，描述一个具有基于 Tavily 的 `web_search` 工具、Haiku 模型 ID 的 `researcher` 子代理，以及指示将发现保存到您在从主代理委托时指定的路径：
 
 ```yaml expandable wrap
-# Subagent definitions
-# These are loaded by content_writer.py and wired up with tools
+# 子代理定义
+# 这些由 content_writer.py 加载并与工具连接
 
 researcher:
   description: >
@@ -186,16 +180,15 @@ researcher:
     - web_search
 ```
 
-The file gets passed as an argument later when creating the deep agent.
+该文件稍后在创建 deep agent 时作为参数传递。
 
 </Step>
 
+<Step title="添加技能">
 
-<Step title="Add skills">
+创建一个 `skills/` 目录。每个技能是一个文件夹，包含一个带有 YAML Frontmatter（`name`、`description`）和技能指令的 `SKILL.md` 文件。
 
-Create a `skills/` directory. Each skill is a folder containing a `SKILL.md` file with YAML frontmatter (`name`, `description`) and instructions for the skill.
-
-Create `skills/blog-post/SKILL.md` and copy the following text into it which contains information on crating long-form posts, optimizing content for SEO, and generating cover images.
+创建 `skills/blog-post/SKILL.md` 并将以下文本复制进去，其中包含关于创建长文帖子、为 SEO 优化内容和生成封面图片的信息。
 
 ````md expandable wrap
 ---
@@ -334,7 +327,7 @@ Before finishing:
 - [ ] CTA tells reader what to do next
 ````
 
-Next, create `skills/social-media/SKILL.md` and copy the following text into it which contains information on drafting social media posts and generating accompanying imagery:
+接下来，创建 `skills/social-media/SKILL.md` 并将以下文本复制进去，其中包含关于起草社交媒体帖子和生成配套图片的信息：
 
 ````md expandable wrap
 ---
@@ -524,84 +517,66 @@ Before finishing:
 - [ ] Hashtags are relevant (not generic)
 ````
 
-They instruct the agent to call the `researcher` subagent first, write markdown under `blogs/`, `linkedin/`, or `tweets/`, and call `generate_cover` or `generate_social_image` for images.
+它们指示代理首先调用 `researcher` 子代理，在 `blogs/`、`linkedin/` 或 `tweets/` 下写入 Markdown，并调用 `generate_cover` 或 `generate_social_image` 生成图片。
 
-When you later create the agent and specify the skills folder(s), then the frontmatter of the `SKILLS.md` files from those skill folders get loaded this into the system prompt so the agent can use the skill when a task task matches a skill description.
+当您稍后创建代理并指定技能文件夹时，来自这些技能文件夹的 `SKILLS.md` 文件的 Frontmatter 会被加载到系统 Prompt 中，以便代理可以在任务匹配技能描述时使用该技能。
 
 </Step>
 </Steps>
 
-## Build the script
+## 构建脚本
 
-Create `content_writer.py` in the project root. The following sections belong in one file, in order.
-
-
-
+在项目根目录创建 `content_writer.py`。以下部分按顺序属于同一个文件。
 
 <Steps>
-<Step title="Add tools">
+<Step title="添加工具">
 
-The researcher subagent uses Tavily search.
-Blog and social workflows use Gemini image generation.
-When creating the agent later, the `load_subagents` function reads `subagents.yaml` and resolves tool names to these decorated functions.
+researcher 子代理使用 Tavily 搜索。
+博客和社交工作流使用 Gemini 图像生成。
+稍后创建代理时，`load_subagents` 函数读取 `subagents.yaml` 并将工具名称解析为这些装饰后的函数。
 
 <ContentBuilderToolsPy />
 
-
-
-
 </Step>
-<Step title="Create the agent">
+<Step title="创建代理">
 
-When creating the deep agent with [create_deep_agent](https://reference.langchain.com/python/deepagents/graph/create_deep_agent), pass memory paths, the skills directory, image tools, subagents from YAML, and a [FilesystemBackend](/oss/python/deepagents/backends) rooted at the example directory so paths like `./AGENTS.md` and `./skills/` resolve correctly.
+使用 [create_deep_agent](https://reference.langchain.com/python/deepagents/graph/create_deep_agent) 创建 deep agent 时，传递记忆路径、技能目录、图像工具、来自 YAML 的子代理，以及根目录为示例目录的 [FilesystemBackend](/oss/python/deepagents/backends)，以便像 `./AGENTS.md` 和 `./skills/` 这样的路径能正确解析。
 
 <ContentBuilderCreateAgentPy />
 
-
-
-
 </Step>
-<Step title="Add an entry point">
+<Step title="添加入口点">
 
-Invoke the agent with a user message to verify the agent is working:
+使用用户消息调用代理以验证代理是否工作：
 
 <ContentBuilderEntryPointPy />
-
-
-
 
 </Step>
 </Steps>
 
-## Run the agent
+## 运行代理
 
 <Warning>
-The filesystem backend can read, write, and delete files under `root_dir`. Run only in a dedicated directory and review generated content before publishing.
+文件系统后端可以读取、写入和删除 `root_dir` 下的文件。仅在专用目录中运行，并在发布前审查生成的内容。
 </Warning>
 
-From the project directory you can invoke the agent without passing an argument or by passing the prompt as an argument:
+从项目目录您可以不传递参数或通过通过将 Prompt 作为参数传递来调用代理：
 
 <CodeGroup>
-```bash Default wrap
+```bash 默认 wrap
 python content_writer.py
 ```
 
-```bash With prompt wrap
+```bash 带提示 wrap
 python content_writer.py Write a blog post about prompt engineering
 ```
 </CodeGroup>
 
+设置 `LANGSMITH_API_KEY` 后，您可以在 [LangSmith](/langsmith/home) 中检查运行。
 
+## 输出
 
-
-With `LANGSMITH_API_KEY` set, you can inspect runs in [LangSmith](/langsmith/home).
-
-## Output
-
-
-
-On success, generated artifacts are written under a system temporary directory (on macOS and Linux, typically under `/tmp/`), not next to your project files.
-
+成功时，生成的工件写入系统临时目录下（在 macOS 和 Linux 上，通常在 `/tmp/` 下），而不是在项目文件旁边。
 
 ```text
 blogs/
@@ -612,26 +587,26 @@ research/
 └── prompt-engineering.md
 ```
 
-Paths follow the skill instructions in `SKILL.md`.
+路径遵循 `SKILL.md` 中的技能指令。
 
-## Full code
+## 完整代码
 
-Browse the complete [content-builder-agent example](https://github.com/langchain-ai/deepagents/tree/main/examples/content-builder-agent) on GitHub, including the Rich-based streaming UI.
+在 GitHub 上浏览完整的 [content-builder-agent 示例](https://github.com/langchain-ai/deepagents/tree/main/examples/content-builder-agent)，包括基于 Rich 的流式传输 UI。
 
-## Next steps
+## 后续步骤
 
-- Edit `AGENTS.md` to change brand voice and research requirements
-- Add skills under `skills/<name>/SKILL.md` for new content types
-- Add subagents in `subagents.yaml` and register tools in `load_subagents`
-- Read [Subagents](/oss/python/deepagents/subagents), [Skills](/oss/python/deepagents/skills), and [Customization](/oss/python/deepagents/customization) for deeper configuration
+- 编辑 `AGENTS.md` 以更改品牌语调和研究要求
+- 在 `skills/<name>/SKILL.md` 下添加技能以获取新内容类型
+- 在 `subagents.yaml` 中添加子代理并在 `load_subagents` 中注册工具
+- 阅读 [Subagents](/oss/python/deepagents/subagents)、[Skills](/oss/python/deepagents/skills) 和 [Customization](/oss/python/deepagents/customization) 以获取更深入的配置
 
 ---
 
 <div className="source-links">
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/deepagents/content-builder.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/deepagents/content-builder.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [连接这些文档](/use-these-docs) 到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 </div>
