@@ -65,14 +65,10 @@ SYSTEM_PROMPT = """\
 7. **代码块**：代码块内的代码不翻译，但代码块内的注释可以翻译。
 8. **链接**：保留原始链接地址不变，仅翻译链接文字（如果是描述性文字）。
 
-## 专有名词（保持原文，不翻译）
-
-以下专有名词在翻译时必须保持英文原文不变：
-{terms}
-
 ## 输出格式
 
 直接输出翻译后的完整文档内容，不要添加任何额外说明或包装。
+
 """
 
 USER_PROMPT = """\
@@ -86,7 +82,7 @@ USER_PROMPT = """\
 # ── 工作目录 ──────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent
 PROGRESS_FILE = BASE_DIR / "mdx-translation-progress.md"
-MAX_CONCURRENCY = 20
+MAX_CONCURRENCY = 100
 
 
 def parse_file_list() -> list[str]:
