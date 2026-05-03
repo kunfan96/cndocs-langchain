@@ -1,131 +1,130 @@
 ---
-title: Log LLM calls
-sidebarTitle: Log LLM calls
+title: 记录 LLM 调用
+sidebarTitle: 记录 LLM 调用
 ---
 
-When you call an LLM directly, outside of [LangChain](/oss/python/langchain/overview) or a LangSmith [supported integration](/langsmith/integrations), you need to provide specific metadata so that LangSmith can display token counts, calculate costs, and let you open the [run](/langsmith/observability-concepts#runs) in the [Playground](/langsmith/prompt-engineering-concepts#playground) with the correct provider and model.
+当您直接调用 LLM，而非通过 [LangChain](/oss/python/langchain/overview) 或 LangSmith [支持的集成](/langsmith/integrations) 时，需要提供特定的元数据，以便 LangSmith 能够显示 token 计数、计算成本，并允许您在 [Playground](/langsmith/prompt-engineering-concepts#playground) 中使用正确的提供商和模型打开 [运行](/langsmith/observability-concepts#runs)。
 
-There are four requirements for a fully functional LLM trace:
+一个功能完整的 LLM 追踪有四个要求：
 
-| Requirement | What to do | Enables |
+| 要求 | 操作 | 启用功能 |
 |---|---|---|
-| 1. Set [`run_type="llm"`](/langsmith/run-data-format#run-types) | Pass `run_type="llm"` to `@traceable` | LLM-specific rendering, token/cost display |
-| 2. Format inputs/outputs | Use OpenAI, Anthropic, or LangChain message format | Structured message rendering, Playground support |
-| 3. Set `ls_provider` and `ls_model_name` | Pass both in `metadata` | Cost tracking, Playground model selection |
-| 4. Provide token counts | Set `usage_metadata` on the run | Token counts and cost calculation |
+| 1. 设置 [`run_type="llm"`](/langsmith/run-data-format#run-types) | 将 `run_type="llm"` 传递给 `@traceable` | LLM 特定渲染、token/成本显示 |
+| 2. 格式化输入/输出 | 使用 OpenAI、Anthropic 或 LangChain 消息格式 | 结构化消息渲染、Playground 支持 |
+| 3. 设置 `ls_provider` 和 `ls_model_name` | 在 `metadata` 中传递两者 | 成本追踪、Playground 模型选择 |
+| 4. 提供 token 计数 | 在运行上设置 `usage_metadata` | token 计数和成本计算 |
 
 <Note>
-If you are using LangChain OSS, the [OpenAI wrapper](/langsmith/trace-openai), or the [Anthropic wrapper](/langsmith/trace-anthropic), these details are handled automatically.
+如果您使用 LangChain OSS、[OpenAI 包装器](/langsmith/trace-openai) 或 [Anthropic 包装器](/langsmith/trace-anthropic)，这些细节会自动处理。
 
-The examples on this page use the `traceable` decorator/wrapper (the recommended approach for Python and JS/TS). The same requirements apply if you use the [RunTree](/langsmith/annotate-code#use-the-runtree-api) or [API](https://api.smith.langchain.com/redoc) directly.
+本页示例使用 `traceable` 装饰器/包装器（Python 和 JS/TS 的推荐方法）。如果您直接使用 [RunTree](/langsmith/annotate-code#use-the-runtree-api) 或 [API](https://api.smith.langchain.com/redoc)，同样的要求也适用。
 </Note>
 
-## Messages format
+## 消息格式
 
-When tracing a custom model or a custom input/output format, it must either follow the LangChain format, OpenAI completions format or Anthropic messages format. For more details,  refer to the [OpenAI Chat Completions](https://platform.openai.com/docs/api-reference/chat/create) or [Anthropic Messages](https://platform.claude.com/docs/en/api/messages) documentation. The LangChain format is:
+追踪自定义模型或自定义输入/输出格式时，必须遵循 LangChain 格式、OpenAI completions 格式或 Anthropic 消息格式。更多详情，请参阅 [OpenAI Chat Completions](https://platform.openai.com/docs/api-reference/chat/create) 或 [Anthropic Messages](https://platform.claude.com/docs/en/api/messages) 文档。LangChain 格式如下：
 
-
- <Expandable title="LangChain format">
+ <Expandable title="LangChain 格式">
 
 <ParamField path="messages" type="array" required>
-  A list of messages containing the content of the conversation.
+  包含对话内容的消息列表。
 
     <ParamField path="role" type="string" required>
-  Identifies the message type. One of: <code>system</code> | <code>reasoning</code> | <code>user</code> | <code>assistant</code> | <code>tool</code>
+  标识消息类型。可选值：<code>system</code> | <code>reasoning</code> | <code>user</code> | <code>assistant</code> | <code>tool</code>
 </ParamField>
 
     <ParamField path="content" type="array" required>
-      Content of the message. List of typed dictionaries.
+      消息内容。类型化字典列表。
 
-      <Expandable title="Content options">
+      <Expandable title="内容选项">
         <ParamField path="type" type="string" required>
-          One of: <code>text</code> | <code>image</code> | <code>file</code> | <code>audio</code> | <code>video</code> | <code>tool_call</code> | <code>server_tool_call</code> | <code>server_tool_result</code>.
+          可选值：<code>text</code> | <code>image</code> | <code>file</code> | <code>audio</code> | <code>video</code> | <code>tool_call</code> | <code>server_tool_call</code> | <code>server_tool_result</code>。
         </ParamField>
 
         <Expandable title="text">
           <ParamField path="type" type="literal('text')" required />
           <ParamField path="text" type="string" required>
-            Text content.
+            文本内容。
           </ParamField>
         <ParamField path="annotations" type="object[]">
-            List of annotations for the text
+            文本的注释列表
         </ParamField>
         <ParamField path="extras" type="object">
-            Additional provider-specific data.
+            附加的提供商特定数据。
         </ParamField>
         </Expandable>
 
         <Expandable title="reasoning">
           <ParamField path="type" type="literal('reasoning')" required />
           <ParamField path="text" type="string" required>
-            Text content.
+            文本内容。
           </ParamField>
         <ParamField path="extras" type="object">
-            Additional provider-specific data.
+            附加的提供商特定数据。
         </ParamField>
         </Expandable>
 
         <Expandable title="image">
           <ParamField path="type" type="literal('image')" required />
           <ParamField path="url" type="string">
-            URL pointing to the image location.
+            指向图像位置的 URL。
           </ParamField>
         <ParamField path="base64" type="string" required>
-            Base64-encoded image data.
+            Base64 编码的图像数据。
           </ParamField>
           <ParamField path="id" type="string">
-            Reference ID to an externally stored image (e.g., in a provider’s file system or in a bucket).
+            指向外部存储图像的引用 ID（例如，在提供商的文件系统或存储桶中）。
           </ParamField>
           <ParamField path="mime_type" type="string">
-            Image [MIME type](https://www.iana.org/assignments/media-types/media-types.xhtml#image) (e.g., `image/jpeg`, `image/png`).
+            图像 [MIME 类型](https://www.iana.org/assignments/media-types/media-types.xhtml#image)（例如，`image/jpeg`、`image/png`）。
           </ParamField>
         </Expandable>
 
-        <Expandable title="file (e.g., PDFs)">
+        <Expandable title="file (例如 PDF)">
           <ParamField path="type" type="literal('file')" required />
           <ParamField path="url" type="string">
-            URL pointing to the file.
+            指向文件的 URL。
           </ParamField>
         <ParamField path="base64" type="string" required>
-            Base64-encoded file data.
+            Base64 编码的文件数据。
           </ParamField>
           <ParamField path="id" type="string">
-            Reference ID to an externally stored file (e.g., in a provider’s file system or in a bucket).
+            指向外部存储文件的引用 ID（例如，在提供商的文件系统或存储桶中）。
           </ParamField>
           <ParamField path="mime_type" type="string">
-            File [MIME type](https://www.iana.org/assignments/media-types/media-types.xhtml#image) (e.g., `application/pdf`).
+            文件 [MIME 类型](https://www.iana.org/assignments/media-types/media-types.xhtml#image)（例如，`application/pdf`）。
           </ParamField>
         </Expandable>
 
         <Expandable title="audio">
           <ParamField path="type" type="literal('audio')" required />
           <ParamField path="url" type="string">
-            URL pointing to the audio file.
+            指向音频文件的 URL。
           </ParamField>
         <ParamField path="base64" type="string" required>
-            Base64-encoded audio data.
+            Base64 编码的音频数据。
           </ParamField>
           <ParamField path="id" type="string">
-            Reference ID to an externally stored audio file (e.g., in a provider’s file system or in a bucket).
+            指向外部存储音频文件的引用 ID（例如，在提供商的文件系统或存储桶中）。
           </ParamField>
           <ParamField path="mime_type" type="string">
-            Audio [MIME type](https://www.iana.org/assignments/media-types/media-types.xhtml#image) (e.g., `audio/mpeg`, `audio/wav`).
+            音频 [MIME 类型](https://www.iana.org/assignments/media-types/media-types.xhtml#image)（例如，`audio/mpeg`、`audio/wav`）。
           </ParamField>
         </Expandable>
 
         <Expandable title="video">
           <ParamField path="type" type="literal('video')" required />
           <ParamField path="url" type="string">
-            URL pointing to the video file.
+            指向视频文件的 URL。
           </ParamField>
         <ParamField path="base64" type="string" required>
-            Base64-encoded video data.
+            Base64 编码的视频数据。
           </ParamField>
           <ParamField path="id" type="string">
-            Reference ID to an externally stored video file (e.g., in a provider’s file system or in a bucket).
+            指向外部存储视频文件的引用 ID（例如，在提供商的文件系统或存储桶中）。
           </ParamField>
           <ParamField path="mime_type" type="string">
-            Video [MIME type](https://www.iana.org/assignments/media-types/media-types.xhtml#image) (e.g., `video/mp4`, `video/webm`).
+            视频 [MIME 类型](https://www.iana.org/assignments/media-types/media-types.xhtml#image)（例如，`video/mp4`、`video/webm`）。
           </ParamField>
         </Expandable>
 
@@ -133,39 +132,39 @@ When tracing a custom model or a custom input/output format, it must either foll
           <ParamField path="type" type="literal('tool_call')" required />
           <ParamField path="name" type="string" />
           <ParamField path="args" type="object" required>
-            Arguments to pass to the tool.
+            传递给工具的参数。
           </ParamField>
           <ParamField path="id" type="string">
-            Unique identifier for this tool call.
+            此工具调用的唯一标识符。
           </ParamField>
         </Expandable>
 
         <Expandable title="server_tool_call">
           <ParamField path="type" type="literal('server_tool_call')" required />
           <ParamField path="id" type="string" required >
-            Unique identifier for this tool call.
+            此工具调用的唯一标识符。
           </ParamField>
           <ParamField path="name" type="string" required>
-            The name of the tool to be called.
+            要调用的工具名称。
           </ParamField>
           <ParamField path="args" type="object" required>
-            Arguments to pass to the tool.
+            传递给工具的参数。
           </ParamField>
         </Expandable>
 
         <Expandable title="server_tool_result">
           <ParamField path="type" type="literal('server_tool_result')" required />
           <ParamField path="tool_call_id" type="string" required>
-            Identifier of the corresponding server tool call.
+            对应服务器工具调用的标识符。
           </ParamField>
           <ParamField path="id" type="string">
-            Unique identifier for this tool call.
+            此工具调用的唯一标识符。
           </ParamField>
         <ParamField path="status" type="string" required>
-            Execution status of the server-side tool. One of: <code>success</code> | <code>error</code>.
+            服务器端工具的执行状态。可选值：<code>success</code> | <code>error</code>。
           </ParamField>
           <ParamField path="output">
-            Output of the executed tool.
+            已执行工具的输出。
           </ParamField>
         </Expandable>
 
@@ -174,11 +173,11 @@ When tracing a custom model or a custom input/output format, it must either foll
     </ParamField>
 
     <ParamField path="tool_call_id" type="string">
-    Must match the <code>id</code> of a prior <code>assistant</code> message’s <code>tool_calls[i]</code> entry. Only valid when <code>role</code> is <code>tool</code>.
+    必须与先前 <code>assistant</code> 消息的 <code>tool_calls[i]</code> 条目的 <code>id</code> 匹配。仅在 <code>role</code> 为 <code>tool</code> 时有效。
     </ParamField>
 
     <ParamField path="usage_metadata" type="object">
-    Use this field to send token counts and/or costs with your model's output. See [Provide token and cost information](/langsmith/log-llm-trace#provide-token-and-cost-information) for more details.
+    使用此字段随模型输出发送 token 计数和/或成本。更多详情，请参阅 [提供 token 和成本信息](/langsmith/log-llm-trace#provide-token-and-cost-information)。
     </ParamField>
 </ParamField>
 
@@ -186,7 +185,7 @@ When tracing a custom model or a custom input/output format, it must either foll
 
 <CodeGroup>
 
-```python Text and reasoning
+```python 文本和推理
  inputs = {
   "messages": [
     {
@@ -221,7 +220,7 @@ outputs = {
 
 ```
 
-```python Tool calls
+```python 工具调用
 input = {
   "messages": [
     {
@@ -265,7 +264,7 @@ outputs = {
 }
 ```
 
-```python Multimodal
+```python 多模态
 inputs = {
   "messages": [
     {
@@ -278,7 +277,7 @@ inputs = {
         {
           "type": "image",
           "url": "https://fastly.picsum.photos/id/237/200/300.jpg?hmac=TmmQSbShHz9CdQm0NkEjx1Dyh_Y984R9LpNrpvH2D_U",
-          # alternative to a url, you can provide a base64 encoded image
+          # 作为 url 的替代方案，您可以提供 base64 编码的图像
           # "base64": "<base64 encoded image>",
           "mime_type": "image/jpeg",
         }
@@ -302,7 +301,7 @@ outputs = {
 }
 ```
 
-```python Server-side tool calls
+```python 服务器端工具调用
 input = {
   "messages": [
     {
@@ -349,54 +348,54 @@ output = {
 </CodeGroup>
 
 
-## Convert custom I/O formats into LangSmith compatible formats
+## 将自定义 I/O 格式转换为 LangSmith 兼容格式
 
-If you're using a custom input or output format, you can convert it to a LangSmith compatible format using `process_inputs`/`processInputs` and `process_outputs`/`processOutputs` functions on the [`@traceable` decorator](https://docs.smith.langchain.com/reference/python/run_helpers/langsmith.run_helpers.traceable) (Python) or [`traceable` function](https://docs.smith.langchain.com/reference/js/functions/traceable.traceable) (TS).
+如果您使用自定义输入或输出格式，可以使用 [`@traceable` 装饰器](https://docs.smith.langchain.com/reference/python/run_helpers/langsmith.run_helpers.traceable)（Python）或 [`traceable` 函数](https://docs.smith.langchain.com/reference/js/functions/traceable.traceable)（TS）上的 `process_inputs`/`processInputs` 和 `process_outputs`/`processOutputs` 函数将其转换为 LangSmith 兼容格式。
 
-`process_inputs`/`processInputs` and `process_outputs`/`processOutputs` accept functions that allow you to transform the inputs and outputs of a specific trace before they are logged to LangSmith. They have access to the trace's inputs and outputs, and can return a new dictionary with the processed data.
+`process_inputs`/`processInputs` 和 `process_outputs`/`processOutputs` 接受函数，允许您在特定追踪的日志记录到 LangSmith 之前转换其输入和输出。它们可以访问追踪的输入和输出，并可以返回包含处理后数据的新字典。
 
-Here's a boilerplate example of how to use `process_inputs` and `process_outputs` to convert a custom I/O format into a LangSmith compatible format:
+以下是使用 `process_inputs` 和 `process_outputs` 将自定义 I/O 格式转换为 LangSmith 兼容格式的模板示例：
 
 ```python expandable
 class OriginalInputs(BaseModel):
-    """Your app's custom request shape"""
+    """您的应用的自定义请求形状"""
 
 class OriginalOutputs(BaseModel):
-    """Your app's custom response shape."""
+    """您的应用的自定义响应形状。"""
 
 class LangSmithInputs(BaseModel):
-    """The input format LangSmith expects."""
+    """LangSmith 期望的输入格式。"""
 
 class LangSmithOutputs(BaseModel):
-    """The output format LangSmith expects."""
+    """LangSmith 期望的输出格式。"""
 
 def process_inputs(inputs: dict) -> dict:
-    """Dict -> OriginalInputs -> LangSmithInputs -> dict"""
+    """字典 -> OriginalInputs -> LangSmithInputs -> 字典"""
 
 def process_outputs(output: Any) -> dict:
-    """OriginalOutputs -> LangSmithOutputs -> dict"""
+    """OriginalOutputs -> LangSmithOutputs -> 字典"""
 
 
 @traceable(run_type="llm", process_inputs=process_inputs, process_outputs=process_outputs)
 def chat_model(inputs: dict) -> dict:
     """
-    Your app's model call. Keeps your custom I/O shape.
-    The decorators call process_* to log LangSmith-compatible format.
+    您的应用的模型调用。保持您的自定义 I/O 形状。
+    装饰器调用 process_* 以记录 LangSmith 兼容格式。
     """
 
 ```
 
 
-## Identify a custom model in traces
+## 在追踪中识别自定义模型
 
-When using a custom model, it is recommended to also provide the following `metadata` fields to identify the model when viewing traces and when [filtering](/langsmith/filter-traces-in-application).
+使用自定义模型时，建议同时提供以下 `metadata` 字段，以便在查看追踪和 [过滤](/langsmith/filter-traces-in-application) 时识别模型。
 
-- `ls_provider`: The provider of the model, e.g., `"openai"`, `"anthropic"`.
-- `ls_model_name`: The name of the model, e.g., `"gpt-5.4-mini"`, `"claude-3-opus-20240229"`.
+- `ls_provider`：模型的提供商，例如 `"openai"`、`"anthropic"`。
+- `ls_model_name`：模型的名称，例如 `"gpt-5.4-mini"`、`"claude-3-opus-20240229"`。
 
 <CodeGroup>
 
-```python Python wrap
+```python Python 包装
 from langsmith import traceable
 
 inputs = [
@@ -424,7 +423,7 @@ def chat_model(messages: list):
 chat_model(inputs)
 ```
 
-```typescript TypeScript wrap
+```typescript TypeScript 包装
 import { traceable } from "langsmith/traceable";
 
 const messages = [
@@ -447,7 +446,7 @@ const output = {
     },
 };
 
-// Can also use one of:
+// 也可以使用以下任一形式：
 // const output = {
 //     message: {
 //         role: "assistant",
@@ -481,7 +480,7 @@ await chatModel({ messages });
 
 </CodeGroup>
 
-If you implement a custom streaming `chat_model`, you can "reduce" the outputs into the same format as the non-streaming version. This is only supported in Python:
+如果您实现了自定义流式 `chat_model`，可以将输出“归约”为与非流式版本相同的格式。这仅在 Python 中受支持：
 
 ```python expandable wrap
 def _reduce_chunks(chunks: list):
@@ -517,35 +516,35 @@ list(
 ```
 
 <Check>
-Setting `ls_model_name` in your `metadata` is required for LangSmith to identify the model and calculate costs for custom LLM traces. Without it, token counts may still be recorded but costs won't be estimated.
+在 `metadata` 中设置 `ls_model_name` 是 LangSmith 识别模型并计算自定义 LLM 追踪成本所必需的。没有它，token 计数可能仍会被记录，但成本不会被估算。
 </Check>
 
-To learn more about how to use the `metadata` fields, refer to the [Add metadata and tags](/langsmith/add-metadata-tags) guide.
+要了解更多关于如何使用 `metadata` 字段的信息，请参阅 [添加元数据和标签](/langsmith/add-metadata-tags) 指南。
 
-## Provide token and cost information
+## 提供 token 和成本信息
 
-Token counts enable cost calculation, which LangSmith displays in the [Tracing Projects UI](https://smith.langchain.com/projects). There are two ways to provide them:
+token 计数支持成本计算，LangSmith 在 [追踪项目 UI](https://smith.langchain.com/projects) 中显示。有两种提供方式：
 
-- **Set `usage_metadata` on the run tree**: call [`get_current_run_tree()` / `getCurrentRunTree()`](/langsmith/access-current-span) inside your [`@traceable`](/langsmith/annotate-code#use-%40traceable-%2F-traceable) function and set the `usage_metadata` field. This does not change your function's return value.
-- **Return `usage_metadata` in the output**: include `usage_metadata` as a top-level key in the dictionary your function returns.
+- **在运行树上设置 `usage_metadata`**：在您的 [`@traceable`](/langsmith/annotate-code#use-%40traceable-%2F-traceable) 函数内调用 [`get_current_run_tree()` / `getCurrentRunTree()`](/langsmith/access-current-span) 并设置 `usage_metadata` 字段。这不会改变函数的返回值。
+- **在输出中返回 `usage_metadata`**：在函数返回的字典中包含 `usage_metadata` 作为顶级键。
 
-### Supported `usage_metadata` fields
+### 支持的 `usage_metadata` 字段
 
-| Field | Type | Description |
+| 字段 | 类型 | 描述 |
 |---|---|---|
-| `input_tokens` | `int` | Total input/prompt tokens |
-| `output_tokens` | `int` | Total output/completion tokens |
-| `total_tokens` | `int` | Sum of input + output (optional, can be inferred) |
-| `input_token_details` | `object` | Breakdown: `cache_read`, `cache_creation`, `cache_read_over_200k`, `ephemeral_5m_input_tokens`, `ephemeral_1h_input_tokens`, `audio`, `text`, `image` |
-| `output_token_details` | `object` | Breakdown: `reasoning`, `audio`, `text`, `image` |
+| `input_tokens` | `int` | 总输入/提示 token 数 |
+| `output_tokens` | `int` | 总输出/补全 token 数 |
+| `total_tokens` | `int` | 输入 + 输出的总和（可选，可推断） |
+| `input_token_details` | `object` | 明细：`cache_read`、`cache_creation`、`cache_read_over_200k`、`ephemeral_5m_input_tokens`、`ephemeral_1h_input_tokens`、`audio`、`text`、`image` |
+| `output_token_details` | `object` | 明细：`reasoning`、`audio`、`text`、`image` |
 
-To send costs directly (for non-linear pricing), you can also include `input_cost`, `output_cost`, and `total_cost` fields. For details on configuring model pricing and viewing costs in the UI, refer to the [Cost tracking](/langsmith/cost-tracking) page.
+要直接发送成本（用于非线性定价），您还可以包含 `input_cost`、`output_cost` 和 `total_cost` 字段。有关配置模型定价和在 UI 中查看成本的详细信息，请参阅 [成本追踪](/langsmith/cost-tracking) 页面。
 
-## Time-to-first-token
+## 首个 token 时间
 
-If you are using `traceable` or one of the SDK wrappers, LangSmith will automatically populate time-to-first-token for streaming LLM runs. However, if you are using the [`RunTree` API](/langsmith/annotate-code#use-the-runtree-api) directly, you will need to add a `new_token` event to the run tree in order to properly populate time-to-first-token.
+如果您使用 `traceable` 或 SDK 包装器之一，LangSmith 将自动填充流式 LLM 运行的首个 token 时间。但是，如果您直接使用 [`RunTree` API](/langsmith/annotate-code#use-the-runtree-api)，则需要向运行树添加 `new_token` 事件，以便正确填充首个 token 时间。
 
-Here's an example:
+以下是示例：
 
 <CodeGroup>
 
@@ -593,21 +592,21 @@ await runTree.patchRun();
 
 </CodeGroup>
 
-## Related
+## 相关内容
 
-- [Custom instrumentation](/langsmith/annotate-code): core `@traceable` and `RunTree` patterns.
-- [Access the current run (span) within a traced function](/langsmith/access-current-span): using `get_current_run_tree()` to set `usage_metadata` and other fields at runtime.
-- [Trace OpenAI applications](/langsmith/trace-openai): automatic token and cost tracking when using the OpenAI wrapper.
-- [Trace Anthropic applications](/langsmith/trace-anthropic): automatic token and cost tracking when using the Anthropic wrapper.
-- [Integrations overview](/langsmith/integrations): full list of providers and frameworks with built-in LangSmith support.
+- [自定义检测](/langsmith/annotate-code)：核心 `@traceable` 和 `RunTree` 模式。
+- [在追踪函数内访问当前运行（span）](/langsmith/access-current-span)：使用 `get_current_run_tree()` 在运行时设置 `usage_metadata` 和其他字段。
+- [追踪 OpenAI 应用](/langsmith/trace-openai)：使用 OpenAI 包装器时的自动 token 和成本追踪。
+- [追踪 Anthropic 应用](/langsmith/trace-anthropic)：使用 Anthropic 包装器时的自动 token 和成本追踪。
+- [集成概述](/langsmith/integrations)：具有内置 LangSmith 支持的提供商和框架的完整列表。
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/log-llm-trace.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/log-llm-trace.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

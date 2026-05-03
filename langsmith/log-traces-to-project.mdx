@@ -1,42 +1,42 @@
 ---
-title: Log traces to a specific project
-sidebarTitle: Log traces to a specific project
-description: Route LangSmith traces to a named project instead of the default project using environment variables or the SDK.
+title: 将追踪记录到特定项目
+sidebarTitle: 将追踪记录到特定项目
+description: 使用环境变量或 SDK 将 LangSmith 追踪路由到指定项目，而非默认项目。
 ---
 
-This page covers how to control where LangSmith sends your traces:
+本页介绍如何控制 LangSmith 将您的追踪发送到何处：
 
-- [Set the destination project statically](#set-the-destination-project-statically)
-- [Set the destination project dynamically](#set-the-destination-project-dynamically)
-- [Set the destination workspace dynamically](#set-the-destination-workspace-dynamically)
-- [Write traces to multiple destinations with replicas](#write-traces-to-multiple-destinations-with-replicas)
+- [静态设置目标项目](#静态设置目标项目)
+- [动态设置目标项目](#动态设置目标项目)
+- [动态设置目标工作区](#动态设置目标工作区)
+- [使用副本将追踪写入多个目标](#使用副本将追踪写入多个目标)
 
-## Set the destination project statically
+## 静态设置目标项目
 
-LangSmith uses the concept of a [_project_](/langsmith/observability-concepts#projects) to group traces. If left unspecified, the project is set to `default`.
+LangSmith 使用 [_项目_](/langsmith/observability-concepts#projects) 的概念来分组追踪。如果未指定，项目将设置为 `default`。
 
-You can set the `LANGSMITH_PROJECT` environment variable to configure a custom project name for an entire application run. Set this before running your application:
+您可以设置 `LANGSMITH_PROJECT` 环境变量，为整个应用程序运行配置自定义项目名称。请在运行应用程序之前设置此项：
 
 ```bash
 export LANGSMITH_PROJECT=my-custom-project
 ```
 
 <Warning>
-The `LANGSMITH_PROJECT` flag is only supported in JS SDK versions >= 0.2.16, use `LANGCHAIN_PROJECT` instead if you are using an older version.
+`LANGSMITH_PROJECT` 标志仅在 JS SDK 版本 >= 0.2.16 中受支持，如果您使用的是较旧版本，请改用 `LANGCHAIN_PROJECT`。
 </Warning>
 
-If the project specified does not exist, LangSmith will automatically create it when the first trace is ingested.
+如果指定的项目不存在，LangSmith 将在接收第一条追踪时自动创建它。
 
-## Set the destination project dynamically
+## 动态设置目标项目
 
-You can also set the project name at program runtime in various ways, depending on how you are [annotating your code for tracing](/langsmith/annotate-code). This is useful when you want to log traces to different projects within the same application:
+您也可以在程序运行时以多种方式设置项目名称，具体取决于您如何[注释代码以进行追踪](/langsmith/annotate-code)。当您希望在同一个应用程序中将追踪记录到不同项目时，这非常有用：
 
-- Pass the project name at decoration or configuration time.
-- Override it per individual call.
-- Set it when constructing a run directly.
+- 在装饰或配置时传递项目名称。
+- 在每次单独调用时覆盖它。
+- 在直接构造运行时设置它。
 
 <Note>
-Setting the project name dynamically using one of the following methods overrides the project name set by the `LANGSMITH_PROJECT` environment variable.
+使用以下方法之一动态设置项目名称会覆盖由 `LANGSMITH_PROJECT` 环境变量设置的项目名称。
 </Note>
 
 <CodeGroup>
@@ -52,8 +52,8 @@ messages = [
   {"role": "user", "content": "Hello!"}
 ]
 
-# Use the @traceable decorator with the 'project_name' parameter to log traces to LangSmith
-# Ensure that the LANGSMITH_TRACING environment variables is set for @traceable to work
+# 使用带有 'project_name' 参数的 @traceable 装饰器将追踪记录到 LangSmith
+# 确保设置了 LANGSMITH_TRACING 环境变量，以便 @traceable 正常工作
 @traceable(
   run_type="llm",
   name="OpenAI Call Decorator",
@@ -67,19 +67,19 @@ def call_openai(
       messages=messages,
   ).choices[0].message.content
 
-# Call the decorated function
+# 调用装饰函数
 call_openai(messages)
 
-# You can also specify the Project via the project_name parameter
-# This will override the project_name specified in the @traceable decorator
+# 您也可以通过 project_name 参数指定项目
+# 这将覆盖 @traceable 装饰器中指定的 project_name
 call_openai(
   messages,
   langsmith_extra={"project_name": "My Overridden Project"},
 )
 
-# The wrapped OpenAI client accepts all the same langsmith_extra parameters
-# as @traceable decorated functions, and logs traces to LangSmith automatically.
-# Ensure that the LANGSMITH_TRACING environment variables is set for the wrapper to work.
+# 包装的 OpenAI 客户端接受与 @traceable 装饰函数相同的 langsmith_extra 参数，
+# 并自动将追踪记录到 LangSmith。
+# 确保设置了 LANGSMITH_TRACING 环境变量，以便包装器正常工作。
 from langsmith import wrappers
 wrapped_client = wrappers.wrap_openai(client)
 wrapped_client.chat.completions.create(
@@ -88,8 +88,8 @@ wrapped_client.chat.completions.create(
   langsmith_extra={"project_name": "My Project"},
 )
 
-# Alternatively, create a RunTree object
-# You can set the project name using the project_name parameter
+# 或者，创建一个 RunTree 对象
+# 您可以使用 project_name 参数设置项目名称
 rt = RunTree(
   run_type="llm",
   name="OpenAI Call RunTree",
@@ -100,7 +100,7 @@ chat_completion = client.chat.completions.create(
   model="gpt-5.4-mini",
   messages=messages,
 )
-# End and submit the run
+# 结束并提交运行
 rt.end(outputs=chat_completion)
 rt.post()
 ```
@@ -129,10 +129,10 @@ const traceableCallOpenAI = traceable(async (messages: {role: string, content: s
   project_name: "My Project"
 });
 
-// Call the traceable function
+// 调用可追踪函数
 await traceableCallOpenAI(messages, "gpt-5.4-mini");
 
-// Create and use a RunTree object
+// 创建并使用 RunTree 对象
 const rt = new RunTree({
   run_type: "llm",
   name: "OpenAI Call RunTree",
@@ -141,7 +141,7 @@ const rt = new RunTree({
 });
 await rt.postRun();
 
-// Execute a chat completion and handle it within RunTree
+// 执行聊天补全并在 RunTree 中处理
 rt.end({outputs: chatCompletion});
 await rt.patchRun();
 ```
@@ -158,18 +158,18 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Simple example: Send a single OpenTelemetry trace to LangSmith.
+ * 简单示例：将单个 OpenTelemetry 追踪发送到 LangSmith。
  *
- * Usage:
+ * 用法：
  *   export LANGSMITH_API_KEY=your_api_key
- *   export LANGSMITH_PROJECT=your_project_name  # Optional, defaults to "default"
+ *   export LANGSMITH_PROJECT=your_project_name  # 可选，默认为 "default"
  */
 public class OtelLangSmithSimpleExample {
     public static void main(String[] args) throws Exception {
-        // Get API key and project name
+        // 获取 API 密钥和项目名称
         String apiKey = System.getenv("LANGSMITH_API_KEY");
         if (apiKey == null || apiKey.isEmpty()) {
-            System.err.println("ERROR: LANGSMITH_API_KEY environment variable is required!");
+            System.err.println("错误：需要 LANGSMITH_API_KEY 环境变量！");
             return;
         }
 
@@ -178,7 +178,7 @@ public class OtelLangSmithSimpleExample {
             projectName = "default";
         }
 
-        // Configure exporter
+        // 配置导出器
         Map<String, String> headers = new HashMap<>();
         headers.put("x-api-key", apiKey);
         headers.put("Langsmith-Project", projectName);
@@ -194,13 +194,13 @@ public class OtelLangSmithSimpleExample {
         OtelTraceExporter exporter = OtelTraceExporter.fromConfig(config);
         Tracer tracer = exporter.getTracer();
 
-        // Create a simple span
+        // 创建一个简单的 span
         Span span = OtelSpanCreator.createLlmSpan(
                 tracer, "simple.llm.call", "openai", "gpt-4", projectName, null);
 
         try {
             OtelSpanCreator.setInput(span, "Hello, world!");
-            Thread.sleep(100); // Simulate processing
+            Thread.sleep(100); // 模拟处理
             OtelSpanCreator.setOutput(span, "Hello! How can I help you?");
             OtelSpanCreator.setTokenUsage(span, 5, 8);
             span.setStatus(StatusCode.OK);
@@ -208,40 +208,40 @@ public class OtelLangSmithSimpleExample {
             span.end();
         }
 
-        // Flush and shutdown
+        // 刷新并关闭
         exporter.flush().join(5, java.util.concurrent.TimeUnit.SECONDS);
         exporter.shutdown().join(2, java.util.concurrent.TimeUnit.SECONDS);
 
-        System.out.println("✓ Trace sent to LangSmith!");
+        System.out.println("✓ 追踪已发送到 LangSmith！");
     }
 }
 ```
 
 </CodeGroup>
 
-## Set the destination workspace dynamically
+## 动态设置目标工作区
 
-If you need to route traces dynamically to different LangSmith [workspaces](/langsmith/administration-overview#workspaces) based on runtime configuration (e.g., routing different users or tenants to separate workspaces), the approach differs by language:
+如果您需要根据运行时配置（例如，将不同用户或租户路由到单独的工作区）将追踪动态路由到不同的 LangSmith [工作区](/langsmith/administration-overview#workspaces)，方法因语言而异：
 
-- **Python**: use workspace-specific LangSmith clients with [`tracing_context`](/langsmith/annotate-code#use-the-trace-context-manager-python-only).
-- **TypeScript**: pass a custom client to [`traceable`](/langsmith/annotate-code#use-%40traceable-%2F-traceable), or use `LangChainTracer` with callbacks.
+- **Python**：使用具有 [`tracing_context`](/langsmith/annotate-code#use-the-trace-context-manager-python-only) 的特定于工作区的 LangSmith 客户端。
+- **TypeScript**：将自定义客户端传递给 [`traceable`](/langsmith/annotate-code#use-%40traceable-%2F-traceable)，或使用带有回调的 `LangChainTracer`。
 
-This approach is useful for multi-tenant applications where you want to isolate traces by customer, environment, or team at the workspace level.
+此方法适用于多租户应用程序，您希望在工作区级别按客户、环境或团队隔离追踪。
 
-### Prerequisites
+### 先决条件
 
-- A [LangSmith API key](/langsmith/create-account-api-key) with access to multiple workspaces.
-- The [workspace IDs](/langsmith/set-up-hierarchy#set-up-a-workspace) for each target workspace.
+- 一个具有访问多个工作区权限的 [LangSmith API 密钥](/langsmith/create-account-api-key)。
+- 每个目标工作区的[工作区 ID](/langsmith/set-up-hierarchy#set-up-a-workspace)。
 
-### Generic cross-workspace tracing
+### 通用跨工作区追踪
 
-Use this approach for general applications where you want to dynamically route traces to different workspaces based on runtime logic (e.g., customer ID, tenant, or environment).
+对于希望根据运行时逻辑（例如，客户 ID、租户或环境）将追踪动态路由到不同工作区的通用应用程序，请使用此方法。
 
-**Key components:**
+**关键组件：**
 
-1. Initialize separate `Client` instances for each workspace with their respective `workspace_id`.
-2. Use `tracing_context` (Python) or pass the workspace-specific `client` to `traceable` (TypeScript) to route traces.
-3. Pass workspace configuration through your application's runtime config.
+1. 为每个工作区初始化单独的 `Client` 实例，并指定各自的 `workspace_id`。
+2. 使用 `tracing_context`（Python）或将特定于工作区的 `client` 传递给 `traceable`（TypeScript）来路由追踪。
+3. 通过应用程序的运行时配置传递工作区配置。
 
 <CodeGroup>
 
@@ -250,25 +250,25 @@ import os
 import contextlib
 from langsmith import Client, traceable, tracing_context
 
-# API key with access to multiple workspaces
+# 具有访问多个工作区权限的 API 密钥
 api_key = os.getenv("LS_CROSS_WORKSPACE_KEY")
 
-# Initialize clients for different workspaces
+# 为不同工作区初始化客户端
 workspace_a_client = Client(
     api_key=api_key,
     api_url="https://api.smith.langchain.com",
-    workspace_id="<YOUR_WORKSPACE_A_ID>"  # e.g., "abc123..."
+    workspace_id="<YOUR_WORKSPACE_A_ID>"  # 例如 "abc123..."
 )
 
 workspace_b_client = Client(
     api_key=api_key,
     api_url="https://api.smith.langchain.com",
-    workspace_id="<YOUR_WORKSPACE_B_ID>"  # e.g., "def456..."
+    workspace_id="<YOUR_WORKSPACE_B_ID>"  # 例如 "def456..."
 )
 
-# Example: Route based on customer ID
+# 示例：基于客户 ID 进行路由
 def get_workspace_client(customer_id: str):
-    """Route to appropriate workspace based on customer."""
+    """根据客户路由到相应的工作区。"""
     if customer_id.startswith("premium_"):
         return workspace_a_client, "premium-customer-traces"
     else:
@@ -276,21 +276,21 @@ def get_workspace_client(customer_id: str):
 
 @traceable
 def process_request(data: dict, customer_id: str):
-    """Process a customer request with workspace-specific tracing."""
-    # Your business logic here
+    """使用特定于工作区的追踪处理客户请求。"""
+    # 您的业务逻辑在此处
     return {"status": "success", "data": data}
 
-# Use tracing_context to route to the appropriate workspace
+# 使用 tracing_context 路由到相应的工作区
 def handle_customer_request(customer_id: str, request_data: dict):
     client, project_name = get_workspace_client(customer_id)
 
-    # Everything within this context will be traced to the selected workspace
+    # 此上下文内的所有内容都将被追踪到选定的工作区
     with tracing_context(enabled=True, client=client, project_name=project_name):
         result = process_request(request_data, customer_id)
 
     return result
 
-# Example usage
+# 示例用法
 handle_customer_request("premium_user_123", {"query": "Hello"})
 handle_customer_request("standard_user_456", {"query": "Hi"})
 ```
@@ -299,23 +299,23 @@ handle_customer_request("standard_user_456", {"query": "Hi"})
 import { Client } from "langsmith";
 import { traceable } from "langsmith/traceable";
 
-// API key with access to multiple workspaces
+// 具有访问多个工作区权限的 API 密钥
 const apiKey = process.env.LS_CROSS_WORKSPACE_KEY;
 
-// Initialize clients for different workspaces
+// 为不同工作区初始化客户端
 const workspaceAClient = new Client({
   apiKey: apiKey,
   apiUrl: "https://api.smith.langchain.com",
-  workspaceId: "<YOUR_WORKSPACE_A_ID>", // e.g., "abc123..."
+  workspaceId: "<YOUR_WORKSPACE_A_ID>", // 例如 "abc123..."
 });
 
 const workspaceBClient = new Client({
   apiKey: apiKey,
   apiUrl: "https://api.smith.langchain.com",
-  workspaceId: "<YOUR_WORKSPACE_B_ID>", // e.g., "def456..."
+  workspaceId: "<YOUR_WORKSPACE_B_ID>", // 例如 "def456..."
 });
 
-// Example: Route based on customer ID
+// 示例：基于客户 ID 进行路由
 function getWorkspaceClient(customerId: string): {
   client: Client;
   projectName: string;
@@ -333,17 +333,17 @@ function getWorkspaceClient(customerId: string): {
   }
 }
 
-// Route traces to the appropriate workspace by passing the client to traceable
+// 通过将客户端传递给 traceable 将追踪路由到相应的工作区
 async function handleCustomerRequest(
   customerId: string,
   requestData: Record<string, any>
 ) {
   const { client, projectName } = getWorkspaceClient(customerId);
 
-  // Create a traceable function with the workspace-specific client
+  // 使用特定于工作区的客户端创建可追踪函数
   const processRequest = traceable(
     async (data: Record<string, any>, customerId: string) => {
-      // Your business logic here
+      // 您的业务逻辑在此处
       return { status: "success", data };
     },
     {
@@ -356,16 +356,16 @@ async function handleCustomerRequest(
   return await processRequest(requestData, customerId);
 }
 
-// Example usage
+// 示例用法
 await handleCustomerRequest("premium_user_123", { query: "Hello" });
 await handleCustomerRequest("standard_user_456", { query: "Hi" });
 ```
 
 </CodeGroup>
 
-### Override default workspace for LangSmith deployments
+### 覆盖 LangSmith 部署的默认工作区
 
-When [deploying agents](/langsmith/deployment) to LangSmith, you can override the default workspace that traces are sent to by using a graph lifespan context manager. This is useful when you want to route traces from a deployed agent to different workspaces based on runtime configuration passed through the `config` parameter.
+当[部署代理](/langsmith/deployment)到 LangSmith 时，您可以使用图生命周期上下文管理器覆盖追踪发送到的默认工作区。当您希望根据通过 `config` 参数传递的运行时配置，将已部署代理的追踪路由到不同工作区时，这非常有用。
 
 <CodeGroup>
 
@@ -377,10 +377,10 @@ from langgraph.graph import StateGraph
 from langgraph.graph.state import RunnableConfig
 from langsmith import Client, tracing_context
 
-# API key with access to multiple workspaces
+# 具有访问多个工作区权限的 API 密钥
 api_key = os.getenv("LS_CROSS_WORKSPACE_KEY")
 
-# Initialize clients for different workspaces
+# 为不同工作区初始化客户端
 workspace_a_client = Client(
     api_key=api_key,
     api_url="https://api.smith.langchain.com",
@@ -393,16 +393,16 @@ workspace_b_client = Client(
     workspace_id="<YOUR_WORKSPACE_B_ID>"
 )
 
-# Define configuration schema for workspace routing
+# 定义用于工作区路由的配置模式
 class Configuration(TypedDict):
     workspace_id: str
 
-# Define the graph state
+# 定义图状态
 class State(TypedDict):
     response: str
 
 def greeting(state: State, config: RunnableConfig) -> State:
-    """Generate a workspace-specific greeting."""
+    """生成特定于工作区的问候语。"""
     workspace_id = config.get("configurable", {}).get("workspace_id", "workspace_a")
 
     if workspace_id == "workspace_a":
@@ -414,7 +414,7 @@ def greeting(state: State, config: RunnableConfig) -> State:
 
     return {"response": response}
 
-# Build the base graph
+# 构建基础图
 base_graph = (
     StateGraph(state_schema=State, config_schema=Configuration)
     .add_node("greeting", greeting)
@@ -425,11 +425,11 @@ base_graph = (
 
 @contextlib.asynccontextmanager
 async def graph(config):
-    """Dynamically route traces to different workspaces based on configuration."""
-    # Extract workspace_id from the configuration
+    """根据配置将追踪动态路由到不同工作区。"""
+    # 从配置中提取 workspace_id
     workspace_id = config.get("configurable", {}).get("workspace_id", "workspace_a")
 
-    # Route to the appropriate workspace
+    # 路由到相应的工作区
     if workspace_id == "workspace_a":
         client = workspace_a_client
         project_name = "production-traces"
@@ -440,11 +440,11 @@ async def graph(config):
         client = workspace_a_client
         project_name = "default-traces"
 
-    # Apply the tracing context for the selected workspace
+    # 为选定的工作区应用追踪上下文
     with tracing_context(enabled=True, client=client, project_name=project_name):
         yield base_graph
 
-# Usage: Invoke with different workspace configurations
+# 用法：使用不同的工作区配置进行调用
 # await graph({"configurable": {"workspace_id": "workspace_a"}})
 # await graph({"configurable": {"workspace_id": "workspace_b"}})
 ```
@@ -454,23 +454,23 @@ import { Client } from "langsmith";
 import { LangChainTracer } from "@langchain/core/tracers/tracer_langchain";
 import { StateGraph, Annotation } from "@langchain/langgraph";
 
-// API key with access to multiple workspaces
+// 具有访问多个工作区权限的 API 密钥
 const apiKey = process.env.LS_CROSS_WORKSPACE_KEY;
 
-// Initialize clients for different workspaces
+// 为不同工作区初始化客户端
 const workspaceAClient = new Client({
   apiKey: apiKey,
   apiUrl: "https://api.smith.langchain.com",
-  workspaceId: "<YOUR_WORKSPACE_A_ID>", // e.g., "abc123..."
+  workspaceId: "<YOUR_WORKSPACE_A_ID>", // 例如 "abc123..."
 });
 
 const workspaceBClient = new Client({
   apiKey: apiKey,
   apiUrl: "https://api.smith.langchain.com",
-  workspaceId: "<YOUR_WORKSPACE_B_ID>", // e.g., "def456..."
+  workspaceId: "<YOUR_WORKSPACE_B_ID>", // 例如 "def456..."
 });
 
-// Define the graph state
+// 定义图状态
 const StateAnnotation = Annotation.Root({
   response: Annotation<string>(),
 });
@@ -490,14 +490,14 @@ async function greeting(state: typeof StateAnnotation.State, config: any) {
   return { response };
 }
 
-// Build the base graph
+// 构建基础图
 const baseGraph = new StateGraph(StateAnnotation)
   .addNode("greeting", greeting)
   .addEdge("__start__", "greeting")
   .addEdge("greeting", "__end__")
   .compile();
 
-// Helper to get workspace-specific client and project
+// 获取特定于工作区的客户端和项目的辅助函数
 function getWorkspaceConfig(workspaceId: string): {
   client: Client;
   projectName: string;
@@ -510,62 +510,62 @@ function getWorkspaceConfig(workspaceId: string): {
   return { client: workspaceAClient, projectName: "default-traces" };
 }
 
-// Invoke the graph with workspace-specific tracing
+// 使用特定于工作区的追踪调用图
 async function invokeWithWorkspaceTracing(
   workspaceId: string,
   input: typeof StateAnnotation.State
 ) {
   const { client, projectName } = getWorkspaceConfig(workspaceId);
 
-  // Create a LangChainTracer with the workspace-specific client
+  // 使用特定于工作区的客户端创建 LangChainTracer
   const tracer = new LangChainTracer({
     client,
     projectName,
   });
 
-  // Invoke the graph with the tracer attached via callbacks
-  // All traces will be routed to the selected workspace
+  // 通过回调附加追踪器来调用图
+  // 所有追踪都将路由到选定的工作区
   return await baseGraph.invoke(input, {
     configurable: { workspace_id: workspaceId },
     callbacks: [tracer],
   });
 }
 
-// Example usage
+// 示例用法
 await invokeWithWorkspaceTracing("workspace_a", { response: "" });
 await invokeWithWorkspaceTracing("workspace_b", { response: "" });
 ```
 
 </CodeGroup>
 
-### Key points
+### 关键点
 
-- **Generic cross-workspace tracing**: Use `tracing_context` (Python) or pass a workspace-specific `client` to `traceable` (TypeScript) to dynamically route traces to different workspaces.
-- **LangGraph cross-workspace tracing**: For [LangGraph applications](/oss/python/langgraph/overview), use `LangChainTracer` with the workspace-specific client and attach it via the `callbacks` parameter.
-- **LangSmith deployment override**: Use a graph lifespan context manager (Python) to override the default deployment workspace based on runtime configuration.
-- Each `Client` instance maintains its own connection to a specific workspace via the `workspaceId` parameter.
-- You can customize both the workspace and project name for each route.
-- This pattern works with any LangSmith-compatible tracing (LangChain, OpenAI, custom functions, etc.).
+- **通用跨工作区追踪**：使用 `tracing_context`（Python）或将特定于工作区的 `client` 传递给 `traceable`（TypeScript）以将追踪动态路由到不同工作区。
+- **LangGraph 跨工作区追踪**：对于 [LangGraph 应用程序](/oss/python/langgraph/overview)，使用带有特定于工作区客户端的 `LangChainTracer`，并通过 `callbacks` 参数附加它。
+- **LangSmith 部署覆盖**：使用图生命周期上下文管理器（Python）根据运行时配置覆盖默认部署工作区。
+- 每个 `Client` 实例通过 `workspaceId` 参数维护与特定工作区的连接。
+- 您可以为每个路由自定义工作区和项目名称。
+- 此模式适用于任何 LangSmith 兼容的追踪（LangChain、OpenAI、自定义函数等）。
 
 <Note>
-When deploying with cross-workspace tracing, ensure your service key or PAT has the necessary permissions for all target workspaces. We recommend using a multi-workspace service key for production deployments. For LangSmith deployments, you must add a service key with cross-workspace access to your environment variables (e.g., `LS_CROSS_WORKSPACE_KEY`) to override the default service key generated by your deployment.
+使用跨工作区追踪进行部署时，请确保您的服务密钥或 PAT 具有所有目标工作区的必要权限。我们建议在生产部署中使用多工作区服务密钥。对于 LangSmith 部署，您必须将具有跨工作区访问权限的服务密钥添加到环境变量中（例如 `LS_CROSS_WORKSPACE_KEY`），以覆盖部署生成的默认服务密钥。
 </Note>
 
-## Write traces to multiple destinations with replicas
+## 使用副本将追踪写入多个目标
 
-Replicas let you send every trace to multiple projects or workspaces **at the same time**. Unlike the dynamic routing patterns where each trace goes to one destination, replicas duplicate the trace to all configured destinations in parallel.
+副本允许您**同时**将每条追踪发送到多个项目或工作区。与每条追踪只发送到一个目标的动态路由模式不同，副本会将追踪并行复制到所有配置的目标。
 
-Replicas can be useful for:
+副本可用于：
 
-- Mirror production traces into a staging or personal project for debugging.
-- Write to multiple workspaces for multi-tenant isolation without changing any application code.
-- Send traces to the same server under different projects, with per-replica metadata overrides.
+- 将生产追踪镜像到暂存或个人项目中进行调试。
+- 写入多个工作区以实现多租户隔离，而无需更改任何应用程序代码。
+- 将追踪发送到同一服务器下的不同项目，并按副本覆盖元数据。
 
-### Configure replicas via environment variable
+### 通过环境变量配置副本
 
-Set the `LANGSMITH_RUNS_ENDPOINTS` environment variable to a JSON value. Two formats are supported:
+将 `LANGSMITH_RUNS_ENDPOINTS` 环境变量设置为 JSON 值。支持两种格式：
 
-- **Object format**: maps each endpoint URL to its API key:
+- **对象格式**：将每个端点 URL 映射到其 API 密钥：
 
     ```bash
     export LANGSMITH_RUNS_ENDPOINTS='{
@@ -574,7 +574,7 @@ Set the `LANGSMITH_RUNS_ENDPOINTS` environment variable to a JSON value. Two for
     }'
     ```
 
-- **Array format**: a list of replica objects, useful when you need multiple replicas pointing at the same URL or when you want to set a `project_name` per replica:
+- **数组格式**：副本对象列表，当您需要多个副本指向同一 URL 或希望为每个副本设置 `project_name` 时很有用：
 
     ```bash
     export LANGSMITH_RUNS_ENDPOINTS='[
@@ -584,12 +584,12 @@ Set the `LANGSMITH_RUNS_ENDPOINTS` environment variable to a JSON value. Two for
     ```
 
 <Warning>
-You cannot use `LANGSMITH_RUNS_ENDPOINTS` alongside `LANGSMITH_ENDPOINT`. If you set both, LangSmith raises an error. Use only one to configure your endpoint.
+您不能同时使用 `LANGSMITH_RUNS_ENDPOINTS` 和 `LANGSMITH_ENDPOINT`。如果同时设置两者，LangSmith 会引发错误。仅使用其中一个来配置您的端点。
 </Warning>
 
-### Configure replicas at runtime
+### 在运行时配置副本
 
-You can also pass replicas directly in code, which is useful when destinations vary per request or tenant.
+您也可以在代码中直接传递副本，当目标因请求或租户而异时，这非常有用。
 
 <CodeGroup>
 
@@ -599,7 +599,7 @@ from langsmith.run_trees import WriteReplica, ApiKeyAuth
 
 @traceable
 def my_pipeline(query: str) -> str:
-    # Your application logic here
+    # 您的应用程序逻辑在此处
     return f"Answer to: {query}"
 
 replicas = [
@@ -612,7 +612,7 @@ replicas = [
         api_url="https://api.smith.langchain.com",
         auth=ApiKeyAuth(api_key="ls__key_workspace_b"),
         project_name="project-staging",
-        # Optionally override fields on the replicated run
+        # 可选：覆盖复制运行上的字段
         updates={"metadata": {"environment": "staging"}},
     ),
 ]
@@ -626,7 +626,7 @@ import { traceable } from "langsmith/traceable";
 
 const myPipeline = traceable(
   async (query: string): Promise<string> => {
-    // Your application logic here
+    // 您的应用程序逻辑在此处
     return `Answer to: ${query}`;
   },
   {
@@ -641,7 +641,7 @@ const myPipeline = traceable(
         apiUrl: "https://api.smith.langchain.com",
         apiKey: "ls__key_workspace_b",
         projectName: "project-staging",
-        // Optionally override fields on the replicated run
+        // 可选：覆盖复制运行上的字段
         updates: { metadata: { environment: "staging" } },
       },
     ],
@@ -653,15 +653,15 @@ await myPipeline("What is LangSmith?");
 
 </CodeGroup>
 
-You can also use the `updates` field to merge additional fields (such as [metadata or tags](/langsmith/ls-metadata-parameters)) into a run for a specific replica only—the primary trace is unchanged. Replica errors are non-fatal: if a replica endpoint is unavailable, LangSmith logs the error without affecting the primary trace.
+您还可以使用 `updates` 字段将额外字段（例如[元数据或标签](/langsmith/ls-metadata-parameters)）合并到特定副本的运行中——主追踪保持不变。副本错误是非致命的：如果副本端点不可用，LangSmith 会记录错误，而不会影响主追踪。
 
 <Warning>
-Auth does not propagate in distributed traces. When a trace spans multiple services, LangSmith forwards replica `project_name` and `updates` to downstream services automatically, but not API keys or credentials. Each service must configure its own credentials for replica destinations.
+认证不会在分布式追踪中传播。当追踪跨越多个服务时，LangSmith 会自动将副本 `project_name` 和 `updates` 转发给下游服务，但不会转发 API 密钥或凭据。每个服务必须为副本目标配置自己的凭据。
 </Warning>
 
-### Replicate within the same server (project-only replicas)
+### 在同一服务器内复制（仅项目副本）
 
-If all your replicas use the same LangSmith server, you can omit `api_url` and `auth` and specify only a `project_name`. The SDK reuses the default client credentials:
+如果所有副本都使用相同的 LangSmith 服务器，您可以省略 `api_url` 和 `auth`，仅指定 `project_name`。SDK 会重用默认客户端凭据：
 
 <CodeGroup>
 
@@ -701,21 +701,21 @@ await myPipeline("What is LangSmith?");
 
 </CodeGroup>
 
-### Route between LangSmith and OpenTelemetry destinations
+### 在 LangSmith 和 OpenTelemetry 目标之间路由
 
-You can decide at runtime whether a given invocation sends traces to LangSmith, to an OpenTelemetry (OTel) backend, or to both, without redeploying or modifying application logic. This is useful when you want to toggle between observability backends per environment, or even per request, making the decision at runtime.
+您可以在运行时决定给定调用是将追踪发送到 LangSmith、发送到 OpenTelemetry (OTel) 后端，还是同时发送到两者，而无需重新部署或修改应用程序逻辑。当您希望按环境甚至按请求在可观测性后端之间切换时，这非常有用，在运行时做出决策。
 
-Set the tracing mode using the `tracing_mode` constructor argument or the `LANGSMITH_TRACING_MODE` environment variable. Both accept the same values; an explicit `tracing_mode` argument always takes precedence over the env var:
+使用 `tracing_mode` 构造函数参数或 `LANGSMITH_TRACING_MODE` 环境变量设置追踪模式。两者接受相同的值；显式的 `tracing_mode` 参数始终优先于环境变量：
 
-- **`"langsmith"` (default)**: sends traces natively to LangSmith.
-- **`"otel"`**: exports traces as OpenTelemetry spans to a configured OTel backend.
-- **`"hybrid"` (Python only)**: sends to both LangSmith and an OTel backend from a single replica.
+- **`"langsmith"`（默认）**：将追踪原生发送到 LangSmith。
+- **`"otel"`**：将追踪作为 OpenTelemetry span 导出到配置的 OTel 后端。
+- **`"hybrid"`（仅限 Python）**：从单个副本同时发送到 LangSmith 和 OTel 后端。
 
 <Note>
-If you are using the deprecated `otel_enabled` parameter on `Client` (Python only), migrate to `tracing_mode`: `Client(otel_enabled=True)` → `Client(tracing_mode="hybrid")`. The `otel_enabled` parameter will be removed in the next minor version.
+如果您正在使用 `Client` 上已弃用的 `otel_enabled` 参数（仅限 Python），请迁移到 `tracing_mode`：`Client(otel_enabled=True)` → `Client(tracing_mode="hybrid")`。`otel_enabled` 参数将在下一个次要版本中移除。
 </Note>
 
-Pass a configured `Client` directly into a replica to apply the desired mode at runtime:
+将配置好的 `Client` 直接传递到副本中，以在运行时应用所需的模式：
 
 <CodeGroup>
 
@@ -725,10 +725,10 @@ from langsmith.run_trees import WriteReplica
 from langsmith.wrappers import wrap_openai
 import openai
 
-# Create clients with different tracing modes
-ls_client = Client()                            # tracing_mode="langsmith" (default)
+# 创建具有不同追踪模式的客户端
+ls_client = Client()                            # tracing_mode="langsmith"（默认）
 otel_client = Client(tracing_mode="otel")       # tracing_mode="otel"
-hybrid_client = Client(tracing_mode="hybrid")   # tracing_mode="hybrid" (both)
+hybrid_client = Client(tracing_mode="hybrid")   # tracing_mode="hybrid"（两者）
 
 openai_client = wrap_openai(openai.Client())
 
@@ -740,19 +740,19 @@ def joke():
     )
     return response.choices[0].message.content
 
-# Mix tracing modes across replicas in a single invocation:
-# one replica sends via LangSmith's native format, another as OTel spans.
+# 在单次调用中混合副本的追踪模式：
+# 一个副本通过 LangSmith 的原生格式发送，另一个作为 OTel span 发送。
 with tracing_context(replicas=[
     WriteReplica(client=ls_client),    # tracing_mode="langsmith"
     WriteReplica(client=otel_client),  # tracing_mode="otel"
 ]):
     joke()
 
-# Alternatively, a single hybrid replica sends to both simultaneously.
+# 或者，单个混合副本同时发送到两者。
 with tracing_context(replicas=[WriteReplica(client=hybrid_client)]):
     joke()
 
-# Swap replica lists at runtime — e.g. based on a feature flag or environment.
+# 在运行时交换副本列表——例如基于功能标志或环境。
 def get_replicas(send_to_otel: bool):
     replicas = [WriteReplica(client=ls_client)]
     if send_to_otel:
@@ -762,7 +762,7 @@ def get_replicas(send_to_otel: bool):
 with tracing_context(replicas=get_replicas(send_to_otel=True)):   # LangSmith + OTel
     joke()
 
-with tracing_context(replicas=get_replicas(send_to_otel=False)):  # LangSmith only
+with tracing_context(replicas=get_replicas(send_to_otel=False)):  # 仅 LangSmith
     joke()
 ```
 
@@ -772,12 +772,12 @@ import { traceable } from "langsmith/traceable";
 import { wrapOpenAI } from "langsmith/wrappers";
 import OpenAI from "openai";
 
-// Note: tracingMode: "otel" requires OTel SDK initialization
-// (TracerProvider, SpanProcessor, etc.) before creating the client.
-// See the OpenTelemetry integration guide for setup details.
+// 注意：tracingMode: "otel" 需要在创建客户端之前初始化 OTel SDK
+// （TracerProvider、SpanProcessor 等）。
+// 有关设置详情，请参阅 OpenTelemetry 集成指南。
 
-// Create clients with different tracing modes
-const lsClient = new Client();                           // tracingMode: "langsmith" (default)
+// 创建具有不同追踪模式的客户端
+const lsClient = new Client();                           // tracingMode: "langsmith"（默认）
 const otelClient = new Client({ tracingMode: "otel" });  // tracingMode: "otel"
 
 const openaiClient = wrapOpenAI(new OpenAI());
@@ -790,16 +790,16 @@ async function jokeImpl() {
   return response.choices[0].message.content;
 }
 
-// Mix tracing modes across replicas in a single traceable call:
-// the primary client sends via LangSmith, the replica sends as OTel spans.
+// 在单次可追踪调用中混合副本的追踪模式：
+// 主客户端通过 LangSmith 发送，副本作为 OTel span 发送。
 const joke = traceable(jokeImpl, {
   name: "joke",
-  client: lsClient,                    // tracingMode: "langsmith" (default)
+  client: lsClient,                    // tracingMode: "langsmith"（默认）
   replicas: [{ client: otelClient }],  // tracingMode: "otel"
 });
 await joke();
 
-// Build replicas dynamically for runtime switching — e.g. based on a feature flag.
+// 动态构建副本以进行运行时切换——例如基于功能标志。
 function buildReplicas(sendToOtel: boolean) {
   return sendToOtel ? [{ client: otelClient }] : [];
 }
@@ -815,15 +815,15 @@ await jokeDynamic();
 
 </CodeGroup>
 
-The `tracing_mode` on each `Client` determines that replica's export path. In Python, `"hybrid"` mode handles both destinations within a single replica. In TypeScript, the "send to both" case uses two separate replicas, one for each client, because there is no `"hybrid"` mode. Since each replica resolves its own client independently, you can also mix modes within a single `tracing_context`, for example keeping one replica sending to LangSmith while forwarding the same trace to an OTel collector via a second replica.
+每个 `Client` 上的 `tracing_mode` 决定了该副本的导出路径。在 Python 中，`"hybrid"` 模式在单个副本中处理两个目标。在 TypeScript 中，“同时发送到两者”的情况使用两个单独的副本，每个客户端一个，因为没有 `"hybrid"` 模式。由于每个副本独立解析自己的客户端，您也可以在单个 `tracing_context` 中混合模式，例如保持一个副本发送到 LangSmith，同时通过第二个副本将相同的追踪转发到 OTel 收集器。
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/log-traces-to-project.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/log-traces-to-project.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

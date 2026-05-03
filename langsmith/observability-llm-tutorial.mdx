@@ -1,33 +1,33 @@
 ---
-title: Trace an LLM application tutorial
-sidebarTitle: Tutorial
-description: Add LangSmith observability to an LLM application across prototyping, beta testing, and production.
+title: 追踪LLM应用教程
+sidebarTitle: 教程
+description: 在LLM应用的原型设计、测试和生产阶段添加LangSmith可观测性。
 icon: "school"
 ---
 
 import project from '/snippets/langsmith/trace-ingestion-project.mdx';
 
-In this tutorial, you will build a customer support chatbot using retrieval-augmented generation (RAG) and add LangSmith observability at each stage of development, from early prototyping through production.
+在本教程中，你将构建一个使用检索增强生成（RAG）的客户支持聊天机器人，并在开发的每个阶段添加LangSmith可观测性，从早期原型设计到生产部署。
 
-By the end, you will know how to:
+最终，你将了解如何：
 
-- Trace individual LLM calls and full application pipelines.
-- Collect and query user feedback.
-- Log metadata and use it for filtering and A/B testing.
-- Use monitoring dashboards to track production performance.
+- 追踪单个LLM调用和完整的应用管道。
+- 收集和查询用户反馈。
+- 记录元数据并将其用于过滤和A/B测试。
+- 使用监控仪表板跟踪生产性能。
 
-The application will retrieve relevant documentation snippets and use them to answer user questions. The retriever is mocked in this tutorial; in a real application you would replace it with a vector search or similar.
+该应用将检索相关的文档片段并用其回答用户问题。本教程中的检索器是模拟的；在实际应用中，你需要将其替换为向量搜索或类似技术。
 
-## Prerequisites
+## 前提条件
 
-Before you begin, make sure you have:
+开始之前，请确保你已具备：
 
-- **A LangSmith account**: Sign up or log in at [smith.langchain.com](https://smith.langchain.com).
-- **A LangSmith API key**: Follow the [Create an API key](/langsmith/create-account-api-key) guide.
-- **An OpenAI API key**: Generate this from the [OpenAI dashboard](https://platform.openai.com/account/api-keys).
-- **LangSmith CLI** (optional): Install to inspect traces from the terminal. For instructions, refer to [LangSmith CLI](/langsmith/langsmith-cli).
+- **一个LangSmith账户**：在 [smith.langchain.com](https://smith.langchain.com) 注册或登录。
+- **一个LangSmith API密钥**：按照 [创建API密钥](/langsmith/create-account-api-key) 指南操作。
+- **一个OpenAI API密钥**：从 [OpenAI控制面板](https://platform.openai.com/account/api-keys) 生成。
+- **LangSmith CLI**（可选）：安装以从终端检查追踪。有关说明，请参阅 [LangSmith CLI](/langsmith/langsmith-cli)。
 
-Install the required packages:
+安装所需的包：
 
 <CodeGroup>
 
@@ -42,13 +42,13 @@ npm install -D typescript tsx
 
 </CodeGroup>
 
-## Prototyping
+## 原型设计
 
-Having observability set up from the start lets you iterate faster. You can see exactly what is being sent to the model, what is coming back, and where time is being spent, without adding print statements or running a debugger.
+从一开始就设置好可观测性可以让你更快地迭代。你可以确切地看到发送给模型的内容、返回的内容以及时间消耗在哪里，而无需添加打印语句或运行调试器。
 
-### Set up your environment
+### 设置你的环境
 
-Set the following environment variables in your shell:
+在你的shell中设置以下环境变量：
 
 ```bash
 export LANGSMITH_TRACING=true
@@ -59,14 +59,14 @@ export OPENAI_API_KEY="<your-openai-api-key>"
 <project />
 
 <Note>
-You may see these variables referenced as `LANGCHAIN_*` in other places. Both work, but `LANGSMITH_TRACING` and `LANGSMITH_API_KEY` are the recommended names.
+你可能会在其他地方看到这些变量被引用为 `LANGCHAIN_*`。两者都有效，但 `LANGSMITH_TRACING` 和 `LANGSMITH_API_KEY` 是推荐的名称。
 </Note>
 
-### Trace LLM calls
+### 追踪LLM调用
 
-Start by tracing your OpenAI calls, where the model is actually invoked. This gives you immediate visibility into the prompts your app sends and the responses the model returns.
+首先追踪你的OpenAI调用，这是模型实际被调用的地方。这让你能立即了解应用发送的提示和模型返回的响应。
 
-Wrap the OpenAI client with [`wrap_openai`](https://reference.langchain.com/python/langsmith/wrappers/_openai/wrap_openai) (Python) or [`wrapOpenAI`](https://reference.langchain.com/javascript/langsmith/wrappers/wrapOpenAI) (TypeScript). Create a file called `app.py` (or `app.ts`) with the following code:
+使用 [`wrap_openai`](https://reference.langchain.com/python/langsmith/wrappers/_openai/wrap_openai)（Python）或 [`wrapOpenAI`](https://reference.langchain.com/javascript/langsmith/wrappers/wrapOpenAI)（TypeScript）包装OpenAI客户端。创建一个名为 `app.py`（或 `app.ts`）的文件，包含以下代码：
 
 <CodeGroup>
 
@@ -144,11 +144,11 @@ async function supportBot(question: string): Promise<string> {
 
 </CodeGroup>
 
-Calling `support_bot("How many users can I have on the Starter plan?")` produces a trace of the OpenAI call.
+调用 `support_bot("How many users can I have on the Starter plan?")` 会生成OpenAI调用的追踪。
 
-### Trace the whole pipeline
+### 追踪整个管道
 
-Tracing the LLM call is useful, but tracing the full pipeline (including retrieval) gives you a complete overview of your application's behavior. Add [`@traceable`](https://reference.langchain.com/python/langsmith/run_helpers/traceable) (Python) or [`traceable`](https://reference.langchain.com/javascript/langsmith/traceable) (TypeScript) to the main function:
+追踪LLM调用很有用，但追踪整个管道（包括检索）可以让你全面了解应用的行为。在主函数上添加 [`@traceable`](https://reference.langchain.com/python/langsmith/run_helpers/traceable)（Python）或 [`traceable`](https://reference.langchain.com/javascript/langsmith/traceable)（TypeScript）：
 
 <CodeGroup>
 
@@ -229,41 +229,41 @@ const supportBot = traceable(async function supportBot(question: string): Promis
 
 </CodeGroup>
 
-Calling `support_bot("How many users can I have on the Starter plan?")` now produces a trace of the full RAG pipeline.
+调用 `support_bot("How many users can I have on the Starter plan?")` 现在会生成完整RAG管道的追踪。
 
 <img
     className="block dark:hidden"
     src="/langsmith/images/trace-whole-pipeline.png"
-    alt="LangSmith UI showing a trace with an outer application span and a nested LLM call span."
+    alt="LangSmith UI显示一个追踪，其中包含外部应用span和嵌套的LLM调用span。"
 />
 
 <img
     className="hidden dark:block"
     src="/langsmith/images/trace-whole-pipeline-dark.png"
-    alt="LangSmith UI showing a trace with an outer application span and a nested LLM call span."
+    alt="LangSmith UI显示一个追踪，其中包含外部应用span和嵌套的LLM调用span。"
 />
 
-### Check your traces from the terminal
+### 从终端检查你的追踪
 
-If you installed the [LangSmith CLI](/langsmith/langsmith-cli), list recent traces for your project without opening the UI:
+如果你安装了 [LangSmith CLI](/langsmith/langsmith-cli)，可以列出项目的最近追踪而无需打开UI：
 
 ```bash
 langsmith trace list --project <your-project> --limit 5
 ```
 
-To view the full run hierarchy and inputs/outputs for a specific trace:
+要查看特定追踪的完整运行层次结构和输入/输出：
 
 ```bash
 langsmith trace get <trace-id> --full
 ```
 
-## Beta testing
+## 测试阶段
 
-Once your app is working well in prototyping, you release it to a small group of real users. At this stage, you often don't know exactly how users will interact with your app, so you need richer observability. You want to understand not just what the app did, but how users responded to it.
+一旦你的应用在原型设计阶段运行良好，你就会将其发布给一小部分真实用户。在这个阶段，你通常不知道用户将如何与你的应用交互，因此你需要更丰富的可观测性。你不仅想了解应用做了什么，还想了解用户对其的反应。
 
-### Collect feedback
+### 收集反馈
 
-Linking [user feedback](/langsmith/attach-user-feedback) to specific traces lets you identify which responses were helpful or unhelpful. Update `app.py` (or `app.ts`) from the previous step to add a run ID to each call and attach a score afterward:
+将 [用户反馈](/langsmith/attach-user-feedback) 链接到特定的追踪，可以让你识别哪些响应是有帮助的或无帮助的。更新上一步中的 `app.py`（或 `app.ts`），为每次调用添加运行ID，并在之后附加分数：
 
 <CodeGroup>
 
@@ -358,16 +358,16 @@ const supportBot = traceable(async function supportBot(question: string): Promis
 </CodeGroup>
 
 <Note>
-In production, these two pieces would live in separate locations: the `support_bot` call with `run_id` stays in your app, and `create_feedback` moves to whichever endpoint receives user feedback (for example, a `/feedback` API route). The `run_id` is passed from one to the other so the feedback can be linked to the correct trace.
+在生产环境中，这两部分会位于不同的位置：带有 `run_id` 的 `support_bot` 调用保留在你的应用中，而 `create_feedback` 则移到接收用户反馈的端点（例如，`/feedback` API路由）。`run_id` 从一个传递到另一个，以便反馈可以链接到正确的追踪。
 </Note>
 
-The feedback appears in the **Feedback** tab when you inspect the run in the UI. You can then filter runs by feedback score using the filtering controls in the **Runs** table.
+当你在UI中检查运行时，反馈会出现在 **反馈** 标签页中。然后，你可以使用 **运行** 表中的过滤控件按反馈分数过滤运行。
 
-### Log metadata
+### 记录元数据
 
-[Metadata](/langsmith/add-metadata-tags) lets you tag runs with attributes useful for filtering and comparison. For example, which model version was used or which user made the request.
+[元数据](/langsmith/add-metadata-tags) 允许你用对过滤和比较有用的属性标记运行。例如，使用了哪个模型版本或哪个用户发起了请求。
 
-The following example traces both the retriever (with `run_type="retriever"`) and the main function (with a `metadata` attribute for the model name):
+以下示例追踪检索器（使用 `run_type="retriever"`）和主函数（使用 `metadata` 属性记录模型名称）：
 
 <CodeGroup>
 
@@ -455,69 +455,69 @@ const supportBot = traceable(
 
 </CodeGroup>
 
-Both metadata values appear on the trace. You can filter runs by metadata using the filtering controls in the **Runs** table.
+两个元数据值都会出现在追踪上。你可以使用 **运行** 表中的过滤控件按元数据过滤运行。
 
-## Production
+## 生产环境
 
-With strong observability in place, you can confidently ship to production. In production, you have significantly more traffic and can't examine every trace individually. LangSmith provides monitoring tools to help you understand aggregate behavior and drill down when something looks wrong.
+有了强大的可观测性，你就可以自信地发布到生产环境。在生产环境中，你有显著更多的流量，无法单独检查每个追踪。LangSmith提供监控工具来帮助你理解聚合行为，并在出现问题时深入探究。
 
-### Monitoring
+### 监控
 
-In the UI sidebar, select **Monitoring**, then choose a tracing project from the dropdown at the top left. Charts display key metrics for the project over time, including trace count, latency, error rate, feedback scores, and costs. For more on available metrics and chart configuration, refer to [Dashboards](/langsmith/dashboards).
+在UI侧边栏中，选择 **监控**，然后从左上角的下拉菜单中选择一个追踪项目。图表显示项目随时间的关键指标，包括追踪数量、延迟、错误率、反馈分数和成本。有关可用指标和图表配置的更多信息，请参阅 [仪表板](/langsmith/dashboards)。
 
 <img
     className="block dark:hidden"
     src="/langsmith/images/monitoring-page-light.png"
-    alt="LangSmith UI showing the monitoring page with the trace count chart and available tabs."
+    alt="LangSmith UI显示监控页面，其中包含追踪数量图表和可用标签页。"
 />
 
 <img
     className="hidden dark:block"
     src="/langsmith/images/monitoring-page-dark.png"
-    alt="LangSmith UI showing the monitoring page with the trace count chart and available tabs."
+    alt="LangSmith UI显示监控页面，其中包含追踪数量图表和可用标签页。"
 />
 
-### A/B testing
+### A/B测试
 
 <Note>
-Group-by functionality requires at least two different values for a given metadata key.
+分组功能要求给定的元数据键至少有两个不同的值。
 </Note>
 
-Because you have been logging the `llm` metadata attribute, you can group monitoring charts by that attribute to compare model performance over time. From **Monitoring** in the UI sidebar, click **Group by** in the top left corner, select **Metadata** from the dropdown, then select `llm`. The charts update to show results grouped by that attribute. For more on grouping and custom charts, refer to [Dashboards](/langsmith/dashboards).
+因为你一直在记录 `llm` 元数据属性，所以你可以按该属性对监控图表进行分组，以比较模型随时间的性能。从UI侧边栏的 **监控** 中，点击左上角的 **分组依据**，从下拉菜单中选择 **元数据**，然后选择 `llm`。图表会更新以显示按该属性分组的结果。有关分组和自定义图表的更多信息，请参阅 [仪表板](/langsmith/dashboards)。
 
-### Drilldown
+### 深入探究
 
-When a monitoring chart shows something unexpected, click a data point to freeze the tooltip, then click the metric name (for example, **Input**) to jump to the filtered runs table for that time window. For more on searching and filtering runs, refer to [Filter traces](/langsmith/filter-traces-in-application).
+当监控图表显示异常时，点击一个数据点以固定工具提示，然后点击指标名称（例如，**输入**）跳转到该时间窗口的过滤运行表。有关搜索和过滤运行的更多信息，请参阅 [过滤追踪](/langsmith/filter-traces-in-application)。
 
 <img
     className="block dark:hidden"
     src="/langsmith/images/drilldown-monitoring-light.png"
-    alt="LangSmith UI showing the monitoring page with a specific point on the Input Tokens chart highlighted."
+    alt="LangSmith UI显示监控页面，其中输入令牌图表上的特定点被高亮显示。"
 />
 
 <img
     className="hidden dark:block"
     src="/langsmith/images/drilldown-monitoring-dark.png"
-    alt="LangSmith UI showing the monitoring page with a specific point on the Input Tokens chart highlighted."
+    alt="LangSmith UI显示监控页面，其中输入令牌图表上的特定点被高亮显示。"
 />
 
-## Conclusion
+## 结论
 
-In this tutorial, you added LangSmith observability to an application across its full development lifecycle. The same tracing setup that helps you iterate quickly during prototyping will continue to provide value in production. You'll have visibility into individual traces and aggregate performance trends.
+在本教程中，你为应用在其整个开发生命周期中添加了LangSmith可观测性。在原型设计阶段帮助你快速迭代的相同追踪设置，在生产环境中将继续提供价值。你将能够查看单个追踪和聚合性能趋势。
 
-For more, see:
+更多信息，请参阅：
 
-- [Observability concepts](/langsmith/observability-concepts): terminology and core ideas.
-- [Tracing integrations](/langsmith/integrations): LangChain, LangGraph, Anthropic, and other providers.
-- [Automations](/langsmith/rules): rules and online evaluations that run automatically on your traces.
+- [可观测性概念](/langsmith/observability-concepts)：术语和核心思想。
+- [追踪集成](/langsmith/integrations)：LangChain、LangGraph、Anthropic和其他提供商。
+- [自动化](/langsmith/rules)：在你的追踪上自动运行的规则和在线评估。
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档](/use-these-docs) 通过MCP连接到Claude、VSCode等，以获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/observability-llm-tutorial.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在GitHub上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/observability-llm-tutorial.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

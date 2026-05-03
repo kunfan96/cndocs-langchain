@@ -1,43 +1,43 @@
 ---
-title: Sandbox auth proxy
-sidebarTitle: Auth proxy
-description: Inject credentials into outbound API requests from sandboxes without hardcoding secrets.
+title: 沙箱认证代理
+sidebarTitle: 认证代理
+description: 在不硬编码密钥的情况下，将凭据注入来自沙箱的出站 API 请求。
 ---
 
 import SandboxPreview from "/snippets/langsmith/sandbox-preview-warning.mdx";
 
 <SandboxPreview />
 
-The auth proxy lets sandbox code call external APIs (OpenAI, Anthropic, GitHub, etc.) without hardcoding credentials. When configured on a sandbox, a proxy sidecar automatically injects authentication headers into matching outbound requests using your workspace secrets.
+认证代理允许沙箱代码调用外部 API（OpenAI、Anthropic、GitHub 等），而无需硬编码凭据。当在沙箱上配置后，代理 sidecar 会使用你的工作区密钥，自动将认证头注入到匹配的出站请求中。
 
 <Warning>
-You must configure your secrets (e.g., `OPENAI_API_KEY`) in your LangSmith [workspace](/langsmith/administration-overview#workspaces) settings before creating a sandbox that references them.
+在创建引用这些密钥的沙箱之前，你必须在 LangSmith [工作区](/langsmith/administration-overview#workspaces) 设置中配置你的密钥（例如 `OPENAI_API_KEY`）。
 </Warning>
 
-## Configure auth proxy rules
+## 配置认证代理规则
 
-Add a `proxy_config` when creating a sandbox. Each rule specifies:
+在创建沙箱时添加 `proxy_config`。每条规则指定：
 
-| Field | Description |
+| 字段 | 描述 |
 |-------|-------------|
-| `match_hosts` | Hosts to intercept (supports globs like `*.github.com`) |
-| `match_paths` | Paths to match (empty = all paths) |
-| `headers` | Headers to inject, each with a `name`, `type`, and `value` |
-| `no_proxy` | Hosts to bypass the proxy entirely (e.g. `localhost`) |
+| `match_hosts` | 要拦截的主机（支持类似 `*.github.com` 的通配符） |
+| `match_paths` | 要匹配的路径（空值 = 所有路径） |
+| `headers` | 要注入的头部，每个头部包含 `name`、`type` 和 `value` |
+| `no_proxy` | 完全绕过代理的主机（例如 `localhost`） |
 
-### Header types
+### 头部类型
 
-Each header has a `type` that controls how its value is stored and displayed:
+每个头部都有一个 `type`，控制其值的存储和显示方式：
 
-| Type | Description |
+| 类型 | 描述 |
 |------|-------------|
-| `workspace_secret` | References a workspace secret using `{KEY}` syntax. Resolved at push time. |
-| `plaintext` | Value is stored and returned as-is. Use for non-sensitive headers. |
-| `opaque` | Write-only. Value is encrypted at rest and never returned via the API. |
+| `workspace_secret` | 使用 `{KEY}` 语法引用工作区密钥。在推送时解析。 |
+| `plaintext` | 值按原样存储和返回。用于非敏感头部。 |
+| `opaque` | 仅写入。值在静态存储时加密，且永远不会通过 API 返回。 |
 
-## Single API example
+## 单个 API 示例
 
-Create a sandbox that automatically injects an OpenAI API key into outbound requests:
+创建一个沙箱，自动将 OpenAI API 密钥注入到出站请求中：
 
 ```bash
 curl -X POST "$LANGSMITH_ENDPOINT/api/v2/sandboxes/boxes" \
@@ -65,11 +65,11 @@ curl -X POST "$LANGSMITH_ENDPOINT/api/v2/sandboxes/boxes" \
   }'
 ```
 
-The sandbox can now call OpenAI with no API key setup—the proxy injects it automatically.
+沙箱现在可以调用 OpenAI，无需设置 API 密钥——代理会自动注入它。
 
-## Multiple API example
+## 多个 API 示例
 
-Add multiple rules to authenticate with several services at once:
+添加多条规则以同时向多个服务进行身份验证：
 
 ```bash
 curl -X POST "$LANGSMITH_ENDPOINT/api/v2/sandboxes/boxes" \
@@ -126,7 +126,7 @@ curl -X POST "$LANGSMITH_ENDPOINT/api/v2/sandboxes/boxes" \
   }'
 ```
 
-## Configure via SDK
+## 通过 SDK 配置
 
 <CodeGroup>
 
@@ -183,24 +183,24 @@ await client.createSandbox(snapshotId, {
 
 </CodeGroup>
 
-## Dynamic credentials with callbacks
+## 使用回调的动态凭据
 
-Static rules pull credentials from your workspace secrets at sandbox creation time. For credentials that need to be resolved per-request—short-lived OAuth tokens, per-user-scoped tokens, tokens minted by your own auth service—use a **callback** instead. The proxy POSTs to a URL you provide, your endpoint returns the headers to inject, and the proxy caches the result.
+静态规则在沙箱创建时从你的工作区密钥中提取凭据。对于需要按请求解析的凭据——短期 OAuth 令牌、按用户范围限定的令牌、由你自己的认证服务颁发的令牌——请改用**回调**。代理会向你提供的 URL 发送 POST 请求，你的端点返回要注入的头部，代理会缓存结果。
 
-Callbacks are configured alongside rules under `proxy_config`:
+回调与规则一起在 `proxy_config` 下配置：
 
-| Field | Description |
+| 字段 | 描述 |
 |-------|-------------|
-| `match_hosts` | Hosts to intercept (same syntax as rules; supports globs like `*.github.com`). |
-| `url` | Your callback endpoint. Must be an `http://` or `https://` URL reachable from the proxy. |
-| `request_headers` | Headers attached to the proxy → callback request, e.g., an HMAC or shared secret your endpoint uses to verify the request. Only `plaintext` and `opaque` types are permitted (no `workspace_secret`). |
-| `ttl_seconds` | How long resolved headers are cached before re-invoking the callback. Must be between 60 and 3600. |
+| `match_hosts` | 要拦截的主机（语法与规则相同；支持类似 `*.github.com` 的通配符）。 |
+| `url` | 你的回调端点。必须是代理可访问的 `http://` 或 `https://` URL。 |
+| `request_headers` | 附加到代理 → 回调请求的头部，例如你的端点用于验证请求的 HMAC 或共享密钥。仅允许 `plaintext` 和 `opaque` 类型（不允许 `workspace_secret`）。 |
+| `ttl_seconds` | 解析后的头部在重新调用回调前缓存的时间。必须在 60 到 3600 之间。 |
 
-**Static rules win.** If any rule in `rules` matches the host, the callback is skipped for that host. Within rules, first-match-wins; the same applies between callbacks if multiple match.
+**静态规则优先。** 如果 `rules` 中的任何规则匹配主机，则跳过该主机的回调。在规则内，首次匹配优先；如果多个回调匹配，同样适用首次匹配优先。
 
-### Callback contract
+### 回调契约
 
-The proxy makes the following request whenever it needs to resolve credentials for a matched host on a cache miss:
+当代理需要为匹配的主机解析凭据且缓存未命中时，会发出以下请求：
 
 ```
 POST <callback.url>
@@ -210,7 +210,7 @@ Content-Type: application/json
 {"host": "api.example.com", "port": 443}
 ```
 
-Your endpoint must respond `2xx` with a JSON body:
+你的端点必须以 `2xx` 状态码和 JSON 主体响应：
 
 ```json
 {
@@ -221,11 +221,11 @@ Your endpoint must respond `2xx` with a JSON body:
 }
 ```
 
-The proxy injects every header in the response into the sandbox's outbound request and caches the response for `ttl_seconds`. Any non-2xx response, transport error, or malformed JSON fails closed: the sandbox's request is rejected with `502 callback resolution failed` (no headers injected, response not cached).
+代理将响应中的每个头部注入到沙箱的出站请求中，并将响应缓存 `ttl_seconds`。任何非 2xx 响应、传输错误或格式错误的 JSON 都会导致失败关闭：沙箱的请求将被拒绝，并返回 `502 callback resolution failed`（不注入头部，不缓存响应）。
 
-### Example
+### 示例
 
-Use a callback when your OAuth tokens are minted on demand by your own service:
+当你的 OAuth 令牌由你自己的服务按需颁发时，使用回调：
 
 ```bash
 curl -X POST "$LANGSMITH_ENDPOINT/api/v2/sandboxes/boxes" \
@@ -254,7 +254,7 @@ curl -X POST "$LANGSMITH_ENDPOINT/api/v2/sandboxes/boxes" \
   }'
 ```
 
-### Configure via SDK
+### 通过 SDK 配置
 
 <CodeGroup>
 
@@ -317,9 +317,9 @@ await client.createSandbox(snapshotId, {
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [通过 MCP 将这些文档](/use-these-docs)连接到 Claude、VSCode 等，以获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/sandbox-auth-proxy.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/sandbox-auth-proxy.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

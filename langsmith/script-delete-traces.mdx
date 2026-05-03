@@ -1,111 +1,111 @@
 ---
-title: Delete traces
-sidebarTitle: Delete traces
+title: 删除追踪记录
+sidebarTitle: 删除追踪记录
 ---
 
-The LangSmith UI does not currently support the deletion of an individual trace. This, however, can be accomplished by directly removing the trace from all materialized views in ClickHouse (except the runs_history views) and the runs and feedback table themselves.
+LangSmith UI 目前不支持删除单个追踪记录。但是，可以通过直接从 ClickHouse 中所有物化视图（runs_history 视图除外）以及 runs 和 feedback 表本身移除追踪记录来实现。
 
-This command can either be run using a trace ID as an argument or using a file that is a list of trace IDs.
+此命令可以使用追踪 ID 作为参数运行，也可以使用包含追踪 ID 列表的文件运行。
 
-### Prerequisites
+### 前提条件
 
-Ensure you have the following tools/items ready.
+确保您已准备好以下工具/物品。
 
 1. kubectl
 
    * [https://kubernetes.io/docs/tasks/tools/](https://kubernetes.io/docs/tasks/tools/)
 
-2. Clickhouse database credentials
+2. Clickhouse 数据库凭据
 
-   * Host
-   * Port
-   * Username
-     * If using the bundled version, this is `default`
-   * Password
-     * If using the bundled version, this is `password`
-   * Database name
-     * If using the bundled version, this is `default`
+   * 主机
+   * 端口
+   * 用户名
+     * 如果使用捆绑版本，则为 `default`
+   * 密码
+     * 如果使用捆绑版本，则为 `password`
+   * 数据库名称
+     * 如果使用捆绑版本，则为 `default`
 
-3. Connectivity to the Clickhouse database from the machine you will be running the `delete_trace_by_id` script on.
+3. 从您将运行 `delete_trace_by_id` 脚本的机器连接到 Clickhouse 数据库。
 
-   * If you are using the bundled version, you may need to port forward the clickhouse service to your local machine.
-   * Run `kubectl port-forward svc/langsmith-clickhouse 8123:8123` to port forward the clickhouse service to your local machine.
+   * 如果您使用捆绑版本，可能需要将 clickhouse 服务端口转发到您的本地机器。
+   * 运行 `kubectl port-forward svc/langsmith-clickhouse 8123:8123` 将 clickhouse 服务端口转发到您的本地机器。
 
-4. The script to delete a trace
+4. 用于删除追踪记录的脚本
 
-   * Download the [trace script](https://github.com/langchain-ai/helm/blob/main/charts/langsmith/scripts/delete_trace_by_id.sh)
+   * 下载 [追踪脚本](https://github.com/langchain-ai/helm/blob/main/charts/langsmith/scripts/delete_trace_by_id.sh)
 
 <Warning>
-**Batch size limits**
+**批量大小限制**
 
-This script issues `DELETE` mutations against multiple ClickHouse tables per batch. Large deletions can cause service disruption.
+此脚本针对多个 ClickHouse 表批量发出 `DELETE` 变更。大规模删除可能导致服务中断。
 
-- **Maximum 10,000 traces per run**: split larger files and process sequentially.
-- **Wait between batches**: allow time for deletions to complete before starting the next batch.
-- Use the `--sync` flag for sequential (slower but safer) deletion.
+- **每次运行最多 10,000 条追踪记录**：拆分较大的文件并按顺序处理。
+- **批次之间等待**：在开始下一批次之前，留出时间让删除操作完成。
+- 使用 `--sync` 标志进行顺序（较慢但更安全）删除。
 </Warning>
 
-### Running the deletion script for a single trace
+### 运行单个追踪记录的删除脚本
 
-Run the following command to run the trace deletion script using a single trace ID:
+运行以下命令，使用单个追踪 ID 运行追踪删除脚本：
 
 ```bash
 sh delete_trace_by_id.sh <clickhouse_url> --trace_id <trace_id>
 ```
 
-For example, if you are using the bundled version with port-forwarding, the command would look like:
+例如，如果您使用带有端口转发的捆绑版本，命令将如下所示：
 
 ```bash
 sh delete_trace_by_id.sh "clickhouse://default:password@localhost:8123/default" --trace_id 4ec70ec7-0808-416a-b836-7100aeec934b
 ```
 
-If you visit the LangSmith UI, you should now see specified trace ID is no longer present nor reflected in stats.
+如果您访问 LangSmith UI，现在应该看到指定的追踪 ID 不再存在，也不会反映在统计信息中。
 
-### Running the deletion script for a multiple traces from a file with one trace ID per line
+### 运行从文件中读取多个追踪记录（每行一个追踪 ID）的删除脚本
 
-Run the following command to run the trace deletion script using a list of trace IDs:
+运行以下命令，使用追踪 ID 列表运行追踪删除脚本：
 
 ```bash
 sh delete_trace_by_id.sh <clickhouse_url> --file <path/to/foo.txt>
 ```
 
-For example, if you are using the bundled version with port-forwarding, the command would look like:
+例如，如果您使用带有端口转发的捆绑版本，命令将如下所示：
 
 ```bash
 sh delete_trace_by_id.sh "clickhouse://default:password@localhost:8123/default" --file path/to/traces.txt
 ```
 
-If you visit the LangSmith UI, you should now see all the specified traces have been removed.
+如果您访问 LangSmith UI，现在应该看到所有指定的追踪记录已被移除。
 
-## Troubleshooting
+## 故障排除
 
-### "Could not find trace IDs" error
+### "Could not find trace IDs" 错误
 
-If you receive an error message stating that trace IDs could not be found, add the `--ssl` flag to your command. Without this flag, the script may not be able to properly connect to ClickHouse, resulting in false "trace ID not found" errors.
+如果您收到一条错误消息，指出找不到追踪 ID，请在命令中添加 `--ssl` 标志。没有此标志，脚本可能无法正确连接到 ClickHouse，导致出现错误的“找不到追踪 ID”错误。
 
-Example with SSL flag:
+带有 SSL 标志的示例：
 
 ```bash
 sh delete_trace_by_id.sh "clickhouse://default:password@localhost:8123/default" --file path/to/traces.txt --ssl
 ```
 
-You can also verify that traces exist by connecting to ClickHouse directly using `clickhouse-cli` and querying for the trace IDs before running the deletion script.
+您也可以通过使用 `clickhouse-cli` 直接连接到 ClickHouse 并在运行删除脚本之前查询追踪 ID 来验证追踪记录是否存在。
 
-### Service disruption after large deletion
+### 大规模删除后服务中断
 
-If the service becomes unresponsive after deleting many traces, the deletion queue is likely overwhelmed.
+如果在删除大量追踪记录后服务变得无响应，可能是删除队列过载。
 
-**Prevention:** Limit deletions to 10,000 traces per run and wait several minutes between batches for deletions to process.
+**预防措施**：将每次运行的删除限制在 10,000 条追踪记录，并在批次之间等待几分钟，以便删除操作处理完成。
 
-If you experience issues after a large deletion, contact [support](https://support.langchain.com/).
+如果您在大规模删除后遇到问题，请联系 [支持团队](https://support.langchain.com/)。
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档](/use-these-docs) 通过 MCP 连接到 Claude、VSCode 等，以获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/script-delete-traces.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/script-delete-traces.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

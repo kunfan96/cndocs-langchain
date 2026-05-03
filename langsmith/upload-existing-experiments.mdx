@@ -1,98 +1,97 @@
 ---
-title: How to upload experiments run outside of LangSmith with the REST API
-sidebarTitle: Upload experiments run outside of LangSmith
+title: 如何使用 REST API 上传在 LangSmith 外部运行的实验
+sidebarTitle: 上传在 LangSmith 外部运行的实验
 ---
 
-Some users prefer to manage their datasets and run their experiments outside of LangSmith, but want to use the LangSmith UI to view the results. This is supported via our endpoint.
+一些用户更喜欢在 LangSmith 外部管理数据集和运行实验，但希望使用 LangSmith 的 UI 来查看结果。我们的端点支持此功能。
 
+本指南将向您展示如何使用 REST API 上传评估，以 Python 中的 `requests` 库为例。但相同的原则适用于任何语言。
 
-This guide will show you how to upload evals using the REST API, using the `requests` library in Python as an example. However, the same principles apply to any language.
+## 请求体结构
 
-## Request body schema
+上传实验需要指定实验和数据集的相关高级信息，以及实验中各个示例和运行的单独数据。`results` 中的每个对象代表实验中的一个“行”——一个单独的数据集示例及其关联的运行。请注意，`dataset_id` 和 `dataset_name` 指的是您外部系统中的数据集标识符，用于将外部实验分组到单个数据集中。它们不应引用 LangSmith 中的现有数据集（除非该数据集是通过此端点创建的）。
 
-Uploading an experiment requires specifying the relevant high-level information for your experiment and dataset, along with the individual data for your examples and runs within the experiment. Each object in the `results` represents a "row" in the experiment - a single dataset example, along with an associated run. Note that `dataset_id` and `dataset_name` refer to your dataset identifier in your external system and will be used to group external experiments together in a single dataset. They should not refer to an existing dataset in LangSmith (unless that dataset was created via this endpoint).
-
-You may use the following schema to upload experiments to the `/datasets/upload-experiment` endpoint:
+您可以使用以下结构将实验上传到 `/datasets/upload-experiment` 端点：
 
 ```json
 {
-  "experiment_name": "string (required)",
-  "experiment_description": "string (optional)",
-  "experiment_start_time": "datetime (required)",
-  "experiment_end_time": "datetime (required)",
-  "dataset_id": "uuid (optional - an external dataset id, used to group experiments together)",
-  "dataset_name": "string (optional - must provide either dataset_id or dataset_name)",
-  "dataset_description": "string (optional)",
-  "experiment_metadata": { // Object (any shape - optional)
+  "experiment_name": "字符串（必需）",
+  "experiment_description": "字符串（可选）",
+  "experiment_start_time": "日期时间（必需）",
+  "experiment_end_time": "日期时间（必需）",
+  "dataset_id": "UUID（可选 - 外部数据集 ID，用于将实验分组在一起）",
+  "dataset_name": "字符串（可选 - 必须提供 dataset_id 或 dataset_name 之一）",
+  "dataset_description": "字符串（可选）",
+  "experiment_metadata": { // 对象（任意形状 - 可选）
     "key": "value"
   },
-  "summary_experiment_scores": [ // List of summary feedback objects (optional)
+  "summary_experiment_scores": [ // 摘要反馈对象列表（可选）
     {
-      "key": "string (required)",
-      "score": "number (optional)",
-      "value": "string (optional)",
-      "comment": "string (optional)",
-      "feedback_source": { // Object (optional)
-        "type": "string (required)"
+      "key": "字符串（必需）",
+      "score": "数字（可选）",
+      "value": "字符串（可选）",
+      "comment": "字符串（可选）",
+      "feedback_source": { // 对象（可选）
+        "type": "字符串（必需）"
       },
-      "feedback_config": { // Object (optional)
-        "type": "string enum: continuous, categorical, or freeform",
-        "min": "number (optional)",
-        "max": "number (optional)",
-        "categories": [ // List of feedback category objects (optional)
+      "feedback_config": { // 对象（可选）
+        "type": "字符串枚举：continuous、categorical 或 freeform",
+        "min": "数字（可选）",
+        "max": "数字（可选）",
+        "categories": [ // 反馈类别对象列表（可选）
           {
-            "value": "number (required)",
-            "label": "string (optional)"
+            "value": "数字（必需）",
+            "label": "字符串（可选）"
           }
         ]
       },
-      "created_at": "datetime (optional - defaults to now)",
-      "modified_at": "datetime (optional - defaults to now)",
-      "correction": "Object or string (optional)"
+      "created_at": "日期时间（可选 - 默认为当前时间）",
+      "modified_at": "日期时间（可选 - 默认为当前时间）",
+      "correction": "对象或字符串（可选）"
     }
   ],
-  "results": [ // List of experiment row objects (required)
+  "results": [ // 实验行对象列表（必需）
     {
-      "row_id": "uuid (required)",
-      "inputs": { // Object (required - any shape). This will
-        "key": "val" // be the input to both the run and the dataset example.
+      "row_id": "UUID（必需）",
+      "inputs": { // 对象（必需 - 任意形状）。这将
+        "key": "val" // 是运行和数据集示例的输入。
       },
-      "expected_outputs": { // Object (optional - any shape).
-        "key": "val" // These will be the outputs of the dataset examples.
+      "expected_outputs": { // 对象（可选 - 任意形状）。
+        "key": "val" // 这些将是数据集示例的输出。
       },
-      "actual_outputs": { // Object (optional - any shape).
-        "key": "val" // These will be the outputs of the runs.
+      "actual_outputs": { // 对象（可选 - 任意形状）。
+        "key": "val" // 这些将是运行的输出。
       },
-      "evaluation_scores": [ // List of feedback objects for the run (optional)
+      "evaluation_scores": [ // 运行的反馈对象列表（可选）
         {
-          "key": "string (required)",
-          "score": "number (optional)",
-          "value": "string (optional)",
-          "comment": "string (optional)",
-          "feedback_source": { // Object (optional)
-            "type": "string (required)"
+          "key": "字符串（必需）",
+          "score": "数字（可选）",
+          "value": "字符串（可选）",
+          "comment": "字符串（可选）",
+          "feedback_source": { // 对象（可选）
+            "type": "字符串（必需）"
           },
-          "feedback_config": { // Object (optional)
-            "type": "string enum: continuous, categorical, or freeform",
-            "min": "number (optional)",
-            "max": "number (optional)",
-            "categories": [ // List of feedback category objects (optional)
+          "feedback_config": { // 对象（可选）
+            "type": "字符串枚举：continuous、categorical 或 freeform",
+            "min": "数字（可选）",
+            "max": "数字（可选）",
+            "categories": [ // 反馈类别对象列表（可选）
               {
-                "value": "number (required)",
-                "label": "string (optional)"
+                "value": "数字（必需）",
+                "label": "字符串（可选）"
               }
             ]
           },
-          "created_at": "datetime (optional - defaults to now)",
-          "modified_at": "datetime (optional - defaults to now)",
-          "correction": "Object or string (optional)"
+          "created_at": "日期时间（可选 - 默认为当前时间）",
+          "modified_at": "日期时间（可选 - 默认为当前时间）",
+          "correction": "对象或字符串（可选）"
         }
       ],
-      "start_time": "datetime (required)", // The start/end times for the runs will be used to
-      "end_time": "datetime (required)", // calculate latency. They must all fall between the
-      "run_name": "string (optional)", // start and end times for the experiment.
-      "error": "string (optional)",
-      "run_metadata": { // Object (any shape - optional)
+      "start_time": "日期时间（必需）", // 运行的开始/结束时间将用于
+      "end_time": "日期时间（必需）", // 计算延迟。它们必须全部介于
+      "run_name": "字符串（可选）", // 实验的开始和结束时间之间。
+      "error": "字符串（可选）",
+      "run_metadata": { // 对象（任意形状 - 可选）
         "key": "value"
       }
     }
@@ -100,84 +99,81 @@ You may use the following schema to upload experiments to the `/datasets/upload-
 }
 ```
 
-The response JSON will be a dict with keys `experiment` and `dataset`, each of which is an object that contains relevant information about the experiment and dataset that was created.
+响应 JSON 将是一个包含 `experiment` 和 `dataset` 键的字典，每个键都是一个对象，包含有关创建的实验和数据集的相关信息。
 
-## Considerations
+## 注意事项
 
-You may upload multiple experiments to the same dataset by providing the same dataset\_id or dataset\_name between multiple calls. Your experiments will be grouped together under a single dataset, and you will be able to [use the comparison view to compare results between experiments](/langsmith/compare-experiment-results).
+您可以通过在多次调用之间提供相同的 dataset\_id 或 dataset\_name，将多个实验上传到同一数据集。您的实验将被分组到单个数据集中，并且您将能够[使用比较视图来比较实验之间的结果](/langsmith/compare-experiment-results)。
 
-Ensure that the start and end times of your individual rows are all between the start and end time of your experiment.
+确保各个行的开始和结束时间都介于实验的开始和结束时间之间。
 
-You must provide either a dataset\_id or a dataset\_name. If you only provide an ID and the dataset does not yet exist, we will generate a name for you, and vice versa if you only provide a name.
+您必须提供 dataset\_id 或 dataset\_name 之一。如果您只提供 ID 且数据集尚不存在，我们将为您生成一个名称；反之，如果您只提供名称，情况也是如此。
 
-You may not upload experiments to a dataset that was not created via this endpoint. Uploading experiments is only supported for externally-managed datasets.
+您不能将实验上传到不是通过此端点创建的数据集。上传实验仅支持外部管理的数据集。
 
-## Example request
+## 示例请求
 
-Below is an example of a simple call to the `/datasets/upload-experiment`. This is a basic example that just uses the most important fields as an illustration.
+以下是一个调用 `/datasets/upload-experiment` 的简单示例。这是一个基本示例，仅使用最重要的字段进行说明。
 
 ```python
 import os
 import requests
 
 body = {
-    "experiment_name": "My external experiment",
-    "experiment_description": "An experiment uploaded to LangSmith",
+    "experiment_name": "我的外部实验",
+    "experiment_description": "上传到 LangSmith 的实验",
     "dataset_name": "my-external-dataset",
     "summary_experiment_scores": [
         {
             "key": "summary_accuracy",
             "score": 0.9,
-            "comment": "Great job!"
+            "comment": "做得好！"
         }
     ],
     "results": [
         {
             "row_id": "<<uuid>>",
             "inputs": {
-                "input": "Hello, what is the weather in San Francisco today?"
+                "input": "你好，今天旧金山的天气怎么样？"
             },
             "expected_outputs": {
-                "output": "Sorry, I am unable to provide information about the current weather."
+                "output": "抱歉，我无法提供当前天气信息。"
             },
             "actual_outputs": {
-                "output": "The weather is partly cloudy with a high of 65."
+                "output": "天气多云，最高气温 65 度。"
             },
             "evaluation_scores": [
                 {
                     "key": "hallucination",
                     "score": 1,
-                    "comment": "The chatbot made up the weather instead of identifying that "
-                               "they don't have enough info to answer the question. This is "
-                               "a hallucination."
+                    "comment": "聊天机器人编造了天气，而不是识别出他们没有足够的信息来回答这个问题。这是幻觉。"
                 }
             ],
             "start_time": "2024-08-03T00:12:39",
             "end_time": "2024-08-03T00:12:41",
-            "run_name": "Chatbot"
+            "run_name": "聊天机器人"
         },
         {
             "row_id": "<<uuid>>",
             "inputs": {
-                "input": "Hello, what is the square root of 49?"
+                "input": "你好，49 的平方根是多少？"
             },
             "expected_outputs": {
-                "output": "The square root of 49 is 7."
+                "output": "49 的平方根是 7。"
             },
             "actual_outputs": {
-                "output": "7."
+                "output": "7。"
             },
             "evaluation_scores": [
                 {
                     "key": "hallucination",
                     "score": 0,
-                    "comment": "The chatbot correctly identified the answer. This is not a "
-                               "hallucination."
+                    "comment": "聊天机器人正确识别了答案。这不是幻觉。"
                 }
             ],
             "start_time": "2024-08-03T00:12:40",
             "end_time": "2024-08-03T00:12:42",
-            "run_name": "Chatbot"
+            "run_name": "聊天机器人"
         }
     ],
     "experiment_start_time": "2024-08-03T00:12:38",
@@ -185,7 +181,7 @@ body = {
 }
 
 resp = requests.post(
-    "https://api.smith.langchain.com/api/v1/datasets/upload-experiment", # Update appropriately for self-hosted installations or the EU region
+    "https://api.smith.langchain.com/api/v1/datasets/upload-experiment", # 对于自托管安装或欧盟区域，请相应更新
     json=body,
     headers={"x-api-key": os.environ["LANGSMITH_API_KEY"]}
 )
@@ -193,7 +189,7 @@ resp = requests.post(
 print(resp.json())
 ```
 
-Below is the response received:
+以下是收到的响应：
 
 ```json
 {
@@ -216,8 +212,8 @@ Below is the response received:
     "start_time": "2024-08-03T00:12:38",
     "end_time": "2024-08-03T00:12:43+00:00",
     "extra": null,
-    "name": "My external experiment",
-    "description": "An experiment uploaded to LangSmith",
+    "name": "我的外部实验",
+    "description": "上传到 LangSmith 的实验",
     "default_dataset_id": null,
     "reference_dataset_id": "<<uuid>>",
     "trace_tier": "longlived",
@@ -246,25 +242,25 @@ Below is the response received:
 }
 ```
 
-Note that the latency and feedback stats in the experiment results are null because the runs haven't had a chance to be persisted yet, which may take a few seconds. If you save the experiment id and query again in a few seconds, you will see all the stats (although tokens/cost will still be null, because we don't ask for this information in the request body).
+请注意，实验结果中的延迟和反馈统计信息为 null，因为运行尚未有机会被持久化，这可能需要几秒钟。如果您保存实验 ID 并在几秒钟后再次查询，您将看到所有统计信息（尽管 token/成本仍将为 null，因为我们在请求体中未请求此信息）。
 
-## View the experiment in the UI
+## 在 UI 中查看实验
 
-Now, login to the UI and click on your newly-created dataset! You should see a single experiment: ![Uploaded experiments table](/langsmith/images/uploaded-dataset.png)
+现在，登录 UI 并点击您新创建的数据集！您应该会看到一个实验：![上传的实验表格](/langsmith/images/uploaded-dataset.png)
 
-Your examples will have been uploaded: ![Uploaded examples](/langsmith/images/uploaded-dataset-examples.png)
+您的示例将被上传：![上传的示例](/langsmith/images/uploaded-dataset-examples.png)
 
-Clicking on your experiment will bring you to the comparison view: ![Uploaded experiment comparison view](/langsmith/images/uploaded-experiment.png)
+点击您的实验将带您进入比较视图：![上传的实验比较视图](/langsmith/images/uploaded-experiment.png)
 
-As you upload more experiments to your dataset, you will be able to compare the results and easily identify regressions in the comparison view.
+随着您向数据集上传更多实验，您将能够在比较视图中比较结果并轻松识别回归。
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [通过 MCP 将这些文档](/use-these-docs)连接到 Claude、VSCode 等，以获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/upload-existing-experiments.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/upload-existing-experiments.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

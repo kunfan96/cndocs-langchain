@@ -1,19 +1,19 @@
 ---
-title: How to add semantic search to your agent deployment
-sidebarTitle: Add semantic search to your agent deployment
+title: 如何为您的代理部署添加语义搜索
+sidebarTitle: 为您的代理部署添加语义搜索
 ---
 
-This guide explains how to add semantic search to your deployment's cross-thread [store](/oss/python/langgraph/persistence#memory-store), so that your agent can search for memories and other documents by semantic similarity.
+本指南介绍如何为部署的跨线程[存储](/oss/python/langgraph/persistence#memory-store)添加语义搜索，使您的代理能够通过语义相似性搜索记忆和其他文档。
 
-## Prerequisites
+## 前提条件
 
-* A deployment (refer to [how to set up an application for deployment](/langsmith/setup-app-requirements-txt)) and details on [hosting options](/langsmith/platform-setup).
-* API keys for your embedding provider (in this case, OpenAI).
-* `langchain >= 0.3.8` (if you specify using the string format below).
+* 一个部署（参考[如何设置应用进行部署](/langsmith/setup-app-requirements-txt)）以及关于[托管选项](/langsmith/platform-setup)的详细信息。
+* 您的嵌入提供商（本例中为 OpenAI）的 API 密钥。
+* `langchain >= 0.3.8`（如果您使用下面指定的字符串格式）。
 
-## Steps
+## 步骤
 
-1. Update your `langgraph.json` configuration file to include the store configuration:
+1. 更新您的 `langgraph.json` 配置文件以包含存储配置：
 
 ```json
 {
@@ -28,67 +28,67 @@ This guide explains how to add semantic search to your deployment's cross-thread
 }
 ```
 
-This configuration:
+此配置：
 
-* Uses OpenAI's text-embedding-3-small model for generating embeddings
-* Sets the embedding dimension to 1536 (matching the model's output)
-* Indexes all fields in your stored data (`["$"]` means index everything, or specify specific fields like `["text", "metadata.title"]`)
+* 使用 OpenAI 的 text-embedding-3-small 模型生成嵌入
+* 将嵌入维度设置为 1536（与模型的输出匹配）
+* 索引存储数据中的所有字段（`["$"]` 表示索引所有内容，或指定特定字段如 `["text", "metadata.title"]`）
 
 <Note>
-Each deployment supports a single embedding model. Configuring multiple embedding models is not supported, as it would cause ambiguity in `/store` endpoints and result in mixed-index issues.
+每个部署支持单个嵌入模型。不支持配置多个嵌入模型，因为这会导致 `/store` 端点出现歧义并引起混合索引问题。
 </Note>
 
-1. To use the string embedding format above, make sure your dependencies include `langchain >= 0.3.8`:
+1. 要使用上述字符串嵌入格式，请确保您的依赖项包含 `langchain >= 0.3.8`：
 
 ```toml
-# In pyproject.toml
+# 在 pyproject.toml 中
 [project]
 dependencies = [
     "langchain>=0.3.8"
 ]
 ```
 
-Or if using [requirements.txt](/langsmith/setup-app-requirements-txt):
+或者如果使用 [requirements.txt](/langsmith/setup-app-requirements-txt)：
 
 ```
 langchain>=0.3.8
 ```
 
-## Usage
+## 用法
 
-Once configured, you can use semantic search in your [nodes](/oss/python/langgraph/graph-api#nodes). The store requires a namespace tuple to organize memories:
+配置完成后，您可以在[节点](/oss/python/langgraph/graph-api#nodes)中使用语义搜索。存储需要一个命名空间元组来组织记忆：
 
 ```python
 async def search_memory(state: State, *, store: BaseStore):
-    # Search the store using semantic similarity
-    # The namespace tuple helps organize different types of memories
-    # e.g., ("user_facts", "preferences") or ("conversation", "summaries")
+    # 使用语义相似性搜索存储
+    # 命名空间元组有助于组织不同类型的记忆
+    # 例如，("user_facts", "preferences") 或 ("conversation", "summaries")
     results = await store.asearch(
-        namespace=("memory", "facts"),  # Organize memories by type
+        namespace=("memory", "facts"),  # 按类型组织记忆
         query="your search query",
-        limit=3  # number of results to return
+        limit=3  # 返回的结果数量
     )
     return results
 ```
 
-Each result is a `SearchItem` (extends `Item` with an additional `score` field). When semantic search is configured, `score` contains the similarity score:
+每个结果是一个 `SearchItem`（扩展了 `Item`，并添加了额外的 `score` 字段）。当配置了语义搜索时，`score` 包含相似度分数：
 
 ```python
 results[0].key       # "07e0caf4-1631-47b7-b15f-65515d4c1843"
 results[0].value     # {"text": "User prefers dark mode"}
 results[0].namespace # ("memory", "facts")
-results[0].score     # 0.92 (similarity score, present when semantic search is configured)
+results[0].score     # 0.92 (相似度分数，配置语义搜索时存在)
 ```
 
-### Changing your embedding model
+### 更改您的嵌入模型
 
 <Warning>
-Changing the embedding model or dimensions requires re-embedding all existing data. There is currently no automated migration tooling for this. Plan accordingly if you need to switch models.
+更改嵌入模型或维度需要重新嵌入所有现有数据。目前没有为此提供自动迁移工具。如果需要切换模型，请相应地进行规划。
 </Warning>
 
-## Custom embeddings
+## 自定义嵌入
 
-If you want to use custom embeddings, you can pass a path to a custom embedding function:
+如果您想使用自定义嵌入，可以传递自定义嵌入函数的路径：
 
 ```json
 {
@@ -103,7 +103,7 @@ If you want to use custom embeddings, you can pass a path to a custom embedding 
 }
 ```
 
-The deployment will look for the function in the specified path. The function must be async and accept a list of strings:
+部署将在指定路径中查找该函数。该函数必须是异步的，并接受一个字符串列表：
 
 ```python
 # path/to/embedding_function.py
@@ -112,10 +112,10 @@ from openai import AsyncOpenAI
 client = AsyncOpenAI()
 
 async def aembed_texts(texts: list[str]) -> list[list[float]]:
-    """Custom embedding function that must:
-    1. Be async
-    2. Accept a list of strings
-    3. Return a list of float arrays (embeddings)
+    """自定义嵌入函数必须：
+    1. 是异步的
+    2. 接受一个字符串列表
+    3. 返回一个浮点数数组（嵌入）列表
     """
     response = await client.embeddings.create(
         model="text-embedding-3-small",
@@ -124,9 +124,9 @@ async def aembed_texts(texts: list[str]) -> list[list[float]]:
     return [e.embedding for e in response.data]
 ```
 
-## Querying via the API
+## 通过 API 查询
 
-You can also query the store using the LangGraph SDK. Since the SDK uses async operations:
+您也可以使用 LangGraph SDK 查询存储。由于 SDK 使用异步操作：
 
 ```python
 from langgraph_sdk import get_client
@@ -136,30 +136,30 @@ async def search_store():
     results = await client.store.search_items(
         ("memory", "facts"),
         query="your search query",
-        limit=3  # number of results to return
+        limit=3  # 返回的结果数量
     )
     return results
 
-# Use in an async context
+# 在异步上下文中使用
 results = await search_store()
 ```
 
-Each result item includes a `score` field when semantic search is configured:
+当配置了语义搜索时，每个结果项都包含一个 `score` 字段：
 
 ```python
 results["items"][0]["key"]       # "07e0caf4-1631-47b7-b15f-65515d4c1843"
 results["items"][0]["value"]     # {"text": "User prefers dark mode"}
 results["items"][0]["namespace"] # ["memory", "facts"]
-results["items"][0]["score"]     # 0.92 (similarity score)
+results["items"][0]["score"]     # 0.92 (相似度分数)
 ```
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/semantic-search.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/semantic-search.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

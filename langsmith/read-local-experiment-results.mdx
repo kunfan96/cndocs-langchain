@@ -1,33 +1,33 @@
 ---
-title: How to read experiment results locally
-sidebarTitle: Read experiment results locally
+title: 如何在本地读取实验结果
+sidebarTitle: 在本地读取实验结果
 ---
 
-When running [evaluations](/langsmith/evaluation-concepts), you may want to process results programmatically in your script rather than viewing them in the [LangSmith UI](https://smith.langchain.com). This is useful for scenarios like:
+当运行[评估](/langsmith/evaluation-concepts)时，您可能希望在脚本中以编程方式处理结果，而不是在 [LangSmith UI](https://smith.langchain.com) 中查看它们。这对于以下场景很有用：
 
-- **CI/CD pipelines**: Implement quality gates that fail builds if evaluation scores drop below a threshold.
-- **Local debugging**: Inspect and analyze results without API calls.
-- **Custom aggregations**: Calculate metrics and statistics using your own logic.
-- **Integration testing**: Use evaluation results to gate merges or deployments.
+- **CI/CD 流水线**：实现质量门禁，如果评估分数低于阈值则构建失败。
+- **本地调试**：无需 API 调用即可检查和分析结果。
+- **自定义聚合**：使用您自己的逻辑计算指标和统计数据。
+- **集成测试**：使用评估结果来控制合并或部署。
 
-This guide shows you how to iterate over and process [experiment](/langsmith/evaluation-concepts#experiment) results from the [`ExperimentResults`](https://reference.langchain.com/python/langsmith/schemas/ExperimentResults) object returned by [`Client.evaluate()`](https://reference.langchain.com/python/langsmith/client/Client/evaluate).
+本指南向您展示如何遍历和处理从 [`Client.evaluate()`](https://reference.langchain.com/python/langsmith/client/Client/evaluate) 返回的 [`ExperimentResults`](https://reference.langchain.com/python/langsmith/schemas/ExperimentResults) 对象中的[实验](/langsmith/evaluation-concepts#experiment)结果。
 
 <Note>
-This page focuses on processing results programmatically while still uploading them to LangSmith.
+本页重点介绍如何以编程方式处理结果，同时仍将它们上传到 LangSmith。
 
-If you want to run evaluations locally **without** recording anything to LangSmith (for quick testing or validation), refer to [Run an evaluation locally](/langsmith/local) which uses `upload_results=False`.
+如果您想在本地运行评估**而不**向 LangSmith 记录任何内容（用于快速测试或验证），请参阅[在本地运行评估](/langsmith/local)，其中使用了 `upload_results=False`。
 </Note>
 
-## Iterate over evaluation results
+## 遍历评估结果
 
-The [`evaluate()`](https://reference.langchain.com/python/langsmith/client/Client/evaluate) function returns an [`ExperimentResults`](https://reference.langchain.com/python/langsmith/schemas/ExperimentResults) object that you can iterate over. The `blocking` parameter controls when results become available:
+[`evaluate()`](https://reference.langchain.com/python/langsmith/client/Client/evaluate) 函数返回一个 [`ExperimentResults`](https://reference.langchain.com/python/langsmith/schemas/ExperimentResults) 对象，您可以对其进行遍历。`blocking` 参数控制结果何时可用：
 
-- `blocking=False`: Returns immediately with an iterator that yields results as they're produced. This allows you to process results in real-time as the evaluation runs.
-- `blocking=True` (default): Blocks until all evaluations complete before returning. When you iterate over the results, all data is already available.
+- `blocking=False`：立即返回一个迭代器，该迭代器在结果生成时产出结果。这允许您在评估运行时实时处理结果。
+- `blocking=True`（默认）：阻塞直到所有评估完成才返回。当您遍历结果时，所有数据都已可用。
 
-Both modes return the same `ExperimentResults` type; the difference is whether the function waits for completion before returning. Use `blocking=False` for streaming and real-time debugging, or `blocking=True` for batch processing when you need the complete dataset.
+两种模式返回相同的 `ExperimentResults` 类型；区别在于函数是否在返回前等待完成。对于流式处理和实时调试，使用 `blocking=False`；对于需要完整数据集的批处理，使用 `blocking=True`。
 
-The following example demonstrates `blocking=False`. It iterates over results as they stream in, collects them in a list, then processes them in a separate loop:
+以下示例演示了 `blocking=False`。它遍历流式传入的结果，将它们收集到一个列表中，然后在单独的循环中处理它们：
 
 ```python
 from langsmith import Client
@@ -36,14 +36,14 @@ import random
 client = Client()
 
 def target(inputs):
-    """Your application or LLM chain"""
+    """您的应用程序或 LLM 链"""
     return {"output": "MY OUTPUT"}
 
 def evaluator(run, example):
-    """Your evaluator function"""
+    """您的评估器函数"""
     return {"key": "randomness", "score": random.randint(0, 1)}
 
-# Run evaluation with blocking=False to get an iterator
+# 使用 blocking=False 运行评估以获取迭代器
 streamed_results = client.evaluate(
     target,
     data="MY_DATASET_NAME",
@@ -51,12 +51,12 @@ streamed_results = client.evaluate(
     blocking=False
 )
 
-# Collect results as they stream in
+# 在结果流式传入时收集它们
 aggregated_results = []
 for result in streamed_results:
     aggregated_results.append(result)
 
-# Separate loop to avoid logging at the same time as logs from evaluate()
+# 单独的循环以避免与 evaluate() 的日志同时记录
 for result in aggregated_results:
     print("Input:", result["run"].inputs)
     print("Output:", result["run"].outputs)
@@ -64,7 +64,7 @@ for result in aggregated_results:
     print("--------------------------------")
 ```
 
-This produces output like:
+这会产生如下输出：
 
 ```
 Input: {'input': 'MY INPUT'}
@@ -73,30 +73,30 @@ Evaluation Results: [EvaluationResult(key='randomness', score=1, value=None, com
 --------------------------------
 ```
 
-## Understand the result structure
+## 理解结果结构
 
-Each result in the iterator contains:
+迭代器中的每个结果包含：
 
-- `result["run"]`: The execution of your target function.
-  - `result["run"].inputs`: The inputs from your [dataset](/langsmith/evaluation-concepts#datasets) example.
-  - `result["run"].outputs`: The outputs produced by your target function.
-  - `result["run"].id`: The unique ID for this run.
+- `result["run"]`：您的目标函数的执行。
+  - `result["run"].inputs`：来自您[数据集](/langsmith/evaluation-concepts#datasets)示例的输入。
+  - `result["run"].outputs`：您的目标函数产生的输出。
+  - `result["run"].id`：此运行的唯一 ID。
 
-- `result["evaluation_results"]["results"]`: A list of `EvaluationResult` objects, one per evaluator.
-  - `key`: The metric name (from your evaluator's return value).
-  - `score`: The numeric score (typically 0-1 or boolean).
-  - `comment`: Optional explanatory text.
-  - `source_run_id`: The ID of the evaluator run.
+- `result["evaluation_results"]["results"]`：一个 `EvaluationResult` 对象列表，每个评估器一个。
+  - `key`：指标名称（来自您的评估器的返回值）。
+  - `score`：数值分数（通常为 0-1 或布尔值）。
+  - `comment`：可选的解释性文本。
+  - `source_run_id`：评估器运行的 ID。
 
-- `result["example"]`: The dataset example that was evaluated.
-  - `result["example"].inputs`: The input values.
-  - `result["example"].outputs`: The reference outputs (if any).
+- `result["example"]`：被评估的数据集示例。
+  - `result["example"].inputs`：输入值。
+  - `result["example"].outputs`：参考输出（如果有）。
 
-## Examples
+## 示例
 
-### Implement a quality gate
+### 实现质量门禁
 
-This example uses evaluation results to pass or fail a CI/CD build automatically based on quality thresholds. The script iterates through results, calculates an average accuracy score, and exits with a non-zero status code if the accuracy falls below 85%. This ensures that you can deploy code changes that meet quality standards.
+此示例使用评估结果根据质量阈值自动使 CI/CD 构建通过或失败。脚本遍历结果，计算平均准确率分数，如果准确率低于 85%，则以非零状态码退出。这确保您可以部署符合质量标准的代码更改。
 
 ```python
 from langsmith import Client
@@ -105,15 +105,15 @@ import sys
 client = Client()
 
 def my_application(inputs):
-    # Your application logic
+    # 您的应用程序逻辑
     return {"response": "..."}
 
 def accuracy_evaluator(run, example):
-    # Your evaluation logic
+    # 您的评估逻辑
     is_correct = run.outputs["response"] == example.outputs["expected"]
     return {"key": "accuracy", "score": 1 if is_correct else 0}
 
-# Run evaluation
+# 运行评估
 results = client.evaluate(
     my_application,
     data="my_test_dataset",
@@ -121,7 +121,7 @@ results = client.evaluate(
     blocking=False
 )
 
-# Calculate aggregate metrics
+# 计算聚合指标
 total_score = 0
 count = 0
 
@@ -134,7 +134,7 @@ average_accuracy = total_score / count
 
 print(f"Average accuracy: {average_accuracy:.2%}")
 
-# Fail the build if accuracy is too low
+# 如果准确率太低则构建失败
 if average_accuracy < 0.85:
     print("❌ Evaluation failed! Accuracy below 85% threshold.")
     sys.exit(1)
@@ -142,46 +142,46 @@ if average_accuracy < 0.85:
 print("✅ Evaluation passed!")
 ```
 
-### Batch processing with blocking=True
+### 使用 blocking=True 进行批处理
 
-When you need to perform operations that require the complete dataset (like calculating percentiles, sorting by score, or generating summary reports), use `blocking=True` to wait for all evaluations to complete before processing:
+当您需要执行需要完整数据集的操作（如计算百分位数、按分数排序或生成摘要报告）时，使用 `blocking=True` 等待所有评估完成后再处理：
 
 ```python
-# Run evaluation and wait for all results
+# 运行评估并等待所有结果
 results = client.evaluate(
     target,
     data=dataset,
     evaluators=[evaluator],
-    blocking=True  # Wait for all evaluations to complete
+    blocking=True  # 等待所有评估完成
 )
 
-# Process all results after evaluation completes
+# 评估完成后处理所有结果
 for result in results:
     print("Input:", result["run"].inputs)
     print("Output:", result["run"].outputs)
 
-    # Access individual evaluation results
+    # 访问单个评估结果
     for eval_result in result["evaluation_results"]["results"]:
         print(f"  {eval_result.key}: {eval_result.score}")
 ```
 
-With `blocking=True`, your processing code runs only after all evaluations are complete, avoiding mixed output with evaluation logs.
+使用 `blocking=True`，您的处理代码仅在所有评估完成后运行，避免了与评估日志混合输出。
 
-For more information on running evaluations without uploading results, refer to [Run an evaluation locally](/langsmith/local).
+有关在不上传结果的情况下运行评估的更多信息，请参阅[在本地运行评估](/langsmith/local)。
 
-## Related
+## 相关内容
 
-- [Evaluate your LLM application](/langsmith/evaluate-llm-application)
-- [Run an evaluation locally](/langsmith/local)
-- [Fetch performance metrics from an experiment](/langsmith/fetch-perf-metrics-experiment)
+- [评估您的 LLM 应用程序](/langsmith/evaluate-llm-application)
+- [在本地运行评估](/langsmith/local)
+- [从实验中获取性能指标](/langsmith/fetch-perf-metrics-experiment)
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/read-local-experiment-results.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/read-local-experiment-results.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

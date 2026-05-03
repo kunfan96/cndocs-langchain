@@ -1,71 +1,71 @@
 ---
-title: A2A endpoint in Agent Server
-sidebarTitle: A2A endpoint in Agent Server
-description: Use the A2A protocol to enable agent-to-agent communication with distributed tracing in LangSmith.
+title: Agent Server 中的 A2A 端点
+sidebarTitle: Agent Server 中的 A2A 端点
+description: 使用 A2A 协议在 LangSmith 中实现支持分布式追踪的代理间通信。
 ---
 
-[Agent2Agent (A2A)](https://a2a-protocol.org/latest/) is Google's protocol for enabling communication between conversational AI agents. [LangSmith implements A2A support](https://docs.langchain.com/langsmith/server-api-ref#tag/a2a/post/a2a/{assistant_id}), allowing your agents to communicate with other A2A-compatible agents through a standardized protocol.
+[Agent2Agent (A2A)](https://a2a-protocol.org/latest/) 是 Google 用于实现对话式 AI 代理之间通信的协议。[LangSmith 实现了 A2A 支持](https://docs.langchain.com/langsmith/server-api-ref#tag/a2a/post/a2a/{assistant_id})，允许您的代理通过标准化协议与其他兼容 A2A 的代理进行通信。
 
-The A2A endpoint is available in [Agent Server](/langsmith/agent-server) at `/a2a/{assistant_id}`.
+A2A 端点在 [Agent Server](/langsmith/agent-server) 中可用，路径为 `/a2a/{assistant_id}`。
 
-## Supported methods
+## 支持的方法
 
-Agent Server supports the following A2A RPC methods:
+Agent Server 支持以下 A2A RPC 方法：
 
-- **message/send**: Send a message to an assistant and receive a complete response
-- **message/stream**: Send a message and stream responses in real-time using Server-Sent Events (SSE)
-- **tasks/get**: Retrieve the status and results of a previously created task
+- **message/send**：向助手发送消息并接收完整响应
+- **message/stream**：发送消息并使用服务器发送事件 (SSE) 实时流式传输响应
+- **tasks/get**：检索先前创建的任务的状态和结果
 
-## Agent card discovery
+## 代理卡发现
 
-Each assistant automatically exposes an A2A Agent Card that describes its capabilities and provides the information needed for other agents to connect. You can retrieve the agent card for any assistant using:
+每个助手会自动公开一个 A2A 代理卡，描述其功能并提供其他代理连接所需的信息。您可以使用以下方式检索任何助手的代理卡：
 
 ```
 GET /.well-known/agent-card.json?assistant_id={assistant_id}
 ```
 
-The agent card includes the assistant's name, description, available skills, supported input/output modes, and the A2A endpoint URL for communication.
+代理卡包括助手的名称、描述、可用技能、支持的输入/输出模式以及用于通信的 A2A 端点 URL。
 
-## Requirements
+## 要求
 
-To use A2A, ensure you have the following dependencies installed:
+要使用 A2A，请确保已安装以下依赖项：
 
 * `langgraph-api >= 0.4.21`
 
-Install with:
+使用以下命令安装：
 
 ```bash
 pip install "langgraph-api>=0.4.21"
 ```
 
-## Usage overview
+## 使用概述
 
-To enable A2A:
+要启用 A2A：
 
-* Upgrade to use langgraph-api>=0.4.21.
-* Deploy your agent with message-based state structure.
-* Connect with other A2A-compatible agents using the endpoint.
+* 升级以使用 langgraph-api>=0.4.21。
+* 使用基于消息的状态结构部署您的代理。
+* 使用端点与其他兼容 A2A 的代理连接。
 
-## Creating an A2A-compatible agent
+## 创建兼容 A2A 的代理
 
-This example creates an A2A-compatible agent that processes incoming messages using OpenAI's API and maintains conversational state. The agent defines a message-based state structure and handles the A2A protocol's message format.
+此示例创建一个兼容 A2A 的代理，该代理使用 OpenAI 的 API 处理传入消息并维护对话状态。代理定义了一个基于消息的状态结构，并处理 A2A 协议的消息格式。
 
-To be compatible with the [A2A "text" parts](https://a2a-protocol.org/dev/specification/#651-textpart-object), the agent must have a `messages` key in state.
+要兼容 [A2A "text" 部分](https://a2a-protocol.org/dev/specification/#651-textpart-object)，代理的状态中必须有一个 `messages` 键。
 
-The A2A protocol uses two identifiers to maintain conversational continuity:
-* `contextId`: Groups messages into a conversation thread (like a session ID)
-* `taskId`: Identifies each individual request within that conversation
+A2A 协议使用两个标识符来维持对话连续性：
+* `contextId`：将消息分组到一个对话线程中（类似于会话 ID）
+* `taskId`：标识该对话中的每个单独请求
 
-On the first message, omit `contextId` and `taskId` - the agent will generate and return them. For all subsequent messages in the conversation, include the `contextId` and `taskId` from the prior response to maintain thread continuity.
+在第一条消息中，省略 `contextId` 和 `taskId` - 代理将生成并返回它们。对于对话中的所有后续消息，请包含先前响应中的 `contextId` 和 `taskId` 以维持线程连续性。
 
-**LangSmith Tracing:** The Langsmith Deployment A2A endpoint automatically converts the A2A `contextId` to `thread_id` for LangSmith tracing, grouping all messages in the conversation under a single thread.
+**LangSmith 追踪：** LangSmith 部署的 A2A 端点会自动将 A2A `contextId` 转换为 LangSmith 追踪的 `thread_id`，将对话中的所有消息分组到一个线程下。
 
-For example:
+例如：
 
 ```python
-"""LangGraph A2A conversational agent.
+"""LangGraph A2A 对话代理。
 
-Supports the A2A protocol with messages input for conversational interactions.
+支持 A2A 协议，使用消息输入进行对话交互。
 """
 
 from __future__ import annotations
@@ -80,29 +80,29 @@ from openai import AsyncOpenAI
 
 
 class Context(TypedDict):
-    """Context parameters for the agent."""
+    """代理的上下文参数。"""
     my_configurable_param: str
 
 
 @dataclass
 class State:
-    """Input state for the agent.
+    """代理的输入状态。
 
-    Defines the initial structure for A2A conversational messages.
+    定义 A2A 对话消息的初始结构。
     """
     messages: List[Dict[str, Any]]
 
 
 async def call_model(state: State, runtime: Runtime[Context]) -> Dict[str, Any]:
-    """Process conversational messages and returns output using OpenAI."""
-    # Initialize OpenAI client
+    """处理对话消息并使用 OpenAI 返回输出。"""
+    # 初始化 OpenAI 客户端
     client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-    # Process the incoming messages
+    # 处理传入的消息
     latest_message = state.messages[-1] if state.messages else {}
     user_content = latest_message.get("content", "No message content")
 
-    # Create messages for OpenAI API
+    # 为 OpenAI API 创建消息
     openai_messages = [
         {
             "role": "system",
@@ -115,7 +115,7 @@ async def call_model(state: State, runtime: Runtime[Context]) -> Dict[str, Any]:
     ]
 
     try:
-        # Make OpenAI API call
+        # 调用 OpenAI API
         response = await client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=openai_messages,
@@ -128,7 +128,7 @@ async def call_model(state: State, runtime: Runtime[Context]) -> Dict[str, Any]:
     except Exception as e:
         ai_response = f"I received your message but had trouble processing it. Error: {str(e)[:50]}..."
 
-    # Create a response message
+    # 创建响应消息
     response_message = {
         "role": "assistant",
         "content": ai_response
@@ -139,7 +139,7 @@ async def call_model(state: State, runtime: Runtime[Context]) -> Dict[str, Any]:
     }
 
 
-# Define the graph
+# 定义图
 graph = (
     StateGraph(State, context_schema=Context)
     .add_node(call_model)
@@ -148,15 +148,15 @@ graph = (
 )
 ```
 
-## Agent-to-agent communication
+## 代理间通信
 
-Once your agents are running locally via `langgraph dev` or [deployed to production](/langsmith/deployment), you can facilitate communication between them using the A2A protocol.
+一旦您的代理通过 `langgraph dev` 在本地运行或[部署到生产环境](/langsmith/deployment)，您就可以使用 A2A 协议促进它们之间的通信。
 
-This example demonstrates how two agents can communicate by sending JSON-RPC messages to each other's A2A endpoints. The script simulates a multi-turn conversation where each agent processes the other's response and continues the dialogue.
+此示例演示了两个代理如何通过向彼此的 A2A 端点发送 JSON-RPC 消息进行通信。该脚本模拟了一个多轮对话，其中每个代理处理对方的响应并继续对话。
 
 ```python
 #!/usr/bin/env python3
-"""Agent-to-Agent conversation simulation using the LangGraph A2A endpoint."""
+"""使用 LangGraph A2A 端点进行代理间对话模拟。"""
 
 import asyncio
 import aiohttp
@@ -165,7 +165,7 @@ import uuid
 
 
 def extract_text(result: dict) -> str:
-    """Best-effort extraction of response text from an A2A result."""
+    """从 A2A 结果中尽力提取响应文本。"""
     for art in result.get("result", {}).get("artifacts", []) or []:
         for part in art.get("parts", []) or []:
             if part.get("kind") == "text" and part.get("text"):
@@ -180,7 +180,7 @@ def extract_text(result: dict) -> str:
 
 
 async def send_message(session, port, assistant_id, text, context_id=None, task_id=None):
-    """Send an A2A message. Returns (response_text, returned_context_id, returned_task_id)."""
+    """发送 A2A 消息。返回 (response_text, returned_context_id, returned_task_id)。"""
     url = f"http://127.0.0.1:{port}/a2a/{assistant_id}"
 
     message = {
@@ -189,7 +189,7 @@ async def send_message(session, port, assistant_id, text, context_id=None, task_
         "messageId": str(uuid.uuid4()),
     }
 
-    # A2A multi-turn continuity: reuse contextId and taskId across turns/agents
+    # A2A 多轮连续性：在轮次/代理间重用 contextId 和 taskId
     if context_id:
         message["contextId"] = context_id
     if task_id:
@@ -212,9 +212,9 @@ async def send_message(session, port, assistant_id, text, context_id=None, task_
 
 
 async def simulate_conversation():
-    """Simulate a conversation between two agents."""
+    """模拟两个代理之间的对话。"""
 
-    #Assistant IDs
+    # 助手 ID
     agent_a_id = os.getenv("AGENT_A_ID")
     agent_b_id = os.getenv("AGENT_B_ID")
 
@@ -249,29 +249,29 @@ if __name__ == "__main__":
     asyncio.run(simulate_conversation())
 ```
 
-For complete working examples, see:
-- [Two LangGraph agents communicating](https://github.com/langchain-samples/A2A-langgraph) - Example of two LangGraph agents using the A2A protocol
-- [Google ADK agent with LangChain agent](https://github.com/langchain-samples/A2A-google-adk) - Example of a Google ADK agent interacting with a LangChain agent using the A2A protocol
+有关完整的工作示例，请参阅：
+- [两个 LangGraph 代理通信](https://github.com/langchain-samples/A2A-langgraph) - 两个使用 A2A 协议的 LangGraph 代理示例
+- [Google ADK 代理与 LangChain 代理](https://github.com/langchain-samples/A2A-google-adk) - Google ADK 代理使用 A2A 协议与 LangChain 代理交互的示例
 
-## Distributed tracing
+## 分布式追踪
 
-When multiple agents communicate over A2A, LangSmith can group all their [traces](/langsmith/observability-concepts#traces) into a single [thread](/langsmith/observability-concepts#threads), which gives you a unified view of the entire multi-agent conversation.
+当多个代理通过 A2A 通信时，LangSmith 可以将它们的所有[追踪](/langsmith/observability-concepts#traces)分组到一个[线程](/langsmith/observability-concepts#threads)中，为您提供整个多代理对话的统一视图。
 
-### How contextId maps to thread_id
+### contextId 如何映射到 thread_id
 
-The Agent Server A2A endpoint automatically converts the A2A `contextId` to `thread_id` for LangSmith tracing. This means every message in a conversation, across all participating agents, is grouped under the same thread in LangSmith without any extra configuration on your part.
+Agent Server A2A 端点会自动将 A2A `contextId` 转换为 LangSmith 追踪的 `thread_id`。这意味着对话中的每条消息，无论来自哪个参与代理，都会在 LangSmith 中分组到同一线程下，无需您进行任何额外配置。
 
-The flow works as follows:
+流程如下：
 
-1. On the first message, the client omits `contextId`. The server generates one and returns it in the response.
-1. The client passes the `contextId` in all subsequent messages to maintain conversation continuity.
-1. Agent Server maps the `contextId` to `thread_id` in LangSmith [metadata](/langsmith/add-metadata-tags), so all turns appear in the same thread.
+1. 在第一条消息中，客户端省略 `contextId`。服务器生成一个并在响应中返回。
+1. 客户端在所有后续消息中传递 `contextId` 以维持对话连续性。
+1. Agent Server 将 `contextId` 映射到 LangSmith [元数据](/langsmith/add-metadata-tags)中的 `thread_id`，因此所有轮次都出现在同一线程中。
 
-### Tracing across multiple agents
+### 跨多个代理的追踪
 
-When agents from different frameworks communicate over A2A, you can unify their traces in LangSmith by sharing the same `thread_id` across all agents. Use the `contextId` returned by the first agent as the `thread_id` for all subsequent requests.
+当来自不同框架的代理通过 A2A 通信时，您可以通过在所有代理间共享相同的 `thread_id` 来在 LangSmith 中统一它们的追踪。使用第一个代理返回的 `contextId` 作为所有后续请求的 `thread_id`。
 
-The following code snippet demonstrates the key concepts. For a complete runnable implementation with two agents, refer to the [Google ADK + LangChain example](https://github.com/langchain-samples/A2A-google-adk/blob/main/test_agent_conversation.py).
+以下代码片段演示了关键概念。有关两个代理的完整可运行实现，请参阅 [Google ADK + LangChain 示例](https://github.com/langchain-samples/A2A-google-adk/blob/main/test_agent_conversation.py)。
 
 ```python
 import asyncio
@@ -280,11 +280,11 @@ import uuid
 
 
 async def send_message(session, url, text, context_id=None, task_id=None, thread_id=None):
-    """Send an A2A message and return (response_text, context_id, task_id)."""
+    """发送 A2A 消息并返回 (response_text, context_id, task_id)。"""
 
-    # --- 1. Build the message ---
-    # On follow-up turns, include contextId and taskId inside the message object
-    # so the server associates them with the ongoing conversation.
+    # --- 1. 构建消息 ---
+    # 在后续轮次中，在消息对象内包含 contextId 和 taskId，
+    # 以便服务器将它们与正在进行的对话关联起来。
     message = {
         "role": "user",
         "parts": [{"kind": "text", "text": text}],
@@ -295,8 +295,8 @@ async def send_message(session, url, text, context_id=None, task_id=None, thread
     if task_id:
         message["taskId"] = task_id
 
-    # --- 2. Set thread_id in metadata ---
-    # thread_id goes at the top level of the JSON-RPC payload, not inside params.
+    # --- 2. 在元数据中设置 thread_id ---
+    # thread_id 位于 JSON-RPC 载荷的顶层，而不是在 params 内部。
     payload = {
         "jsonrpc": "2.0",
         "id": str(uuid.uuid4()),
@@ -329,9 +329,9 @@ async def send_message(session, url, text, context_id=None, task_id=None, thread
 
 
 async def run_conversation(agent_a_url, agent_b_url):
-    # --- 3. Share thread_id across agents ---
-    # Generate a shared thread_id upfront. Once the server returns a contextId,
-    # use that instead — this keeps the A2A context and LangSmith thread in sync.
+    # --- 3. 在代理间共享 thread_id ---
+    # 预先生成一个共享的 thread_id。一旦服务器返回 contextId，
+    # 就使用它——这使 A2A 上下文和 LangSmith 线程保持同步。
     thread_id = str(uuid.uuid4())
     context_id = None
     task_id = None
@@ -345,7 +345,7 @@ async def run_conversation(agent_a_url, agent_b_url):
                 thread_id=context_id or thread_id,
             )
 
-            # Passing the same thread_id to every agent groups all traces in LangSmith
+            # 将相同的 thread_id 传递给每个代理，将所有追踪分组到 LangSmith 中
             message, context_id, task_id = await send_message(
                 session, agent_b_url, message,
                 context_id=context_id, task_id=task_id,
@@ -359,15 +359,15 @@ asyncio.run(run_conversation(
 ))
 ```
 
-**1. Build the message**: Include `contextId` and `taskId` inside the `message` object on follow-up turns so the server can associate them with the ongoing conversation. Omit them on the first message, because the server generates a `contextId` and returns it in the response.
+**1. 构建消息**：在后续轮次中，在 `message` 对象内包含 `contextId` 和 `taskId`，以便服务器可以将它们与正在进行的对话关联起来。在第一条消息中省略它们，因为服务器会生成一个 `contextId` 并在响应中返回。
 
-**2. Set thread_id in metadata**: Pass `thread_id` in the top-level `metadata` field of the JSON-RPC payload, not inside `params`.
+**2. 在元数据中设置 thread_id**：在 JSON-RPC 载荷的顶层 `metadata` 字段中传递 `thread_id`，而不是在 `params` 内部。
 
-**3. Share thread_id across agents**: Generate a random `thread_id` before the first message. Once the server returns a `contextId`, use it as the `thread_id` for all subsequent requests, which keeps the A2A conversation context and the LangSmith thread in sync. Pass the same `thread_id` to every agent so all traces are grouped into one thread.
+**3. 在代理间共享 thread_id**：在第一条消息之前生成一个随机的 `thread_id`。一旦服务器返回 `contextId`，就将其用作所有后续请求的 `thread_id`，这使 A2A 对话上下文和 LangSmith 线程保持同步。将相同的 `thread_id` 传递给每个代理，以便所有追踪都分组到一个线程中。
 
-### Receive thread_id in non-LangGraph agents
+### 在非 LangGraph 代理中接收 thread_id
 
-The [previous section](#tracing-across-multiple-agents) covers the client side—propagating `thread_id` when sending messages. If one of your agents is not built on LangGraph, it also needs to extract and attach the `thread_id` on the receiving end so its traces land in the same LangSmith thread. Use `langsmith.integrations.otel.configure()` to set up automatic tracing, and extract the `thread_id` from incoming A2A request metadata to group traces in the same thread.
+[上一节](#跨多个代理的追踪)涵盖了客户端——发送消息时传播 `thread_id`。如果您的某个代理不是基于 LangGraph 构建的，它还需要在接收端提取并附加 `thread_id`，以便其追踪落入同一个 LangSmith 线程。使用 `langsmith.integrations.otel.configure()` 设置自动追踪，并从传入的 A2A 请求元数据中提取 `thread_id` 以将追踪分组到同一线程中。
 
 ```python
 from fastapi import FastAPI, Request
@@ -375,8 +375,8 @@ from langsmith.integrations.otel import configure as configure_otel
 from opentelemetry import trace
 import json
 
-# --- 1. Configure OTel ---
-# Set up automatic tracing to LangSmith for your non-LangGraph agent.
+# --- 1. 配置 OTel ---
+# 为您的非 LangGraph 代理设置自动追踪到 LangSmith。
 configure_otel(project_name="my-a2a-project")
 tracer = trace.get_tracer(__name__)
 
@@ -388,38 +388,38 @@ async def set_thread_id_middleware(request: Request, call_next):
     if request.method == "POST":
         body_bytes = await request.body()
         if body_bytes:
-            # --- 2. Extract thread_id from incoming A2A metadata ---
+            # --- 2. 从传入的 A2A 元数据中提取 thread_id ---
             try:
                 body = json.loads(body_bytes)
                 thread_id = body.get("metadata", {}).get("thread_id")
             except Exception:
                 pass
-            # Re-inject the body so downstream handlers can still read it
+            # 重新注入请求体，以便下游处理程序仍然可以读取它
             async def receive():
                 return {"type": "http.request", "body": body_bytes}
             request._receive = receive
 
-    # --- 3. Attach thread_id to the trace ---
-    # langsmith.metadata.thread_id groups this trace with others in the same thread.
+    # --- 3. 将 thread_id 附加到追踪 ---
+    # langsmith.metadata.thread_id 将此追踪与同一线程中的其他追踪分组。
     with tracer.start_as_current_span("agent") as span:
         if thread_id:
             span.set_attribute("langsmith.metadata.thread_id", thread_id)
         return await call_next(request)
 ```
 
-Register your agent routes on `app` after this middleware.
+在此中间件之后，在 `app` 上注册您的代理路由。
 
 <Note>
-Set `LANGSMITH_API_KEY` and optionally `LANGSMITH_PROJECT` in your environment to enable tracing. All agents in the conversation should use the same project so their traces are visible together.
+在您的环境中设置 `LANGSMITH_API_KEY` 和可选的 `LANGSMITH_PROJECT` 以启用追踪。对话中的所有代理应使用相同的项目，以便它们的追踪可以一起查看。
 </Note>
 
-### View traces in LangSmith
+### 在 LangSmith 中查看追踪
 
-After running a multi-agent conversation, open the [LangSmith UI](https://smith.langchain.com) and navigate to **Threads**. All turns from all participating agents will appear under a single thread, identified by the shared `thread_id`.
+运行多代理对话后，打开 [LangSmith UI](https://smith.langchain.com) 并导航到 **Threads**。所有参与代理的所有轮次将出现在一个线程下，由共享的 `thread_id` 标识。
 
-## Disable A2A
+## 禁用 A2A
 
-To disable the A2A endpoint, set `disable_a2a` to `true` in your `langgraph.json` configuration file:
+要禁用 A2A 端点，请在您的 `langgraph.json` 配置文件中将 `disable_a2a` 设置为 `true`：
 
 ```json
 {
@@ -434,9 +434,9 @@ To disable the A2A endpoint, set `disable_a2a` to `true` in your `langgraph.json
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [通过 MCP 将这些文档](/use-these-docs)连接到 Claude、VSCode 等，以获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/server-a2a.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/server-a2a.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

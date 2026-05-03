@@ -1,18 +1,18 @@
 ---
-title: Call agents from code
-description: Invoke Fleet agents from Python, JavaScript, or any language through the REST API.
-sidebarTitle: Call from code
+title: 从代码调用代理
+description: 通过 REST API 从 Python、JavaScript 或任何语言调用 Fleet 代理。
+sidebarTitle: 从代码调用
 ---
 
-You can invoke LangSmith Fleet agents from your applications using the [LangGraph SDK](/langsmith/reference) or the REST API. Fleet agents run on [Agent Server](/langsmith/agent-server), so you can use the same API methods as any other [LangSmith deployment](/langsmith/deployments).
+您可以使用 [LangGraph SDK](/langsmith/reference) 或 REST API 从应用程序中调用 LangSmith Fleet 代理。Fleet 代理运行在 [Agent Server](/langsmith/agent-server) 上，因此您可以使用与任何其他 [LangSmith 部署](/langsmith/deployments) 相同的 API 方法。
 
-The REST API lets you call your agent from any language or platform that supports HTTP requests.
+REST API 允许您从任何支持 HTTP 请求的语言或平台调用您的代理。
 
-## Prerequisites
+## 前提条件
 
-- A LangSmith account with a Fleet agent
-- A [Personal Access Token (PAT)](/langsmith/create-account-api-key) for authentication
-- (SDK only) The [LangGraph SDK](/langsmith/reference) installed:
+- 一个拥有 Fleet 代理的 LangSmith 账户
+- 用于身份验证的 [个人访问令牌 (PAT)](/langsmith/create-account-api-key)
+- （仅限 SDK）已安装 [LangGraph SDK](/langsmith/reference)：
 
 <CodeGroup>
     ```bash Python
@@ -24,34 +24,33 @@ The REST API lets you call your agent from any language or platform that support
     ```
 </CodeGroup>
 
-## Authentication
-To authenticate with your agent's Fleet deployment, provide a LangSmith [Personal Access Token (PAT)](/langsmith/create-account-api-key) to the `api_key` argument when instantiating the LangGraph SDK client, or via the `X-API-Key` header. If using `X-API-Key`, you must also set the `X-Auth-Scheme` header to `langsmith-api-key`.
+## 身份验证
+要向您的代理 Fleet 部署进行身份验证，请在实例化 LangGraph SDK 客户端时，将 LangSmith [个人访问令牌 (PAT)](/langsmith/create-account-api-key) 提供给 `api_key` 参数，或通过 `X-API-Key` 请求头提供。如果使用 `X-API-Key`，您还必须将 `X-Auth-Scheme` 请求头设置为 `langsmith-api-key`。
 
+如果您传递的 PAT 未与代理所有者关联，您的请求将被拒绝并返回 `404 Not Found` 错误。
 
-If the PAT you pass is not tied to the owner of the agent, your request will be rejected with a `404 Not Found` error.
+如果您尝试调用的代理是一个 <Tooltip tip="与 LangSmith 工作区所有成员共享的代理。私有代理仅对创建者可见。" cta="了解更多" href="/langsmith/fleet/manage-agent-settings">工作区代理</Tooltip>，而您不是所有者，您可以执行与在 UI 中相同的所有操作（只读）。
 
-If the agent you're trying to invoke is a <Tooltip tip="Agents shared with all members of a LangSmith workspace. Private agents are only visible to the creator." cta="Learn more" href="/langsmith/fleet/manage-agent-settings">workspace agent</Tooltip> and you're not the owner, you can perform all the same operations as you would in the UI (read-only).
+## 1. 获取代理 ID 和 URL
 
-## 1. Get the agent ID and URL
+要获取您的代理的 `agent_id` 和 `api_url`：
 
-To get your agent's `agent_id` and `api_url`:
+1. 在 [LangSmith UI](https://smith.langchain.com) 中，导航到您的代理收件箱。
+1. 在代理名称旁边，点击 <Icon icon="pencil" /> **编辑代理** 图标。
+2. 点击右上角的 <Icon icon="settings" /> **设置** 图标。
+3. 点击 **查看代码片段** 以查看为您代理预填充的值。
 
-1. In the [LangSmith UI](https://smith.langchain.com), navigate to your agent's inbox.
-1. Next to the agent name, click the <Icon icon="pencil" /> **Edit Agent** icon.
-2. Click the <Icon icon="settings" /> **Settings** icon in the top right corner.
-3. Click **View code snippets** to see pre-populated values for your agent.
+复制下面的代码，并将 `agent_id` 和 `api_url` 替换为您的代理代码片段中的值。
 
-Copy the code below and replace `agent_id` and `api_url` with the values from your agent's code snippets.
-
-Create a `.env` file in your project root with your [Personal Access Token](/langsmith/create-account-api-key):
+在项目根目录创建一个 `.env` 文件，其中包含您的 [个人访问令牌](/langsmith/create-account-api-key)：
 
 ```bash .env
 LANGGRAPH_API_KEY=your-personal-access-token
 ```
 
-## 2. Fetch agent configuration
+## 2. 获取代理配置
 
-Verify your connection by fetching your agent's configuration:
+通过获取代理配置来验证您的连接：
 
 <Tabs>
     <Tab title="Python">
@@ -122,16 +121,16 @@ curl --request GET \
 </Tabs>
 
 <Callout icon="key" color="#FEF3C7" iconType="regular">
-    Use a [Personal Access Token (PAT)](/langsmith/create-account-api-key) tied to your LangSmith account. Set the `X-Auth-Scheme` header to `langsmith-api-key` for authentication. If you implemented custom authentication, pass the user's token in headers so the agent can use user-scoped tools. See [Add custom authentication](/langsmith/custom-auth).
+    使用与您的 LangSmith 账户关联的 [个人访问令牌 (PAT)](/langsmith/create-account-api-key)。将 `X-Auth-Scheme` 请求头设置为 `langsmith-api-key` 进行身份验证。如果您实现了自定义身份验证，请在请求头中传递用户的令牌，以便代理可以使用用户范围的工具。请参阅 [添加自定义身份验证](/langsmith/custom-auth)。
 </Callout>
 
-## 3. Invoke agent
+## 3. 调用代理
 
-The examples below show how to send a message to your agent and receive a response. You can use either a **stateless** run (no thread, no conversation history) or a **stateful** run (with a thread to maintain conversation history across multiple turns).
+以下示例展示了如何向您的代理发送消息并接收响应。您可以使用 **无状态** 运行（无线程，无对话历史记录）或 **有状态** 运行（使用线程在多个轮次间维护对话历史记录）。
 
-### Stateless run
+### 无状态运行
 
-A stateless run sends a single request and returns the full response. No conversation history is persisted. This is the simplest way to call your agent:
+无状态运行发送单个请求并返回完整响应。不保留对话历史记录。这是调用代理最简单的方式：
 
 <Tabs>
     <Tab title="Python">
@@ -221,9 +220,9 @@ curl --request POST \
     </Tab>
 </Tabs>
 
-### Stateless streaming run
+### 无状态流式运行
 
-To stream the response as it is generated rather than waiting for the full result, use the streaming endpoint:
+要流式传输生成过程中的响应，而不是等待完整结果，请使用流式端点：
 
 <Tabs>
     <Tab title="Python">
@@ -288,9 +287,9 @@ curl --request POST \
     </Tab>
 </Tabs>
 
-### Stateful run with a thread
+### 使用线程的有状态运行
 
-To maintain conversation history across multiple interactions, first create a thread and then run your agent on it. Each subsequent run on the same thread has access to the full message history:
+要在多次交互间维护对话历史记录，请先创建一个线程，然后在该线程上运行您的代理。在同一线程上的每次后续运行都可以访问完整的消息历史记录：
 
 <Tabs>
     <Tab title="Python">
@@ -401,7 +400,7 @@ for await (const chunk of streamResponse) {
 ```
     </Tab>
     <Tab title="cURL">
-First, create a thread:
+首先，创建一个线程：
 
 ```bash
 curl --request POST \
@@ -412,7 +411,7 @@ curl --request POST \
     --data '{}'
 ```
 
-Use the `thread_id` from the response to send messages on the thread:
+使用响应中的 `thread_id` 在该线程上发送消息：
 
 ```bash
 curl --request POST \
@@ -436,7 +435,7 @@ curl --request POST \
     }'
 ```
 
-Send a follow-up message on the same thread:
+在同一线程上发送后续消息：
 
 ```bash
 curl --request POST \
@@ -462,33 +461,33 @@ curl --request POST \
     </Tab>
 </Tabs>
 
-## REST API reference
+## REST API 参考
 
-The table below summarizes the key endpoints. Replace `<API_URL>` with your agent's deployment URL.
+下表总结了关键端点。将 `<API_URL>` 替换为您的代理部署 URL。
 
-| Operation | Method | Endpoint |
+| 操作 | 方法 | 端点 |
 |---|---|---|
-| [Get agent info](/langsmith/agent-server-api/assistants/get-assistant) | `GET` | `<API_URL>/assistants/<AGENT_ID>` |
-| [Create a thread](/langsmith/agent-server-api/threads/create-thread) | `POST` | `<API_URL>/threads` |
-| [Run (wait for result)](https://docs.langchain.com/langsmith/agent-server-api/stateless-runs/create-run-wait-for-output) | `POST` | `<API_URL>/runs/wait` |
-| [Run (streaming)](/langsmith/agent-server-api/stateless-runs/create-run-stream-output) | `POST` | `<API_URL>/runs/stream` |
-| [Run on thread (wait)](/langsmith/agent-server-api/thread-runs/create-run-wait-for-output) | `POST` | `<API_URL>/threads/<THREAD_ID>/runs/wait` |
+| [获取代理信息](/langsmith/agent-server-api/assistants/get-assistant) | `GET` | `<API_URL>/assistants/<AGENT_ID>` |
+| [创建线程](/langsmith/agent-server-api/threads/create-thread) | `POST` | `<API_URL>/threads` |
+| [运行（等待结果）](https://docs.langchain.com/langsmith/agent-server-api/stateless-runs/create-run-wait-for-output) | `POST` | `<API_URL>/runs/wait` |
+| [运行（流式）](/langsmith/agent-server-api/stateless-runs/create-run-stream-output) | `POST` | `<API_URL>/runs/stream` |
+| [在线程上运行（等待）](/langsmith/agent-server-api/thread-runs/create-run-wait-for-output) | `POST` | `<API_URL>/threads/<THREAD_ID>/runs/wait` |
 | /langsmith/agent-server-api/thread-runs/create-run-stream-output | `POST` | `<API_URL>/threads/<THREAD_ID>/runs/stream` |
 
-All endpoints require the following headers:
+所有端点都需要以下请求头：
 - `Content-Type: application/json`
-- `X-Api-Key:` your [Personal Access Token](/langsmith/create-account-api-key)
+- `X-Api-Key:` 您的 [个人访问令牌](/langsmith/create-account-api-key)
 - `X-Auth-Scheme: langsmith-api-key`
 
-For the full API specification, see the [Agent Server API reference](/langsmith/server-api-ref).
+有关完整的 API 规范，请参阅 [Agent Server API 参考](/langsmith/server-api-ref)。
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档](/use-these-docs) 通过 MCP 连接到 Claude、VSCode 等，以获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/fleet/code.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/fleet/code.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

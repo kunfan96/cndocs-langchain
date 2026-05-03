@@ -1,26 +1,26 @@
 ---
-title: Evaluate a chatbot
-sidebarTitle: Evaluate a chatbot
+title: 评估聊天机器人
+sidebarTitle: 评估聊天机器人
 ---
 
-In this guide we will set up evaluations for a chatbot. These allow you to measure how well your application is performing over a set of data. Being able to get this insight quickly and reliably will allow you to iterate with confidence.
+在本指南中，我们将为聊天机器人设置评估。这使您能够衡量您的应用程序在一组数据上的表现。能够快速可靠地获得这种洞察力将使您能够充满信心地进行迭代。
 
-At a high level, in this tutorial we will:
+从高层次来看，在本教程中，我们将：
 
-* *Create an initial golden dataset to measure performance*
-* *Define metrics to use to measure performance*
-* *Run evaluations on a few different prompts or models*
-* *Compare results manually*
-* *Track results over time*
-* *Set up automated testing to run in CI/CD*
+* *创建一个初始黄金数据集来衡量性能*
+* *定义用于衡量性能的指标*
+* *在几个不同的提示或模型上运行评估*
+* *手动比较结果*
+* *随时间跟踪结果*
+* *设置在 CI/CD 中运行的自动化测试*
 
-For more information on the evaluation workflows LangSmith supports, check out the [how-to guides](/langsmith/evaluation), or see the reference docs for [evaluate](https://reference.langchain.com/python/langsmith/client/Client/evaluate) and its asynchronous [aevaluate](https://reference.langchain.com/python/langsmith/client/Client/aevaluate) counterpart.
+有关 LangSmith 支持的评估工作流的更多信息，请查看[操作指南](/langsmith/evaluation)，或参阅 [evaluate](https://reference.langchain.com/python/langsmith/client/Client/evaluate) 及其异步对应项 [aevaluate](https://reference.langchain.com/python/langsmith/client/Client/aevaluate) 的参考文档。
 
-Lots to cover, let's dive in!
+内容很多，让我们开始吧！
 
-## Setup
+## 设置
 
-First install the required dependencies for this tutorial. We happen to use OpenAI, but LangSmith can be used with any model:
+首先安装本教程所需的依赖项。我们恰好使用 OpenAI，但 LangSmith 可以与任何模型一起使用：
 
 <CodeGroup>
 ```bash pip
@@ -32,7 +32,7 @@ uv add langsmith openai
 ```
 </CodeGroup>
 
-And set environment variables to enable LangSmith tracing:
+并设置环境变量以启用 LangSmith 追踪：
 
 ```bash
 export LANGSMITH_TRACING="true"
@@ -40,30 +40,30 @@ export LANGSMITH_API_KEY="<Your LangSmith API key>"
 export OPENAI_API_KEY="<Your OpenAI API key>"
 ```
 
-## Create a dataset
+## 创建数据集
 
-The first step when getting ready to test and evaluate your application is to define the datapoints you want to evaluate. There are a few aspects to consider here:
+准备测试和评估应用程序的第一步是定义您要评估的数据点。这里有几个方面需要考虑：
 
-* What should the schema of each datapoint be?
-* How many datapoints should I gather?
-* How should I gather those datapoints?
+* 每个数据点的模式应该是什么？
+* 我应该收集多少个数据点？
+* 我应该如何收集这些数据点？
 
-**Schema:** Each datapoint should consist of, at the very least, the inputs to the application. If you are able, it is also very helpful to define the expected outputs - these represent what you would expect a properly functioning application to output. Often times you cannot define the perfect output - that's okay! Evaluation is an iterative process. Sometimes you may also want to define more information for each example - like the expected documents to fetch in RAG, or the expected steps to take as an agent. LangSmith datasets are very flexible and allow you to define arbitrary schemas.
+**模式：** 每个数据点至少应包含应用程序的输入。如果可能，定义预期输出也非常有帮助——这些代表了您期望一个正常运行的应用程序输出的内容。通常您无法定义完美的输出——没关系！评估是一个迭代过程。有时您可能还想为每个示例定义更多信息——例如 RAG 中预期要检索的文档，或代理预期要采取的步骤。LangSmith 数据集非常灵活，允许您定义任意模式。
 
-**How many:** There's no hard and fast rule for how many you should gather. The main thing is to make sure you have proper coverage of edge cases you may want to guard against. Even 10-50 examples can provide a lot of value! Don't worry about getting a large number to start - you can (and should) always add over time!
+**数量：** 关于应该收集多少个数据点，没有硬性规定。主要的是确保您对可能想要防范的边缘情况有适当的覆盖。即使是 10-50 个示例也能提供很多价值！不要担心一开始就获取大量数据——您可以（并且应该）随着时间的推移不断添加！
 
-**How to get:** This is maybe the trickiest part. Once you know you want to gather a dataset... how do you actually go about it? For most teams that are starting a new project, we generally see them start by collecting the first 10-20 datapoints by hand. After starting with these datapoints, these datasets are generally *living* constructs and grow over time. They generally grow after seeing how real users will use your application, seeing the pain points that exist, and then moving a few of those datapoints into this set. There are also methods like synthetically generating data that can be used to augment your dataset. To start, we recommend not worrying about those and just hand labeling \~10-20 examples.
+**获取方式：** 这可能是最棘手的部分。一旦您知道想要收集一个数据集……您实际上如何去做？对于大多数开始新项目的团队，我们通常看到他们首先手动收集前 10-20 个数据点。从这些数据点开始后，这些数据集通常是*活的*构造，并且会随着时间的推移而增长。它们通常在看到真实用户如何使用您的应用程序、看到存在的痛点，然后将其中一些数据点移入此集合后增长。还有一些方法，如合成生成数据，可用于增强您的数据集。开始时，我们建议不要担心这些，只需手动标记约 10-20 个示例。
 
-Once you've got your dataset, there are a few different ways to upload them to LangSmith. For this tutorial, we will use the client, but you can also upload via the UI (or even create them in the UI).
+一旦您有了数据集，有几种不同的方法可以将它们上传到 LangSmith。在本教程中，我们将使用客户端，但您也可以通过 UI 上传（甚至在 UI 中创建它们）。
 
-For this tutorial, we will create 5 datapoints to evaluate on. We will be evaluating a question-answering application. The input will be a question, and the output will be an answer. Since this is a question-answering application, we can define the expected answer. Let's show how to create and upload this dataset to LangSmith!
+在本教程中，我们将创建 5 个数据点进行评估。我们将评估一个问答应用程序。输入将是一个问题，输出将是一个答案。由于这是一个问答应用程序，我们可以定义预期的答案。让我们展示如何创建并将此数据集上传到 LangSmith！
 
 ```python
 from langsmith import Client
 
 client = Client()
 
-# Define dataset: these are your test cases
+# 定义数据集：这些是您的测试用例
 dataset_name = "QA Example Dataset"
 dataset = client.create_dataset(dataset_name)
 
@@ -94,19 +94,19 @@ client.create_examples(
 )
 ```
 
-Now, if we go the LangSmith UI and look for `QA Example Dataset` in the `Datasets & Testing` page, when we click into it we should see that we have five new examples.
+现在，如果我们进入 LangSmith UI 并在 `Datasets & Testing` 页面中查找 `QA Example Dataset`，当我们点击进入时，应该会看到我们有五个新的示例。
 
-![Testing tutorial dataset](/langsmith/images/testing-tutorial-dataset.png)
+![测试教程数据集](/langsmith/images/testing-tutorial-dataset.png)
 
-## Define metrics
+## 定义指标
 
-After creating our dataset, we can now define some metrics to evaluate our responses on. Since we have an expected answer, we can compare to that as part of our evaluation. However, we do not expect our application to output those **exact** answers, but rather something that is similar. This makes our evaluation a little trickier.
+创建数据集后，我们现在可以定义一些指标来评估我们的响应。由于我们有一个预期的答案，我们可以将其作为评估的一部分进行比较。但是，我们并不期望我们的应用程序输出那些**完全相同**的答案，而是类似的内容。这使得我们的评估稍微棘手一些。
 
-In addition to evaluating correctness, let's also make sure our answers are short and concise. This will be a little easier - we can define a simple Python function to measure the length of the response.
+除了评估正确性，我们还要确保我们的答案简短而简洁。这会更容易一些——我们可以定义一个简单的 Python 函数来衡量响应的长度。
 
-Let's go ahead and define these two metrics.
+让我们继续定义这两个指标。
 
-For the first, we will use an LLM to **judge** whether the output is correct (with respect to the expected output). This **LLM-as-a-judge** is relatively common for cases that are too complex to measure with a simple function. We can define our own prompt and LLM to use for evaluation here:
+对于第一个，我们将使用一个 LLM 来**判断**输出是否正确（相对于预期输出）。这种 **LLM 作为评判者** 的方法对于过于复杂而无法用简单函数衡量的情况相对常见。我们可以在这里定义自己的提示和用于评估的 LLM：
 
 ```python
 import openai
@@ -136,16 +136,16 @@ Grade:"""
     return response == "CORRECT"
 ```
 
-For evaluating the length of the response, this is a lot easier! We can just define a simple function that checks whether the actual output is less than 2x the length of the expected result.
+对于评估响应的长度，这要容易得多！我们只需定义一个简单的函数，检查实际输出是否小于预期结果长度的 2 倍。
 
 ```python
 def concision(outputs: dict, reference_outputs: dict) -> bool:
     return int(len(outputs["response"]) < 2 * len(reference_outputs["answer"]))
 ```
 
-## Run evaluations
+## 运行评估
 
-Great! Now how do we run evaluations? Now that we have a dataset and evaluators, all that we need is our application! We will build a simple application that just has a system message with instructions on how to respond and then passes it to the LLM. We will build this using the OpenAI SDK directly:
+太好了！现在我们如何运行评估？既然我们有了数据集和评估器，我们需要的只是我们的应用程序！我们将构建一个简单的应用程序，它只包含一个系统消息，其中包含如何响应的说明，然后将其传递给 LLM。我们将直接使用 OpenAI SDK 来构建它：
 
 ```python
 default_instructions = "Respond to the users question in a short, concise manner (one short sentence)."
@@ -161,33 +161,33 @@ def my_app(question: str, model: str = "gpt-5.4-mini", instructions: str = defau
     ).choices[0].message.content
 ```
 
-Before running this through LangSmith evaluations, we need to define a simple wrapper that maps the input keys from our dataset to the function we want to call, and then also maps the output of the function to the output key we expect.
+在通过 LangSmith 评估运行此程序之前，我们需要定义一个简单的包装器，将数据集中的输入键映射到我们要调用的函数，然后将函数的输出映射到我们期望的输出键。
 
 ```python
 def ls_target(inputs: str) -> dict:
     return {"response": my_app(inputs["question"])}
 ```
 
-Great! Now we're ready to run an evaluation. Let's do it!
+太好了！现在我们准备好运行评估了。让我们开始吧！
 
 ```python
 experiment_results = client.evaluate(
-    ls_target, # Your AI system
-    data=dataset_name, # The data to predict and grade over
-    evaluators=[concision, correctness], # The evaluators to score the results
-    experiment_prefix="openai-4o-mini", # A prefix for your experiment names to easily identify them
+    ls_target, # 您的 AI 系统
+    data=dataset_name, # 要预测和评分的数据
+    evaluators=[concision, correctness], # 用于对结果评分的评估器
+    experiment_prefix="openai-4o-mini", # 实验名称的前缀，以便轻松识别
 )
 ```
 
-This will output a URL. If we click on it, we should see results of our evaluation!
+这将输出一个 URL。如果我们点击它，应该会看到评估结果！
 
-![Testing tutorial run](/langsmith/images/testing-tutorial-run.png)
+![测试教程运行](/langsmith/images/testing-tutorial-run.png)
 
-If we go back to the dataset page and select the `Experiments` tab, we can now see a summary of our one run!
+如果我们返回数据集页面并选择 `Experiments` 选项卡，现在可以看到我们一次运行的摘要！
 
-![Testing tutorial one run](/langsmith/images/testing-tutorial-one-run.png)
+![测试教程一次运行](/langsmith/images/testing-tutorial-one-run.png)
 
-Let's now try it out with a different model! Let's try `gpt-4-turbo`
+现在让我们尝试使用不同的模型！让我们试试 `gpt-4-turbo`
 
 ```python
 def ls_target_v2(inputs: str) -> dict:
@@ -201,7 +201,7 @@ experiment_results = client.evaluate(
 )
 ```
 
-And now let's use GPT-4 but also update the prompt to be a bit more strict in requiring the answer to be short.
+现在让我们使用 GPT-4，同时更新提示，使其更严格地要求答案简短。
 
 ```python
 instructions_v3 = "Respond to the users question in a short, concise manner (one short sentence). Do NOT use more than ten words."
@@ -222,71 +222,71 @@ experiment_results = client.evaluate(
 )
 ```
 
-If we go back to the `Experiments` tab on the datasets page, we should see that all three runs now show up!
+如果我们返回数据集页面的 `Experiments` 选项卡，应该会看到所有三次运行现在都显示出来了！
 
-![Testing tutorial three runs](/langsmith/images/testing-tutorial-three-runs.png)
+![测试教程三次运行](/langsmith/images/testing-tutorial-three-runs.png)
 
-## Comparing results
+## 比较结果
 
-Awesome, we've evaluated three different runs. But how can we compare results? The first way we can do this is just by looking at the runs in the `Experiments` tab. If we do that, we can see a high level view of the metrics for each run:
+太棒了，我们已经评估了三次不同的运行。但是我们如何比较结果呢？第一种方法是直接在 `Experiments` 选项卡中查看运行。如果我们这样做，可以看到每次运行指标的高级视图：
 
-![Testing tutorial compare metrics](/langsmith/images/testing-tutorial-compare-metrics.png)
+![测试教程比较指标](/langsmith/images/testing-tutorial-compare-metrics.png)
 
-We can tell that GPT-4 is better than GPT-3.5 at knowing who companies are, and that the strict prompt helped a lot with the length. But what if we want to explore in more detail?
+我们可以看出 GPT-4 在了解公司方面比 GPT-3.5 更好，而且严格的提示在长度方面帮助很大。但如果我们想更详细地探索呢？
 
-In order to do that, we can select all the runs we want to compare (in this case all three) and open them up in a comparison view. We immediately see all three tests side by side. Some of the cells are color coded - this is showing a regression of *a certain metric* compared to *a certain baseline*. We automatically choose defaults for the baseline and metric, but you can change those yourself. You can also choose which columns and which metrics you see by using the `Display` control. You can also automatically filter to only see the runs that have improvements/regressions by clicking on the icons at the top.
+为此，我们可以选择所有要比较的运行（在这种情况下是全部三次），并在比较视图中打开它们。我们立即看到所有三个测试并排显示。一些单元格有颜色编码——这显示了与*某个基线*相比*某个指标*的回归。我们自动选择基线和指标的默认值，但您可以自己更改它们。您还可以使用 `Display` 控件选择要查看的列和指标。您还可以通过点击顶部的图标自动过滤，只查看有改进/回归的运行。
 
-![Testing tutorial compare runs](/langsmith/images/testing-tutorial-compare-runs.png)
+![测试教程比较运行](/langsmith/images/testing-tutorial-compare-runs.png)
 
-If we want to see more information, we can also select the `Expand` button that appears when hovering over a row to open up a side panel with more detailed information:
+如果我们想查看更多信息，还可以选择悬停在行上时出现的 `Expand` 按钮，以打开一个包含更详细信息的侧面板：
 
-![Testing tutorial side panel](/langsmith/images/testing-tutorial-side-panel.png)
+![测试教程侧面板](/langsmith/images/testing-tutorial-side-panel.png)
 
-## Set up automated testing to run in CI/CD
+## 设置在 CI/CD 中运行的自动化测试
 
-Now that we've run this in a one-off manner, we can set it to run in an automated fashion. We can do this pretty easily by just including it as a pytest file that we run in CI/CD. As part of this, we can either just log the results OR set up some criteria to determine if it passes or not. For example, if I wanted to ensure that we always got at least 80% of generated responses passing the `length` check, we could set that up with a test like:
+既然我们已经以一次性方式运行了它，我们可以将其设置为以自动化方式运行。我们可以通过将其作为 pytest 文件包含在 CI/CD 中运行来轻松实现这一点。作为其中的一部分，我们可以只记录结果，或者设置一些标准来确定它是否通过。例如，如果我想确保我们始终有至少 80% 的生成响应通过 `length` 检查，我们可以使用如下测试来设置：
 
 ```python
 def test_length_score() -> None:
-    """Test that the length score is at least 80%."""
+    """测试长度分数至少为 80%。"""
     experiment_results = evaluate(
-        ls_target, # Your AI system
-        data=dataset_name, # The data to predict and grade over
-        evaluators=[concision, correctness], # The evaluators to score the results
+        ls_target, # 您的 AI 系统
+        data=dataset_name, # 要预测和评分的数据
+        evaluators=[concision, correctness], # 用于对结果评分的评估器
     )
-    # This will be cleaned up in the next release:
+    # 这将在下一个版本中清理：
     feedback = client.list_feedback(
         run_ids=[r.id for r in client.list_runs(project_name=experiment_results.experiment_name)],
         feedback_key="concision"
     )
     scores = [f.score for f in feedback]
-    assert sum(scores) / len(scores) >= 0.8, "Aggregate score should be at least .8"
+    assert sum(scores) / len(scores) >= 0.8, "聚合分数应至少为 .8"
 ```
 
-## Track results over time
+## 随时间跟踪结果
 
-Now that we've got these experiments running in an automated fashion, we want to track these results over time. We can do this from the overall `Experiments` tab in the datasets page. By default, we show evaluation metrics over time (highlighted in red). We also automatically track git metrics, to easily associate it with the branch of your code (highlighted in yellow).
+现在我们已经以自动化方式运行了这些实验，我们希望随时间跟踪这些结果。我们可以从数据集页面的总体 `Experiments` 选项卡中执行此操作。默认情况下，我们显示随时间变化的评估指标（以红色突出显示）。我们还自动跟踪 git 指标，以便轻松将其与代码分支关联（以黄色突出显示）。
 
-![Testing tutorial over time](/langsmith/images/testing-tutorial-over-time.png)
+![测试教程随时间变化](/langsmith/images/testing-tutorial-over-time.png)
 
-## Conclusion
+## 结论
 
-That's it for this tutorial!
+本教程到此结束！
 
-We've gone over how to create an initial test set, define some evaluation metrics, run experiments, compare them manually, set up CI/CD, and track results over time. This can help you iterate with confidence.
+我们已经介绍了如何创建初始测试集、定义一些评估指标、运行实验、手动比较它们、设置 CI/CD 以及随时间跟踪结果。这可以帮助您充满信心地进行迭代。
 
-This is just the start. As mentioned earlier, evaluation is an ongoing process. For example - the datapoints you will want to evaluate on will likely continue to change over time. There are many types of evaluators you may wish to explore. For information on this, check out the [how-to guides](/langsmith/evaluation).
+这只是开始。如前所述，评估是一个持续的过程。例如——您想要评估的数据点可能会随时间继续变化。有许多类型的评估器您可能希望探索。有关此信息，请查看[操作指南](/langsmith/evaluation)。
 
-Additionally, there are other ways to evaluate data besides in this "offline" manner (e.g. you can evaluate production data). For more information on online evaluation, check out [Set up LLM-as-a-judge online evaluators](/langsmith/online-evaluations-llm-as-judge).
+此外，除了这种“离线”方式，还有其他评估数据的方法（例如，您可以评估生产数据）。有关在线评估的更多信息，请查看[设置 LLM 作为评判者的在线评估器](/langsmith/online-evaluations-llm-as-judge)。
 
-## Reference code
+## 参考代码
 
-<Accordion title="Click to see a consolidated code snippet">
+<Accordion title="点击查看合并的代码片段">
 ```python
 import openai
 from langsmith import Client, wrappers
 
-# Application code
+# 应用程序代码
 openai_client = wrappers.wrap_openai(openai.OpenAI())
 
 default_instructions = "Respond to the users question in a short, concise manner (one short sentence)."
@@ -303,7 +303,7 @@ def my_app(question: str, model: str = "gpt-5.4-mini", instructions: str = defau
 
 client = Client()
 
-# Define dataset: these are your test cases
+# 定义数据集：这些是您的测试用例
 dataset_name = "QA Example Dataset"
 dataset = client.create_dataset(dataset_name)
 
@@ -333,7 +333,7 @@ client.create_examples(
     ]
 )
 
-# Define evaluators
+# 定义评估器
 eval_instructions = "You are an expert professor specialized in grading students' answers to questions."
 
 def correctness(inputs: dict, outputs: dict, reference_outputs: dict) -> bool:
@@ -358,15 +358,15 @@ Grade:"""
 def concision(outputs: dict, reference_outputs: dict) -> bool:
     return int(len(outputs["response"]) < 2 * len(reference_outputs["answer"]))
 
-# Run evaluations
+# 运行评估
 def ls_target(inputs: str) -> dict:
     return {"response": my_app(inputs["question"])}
 
 experiment_results_v1 = client.evaluate(
-    ls_target, # Your AI system
-    data=dataset_name, # The data to predict and grade over
-    evaluators=[concision, correctness], # The evaluators to score the results
-    experiment_prefix="openai-4o-mini", # A prefix for your experiment names to easily identify them
+    ls_target, # 您的 AI 系统
+    data=dataset_name, # 要预测和评分的数据
+    evaluators=[concision, correctness], # 用于对结果评分的评估器
+    experiment_prefix="openai-4o-mini", # 实验名称的前缀，以便轻松识别
 )
 
 def ls_target_v2(inputs: str) -> dict:
@@ -402,9 +402,9 @@ experiment_results_v3 = client.evaluate(
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [连接这些文档](/use-these-docs) 到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/evaluate-chatbot-tutorial.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/evaluate-chatbot-tutorial.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

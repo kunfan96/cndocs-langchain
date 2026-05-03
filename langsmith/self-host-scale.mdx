@@ -1,98 +1,97 @@
 ---
-title: Configure LangSmith for scale
-sidebarTitle: Configure for scale
+title: 为扩展配置 LangSmith
+sidebarTitle: 为扩展配置
 ---
 
 <Warning>
-The scaling guidance and example configurations on this page apply to **LangSmith version v0.13.0 or higher**.
+本页面上的扩展指南和示例配置适用于 **LangSmith 版本 v0.13.0 或更高版本**。
 </Warning>
 
-A self-hosted LangSmith instance can handle a large number of traces and users. The default configuration for the self-hosted deployment can handle substantial load, and you can configure your deployment to be able to achieve higher scale. This page describes scaling considerations and provides some examples to help configure your self-hosted instance.
+自托管的 LangSmith 实例可以处理大量的追踪和用户。自托管部署的默认配置可以处理相当大的负载，并且您可以配置您的部署以实现更高的扩展性。本页面描述了扩展注意事项，并提供了一些示例来帮助您配置自托管实例。
 
-For example configurations, refer to [Example LangSmith configurations for scale](#example-langsmith-configurations-for-scale).
+有关示例配置，请参阅 [扩展的 LangSmith 配置示例](#example-langsmith-configurations-for-scale)。
 
-## Summary
+## 概述
 
-The table below provides an overview comparing different LangSmith configurations for various load patterns (reads / writes):
+下表概述了针对不同负载模式（读取/写入）的不同 LangSmith 配置比较：
 
-|  | **[Low / low](#low-reads-low-writes)** | **[Low / high](#low-reads-high-writes)** | **[High / low](#high-reads-low-writes)** | [Medium / medium](#medium-reads-medium-writes) | [High / high](#high-reads-high-writes) |
+|  | **[低/低](#low-reads-low-writes)** | **[低/高](#low-reads-high-writes)** | **[高/低](#high-reads-low-writes)** | [中/中](#medium-reads-medium-writes) | [高/高](#high-reads-high-writes) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| <Tooltip tip="Number of users actively viewing traces on the frontend">Concurrent frontend users</Tooltip> | 5 | 5 | 50 | 20 | 50 |
-| <Tooltip tip="Number of traces being ingested via SDKs or API endpoints">Traces submitted per second</Tooltip> | 10 | 1000 | 10 | 100 | 1000 |
-| **Frontend replicas**<br />(500m CPU, 1Gi per replica) | 1 (default) | 4 | 2 | 2 | 4 |
-| **Platform backend replicas**<br />(1 CPU, 2Gi per replica) | 3 (default) | 20 | 3 (default) | 3 (default) | 20 |
-| **Ingest queue replicas**<br />(1 CPU, 2Gi per replica) | 3 (default) | 24 | 3 (default) | 6 | 24 |
-| **Backend replicas**<br />(1 CPU, 2Gi per replica) | 2 (default) | 5 | 40 | 16 | 50 |
-| **Redis resources** | 8 Gi (default) | 26 Gi external | 8 Gi (default) | 13Gi external | 26 Gi external |
-| **ClickHouse resources** | 4 CPU<br />16 Gi (default) | 10 CPU<br />32Gi memory | 8 CPU<br />16 Gi per replica | 16 CPU<br />24Gi memory | 14 CPU<br />24 Gi per replica |
-| **ClickHouse setup** | Single instance | Single instance | 3-node <Tooltip tip="Recommended for high read loads to prevent degraded performance. Another option would be [managed clickhouse](/langsmith/self-host-external-clickhouse#langsmith-managed-clickhouse).">replicated cluster</Tooltip> | Single instance | 3-node <Tooltip tip="Recommended for high read loads to prevent degraded performance. Another option would be [managed clickhouse](/langsmith/self-host-external-clickhouse#langsmith-managed-clickhouse).">replicated cluster</Tooltip> |
-| <Tooltip tip="We recommend using an external instance and enabling autoexpansion for the disk to handle growing data requirements.">Postgres resources</Tooltip> | 2 CPU<br />8 GB memory<br />10 GB storage (external) | 2 CPU<br />8 GB memory<br />10 GB storage (external) | 2 CPU<br />8 GB memory<br />10 GB storage (external) | 2 CPU<br />8 GB memory<br />10 GB storage (external) | 2 CPU<br />8 GB memory<br />10 GB storage (external) |
-| **Blob storage** | Disabled | Enabled | Enabled | Enabled | Enabled |
+| <Tooltip tip="在前端主动查看追踪的用户数量">并发前端用户数</Tooltip> | 5 | 5 | 50 | 20 | 50 |
+| <Tooltip tip="通过 SDK 或 API 端点摄取的追踪数量">每秒提交的追踪数</Tooltip> | 10 | 1000 | 10 | 100 | 1000 |
+| **前端副本数**<br />（每个副本 500m CPU，1Gi） | 1（默认） | 4 | 2 | 2 | 4 |
+| **平台后端副本数**<br />（每个副本 1 CPU，2Gi） | 3（默认） | 20 | 3（默认） | 3（默认） | 20 |
+| **摄取队列副本数**<br />（每个副本 1 CPU，2Gi） | 3（默认） | 24 | 3（默认） | 6 | 24 |
+| **后端副本数**<br />（每个副本 1 CPU，2Gi） | 2（默认） | 5 | 40 | 16 | 50 |
+| **Redis 资源** | 8 Gi（默认） | 26 Gi 外部 | 8 Gi（默认） | 13Gi 外部 | 26 Gi 外部 |
+| **ClickHouse 资源** | 4 CPU<br />16 Gi（默认） | 10 CPU<br />32Gi 内存 | 8 CPU<br />每个副本 16 Gi | 16 CPU<br />24Gi 内存 | 14 CPU<br />每个副本 24 Gi |
+| **ClickHouse 设置** | 单实例 | 单实例 | 3 节点 <Tooltip tip="推荐用于高读取负载以防止性能下降。另一个选项是 [托管 ClickHouse](/langsmith/self-host-external-clickhouse#langsmith-managed-clickhouse)。">复制集群</Tooltip> | 单实例 | 3 节点 <Tooltip tip="推荐用于高读取负载以防止性能下降。另一个选项是 [托管 ClickHouse](/langsmith/self-host-external-clickhouse#langsmith-managed-clickhouse)。">复制集群</Tooltip> |
+| <Tooltip tip="我们建议使用外部实例并启用磁盘自动扩展以处理不断增长的数据需求。">Postgres 资源</Tooltip> | 2 CPU<br />8 GB 内存<br />10 GB 存储（外部） | 2 CPU<br />8 GB 内存<br />10 GB 存储（外部） | 2 CPU<br />8 GB 内存<br />10 GB 存储（外部） | 2 CPU<br />8 GB 内存<br />10 GB 存储（外部） | 2 CPU<br />8 GB 内存<br />10 GB 存储（外部） |
+| **Blob 存储** | 已禁用 | 已启用 | 已启用 | 已启用 | 已启用 |
 
+下面我们将更详细地介绍读取和写入路径，并提供一个 `values.yaml` 代码片段，供您开始配置自托管 LangSmith 实例。
 
-Below we go into more details about the read and write paths as well as provide a `values.yaml` snippet for you to start with for your self-hosted LangSmith instance.
+## 追踪摄取（写入路径）
 
-## Trace ingestion (write path)
+给写入路径带来负载的常见用法：
 
-Common usage that put load on the write path:
+- 通过 Python 或 JavaScript LangSmith SDK 摄取追踪
+- 通过 `@traceable` 包装器摄取追踪
+- 通过 `/runs/multipart` 端点提交追踪
 
-- Ingesting traces via the Python or JavaScript LangSmith SDK
-- Ingesting traces via the `@traceable` wrapper
-- Submitting traces via the `/runs/multipart` endpoint
+在追踪摄取中起重要作用的服务：
 
-Services that play a large role in trace ingestion:
+- 平台后端服务：接收摄取追踪的初始请求，并将追踪放入 Redis 队列
+- Redis 缓存：用于排队需要持久化的追踪
+- 摄取队列服务：持久化追踪以供查询
+- ClickHouse：用于追踪的持久化存储
 
-- Platform backend service: Receives initial request to ingest traces and places traces on a Redis queue
-- Redis cache: Used to queue traces that need to be persisted
-- Ingest queue service: Persists traces for querying
-- ClickHouse: Persistent storage used for traces
+在扩展写入路径（追踪摄取）时，监控上述四个服务/资源会很有帮助。以下是一些有助于提高追踪摄取性能的典型更改：
 
-When scaling up the write path (trace ingestion), it is helpful to monitor the four services/resources listed above. Here are some typical changes that can help increase performance of trace ingestion:
+- 如果 ClickHouse 接近资源限制，请为其提供更多资源（CPU 和内存）。
+- 如果摄取请求响应时间过长，请增加平台后端 Pod 的数量。
+- 如果追踪未从 Redis 中快速处理，请增加摄取队列服务 Pod 的副本数。
+- 如果您注意到当前 Redis 实例达到资源限制，请使用更大的 Redis 缓存。这也可能是摄取请求耗时较长的原因。
 
-- Give ClickHouse more resources (CPU and memory) if it is approaching resource limits.
-- Increase the number of platform-backend pods if ingest requests are taking long to respond.
-- Increase ingest queue service pod replicas if traces are not being processed from Redis fast enough.
-- Use a larger Redis cache if you notice that the current Redis instance is reaching resource limits. This could also be a reason why ingest requests take a long time.
+## 追踪查询（读取路径）
 
-## Trace querying (read path)
+给读取路径带来负载的常见用法：
 
-Common usage that puts load on the read path:
+- 前端用户查看追踪项目或单个追踪
+- 用于查询追踪信息的脚本
+- 访问 `/runs/query` 或 `/runs/<run-id>` API 端点
 
-- Users on the frontend looking at tracing projects or individual traces
-- Scripts used to query for trace info
-- Hitting either the `/runs/query` or `/runs/<run-id>` api endpoints
+在追踪查询中起重要作用的服务：
 
-Services that play a large role in querying traces:
+- 后端服务：接收请求并向 ClickHouse 提交查询，然后响应请求
+- ClickHouse：追踪的持久化存储。这是请求追踪信息时查询的主要数据库。
 
-- Backend service: Receives the request and submits a query to ClickHouse to then respond to the request
-- ClickHouse: Persistent storage for traces. This is the main database that is queried when requesting trace info.
+在扩展读取路径（追踪查询）时，监控上述两个服务/资源会很有帮助。以下是一些有助于提高追踪查询性能的典型更改：
 
-When scaling up the read path (trace querying), it is helpful to monitor the two services/resources listed above. Here are some typical changes that can help improve performance of trace querying:
+- 增加后端服务 Pod 的数量。如果后端服务 Pod 的 CPU 使用率达到 1 核，这将最具影响力。
+- 为 ClickHouse 提供更多资源（CPU 或内存）。ClickHouse 可能非常消耗资源，但这应该会带来更好的性能。
+- 迁移到 [复制 ClickHouse 集群](/langsmith/self-host-external-clickhouse#ha-replicated-clickhouse-cluster)。添加 ClickHouse 副本有助于提高读取性能，但我们建议副本数不超过 5 个（从 3 个开始）。
 
-- Increase the number of backend service pods. This would be most impactful if backend service pods are reaching 1 core CPU usage.
-- Give ClickHouse more resources (CPU or Memory). ClickHouse can be very resource intensive, but it should lead to better performance.
-- Move to a [replicated ClickHouse cluster](/langsmith/self-host-external-clickhouse#ha-replicated-clickhouse-cluster). Adding replicas of ClickHouse helps with read performance, but we recommend staying below 5 replicas (start with 3).
+有关这如何转化为 Helm chart 值的更精确指导，请参阅以下[部分](#example-langsmith-configurations-for-scale)中的示例。如果您不确定为什么您的 LangSmith 实例无法处理某种负载模式，请联系 LangChain 团队。
 
-For more precise guidance on how this translates to helm chart values, refer to the examples the following [section](#example-langsmith-configurations-for-scale). If you are unsure why your LangSmith instance cannot handle a certain load pattern, contact the LangChain team.
-
-## KEDA autoscaling for LangSmith queues
+## LangSmith 队列的 KEDA 自动扩展
 
 <Note>
-Available in LangSmith v0.13.0 and later.
+在 LangSmith v0.13.0 及更高版本中可用。
 </Note>
 
-We highly recommend installing [KEDA](https://keda.sh/) (Kubernetes Event-driven Autoscaling) on your cluster. KEDA enables the `queue` and `ingest-queue` services to scale automatically based on their queue backlog size, as well as CPU and memory. This results in more efficient resource utilization and better handling of traffic spikes.
+我们强烈建议在您的集群上安装 [KEDA](https://keda.sh/)（Kubernetes 事件驱动自动扩展）。KEDA 使 `queue` 和 `ingest-queue` 服务能够根据其队列积压大小以及 CPU 和内存自动扩展。这可以实现更高效的资源利用，并更好地处理流量高峰。
 
-### Install KEDA
+### 安装 KEDA
 
 ```bash
 helm repo add kedacore https://kedacore.github.io/charts
 helm install keda kedacore/keda --namespace keda --create-namespace
 ```
 
-### Configure KEDA autoscaling
+### 配置 KEDA 自动扩展
 
-Once KEDA is installed, you can enable KEDA-based autoscaling for the `queue` and `ingest-queue` services in your `values.yaml`:
+安装 KEDA 后，您可以在 `values.yaml` 中为 `queue` 和 `ingest-queue` 服务启用基于 KEDA 的自动扩展：
 
 ```yaml
 queue:
@@ -106,58 +105,58 @@ ingestQueue:
       enabled: true
 ```
 
-With KEDA enabled, the queue services will automatically scale up when their backlog grows and scale down when their backlog is processed. This is especially useful for handling variable trace ingestion loads without over-provisioning resources.
+启用 KEDA 后，队列服务将在其积压增长时自动扩展，并在积压被处理时自动缩减。这对于处理可变的追踪摄取负载而无需过度配置资源特别有用。
 
 <Note>
-You can also enable KEDA for other services (`backend`, `platformBackend`, etc) but they will still only scale with CPU and memory.
+您也可以为其他服务（`backend`、`platformBackend` 等）启用 KEDA，但它们仍然只会根据 CPU 和内存进行扩展。
 </Note>
 
-## Example LangSmith configurations for scale
+## 扩展的 LangSmith 配置示例
 
-Below we provide some example LangSmith configurations based on expected read and write loads.
+下面我们提供一些基于预期读取和写入负载的 LangSmith 配置示例。
 
-For read load (trace querying):
+对于读取负载（追踪查询）：
 
-- Low means roughly 5 users looking at traces at a time (about 10 requests per second)
-- Medium means roughly 20 users looking at traces at a time (about 40 requests per second)
-- High means roughly 50 users looking at traces at a time (about 100 requests per second)
+- 低表示大约 5 个用户同时查看追踪（大约每秒 10 个请求）
+- 中表示大约 20 个用户同时查看追踪（大约每秒 40 个请求）
+- 高表示大约 50 个用户同时查看追踪（大约每秒 100 个请求）
 
-For write load (trace ingestion):
+对于写入负载（追踪摄取）：
 
-- Low means up to 10 traces submitted per second
-- Medium means up to 100 traces submitted per second
-- High means up to 1000 traces submitted per second
+- 低表示每秒最多提交 10 条追踪
+- 中表示每秒最多提交 100 条追踪
+- 高表示每秒最多提交 1000 条追踪
 
 <Note>
-The exact optimal configuration depends on your usage and trace payloads. Use the examples below in combination with the information above and your specific usage to update your LangSmith configuration as you see fit. If you have any questions, please reach out to the LangChain team.
+确切的最佳配置取决于您的用法和追踪负载。请将以下示例与上述信息以及您的具体用法结合使用，根据需要更新您的 LangSmith 配置。如果您有任何问题，请联系 LangChain 团队。
 </Note>
 
-### Low reads, low writes <a name="low-reads-low-writes"></a>
+### 低读取，低写入 <a name="low-reads-low-writes"></a>
 
-The default LangSmith configuration will handle this load. No custom resource configuration is needed here.
+默认的 LangSmith 配置将处理此负载。此处无需自定义资源配置。
 
-### Low reads, high writes <a name="low-reads-high-writes"></a>
+### 低读取，高写入 <a name="low-reads-high-writes"></a>
 
-You have a very high scale of trace ingestions, but single digit number of users on the frontend querying traces at any one time.
+您有非常高的追踪摄取规模，但前端同时查询追踪的用户数量为个位数。
 
-For this, we recommend a configuration like this:
+为此，我们建议如下配置：
 
 ```yaml
 config:
   blobStorage:
-    # Please also set the other keys to connect to your blob storage. See configuration section.
+    # 请同时设置其他键以连接到您的 blob 存储。请参阅配置部分。
     enabled: true
   settings:
     redisRunsExpirySeconds: "3600"
 # ttl:
 #   enabled: true
 #   ttl_period_seconds:
-#     longlived: "7776000"  # 90 days (default is 400 days)
-#     shortlived: "604800"  # 7 days (default is 14 days)
+#     longlived: "7776000"  # 90 天（默认为 400 天）
+#     shortlived: "604800"  # 7 天（默认为 14 天）
 
 frontend:
   deployment:
-    replicas: 4 # OR enable autoscaling below
+    replicas: 4 # 或启用下面的自动扩展
 # autoscaling:
 #   hpa:
 #     enabled: true
@@ -166,7 +165,7 @@ frontend:
 
 platformBackend:
   deployment:
-    replicas: 20 # OR enable autoscaling below
+    replicas: 20 # 或启用下面的自动扩展
 # autoscaling:
 #   hpa:
 #     enabled: true
@@ -175,7 +174,7 @@ platformBackend:
 
 ingestQueue:
   deployment:
-    replicas: 24 # OR enable KEDA autoscaling below
+    replicas: 24 # 或启用下面的 KEDA 自动扩展
 # autoscaling:
 #   keda:
 #     enabled: true
@@ -184,25 +183,25 @@ ingestQueue:
 
 backend:
   deployment:
-    replicas: 5 # OR enable autoscaling below
+    replicas: 5 # 或启用下面的自动扩展
 # autoscaling:
 #   hpa:
 #     enabled: true
 #     minReplicas: 3
 #     maxReplicas: 5
 
-## Ensure your Redis cache is at least 26 GB for high write scale
+## 确保您的 Redis 缓存至少为 26 GB 以支持高写入规模
 redis:
   external:
     enabled: true
-    existingSecretName: langsmith-redis-secret # Set the connection url for your external Redis instance (26+ GB)
+    existingSecretName: langsmith-redis-secret # 设置外部 Redis 实例的连接 URL（26+ GB）
 
 clickhouse:
   statefulSet:
     persistence:
-      # This may depend on your configured TTL (see config section).
-      # We recommend 600Gi for every shortlived TTL day if operating at this scale constantly.
-      size: 4200Gi # This assumes 7 days TTL and operating a this scale constantly.
+      # 这可能取决于您配置的 TTL（请参阅配置部分）。
+      # 如果持续在此规模下运行，我们建议为每个短期 TTL 天配置 600Gi。
+      size: 4200Gi # 这假设 7 天 TTL 并持续在此规模下运行。
     resources:
       requests:
         cpu: "10"
@@ -216,18 +215,18 @@ commonEnv:
     value: "0"
 ```
 
-### High reads, low writes <a name="high-reads-low-writes"></a>
+### 高读取，低写入 <a name="high-reads-low-writes"></a>
 
-You have a relatively low scale of trace ingestions, but many frontend users querying traces and/or have scripts that hit the `/runs/query` or `/runs/<run-id>` endpoints frequently.
+您有相对较低的追踪摄取规模，但有许多前端用户查询追踪和/或有脚本频繁访问 `/runs/query` 或 `/runs/<run-id>` 端点。
 
-**For this, we strongly recommend setting up a replicated ClickHouse cluster to enable high read scale at low latency.** See our [external ClickHouse doc](/langsmith/self-host-external-clickhouse#ha-replicated-clickhouse-cluster) for more guidance on how to setup a replicated ClickHouse cluster. For this load pattern, we recommend using a 3 node replicated setup, where each replica in the cluster should have resource requests of 8+ cores and 16+ GB memory, and resource limit of 12 cores and 32 GB memory.
+**为此，我们强烈建议设置复制 ClickHouse 集群，以在低延迟下实现高读取扩展。** 有关如何设置复制 ClickHouse 集群的更多指导，请参阅我们的 [外部 ClickHouse 文档](/langsmith/self-host-external-clickhouse#ha-replicated-clickhouse-cluster)。对于此负载模式，我们建议使用 3 节点复制设置，其中集群中的每个副本应具有 8+ 核和 16+ GB 内存的资源请求，以及 12 核和 32 GB 内存的资源限制。
 
-For this, we recommend a configuration like this:
+为此，我们建议如下配置：
 
 ```yaml
 config:
   blobStorage:
-    # Please also set the other keys to connect to your blob storage. See configuration section.
+    # 请同时设置其他键以连接到您的 blob 存储。请参阅配置部分。
     enabled: true
 
 frontend:
@@ -236,7 +235,7 @@ frontend:
 
 ingestQueue:
   deployment:
-    replicas: 3 # OR enable KEDA autoscaling below
+    replicas: 3 # 或启用下面的 KEDA 自动扩展
 # autoscaling:
 #   keda:
 #     enabled: true
@@ -245,18 +244,18 @@ ingestQueue:
 
 backend:
   deployment:
-    replicas: 40 # OR enable autoscaling below
+    replicas: 40 # 或启用下面的自动扩展
 # autoscaling:
 #   hpa:
 #     enabled: true
 #     minReplicas: 16
 #     maxReplicas: 40
 
-# We strongly recommend setting up a replicated clickhouse cluster for this load.
-# Update these values as needed to connect to your replicated clickhouse cluster.
+# 我们强烈建议为此负载设置复制 ClickHouse 集群。
+# 根据需要更新这些值以连接到您的复制 ClickHouse 集群。
 clickhouse:
   external:
-    # If using a 3 node replicated setup, each replica in the cluster should have resource requests of 8+ cores and 16+ GB memory, and resource limit of 12 cores and 32 GB memory.
+    # 如果使用 3 节点复制设置，集群中的每个副本应具有 8+ 核和 16+ GB 内存的资源请求，以及 12 核和 32 GB 内存的资源限制。
     enabled: true
     host: langsmith-ch-clickhouse-replicated.default.svc.cluster.local
     port: "8123"
@@ -267,16 +266,16 @@ clickhouse:
     cluster: "replicated"
 ```
 
-### Medium reads, medium writes <a name="medium-reads-medium-writes"></a>
+### 中读取，中写入 <a name="medium-reads-medium-writes"></a>
 
-This is a good all around configuration that should be able to handle most usage patterns of LangSmith. In internal testing, this configuration allowed us to scale to 100 traces ingested per second and 40 read requests per second.
+这是一个很好的通用配置，应该能够处理 LangSmith 的大多数使用模式。在内部测试中，此配置允许我们扩展到每秒摄取 100 条追踪和每秒 40 个读取请求。
 
-For this, we recommend a configuration like this:
+为此，我们建议如下配置：
 
 ```yaml
 config:
   blobStorage:
-    # Please also set the other keys to connect to your blob storage. See configuration section.
+    # 请同时设置其他键以连接到您的 blob 存储。请参阅配置部分。
     enabled: true
   settings:
     redisRunsExpirySeconds: "3600"
@@ -287,7 +286,7 @@ frontend:
 
 ingestQueue:
   deployment:
-    replicas: 6 # OR enable KEDA autoscaling below
+    replicas: 6 # 或启用下面的 KEDA 自动扩展
 # autoscaling:
 #   keda:
 #     enabled: true
@@ -296,7 +295,7 @@ ingestQueue:
 
 backend:
   deployment:
-    replicas: 16 # OR enable autoscaling below
+    replicas: 16 # 或启用下面的自动扩展
 # autoscaling:
 #   hpa:
 #     enabled: true
@@ -311,17 +310,17 @@ redis:
       limits:
         memory: 13Gi
 
-  # -- For external redis instead use something like below --
+  # -- 对于外部 Redis，请使用类似以下内容 --
   # external:
   #   enabled: true
-  #   connectionUrl: "<URL>" OR existingSecretName: "<SECRET-NAME>"
+  #   connectionUrl: "<URL>" 或 existingSecretName: "<SECRET-NAME>"
 
 clickhouse:
   statefulSet:
     persistence:
-      # This may depend on your configured TTL.
-      # We recommend 60Gi for every shortlived TTL day if operating at this scale constantly.
-      size: 420Gi # This assumes 7 days TTL and operating a this scale constantly.
+      # 这可能取决于您配置的 TTL。
+      # 如果持续在此规模下运行，我们建议为每个短期 TTL 天配置 60Gi。
+      size: 420Gi # 这假设 7 天 TTL 并持续在此规模下运行。
     resources:
       requests:
         cpu: "16"
@@ -336,33 +335,33 @@ commonEnv:
 ```
 
 <Warning>
-If you still notice slow reads with the above configuration, we recommend moving to a [replicated Clickhouse cluster setup](/langsmith/self-host-external-clickhouse#ha-replicated-clickhouse-cluster)
+如果您使用上述配置仍然注意到读取缓慢，我们建议迁移到 [复制 ClickHouse 集群设置](/langsmith/self-host-external-clickhouse#ha-replicated-clickhouse-cluster)。
 </Warning>
 
-### High reads, high writes <a name="high-reads-high-writes"></a>
+### 高读取，高写入 <a name="high-reads-high-writes"></a>
 
-You have a very high rate of trace ingestion (approaching 1000 traces submitted per second) and also have many users querying traces on the frontend (over 50 users) and/or scripts that are consistently making requests to `/runs/query` or `/runs/<run-id>` endpoints.
+您有非常高的追踪摄取速率（接近每秒提交 1000 条追踪），并且有许多用户在前端查询追踪（超过 50 个用户）和/或脚本持续向 `/runs/query` 或 `/runs/<run-id>` 端点发出请求。
 
-**For this, we very strongly recommend setting up a replicated ClickHouse cluster to prevent degraded read performance at high write scale.** See our [external ClickHouse doc](/langsmith/self-host-external-clickhouse#ha-replicated-clickhouse-cluster) for more guidance on how to set up a replicated ClickHouse cluster. For this load pattern, we recommend using a 3 node replicated setup, where each replica in the cluster should have resource requests of 14+ cores and 24+ GB memory, and resource limit of 20 cores and 48 GB memory. We also recommend that each node/instance of ClickHouse has 600 Gi of volume storage for each day of TTL that you enable (as per the configuration below).
+**为此，我们非常强烈建议设置复制 ClickHouse 集群，以防止在高写入规模下读取性能下降。** 有关如何设置复制 ClickHouse 集群的更多指导，请参阅我们的 [外部 ClickHouse 文档](/langsmith/self-host-external-clickhouse#ha-replicated-clickhouse-cluster)。对于此负载模式，我们建议使用 3 节点复制设置，其中集群中的每个副本应具有 14+ 核和 24+ GB 内存的资源请求，以及 20 核和 48 GB 内存的资源限制。我们还建议 ClickHouse 的每个节点/实例为每个启用的 TTL 天配置 600 Gi 的卷存储（根据以下配置）。
 
-Overall, we recommend a configuration like this:
+总体而言，我们建议如下配置：
 
 ```yaml
 config:
   blobStorage:
-    # Please also set the other keys to connect to your blob storage. See configuration section.
+    # 请同时设置其他键以连接到您的 blob 存储。请参阅配置部分。
     enabled: true
   settings:
     redisRunsExpirySeconds: "3600"
 # ttl:
 #   enabled: true
 #   ttl_period_seconds:
-#     longlived: "7776000"  # 90 days (default is 400 days)
-#     shortlived: "604800"  # 7 days (default is 14 days)
+#     longlived: "7776000"  # 90 天（默认为 400 天）
+#     shortlived: "604800"  # 7 天（默认为 14 天）
 
 frontend:
   deployment:
-    replicas: 4 # OR enable autoscaling below
+    replicas: 4 # 或启用下面的自动扩展
 # autoscaling:
 #   hpa:
 #     enabled: true
@@ -371,7 +370,7 @@ frontend:
 
 platformBackend:
   deployment:
-    replicas: 20 # OR enable autoscaling below
+    replicas: 20 # 或启用下面的自动扩展
 # autoscaling:
 #   hpa:
 #     enabled: true
@@ -380,7 +379,7 @@ platformBackend:
 
 ingestQueue:
   deployment:
-    replicas: 24 # OR enable KEDA autoscaling below
+    replicas: 24 # 或启用下面的 KEDA 自动扩展
 # autoscaling:
 #   keda:
 #     enabled: true
@@ -389,24 +388,24 @@ ingestQueue:
 
 backend:
   deployment:
-    replicas: 50 # OR enable autoscaling below
+    replicas: 50 # 或启用下面的自动扩展
 # autoscaling:
 #   hpa:
 #     enabled: true
 #     minReplicas: 20
 #     maxReplicas: 50
 
-## Ensure your Redis cache is at least 26 GB for high write scale
+## 确保您的 Redis 缓存至少为 26 GB 以支持高写入规模
 redis:
   external:
     enabled: true
-    existingSecretName: langsmith-redis-secret # Set the connection url for your external Redis instance (26+ GB)
+    existingSecretName: langsmith-redis-secret # 设置外部 Redis 实例的连接 URL（26+ GB）
 
-# We strongly recommend setting up a replicated clickhouse cluster for this load.
-# Update these values as needed to connect to your replicated clickhouse cluster.
+# 我们强烈建议为此负载设置复制 ClickHouse 集群。
+# 根据需要更新这些值以连接到您的复制 ClickHouse 集群。
 clickhouse:
   external:
-    # If using a 3 node replicated setup, each replica in the cluster should have resource requests of 14+ cores and 24+ GB memory, and resource limit of 20 cores and 48 GB memory.
+    # 如果使用 3 节点复制设置，集群中的每个副本应具有 14+ 核和 24+ GB 内存的资源请求，以及 20 核和 48 GB 内存的资源限制。
     enabled: true
     host: langsmith-ch-clickhouse-replicated.default.svc.cluster.local
     port: "8123"
@@ -422,18 +421,18 @@ commonEnv:
 ```
 
 <Note>
-Ensure that the Kubernetes cluster is configured with sufficient resources to scale to the recommended size. After deployment, all of the pods in the Kubernetes cluster should be in a `Running` state. Pods stuck in `Pending` may indicate that you are reaching node pool limits or need larger nodes.
+确保 Kubernetes 集群配置了足够的资源以扩展到推荐的大小。部署后，Kubernetes 集群中的所有 Pod 都应处于 `Running` 状态。卡在 `Pending` 状态的 Pod 可能表明您已达到节点池限制或需要更大的节点。
 
-Also, ensure that any ingress controller deployed on the cluster is able to handle the desired load to prevent bottlenecks.
+此外，确保集群上部署的任何入口控制器能够处理所需的负载，以防止瓶颈。
 </Note>
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档](/use-these-docs)通过 MCP 连接到 Claude、VSCode 等，以获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/self-host-scale.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/self-host-scale.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

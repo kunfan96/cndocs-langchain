@@ -1,56 +1,56 @@
 ---
-title: Enable blob storage
-sidebarTitle: Enable blob storage
+title: 启用 Blob 存储
+sidebarTitle: 启用 Blob 存储
 ---
 
-By default, LangSmith stores run inputs, outputs, errors, manifests, extras, and events in ClickHouse. If you so choose, you can instead store this information in blob storage, which has a couple of notable benefits. For the best results in production deployments, we **strongly** recommend using blob storage, which offers the following benefits:
+默认情况下，LangSmith 将运行输入、输出、错误、清单、附加信息和事件存储在 ClickHouse 中。如果您愿意，也可以将这些信息存储在 Blob 存储中，这有几个显著的好处。为了在生产部署中获得最佳效果，我们**强烈**建议使用 Blob 存储，它提供以下好处：
 
-1. In high trace environments, inputs, outputs, errors, manifests, extras, and events may balloon the size of your databases.
-2. If using LangSmith Managed ClickHouse, you may want sensitive information in blob storage that resides in your environment. To alleviate this, LangSmith supports storing run inputs, outputs, errors, manifests, extras, events, and attachments in an external blob storage system.
+1. 在高追踪环境中，输入、输出、错误、清单、附加信息和事件可能会使数据库大小急剧膨胀。
+2. 如果使用 LangSmith 托管的 ClickHouse，您可能希望将敏感信息存储在您环境中的 Blob 存储中。为了解决这个问题，LangSmith 支持将运行输入、输出、错误、清单、附加信息、事件和附件存储在外部 Blob 存储系统中。
 
 <Tip>
-**For cloud-specific setup**, choose your platform:
+**对于特定云平台的设置**，请选择您的平台：
 - [Amazon S3 (AWS)](#amazon-s3)
 - [Google Cloud Storage (GCP)](#google-cloud-storage)
 - [Azure Blob Storage](#azure-blob-storage)
 
-For complete cloud-specific setup and architecture guides, see [AWS](/langsmith/aws-self-hosted), [GCP](/langsmith/gcp-self-hosted), or [Azure](/langsmith/azure-self-hosted).
+有关完整的特定云平台设置和架构指南，请参阅 [AWS](/langsmith/aws-self-hosted)、[GCP](/langsmith/gcp-self-hosted) 或 [Azure](/langsmith/azure-self-hosted)。
 </Tip>
 
-## Requirements
+## 要求
 
 <Note>
-Azure blob storage is available in Helm chart versions 0.8.9 and greater. [Deleting trace projects](/langsmith/observability-concepts#data-retention) is supported in Azure starting in Helm chart version 0.10.43.
+Azure Blob 存储在 Helm chart 版本 0.8.9 及更高版本中可用。从 Helm chart 版本 0.10.43 开始，Azure 支持[删除追踪项目](/langsmith/observability-concepts#data-retention)。
 
-Native GCS blob storage engine support (using `engine: "GCS"`) is available in Helm chart versions 0.13.29 and greater. For earlier versions, GCS is supported via the S3-compatible API by setting `engine: "S3"` with HMAC credentials.
+原生 GCS Blob 存储引擎支持（使用 `engine: "GCS"`）在 Helm chart 版本 0.13.29 及更高版本中可用。对于早期版本，GCS 通过设置 `engine: "S3"` 并使用 HMAC 凭据，通过 S3 兼容 API 进行支持。
 </Note>
 
-* Access to a valid blob storage service
+* 访问有效的 Blob 存储服务
 
   * [Amazon S3](https://aws.amazon.com/s3/)
     * [Google Cloud Storage (GCS)](https://cloud.google.com/storage?hl=en)
   * [Azure Blob Storage](https://azure.microsoft.com/en-us/products/storage/blobs)
 
-* A bucket/directory in your blob storage to store the data. We highly recommend creating a separate bucket/directory for LangSmith data.
-  * **If you are using TTLs**, you will need to set up a lifecycle policy to delete old data. For more information, see [configuring TTLs](/langsmith/self-host-ttl). These policies should mirror the TTLs you have set in your LangSmith configuration, or you may experience data loss. See [TTL configuration for blob storage](#ttl-configuration) for how to set up the lifecycle rules.
+* 您的 Blob 存储中的一个存储桶/目录，用于存储数据。我们强烈建议为 LangSmith 数据创建一个单独的存储桶/目录。
+  * **如果您使用 TTL**，您需要设置生命周期策略来删除旧数据。有关更多信息，请参阅[配置 TTL](/langsmith/self-host-ttl)。这些策略应与您在 LangSmith 配置中设置的 TTL 保持一致，否则可能会导致数据丢失。有关如何设置生命周期规则，请参阅 [Blob 存储的 TTL 配置](#ttl-configuration)。
 
-* Credentials to permit LangSmith Services to access the bucket/directory
-  * You will need to provide your LangSmith instance with the necessary credentials to access the bucket/directory. Read the authentication [section](#authentication) below for more information.
+* 允许 LangSmith 服务访问存储桶/目录的凭据
+  * 您需要向您的 LangSmith 实例提供访问存储桶/目录所需的凭据。有关更多信息，请阅读下面的[身份验证](#authentication)部分。
 
-* If using S3 or GCS, an API URL for your blob storage service
+* 如果使用 S3 或 GCS，您的 Blob 存储服务的 API URL
 
-  * This will be the URL that LangSmith uses to access your blob storage system
-  * For Amazon S3, this will be the URL of the S3 endpoint. Something like: `https://s3.amazonaws.com` or `https://s3.us-west-1.amazonaws.com` if using a regional endpoint.
-  * For Google Cloud Storage, this will be the URL of the GCS endpoint. Something like: `https://storage.googleapis.com`
+  * 这将是 LangSmith 用于访问您的 Blob 存储系统的 URL
+  * 对于 Amazon S3，这将是 S3 端点的 URL。类似于：`https://s3.amazonaws.com` 或 `https://s3.us-west-1.amazonaws.com`（如果使用区域端点）。
+  * 对于 Google Cloud Storage，这将是 GCS 端点的 URL。类似于：`https://storage.googleapis.com`
 
-## Authentication
+## 身份验证
 
 <Tabs>
   <Tab title="AWS">
 
 ### Amazon S3
 
-To authenticate to [Amazon S3](https://aws.amazon.com/s3/), you will need to create an IAM policy granting the following permissions on your bucket.
+要向 [Amazon S3](https://aws.amazon.com/s3/) 进行身份验证，您需要创建一个 IAM 策略，授予对您的存储桶的以下权限。
 
 ```json
 {
@@ -73,26 +73,26 @@ To authenticate to [Amazon S3](https://aws.amazon.com/s3/), you will need to cre
 }
 ```
 
-Once you have the correct policy, there are three ways to authenticate with Amazon S3:
+一旦您有了正确的策略，有三种方式可以向 Amazon S3 进行身份验证：
 
-1. [IAM Roles for Service Accounts (IRSA)](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html) (Recommended): You can create an IAM role for your LangSmith instance and attach the policy to that role. This is the recommended way to authenticate with Amazon S3 in production.
-    1. You will need to create an IAM role with the policy attached.
-    1. You will need to allow LangSmith service accounts to assume the role. The `langsmith-queue`, `langsmith-backend`, `langsmith-platform-backend`, and `langsmith-ingest-queue` service accounts will need to be able to assume the role.
+1. [服务账户的 IAM 角色 (IRSA)](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html)（推荐）：您可以为您的 LangSmith 实例创建一个 IAM 角色，并将策略附加到该角色。这是在生产环境中向 Amazon S3 进行身份验证的推荐方式。
+    1. 您需要创建一个附加了策略的 IAM 角色。
+    1. 您需要允许 LangSmith 服务账户承担该角色。`langsmith-queue`、`langsmith-backend`、`langsmith-platform-backend` 和 `langsmith-ingest-queue` 服务账户需要能够承担该角色。
         <Warning>
-        The service account names will be different if you are using a custom release name. You can find the service account names by running `kubectl get serviceaccounts` in your cluster.
+        如果您使用自定义发布名称，服务账户名称会有所不同。您可以通过在集群中运行 `kubectl get serviceaccounts` 来找到服务账户名称。
         </Warning>
-    1. You will need to provide the role ARN to LangSmith. You can do this by adding the `eks.amazonaws.com/role-arn: "<role_arn>"` annotation to the `queue`, `backend`, `platform-backend`, and `ingest-queue` services in your Helm Chart installation.
+    1. 您需要将角色 ARN 提供给 LangSmith。您可以通过在 Helm Chart 安装中为 `queue`、`backend`、`platform-backend` 和 `ingest-queue` 服务添加 `eks.amazonaws.com/role-arn: "<role_arn>"` 注解来实现。
 
-2. [Access Key and Secret Key](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html): You can provide LangSmith with an access key and secret key. This is the simplest way to authenticate with Amazon S3. However, it is not recommended for production use as it is less secure.
-    1. You will need to create a user with the policy attached. Then you can provision an access key and secret key for that user.
+2. [访问密钥和密钥](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html)：您可以向 LangSmith 提供访问密钥和密钥。这是向 Amazon S3 进行身份验证的最简单方式。但是，由于安全性较低，不建议在生产环境中使用。
+    1. 您需要创建一个附加了策略的用户。然后您可以为该用户配置访问密钥和密钥。
 
-3. [VPC Endpoint Access](https://docs.aws.amazon.com/vpc/latest/privatelink/vpc-endpoints-s3.html): You can enable access to your S3 bucket via a VPC endpoint, which allows traffic to flow securely from your VPC to your S3 bucket.
-    1. You'll need to provision a VPC endpoint and configure it to allow access to your S3 bucket.
-    1. You can refer to our [public Terraform modules](https://github.com/langchain-ai/terraform/blob/main/modules/aws/s3/main.tf#L12) for guidance and an example of configuring this.
+3. [VPC 端点访问](https://docs.aws.amazon.com/vpc/latest/privatelink/vpc-endpoints-s3.html)：您可以通过 VPC 端点启用对 S3 存储桶的访问，这允许流量从您的 VPC 安全地流向您的 S3 存储桶。
+    1. 您需要配置一个 VPC 端点，并将其配置为允许访问您的 S3 存储桶。
+    1. 您可以参考我们的[公共 Terraform 模块](https://github.com/langchain-ai/terraform/blob/main/modules/aws/s3/main.tf#L12)以获取配置此内容的指导和示例。
 
-### KMS encryption header support
+### KMS 加密头支持
 
-Starting with LangSmith Helm chart version **0.11.24**, you can pass a KMS encryption key header and enforce a specific KMS key for writes by providing its ARN. To enable this, set the following values in your Helm chart:
+从 LangSmith Helm chart 版本 **0.11.24** 开始，您可以传递 KMS 加密密钥头，并通过提供其 ARN 来强制写入使用特定的 KMS 密钥。要启用此功能，请在 Helm chart 中设置以下值：
 
 ```yaml
 config:
@@ -106,21 +106,21 @@ config:
 
 ### Google Cloud Storage
 
-To authenticate with [Google Cloud Storage](https://cloud.google.com/storage?hl=en), you will need to create a [`service account`](https://cloud.google.com/iam/docs/service-account-overview) with the necessary permissions to access your bucket.
+要向 [Google Cloud Storage](https://cloud.google.com/storage?hl=en) 进行身份验证，您需要创建一个具有访问存储桶所需权限的 [`service account`](https://cloud.google.com/iam/docs/service-account-overview)。
 
-Your service account will need the `Storage Admin` role or a custom role with equivalent permissions. This can be scoped to the bucket that LangSmith will be using.
+您的服务账户需要 `Storage Admin` 角色或具有等效权限的自定义角色。这可以限定在 LangSmith 将要使用的存储桶范围内。
 
-Once you have a provisioned service account, you will need to generate a [`HMAC key`](https://cloud.google.com/storage/docs/authentication/hmackeys) for that service account. This key and secret will be used to authenticate with Google Cloud Storage.
+一旦您配置了服务账户，您需要为该服务账户生成一个 [`HMAC key`](https://cloud.google.com/storage/docs/authentication/hmackeys)。此密钥和密钥将用于向 Google Cloud Storage 进行身份验证。
 
 <Note>
-As of Helm chart version **0.13.29**, you can set the blob storage engine to `"GCS"` directly. This supports two authentication methods:
+从 Helm chart 版本 **0.13.29** 开始，您可以直接将 Blob 存储引擎设置为 `"GCS"`。这支持两种身份验证方法：
 
-1. **GCP Workload Identity (recommended)**: Leave `accessKey` and `accessKeySecret` empty. LangSmith will use [Application Default Credentials](https://cloud.google.com/docs/authentication/application-default-credentials). You will need to add the workload identity annotation to the `backend`, `platform-backend`, `queue`, and `ingest-queue` service accounts.
-2. **HMAC keys**: Set `accessKey` and `accessKeySecret` to your GCS [HMAC credentials](https://cloud.google.com/storage/docs/authentication/hmackeys).
+1. **GCP 工作负载身份（推荐）**：将 `accessKey` 和 `accessKeySecret` 留空。LangSmith 将使用[应用默认凭据](https://cloud.google.com/docs/authentication/application-default-credentials)。您需要将工作负载身份注解添加到 `backend`、`platform-backend`、`queue` 和 `ingest-queue` 服务账户。
+2. **HMAC 密钥**：将 `accessKey` 和 `accessKeySecret` 设置为您的 GCS [HMAC 凭据](https://cloud.google.com/storage/docs/authentication/hmackeys)。
 
-For both methods, set `apiURL` to `https://storage.googleapis.com` and `bucketName` to your GCS bucket name.
+对于这两种方法，请将 `apiURL` 设置为 `https://storage.googleapis.com`，并将 `bucketName` 设置为您的 GCS 存储桶名称。
 
-For Helm chart versions prior to 0.13.29, GCS is supported via the S3-compatible API by setting `engine: "S3"` with HMAC credentials.
+对于 0.13.29 之前的 Helm chart 版本，GCS 通过设置 `engine: "S3"` 并使用 HMAC 凭据，通过 S3 兼容 API 进行支持。
 </Note>
 
   </Tab>
@@ -128,27 +128,27 @@ For Helm chart versions prior to 0.13.29, GCS is supported via the S3-compatible
 
 ### Azure Blob Storage
 
-To authenticate with [Azure Blob Storage](https://azure.microsoft.com/en-us/products/storage/blobs), you will need to use one of the following methods to grant LangSmith workloads permission to access your [container](https://learn.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction#containers) (listed in order of precedence):
+要向 [Azure Blob Storage](https://azure.microsoft.com/en-us/products/storage/blobs) 进行身份验证，您需要使用以下方法之一授予 LangSmith 工作负载访问您的[容器](https://learn.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction#containers)的权限（按优先级列出）：
 
-1. [Storage account and access key](https://learn.microsoft.com/en-us/azure/storage/common/storage-account-keys-manage)
-2. [Connection string](https://learn.microsoft.com/en-us/azure/storage/common/storage-configure-connection-string)
-3. [Workload identity](https://azure.github.io/azure-workload-identity/docs/introduction.html) (recommended), managed identity, or environment variables supported by [`DefaultAzureCredential`](https://learn.microsoft.com/en-us/azure/developer/go/azure-sdk-authentication?tabs=bash#2-authenticate-with-azure). This is the default authentication method when configuration for either option above is not present.
-   1. To use workload identity, add the label `azure.workload.identity/use: true` to the `queue`, `backend`, `platform-backend`, and `ingest-queue` deployments. Additionally, add the `azure.workload.identity/client-id` annotation to the corresponding service accounts, which should be an existing Azure AD Application's client ID or user-assigned managed identity's client ID. See [Azure's documentation](https://azure.github.io/azure-workload-identity/docs/topics/service-account-labels-and-annotations.html) for additional details.
+1. [存储账户和访问密钥](https://learn.microsoft.com/en-us/azure/storage/common/storage-account-keys-manage)
+2. [连接字符串](https://learn.microsoft.com/en-us/azure/storage/common/storage-configure-connection-string)
+3. [工作负载身份](https://azure.github.io/azure-workload-identity/docs/introduction.html)（推荐）、托管身份或 [`DefaultAzureCredential`](https://learn.microsoft.com/en-us/azure/developer/go/azure-sdk-authentication?tabs=bash#2-authenticate-with-azure) 支持的环境变量。当上述任一选项的配置不存在时，这是默认的身份验证方法。
+   1. 要使用工作负载身份，请将标签 `azure.workload.identity/use: true` 添加到 `queue`、`backend`、`platform-backend` 和 `ingest-queue` 部署中。此外，将 `azure.workload.identity/client-id` 注解添加到相应的服务账户，该注解应为现有 Azure AD 应用程序的客户端 ID 或用户分配的托管身份的客户端 ID。有关更多详细信息，请参阅 [Azure 文档](https://azure.github.io/azure-workload-identity/docs/topics/service-account-labels-and-annotations.html)。
 
 <Note>
-Some deployments may need further customization of the connection configuration using a Service URL Override instead of the default service URL (`https://<storage_account_name>.blob.core.windows.net/`). For example, this override is necessary in order to use a different blob storage domain (e.g. government or china).
+某些部署可能需要使用服务 URL 覆盖而不是默认服务 URL（`https://<storage_account_name>.blob.core.windows.net/`）来进一步自定义连接配置。例如，要使用不同的 Blob 存储域（例如政府或中国），此覆盖是必需的。
 </Note>
 
   </Tab>
 </Tabs>
 
-## CH search
+## CH 搜索
 
-By default, LangSmith will still store tokens for search in ClickHouse. If you are using LangSmith Managed Clickhouse, you may want to disable this feature to avoid sending potentially sensitive information to ClickHouse. You can do this in your blob storage configuration.
+默认情况下，LangSmith 仍会将搜索令牌存储在 ClickHouse 中。如果您使用 LangSmith 托管的 Clickhouse，您可能希望禁用此功能，以避免将潜在敏感信息发送到 ClickHouse。您可以在 Blob 存储配置中执行此操作。
 
-## Configuration
+## 配置
 
-After creating your bucket and obtaining the necessary credentials, you can configure LangSmith to use your blob storage system.
+创建存储桶并获取必要的凭据后，您可以配置 LangSmith 以使用您的 Blob 存储系统。
 
 <CodeGroup>
 
@@ -156,101 +156,101 @@ After creating your bucket and obtaining the necessary credentials, you can conf
 config:
   blobStorage:
     enabled: true
-    engine: "S3" # Or "GCS" or "Azure". This is case-sensitive.
-    chSearchEnabled: true # Set to false if you want to disable CH search (Recommended for LangSmith Managed Clickhouse)
+    engine: "S3" # 或 "GCS" 或 "Azure"。区分大小写。
+    chSearchEnabled: true # 如果您想禁用 CH 搜索，请设置为 false（推荐用于 LangSmith 托管的 Clickhouse）
     bucketName: "your-bucket-name"
     apiURL: "Your connection url"
-    accessKey: "Your access key" # Optional. Only required if using S3 access key and secret key
-    accessKeySecret: "Your access key secret" # Optional. Only required if using access key and secret key
-    # The following blob storage configuration values are for Azure and require blobStorage.engine = "Azure". Omit otherwise.
-    azureStorageAccountName: "Your storage account name" # Optional. Only required if using storage account and access key.
-    azureStorageAccountKey: "Your storage account access key" # Optional. Only required if using storage account and access key.
-    azureStorageContainerName: "your-container-name" # Required
-    azureStorageConnectionString: "" # Optional.
-    azureStorageServiceUrlOverride: "" # Optional
-  backend: # Optional, only required if using IAM role for service account on AWS, workload identity on GKE, or workload identity on AKS
-    deployment: # Azure only
+    accessKey: "Your access key" # 可选。仅在使用 S3 访问密钥和密钥时需要
+    accessKeySecret: "Your access key secret" # 可选。仅在使用访问密钥和密钥时需要
+    # 以下 Blob 存储配置值适用于 Azure，需要 blobStorage.engine = "Azure"。否则请省略。
+    azureStorageAccountName: "Your storage account name" # 可选。仅在使用存储账户和访问密钥时需要。
+    azureStorageAccountKey: "Your storage account access key" # 可选。仅在使用存储账户和访问密钥时需要。
+    azureStorageContainerName: "your-container-name" # 必需
+    azureStorageConnectionString: "" # 可选。
+    azureStorageServiceUrlOverride: "" # 可选
+  backend: # 可选，仅在 AWS 上使用服务账户的 IAM 角色、GKE 上的工作负载身份或 AKS 上的工作负载身份时需要
+    deployment: # 仅限 Azure
       labels:
         azure.workload.identity/use: true
     serviceAccount:
       annotations:
-        azure.workload.identity/client-id: "<client_id>" # Azure only
-        eks.amazonaws.com/role-arn: "<role_arn>" # AWS only
-        iam.gke.io/gcp-service-account: "<gsa_name>@<project_id>.iam.gserviceaccount.com" # GCP only
-  platformBackend: # Optional, only required if using IAM role for service account on AWS, workload identity on GKE, or workload identity on AKS
-    deployment: # Azure only
+        azure.workload.identity/client-id: "<client_id>" # 仅限 Azure
+        eks.amazonaws.com/role-arn: "<role_arn>" # 仅限 AWS
+        iam.gke.io/gcp-service-account: "<gsa_name>@<project_id>.iam.gserviceaccount.com" # 仅限 GCP
+  platformBackend: # 可选，仅在 AWS 上使用服务账户的 IAM 角色、GKE 上的工作负载身份或 AKS 上的工作负载身份时需要
+    deployment: # 仅限 Azure
       labels:
         azure.workload.identity/use: true
     serviceAccount:
       annotations:
-        azure.workload.identity/client-id: "<client_id>" # Azure only
-        eks.amazonaws.com/role-arn: "<role_arn>" # AWS only
-        iam.gke.io/gcp-service-account: "<gsa_name>@<project_id>.iam.gserviceaccount.com" # GCP only
-  queue: # Optional, only required if using IAM role for service account on AWS, workload identity on GKE, or workload identity on AKS
-    deployment: # Azure only
+        azure.workload.identity/client-id: "<client_id>" # 仅限 Azure
+        eks.amazonaws.com/role-arn: "<role_arn>" # 仅限 AWS
+        iam.gke.io/gcp-service-account: "<gsa_name>@<project_id>.iam.gserviceaccount.com" # 仅限 GCP
+  queue: # 可选，仅在 AWS 上使用服务账户的 IAM 角色、GKE 上的工作负载身份或 AKS 上的工作负载身份时需要
+    deployment: # 仅限 Azure
       labels:
         azure.workload.identity/use: true
     serviceAccount:
       annotations:
-        azure.workload.identity/client-id: "<client_id>" # Azure only
-        eks.amazonaws.com/role-arn: "<role_arn>" # AWS only
-        iam.gke.io/gcp-service-account: "<gsa_name>@<project_id>.iam.gserviceaccount.com" # GCP only
-  ingestQueue: # Optional, only required if using IAM role for service account on AWS, workload identity on GKE, or workload identity on AKS
-    deployment: # Azure only
+        azure.workload.identity/client-id: "<client_id>" # 仅限 Azure
+        eks.amazonaws.com/role-arn: "<role_arn>" # 仅限 AWS
+        iam.gke.io/gcp-service-account: "<gsa_name>@<project_id>.iam.gserviceaccount.com" # 仅限 GCP
+  ingestQueue: # 可选，仅在 AWS 上使用服务账户的 IAM 角色、GKE 上的工作负载身份或 AKS 上的工作负载身份时需要
+    deployment: # 仅限 Azure
       labels:
         azure.workload.identity/use: true
     serviceAccount:
       annotations:
-        azure.workload.identity/client-id: "<client_id>" # Azure only
-        eks.amazonaws.com/role-arn: "<role_arn>" # AWS only
-        iam.gke.io/gcp-service-account: "<gsa_name>@<project_id>.iam.gserviceaccount.com" # GCP only
+        azure.workload.identity/client-id: "<client_id>" # 仅限 Azure
+        eks.amazonaws.com/role-arn: "<role_arn>" # 仅限 AWS
+        iam.gke.io/gcp-service-account: "<gsa_name>@<project_id>.iam.gserviceaccount.com" # 仅限 GCP
 ```
 
 ```bash Docker
-# In your .env file
-FF_BLOB_STORAGE_ENABLED=false # Set to true if you want to enable blob storage
-BLOB_STORAGE_ENGINE=S3 # Or GCS or Azure
-BLOB_STORAGE_BUCKET_NAME=langsmith-blob-storage # Required for using S3. Change to your desired blob storage bucket name
-BLOB_STORAGE_API_URL=https://s3.us-west-2.amazonaws.com # Change to your desired blob storage API URL
-BLOB_STORAGE_ACCESS_KEY=your-access-key # Change to your desired blob storage access key
-BLOB_STORAGE_ACCESS_KEY_SECRET=your-access-key-secret # Change to your desired blob storage access key secret
-AZURE_STORAGE_ACCOUNT_NAME=your-storage-account-name # Optional. Only required if using storage account and access key.
-AZURE_STORAGE_ACCOUNT_KEY=your-storage-account-key # Optional. Only required if using storage account and access key.
-AZURE_STORAGE_CONTAINER_NAME=your-container-name # Required for using Azure blob storage. Change to your desired container name
-AZURE_STORAGE_CONNECTION_STRING=BlobEndpoint=https://storagesample.blob.core.windows.net;SharedAccessSignature=signature; # Optional.
-AZURE_STORAGE_SERVICE_URL_OVERRIDE=https://your.override.domain.net # Optional
+# 在您的 .env 文件中
+FF_BLOB_STORAGE_ENABLED=false # 如果您想启用 Blob 存储，请设置为 true
+BLOB_STORAGE_ENGINE=S3 # 或 GCS 或 Azure
+BLOB_STORAGE_BUCKET_NAME=langsmith-blob-storage # 使用 S3 时必需。更改为所需的 Blob 存储桶名称
+BLOB_STORAGE_API_URL=https://s3.us-west-2.amazonaws.com # 更改为所需的 Blob 存储 API URL
+BLOB_STORAGE_ACCESS_KEY=your-access-key # 更改为所需的 Blob 存储访问密钥
+BLOB_STORAGE_ACCESS_KEY_SECRET=your-access-key-secret # 更改为所需的 Blob 存储访问密钥密钥
+AZURE_STORAGE_ACCOUNT_NAME=your-storage-account-name # 可选。仅在使用存储账户和访问密钥时需要。
+AZURE_STORAGE_ACCOUNT_KEY=your-storage-account-key # 可选。仅在使用存储账户和访问密钥时需要。
+AZURE_STORAGE_CONTAINER_NAME=your-container-name # 使用 Azure Blob 存储时必需。更改为所需的容器名称
+AZURE_STORAGE_CONNECTION_STRING=BlobEndpoint=https://storagesample.blob.core.windows.net;SharedAccessSignature=signature; # 可选。
+AZURE_STORAGE_SERVICE_URL_OVERRIDE=https://your.override.domain.net # 可选
 ```
 
 </CodeGroup>
 
 <Note>
-If using an access key and secret, you can also provide an existing Kubernetes secret that contains the authentication information. This is recommended over providing the access key and secret key directly in your config. See the [generated secret template](https://github.com/langchain-ai/helm/blob/main/charts/langsmith/templates/secrets.yaml) for the expected secret keys.
+如果使用访问密钥和密钥，您也可以提供一个包含身份验证信息的现有 Kubernetes secret。这比直接在配置中提供访问密钥和密钥更受推荐。有关预期的 secret 密钥，请参阅[生成的 secret 模板](https://github.com/langchain-ai/helm/blob/main/charts/langsmith/templates/secrets.yaml)。
 </Note>
 
-## TTL configuration
+## TTL 配置
 
-If using the [TTL](/langsmith/self-host-ttl) feature with LangSmith, you'll also have to configure TTL rules for your blob storage. Trace information stored on blob storage is stored on a particular prefix path, which determines the TTL for the data. When a trace's retention is extended, its corresponding blob storage path changes to ensure that it matches the new extended retention.
+如果在 LangSmith 中使用 [TTL](/langsmith/self-host-ttl) 功能，您还需要为 Blob 存储配置 TTL 规则。存储在 Blob 存储上的追踪信息存储在特定的前缀路径上，该路径决定了数据的 TTL。当追踪的保留期延长时，其对应的 Blob 存储路径会更改，以确保与新的延长保留期匹配。
 
-The following TTL prefixes are used:
+使用以下 TTL 前缀：
 
-* `ttl_s/`: Short term (base) TTL, configured for 14 days.
-* `ttl_l/`: Long term (extended) TTL, configured for 400 days by default.
+* `ttl_s/`：短期（基础）TTL，配置为 14 天。
+* `ttl_l/`：长期（扩展）TTL，默认配置为 400 天。
 
-### Custom workspace-level retention prefixes
+### 自定义工作区级别保留前缀
 
-If you use [workspace-level extended retention](/langsmith/data-purging-compliance#customize-extended-retention-policy), LangSmith writes blob data to prefixes of the form `ttl_XXd/`, where `XX` is the number of days configured for that workspace. For example, if a workspace is configured with 90-day extended retention, blob data for that workspace is written to the `ttl_90d/` prefix.
+如果您使用[工作区级别扩展保留](/langsmith/data-purging-compliance#customize-extended-retention-policy)，LangSmith 会将 Blob 数据写入 `ttl_XXd/` 形式的前缀，其中 `XX` 是为该工作区配置的天数。例如，如果工作区配置了 90 天的扩展保留，则该工作区的 Blob 数据将写入 `ttl_90d/` 前缀。
 
-You must create a lifecycle rule for **each** custom retention period configured across your workspaces. Common examples:
+您必须为**每个**在工作区中配置的自定义保留期创建一个生命周期规则。常见示例：
 
-* `ttl_90d/` — 90-day retention
-* `ttl_180d/` — 180-day retention
-* `ttl_365d/` — 365-day retention
+* `ttl_90d/` — 90 天保留
+* `ttl_180d/` — 180 天保留
+* `ttl_365d/` — 365 天保留
 
 <Warning>
-If a lifecycle rule is missing for a configured retention period, blob data under that prefix will never be automatically deleted. Ensure you add a matching lifecycle rule whenever you configure a new workspace retention period.
+如果缺少针对已配置保留期的生命周期规则，则该前缀下的 Blob 数据将永远不会被自动删除。确保在配置新的工作区保留期时添加匹配的生命周期规则。
 </Warning>
 
-For example, if you have workspaces configured with 90-day and 180-day extended retention, you would add the following lifecycle rules **in addition to** the [default `ttl_s` and `ttl_l` rules](#ttl-configuration):
+例如，如果您有配置了 90 天和 180 天扩展保留的工作区，您需要**在**[默认的 `ttl_s` 和 `ttl_l` 规则](#ttl-configuration)**之外**添加以下生命周期规则：
 
 <Tabs>
   <Tab title="AWS">
@@ -347,16 +347,16 @@ rule {
   </Tab>
 </Tabs>
 
-If you have customized the TTLs in your LangSmith configuration, you will need to adjust the TTLs in your blob storage configuration to match.
+如果您在 LangSmith 配置中自定义了 TTL，则需要调整 Blob 存储配置中的 TTL 以匹配。
 
 <Tabs>
   <Tab title="AWS">
 
-### Amazon S3 lifecycle rules
+### Amazon S3 生命周期规则
 
-If using S3 for your blob storage, you will need to setup a filter lifecycle configuration that matches the prefixes above. You can find information for this [in the Amazon Documentation](https://docs.aws.amazon.com/AmazonS3/latest/userguide/intro-lifecycle-rules.html#intro-lifecycle-rules-filter).
+如果使用 S3 作为 Blob 存储，您需要设置一个匹配上述前缀的过滤生命周期配置。您可以在 [Amazon 文档](https://docs.aws.amazon.com/AmazonS3/latest/userguide/intro-lifecycle-rules.html#intro-lifecycle-rules-filter)中找到相关信息。
 
-As an example, if you are using Terraform to manage your S3 bucket, you would setup something like this:
+例如，如果您使用 Terraform 管理 S3 存储桶，您将设置如下内容：
 
 ```hcl
 rule {
@@ -380,11 +380,11 @@ rule {
   </Tab>
   <Tab title="GCP">
 
-### Google Cloud Storage lifecycle rules
+### Google Cloud Storage 生命周期规则
 
-You will need to setup lifecycle conditions for your GCS buckets that you are using. You can find information for this [in the Google Documentation](https://cloud.google.com/storage/docs/lifecycle#conditions), specifically using matchesPrefix.
+您需要为您使用的 GCS 存储桶设置生命周期条件。您可以在 [Google 文档](https://cloud.google.com/storage/docs/lifecycle#conditions)中找到相关信息，特别是使用 matchesPrefix。
 
-As an example, if you are using Terraform to manage your GCS bucket, you would setup something like this:
+例如，如果您使用 Terraform 管理 GCS 存储桶，您将设置如下内容：
 
 ```hcl
 lifecycle_rule {
@@ -410,11 +410,11 @@ lifecycle_rule {
   </Tab>
   <Tab title="Azure">
 
-### Azure blob storage lifecycle management
+### Azure Blob 存储生命周期管理
 
-You will need to configure a [lifecycle management policy](https://learn.microsoft.com/en-us/azure/storage/blobs/lifecycle-management-policy-configure) on the container in order to expire objects matching the prefixes above.
+您需要在容器上配置[生命周期管理策略](https://learn.microsoft.com/en-us/azure/storage/blobs/lifecycle-management-policy-configure)，以使匹配上述前缀的对象过期。
 
-As an example, if you are [using Terraform to manage your blob storage container](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/storage_management_policy), you would setup something like this:
+例如，如果您[使用 Terraform 管理 Blob 存储容器](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/storage_management_policy)，您将设置如下内容：
 
 ```hcl
 resource "azurerm_storage_management_policy" "example" {
@@ -469,9 +469,9 @@ resource "azurerm_storage_management_policy" "example" {
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/self-host-blob-storage.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/self-host-blob-storage.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

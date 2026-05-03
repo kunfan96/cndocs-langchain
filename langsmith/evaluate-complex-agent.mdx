@@ -1,21 +1,21 @@
 ---
-title: Evaluate a complex agent
-sidebarTitle: Evaluate a complex agent
+title: 评估复杂智能体
+sidebarTitle: 评估复杂智能体
 ---
 
-In this tutorial, we'll build a customer support bot that helps users navigate a digital music store. Then, we'll go through the three most effective types of evaluations to run on chat bots:
+在本教程中，我们将构建一个帮助用户浏览数字音乐商店的客户支持机器人。然后，我们将介绍对聊天机器人运行的三种最有效的评估类型：
 
-* **[Final response](#final-response-evaluator)**: Evaluate the agent's final response.
-* **[Trajectory](#trajectory-evaluator)**: Evaluate whether the agent took the expected path (e.g., of tool calls) to arrive at the final answer.
-* **[Single step](#single-step-evaluators)**: Evaluate any agent step in isolation (e.g., whether it selects the appropriate first tool for a given step).
+* **[最终响应](#final-response-evaluator)**：评估智能体的最终响应。
+* **[轨迹](#trajectory-evaluator)**：评估智能体是否采取了预期的路径（例如，工具调用）来得出最终答案。
+* **[单步](#single-step-evaluators)**：独立评估智能体的任何步骤（例如，它是否为给定步骤选择了合适的第一个工具）。
 
-We'll build our agent using [LangGraph](https://github.com/langchain-ai/langgraph), but the techniques and LangSmith functionality shown here are framework-agnostic.
+我们将使用 [LangGraph](https://github.com/langchain-ai/langgraph) 构建我们的智能体，但此处展示的技术和 LangSmith 功能与框架无关。
 
-## Setup
+## 设置
 
-### Configure the environment
+### 配置环境
 
-Let's install the required dependencies:
+让我们安装所需的依赖项：
 
 <CodeGroup>
 ```bash pip
@@ -27,7 +27,7 @@ uv add langgraph "langchain[openai]"
 ```
 </CodeGroup>
 
-Let's set up environment variables for OpenAI and [LangSmith](https://smith.langchain.com):
+让我们为 OpenAI 和 [LangSmith](https://smith.langchain.com) 设置环境变量：
 
 ```python
 import getpass
@@ -42,11 +42,11 @@ _set_env("LANGSMITH_API_KEY")
 _set_env("OPENAI_API_KEY")
 ```
 
-### Download the database
+### 下载数据库
 
-We will create a SQLite database for this tutorial. SQLite is a lightweight database that is easy to set up and use. We will load the `chinook` database, which is a sample database that represents a digital media store. For more information, see [Chinook sample database](https://www.sqlitetutorial.net/sqlite-sample-database/).
+我们将为本教程创建一个 SQLite 数据库。SQLite 是一个轻量级数据库，易于设置和使用。我们将加载 `chinook` 数据库，这是一个代表数字媒体商店的示例数据库。更多信息，请参阅 [Chinook 示例数据库](https://www.sqlitetutorial.net/sqlite-sample-database/)。
 
-For convenience, we have hosted the database in a public GCS bucket:
+为方便起见，我们将数据库托管在一个公共的 GCS 存储桶中：
 
 ```python
 import requests
@@ -64,7 +64,7 @@ else:
     print(f"Failed to download the file. Status code: {response.status_code}")
 ```
 
-Here's a sample of the data in the db:
+以下是数据库中的数据示例：
 
 ```python
 import sqlite3
@@ -75,34 +75,34 @@ import sqlite3
 [(1, 'AC/DC'), (2, 'Accept'), (3, 'Aerosmith'), (4, 'Alanis Morissette'), (5, 'Alice In Chains'), (6, 'Antônio Carlos Jobim'), (7, 'Apocalyptica'), (8, 'Audioslave'), (9, 'BackBeat'), (10, 'Billy Cobham')]
 ```
 
-And here's the database schema (image from [https://github.com/lerocha/chinook-database](https://github.com/lerocha/chinook-database)):
+以下是数据库模式（图片来自 [https://github.com/lerocha/chinook-database](https://github.com/lerocha/chinook-database)）：
 
 ![Chinook DB](/langsmith/images/chinook-diagram.png)
 
-### Define the customer support agent
+### 定义客户支持智能体
 
-We'll create a [LangGraph](https://langchain-ai.github.io/langgraph/) agent with limited access to our database. For demo purposes, our agent will support two basic types of requests:
+我们将创建一个 [LangGraph](https://langchain-ai.github.io/langgraph/) 智能体，它对我们的数据库具有有限的访问权限。出于演示目的，我们的智能体将支持两种基本类型的请求：
 
-* Lookup: The customer can look up song titles, artist names, and albums based on other identifying information. For example: "What songs do you have by Jimi Hendrix?"
-* Refund: The customer can request a refund on their past purchases. For example: "My name is Claude Shannon and I'd like a refund on a purchase I made last week, could you help me?"
+* 查询：客户可以根据其他标识信息查找歌曲标题、艺术家姓名和专辑。例如：“你们有 Jimi Hendrix 的哪些歌曲？”
+* 退款：客户可以申请退还过去的购买款项。例如：“我叫 Claude Shannon，我想申请上周一笔购买的退款，你能帮我吗？”
 
-For simplicity in this demo, we'll implement refunds by deleting the corresponding database records. We'll skip implementing user authentication and other production security measures.
+为了简化本演示，我们将通过删除相应的数据库记录来实现退款。我们将跳过实现用户身份验证和其他生产安全措施。
 
-The agent's logic will be structured as two separate subgraphs (one for lookups and one for refunds), with a parent graph that routes requests to the appropriate subgraph.
+智能体的逻辑将被构建为两个独立的子图（一个用于查询，一个用于退款），以及一个将请求路由到相应子图的父图。
 
-#### Refund agent
+#### 退款智能体
 
-Let's build the refund processing agent. This agent needs to:
+让我们构建退款处理智能体。这个智能体需要：
 
-1. Find the customer's purchase records in the database
-2. Delete the relevant Invoice and InvoiceLine records to process the refund
+1. 在数据库中找到客户的购买记录
+2. 删除相关的 Invoice 和 InvoiceLine 记录以处理退款
 
-We'll create two SQL helper functions:
+我们将创建两个 SQL 辅助函数：
 
-1. A function to execute the refund by deleting records
-2. A function to look up a customer's purchase history
+1. 一个通过删除记录来执行退款的函数
+2. 一个查找客户购买历史的函数
 
-To make testing easier, we'll add a "mock" mode to these functions. When mock mode is enabled, the functions will simulate database operations without actually modifying any data.
+为了使测试更容易，我们将为这些函数添加一个“模拟”模式。当启用模拟模式时，函数将模拟数据库操作，而不会实际修改任何数据。
 
 ```python
 import sqlite3
@@ -113,21 +113,21 @@ def _refund(invoice_id: int | None, invoice_line_ids: list[int] | None, mock: bo
 def _lookup( ...
 ```
 
-Now let's define our graph. We'll use a simple architecture with three main paths:
+现在让我们定义我们的图。我们将使用一个简单的架构，包含三个主要路径：
 
-1. Extract customer and purchase information from the conversation
+1. 从对话中提取客户和购买信息
 
-2. Route the request to one of three paths:
+2. 将请求路由到以下三个路径之一：
 
-   * Refund path: If we have sufficient purchase details (Invoice ID or Invoice Line IDs) to process a refund
-   * Lookup path: If we have enough customer information (name and phone) to search their purchase history
-   * Response path: If we need more information, respond to the user requesting the specific details needed
+   * 退款路径：如果我们有足够的购买详情（发票 ID 或发票行项目 ID）来处理退款
+   * 查询路径：如果我们有足够的客户信息（姓名和电话）来搜索他们的购买历史
+   * 响应路径：如果我们需要更多信息，回复用户并请求所需的特定详细信息
 
-The graph's state will track:
+图的状态将跟踪：
 
-* The conversation history (messages between user and agent)
-* All customer and purchase information extracted from the conversation
-* The next message to send to the user (followup text)
+* 对话历史（用户和智能体之间的消息）
+* 从对话中提取的所有客户和购买信息
+* 要发送给用户的下一条消息（后续文本）
 
 ```python
 from typing import Literal
@@ -278,7 +278,7 @@ graph_builder.add_edge("refund", END)
 refund_graph = graph_builder.compile()
 ```
 
-We can visualize our refund graph:
+我们可以可视化我们的退款图：
 
 ```
 # Assumes you're in an interactive Python environmentfrom IPython.display import Image, display ...
@@ -286,9 +286,9 @@ We can visualize our refund graph:
 
 ![Refund graph](/langsmith/images/refund-graph.png)
 
-#### Lookup agent
+#### 查询智能体
 
-For the lookup (i.e. question-answering) agent, we'll use a simple ReACT architecture and give the agent tools for looking up track names, artist names, and album names based on various filters. For example, you can look up albums by a particular artist, artists who released songs with a specific name, etc.
+对于查询（即问答）智能体，我们将使用简单的 ReACT 架构，并为智能体提供基于各种过滤器查找歌曲名称、艺术家姓名和专辑名称的工具。例如，你可以查找特定艺术家的专辑、发行特定名称歌曲的艺术家等。
 
 ```python
 from langchain.embeddings import init_embeddings
@@ -330,9 +330,9 @@ display(Image(qa_graph.get_graph(xray=True).draw_mermaid_png()))
 
 ![QA Graph](/langsmith/images/qa-graph.png)
 
-#### Parent agent
+#### 父智能体
 
-Now let's define a parent agent that combines our two task-specific agents. The only job of the parent agent is to route to one of the sub-agents by classifying the user's current intent, and to compile the output into a followup message.
+现在让我们定义一个父智能体，它组合了我们的两个任务特定智能体。父智能体的唯一工作是通过分类用户的当前意图来路由到其中一个子智能体，并将输出编译成后续消息。
 
 ```python
 # Schema for routing user intent.
@@ -394,7 +394,7 @@ graph_builder.add_edge("compile_followup", END)
 graph = graph_builder.compile()
 ```
 
-We can visualize our compiled parent graph including all of its subgraphs:
+我们可以可视化编译后的父图及其所有子图：
 
 ```python
 display(Image(graph.get_graph().draw_mermaid_png()))
@@ -402,9 +402,9 @@ display(Image(graph.get_graph().draw_mermaid_png()))
 
 ![graph](/langsmith/images/agent-tutorial-graph.png)
 
-#### Try it out
+#### 试用一下
 
-Let's give our custom support agent a whirl!
+让我们试试我们自定义的支持智能体！
 
 ```python
 state = await graph.ainvoke(
@@ -430,19 +430,19 @@ print(state["followup"])
 Which of the following purchases would you like to be refunded for? ...
 ```
 
-## Evaluations
+## 评估
 
-Now that we've got a testable version of our agent, let's run some evaluations. Agent evaluation can focus on at least 3 things:
+现在我们有了一个可测试的智能体版本，让我们运行一些评估。智能体评估至少可以关注 3 个方面：
 
-* [Final response](#final-response-evaluator): The inputs are a prompt and an optional list of tools. The output is the final agent response.
-* [Trajectory](#trajectory-evaluator): As before, the inputs are a prompt and an optional list of tools. The output is the list of tool calls
-* [Single step](#single-step-evaluators): As before, the inputs are a prompt and an optional list of tools. The output is the tool call.
+* [最终响应](#final-response-evaluator)：输入是一个提示和一个可选的工具列表。输出是最终的智能体响应。
+* [轨迹](#trajectory-evaluator)：如前所述，输入是一个提示和一个可选的工具列表。输出是工具调用列表。
+* [单步](#single-step-evaluators)：如前所述，输入是一个提示和一个可选的工具列表。输出是工具调用。
 
-Let's run each type of evaluation:
+让我们运行每种类型的评估：
 
-### Final response evaluator
+### 最终响应评估器
 
-First, let's create a [dataset](/langsmith/evaluation-concepts#datasets) that evaluates end-to-end performance of the agent. For simplicity we'll use the same dataset for final response and trajectory evaluation, so we'll add both ground-truth responses and trajectories for each example question. We'll cover the trajectories in the next section.
+首先，让我们创建一个[数据集](/langsmith/evaluation-concepts#datasets)来评估智能体的端到端性能。为简单起见，我们将对最终响应和轨迹评估使用相同的数据集，因此我们将为每个示例问题添加真实响应和轨迹。我们将在下一节介绍轨迹。
 
 ```python
 from langsmith import Client
@@ -508,7 +508,7 @@ if not client.has_dataset(dataset_name=dataset_name):
     )
 ```
 
-We'll create a custom [LLM-as-judge](/langsmith/evaluation-concepts#llm-as-judge) evaluator that uses another model to compare our agent's output on each example to the reference response, and judge if they're equivalent or not:
+我们将创建一个自定义的 [LLM-as-judge](/langsmith/evaluation-concepts#llm-as-judge) 评估器，它使用另一个模型来比较我们的智能体在每个示例上的输出与参考响应，并判断它们是否等效：
 
 ```python
 # LLM-as-judge instructions
@@ -550,9 +550,9 @@ async def final_answer_correct(inputs: dict, outputs: dict, reference_outputs: d
     return grade["is_correct"]
 ```
 
-Now we can run our evaluation. Our evaluator assumes that our target function returns a 'response' key, so lets define a target function that does so.
+现在我们可以运行我们的评估。我们的评估器假设目标函数返回一个 'response' 键，因此让我们定义一个返回该键的目标函数。
 
-Also remember that in our refund graph we made the refund node configurable, so that if we specified `config={"env": "test"}`, we would mock out the refunds without actually updating the DB. We'll use this configurable variable in our target `run_graph` method when invoking our graph:
+还要记住，在我们的退款图中，我们使退款节点可配置，因此如果我们指定 `config={"env": "test"}`，我们将模拟退款而不实际更新数据库。我们将在调用图时在目标 `run_graph` 方法中使用这个可配置变量：
 
 ```python
 # Target function
@@ -575,18 +575,18 @@ experiment_results = await client.aevaluate(
 experiment_results.to_pandas()
 ```
 
-You can see what these results look like here: [LangSmith link](https://smith.langchain.com/public/708d08f4-300e-4c75-9677-c6b71b0d28c9/d).
+你可以在这里查看这些结果的样子：[LangSmith 链接](https://smith.langchain.com/public/708d08f4-300e-4c75-9677-c6b71b0d28c9/d)。
 
-### Trajectory evaluator
+### 轨迹评估器
 
-As agents become more complex, they have more potential points of failure. Rather than using simple pass/fail evaluations, it's often better to use evaluations that can give partial credit when an agent takes some correct steps, even if it doesn't reach the right final answer.
+随着智能体变得越来越复杂，它们的潜在故障点也越来越多。与其使用简单的通过/失败评估，不如使用可以在智能体采取一些正确步骤时给予部分分数的评估，即使它没有达到正确的最终答案。
 
-This is where trajectory evaluations come in. A trajectory evaluation:
+这就是轨迹评估的用武之地。轨迹评估：
 
-1. Compares the actual sequence of steps the agent took against an expected sequence
-2. Calculates a score based on how many of the expected steps were completed correctly
+1. 将智能体实际采取的步骤序列与预期序列进行比较
+2. 根据预期步骤中正确完成的数量计算分数
 
-For this example, our end-to-end dataset contains an ordered list of steps that we expect the agent to take. Let's create an evaluator that checks the agent's actual trajectory against these expected steps and calculates what percentage were completed:
+对于这个例子，我们的端到端数据集包含一个有序的步骤列表，我们期望智能体采取这些步骤。让我们创建一个评估器，检查智能体的实际轨迹与这些预期步骤的匹配程度，并计算完成的百分比：
 
 
 ```python
@@ -604,9 +604,9 @@ def trajectory_subsequence(outputs: dict, reference_outputs: dict) -> float:
     return i / len(reference_outputs['trajectory'])
 ```
 
-Now we can run our evaluation. Our evaluator assumes that our target function returns a 'trajectory' key, so lets define a target function that does so. We'll need to usage [LangGraph's streaming capabilities](https://langchain-ai.github.io/langgra/langsmith/observability-concepts/streaming/) to record the trajectory.
+现在我们可以运行我们的评估。我们的评估器假设目标函数返回一个 'trajectory' 键，因此让我们定义一个返回该键的目标函数。我们需要使用 [LangGraph 的流式处理功能](https://langchain-ai.github.io/langgra/langsmith/observability-concepts/streaming/) 来记录轨迹。
 
-Note that we are reusing the same dataset as for our final response evaluation, so we could have run both evaluators together and defined a target function that returns both "response" and "trajectory". In practice it's often useful to have separate datasets for each type of evaluation, which is why we show them separately here:
+注意，我们重用了与最终响应评估相同的数据集，因此我们可以同时运行两个评估器，并定义一个返回 "response" 和 "trajectory" 的目标函数。实际上，为每种类型的评估使用单独的数据集通常很有用，这就是为什么我们在这里分别展示它们：
 
 ```python
 async def run_graph(inputs: dict) -> dict:
@@ -644,13 +644,13 @@ experiment_results = await client.aevaluate(
 experiment_results.to_pandas()
 ```
 
-You can see what these results look like here: [LangSmith link](https://smith.langchain.com/public/708d08f4-300e-4c75-9677-c6b71b0d28c9/d).
+你可以在这里查看这些结果的样子：[LangSmith 链接](https://smith.langchain.com/public/708d08f4-300e-4c75-9677-c6b71b0d28c9/d)。
 
-### Single step evaluators
+### 单步评估器
 
-While end-to-end tests give you the most signal about your agents performance, for the sake of debugging and iterating on your agent it can be helpful to pinpoint specific steps that are difficult and evaluate them directly.
+虽然端到端测试能为你提供关于智能体性能的最多信息，但为了调试和迭代智能体，确定特定困难步骤并直接评估它们会很有帮助。
 
-In our case, a crucial part of our agent is that it routes the user's intention correctly into either the "refund" path or the "question answering" path. Let's create a dataset and run some evaluations to directly stress test this one component.
+在我们的例子中，智能体的一个关键部分是它能正确地将用户意图路由到“退款”路径或“问答”路径。让我们创建一个数据集并运行一些评估来直接压力测试这个组件。
 
 ```python
 # Create dataset
@@ -702,13 +702,13 @@ experiment_results = await client.aevaluate(
 )
 ```
 
-You can see what these results look like here: [LangSmith link](https://smith.langchain.com/public/f133dae2-8a88-43a0-9bfd-ab45bfa3920b/d).
+你可以在这里查看这些结果的样子：[LangSmith 链接](https://smith.langchain.com/public/f133dae2-8a88-43a0-9bfd-ab45bfa3920b/d)。
 
-## Reference code
+## 参考代码
 
-Here's a consolidated script with all the above code:
+以下是包含上述所有代码的整合脚本：
 
-<Accordion title="Reference code">
+<Accordion title="参考代码">
 ```python
 import json
 import sqlite3
@@ -1615,9 +1615,9 @@ experiment_results.to_pandas()
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/evaluate-complex-agent.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/evaluate-complex-agent.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

@@ -1,159 +1,159 @@
 ---
-title: LangSmith data plane
-sidebarTitle: Data plane
+title: LangSmith 数据平面
+sidebarTitle: 数据平面
 ---
 
-The _data plane_ consists of your [Agent Servers](/langsmith/agent-server) (deployments), their supporting infrastructure, and the "listener" application that continuously polls for updates from the [LangSmith control plane](/langsmith/control-plane).
+_数据平面_由您的[代理服务器](/langsmith/agent-server)（部署）、其支持的基础设施，以及持续轮询以从[LangSmith 控制平面](/langsmith/control-plane)获取更新的“监听器”应用程序组成。
 
-## Server infrastructure
+## 服务器基础设施
 
-In addition to the [Agent Server](/langsmith/agent-server) itself, the following infrastructure components for each server are also included in the broad definition of "data plane":
+除了[代理服务器](/langsmith/agent-server)本身，以下每个服务器的基础设施组件也包含在广义的“数据平面”定义中：
 
-- **PostgreSQL**: persistence layer for user, run, and memory data.
-- **Redis**: communication and ephemeral metadata for workers.
-- **Secrets store**: secure management of environment secrets.
-- **Autoscalers**: scale server containers based on load.
+- **PostgreSQL**：用户、运行和记忆数据的持久化层。
+- **Redis**：用于工作进程间通信和存储临时元数据。
+- **密钥存储**：安全地管理环境密钥。
+- **自动伸缩器**：根据负载扩展服务器容器。
 
-## "Listener" application
+## “监听器”应用程序
 
-The data plane "listener" application periodically calls [control plane APIs](/langsmith/control-plane#control-plane-api) to:
+数据平面“监听器”应用程序定期调用[控制平面 API](/langsmith/control-plane#control-plane-api) 以：
 
-* Determine if new deployments should be created.
-* Determine if existing deployments should be updated (i.e. new revisions).
-* Determine if existing deployments should be deleted.
+* 确定是否应创建新的部署。
+* 确定是否应更新现有部署（即新的修订版）。
+* 确定是否应删除现有部署。
 
-In other words, the data plane "listener" reads the latest state of the control plane (desired state) and takes action to reconcile outstanding deployments (current state) to match the latest state.
+换句话说，数据平面“监听器”读取控制平面的最新状态（期望状态），并采取行动协调未完成的部署（当前状态）以匹配最新状态。
 
 ## PostgreSQL
 
-PostgreSQL stores server resources (threads, runs, assistants, crons) and items saved in the [long-term memory store](/oss/python/langgraph/persistence#memory-store). It is also the default backend for [checkpoints](/oss/python/langgraph/persistence) (graph execution state). You can optionally store checkpoints in MongoDB instead—see [Configure checkpointer backend](/langsmith/configure-checkpointer). PostgreSQL is always required regardless of the checkpointer backend.
+PostgreSQL 存储服务器资源（线程、运行、助手、定时任务）以及保存在[长期记忆存储](/oss/python/langgraph/persistence#memory-store)中的项目。它也是[检查点](/oss/python/langgraph/persistence)（图执行状态）的默认后端。您可以选择将检查点存储在 MongoDB 中——请参阅[配置检查点后端](/langsmith/configure-checkpointer)。无论检查点后端如何，始终需要 PostgreSQL。
 
 ## Redis
 
-Redis is used in each Agent Server as a way for server and queue workers to communicate, and to store ephemeral metadata. No user or run data is stored in Redis.
+Redis 在每个代理服务器中用作服务器和队列工作进程之间的通信方式，并用于存储临时元数据。Redis 中不存储任何用户或运行数据。
 
-### Communication
+### 通信
 
-All runs in an Agent Server are executed by a pool of background workers that are part of each deployment. In order to enable some features for those runs (such as cancellation and output streaming) we need a channel for two-way communication between the server and the worker handling a particular run. We use Redis to organize that communication.
+代理服务器中的所有运行都由属于每个部署的后台工作进程池执行。为了启用这些运行的某些功能（例如取消和输出流），我们需要一个在服务器和处理特定运行的工作进程之间进行双向通信的通道。我们使用 Redis 来组织这种通信。
 
-1. A Redis list is used as a mechanism to wake up a worker as soon as a new run is created. Only a sentinel value is stored in this list, no actual run information. The run information is then retrieved from PostgreSQL by the worker.
-2. A combination of a Redis string and Redis PubSub channel is used for the server to communicate a run cancellation request to the appropriate worker.
-3. A Redis PubSub channel is used by the worker to broadcast streaming output from an agent while the run is being handled. Any open `/stream` request in the server will subscribe to that channel and forward any events to the response as they arrive. No events are stored in Redis at any time.
+1.  Redis 列用作在创建新运行时唤醒工作进程的机制。此列表中仅存储一个哨兵值，不存储实际的运行信息。然后，工作进程从 PostgreSQL 检索运行信息。
+2.  Redis 字符串和 Redis PubSub 频道的组合用于服务器向相应的工作进程传达运行取消请求。
+3.  Redis PubSub 频道由工作进程用于在处理运行时广播代理的流式输出。服务器中任何打开的 `/stream` 请求都将订阅该频道，并在事件到达时将任何事件转发到响应。Redis 中从不存储任何事件。
 
-### Ephemeral metadata
+### 临时元数据
 
-Runs in an Agent Server may be retried for specific failures (currently only for transient PostgreSQL errors encountered during the run). In order to limit the number of retries (currently limited to 3 attempts per run) we record the attempt number in a Redis string when it is picked up. This contains no run-specific info other than its ID, and expires after a short delay.
+代理服务器中的运行可能因特定故障而重试（目前仅针对运行期间遇到的瞬时 PostgreSQL 错误）。为了限制重试次数（目前限制为每次运行 3 次尝试），我们在运行被拾取时将尝试次数记录在 Redis 字符串中。这不包含除其 ID 之外的任何运行特定信息，并在短时间后过期。
 
-## Data plane features
+## 数据平面功能
 
-This section describes various features of the data plane.
+本节描述数据平面的各种功能。
 
-### Data region
-
-<Info>
-**Only for Cloud**
-Data regions are only applicable for [Cloud](/langsmith/cloud) deployments.
-</Info>
-
-Deployments can be created in 2 data regions: US and EU
-
-The data region for a deployment is implied by the data region of the LangSmith organization where the deployment is created. Deployments and the underlying database for the deployments cannot be migrated between data regions.
-
-### Autoscaling
-
-[`Production` type](/langsmith/control-plane#deployment-types) deployments automatically scale up to 10 containers. Scaling is based on 3 metrics:
-
-1. CPU utilization
-2. Memory utilization
-3. Number of pending (in progress) [runs](/langsmith/runs)
-
-For CPU utilization, the autoscaler targets 75% utilization. This means the autoscaler will scale the number of containers up or down to ensure that CPU utilization is at or near 75%. For memory utilization, the autoscaler targets 75% utilization as well.
-
-For number of pending runs, the autoscaler targets 10 pending runs. For example, if the current number of containers is 1, but the number of pending runs is 20, the autoscaler will scale up the deployment to 2 containers (20 pending runs / 2 containers = 10 pending runs per container).
-
-Each metric is computed independently and the autoscaler will determine the scaling action based on the metric that results in the largest number of containers.
-
-These metrics don't all apply to every container type. [Queue workers](/langsmith/agent-server#runtime-architecture) scale on pending run count—when the backlog grows, more workers spin up to drain it. [API servers](/langsmith/agent-server#runtime-architecture) scale on CPU and memory, responding to client request volume. This means a spike in run submissions won't slow down read operations like fetching thread state. For self-hosted configuration details, see [Configure Agent Server for scale](/langsmith/agent-server-scale).
-
-Scale down actions are delayed for 30 minutes before any action is taken. In other words, if the autoscaler decides to scale down a deployment, it will first wait for 30 minutes before scaling down. After 30 minutes, the metrics are recomputed and the deployment will scale down if the recomputed metrics result in a lower number of containers than the current number. Otherwise, the deployment remains scaled up. This "cool down" period ensures that deployments do not scale up and down too frequently.
-
-### Static IP addresses
+### 数据区域
 
 <Info>
-**Only for Cloud**
-Static IP addresses are only available for [Cloud](/langsmith/cloud) deployments.
+**仅适用于云**
+数据区域仅适用于[云](/langsmith/cloud)部署。
 </Info>
 
-All traffic from deployments created after January 6th 2025 will come through a NAT gateway. This NAT gateway will have several static IP addresses depending on the data region. For the list of static IP addresses, refer to the [Allowlist IP addresses table](/langsmith/deploy-to-cloud#allowlist-ip-addresses).
+部署可以在两个数据区域中创建：美国和欧盟
 
-### Payload size
-<Info>
-**Only for Cloud**
-Payload size restrictions are only applicable to [Cloud](/langsmith/cloud) deployments.
-</Info>
-The maximum payload size for all requests sent to [Cloud](/langsmith/cloud) deployments is 25 MB. Attempting to send a request with a payload larger than 25 MB will result in a `413 Payload Too Large` error.
+部署的数据区域由创建部署的 LangSmith 组织的数据区域隐含决定。部署及其底层数据库无法在数据区域之间迁移。
 
-### Custom PostgreSQL
+### 自动伸缩
 
-<Info>
-Custom PostgreSQL instances are only available for [hybrid](/langsmith/hybrid) and [self-hosted](/langsmith/self-hosted) deployments.
-</Info>
+[`生产`类型](/langsmith/control-plane#deployment-types)的部署会自动扩展到最多 10 个容器。伸缩基于 3 个指标：
 
-A custom PostgreSQL instance can be used instead of the [one automatically created by the control plane](/langsmith/control-plane#database-provisioning). Specify the [`POSTGRES_URI_CUSTOM`](/langsmith/env-var#postgres_uri_custom) environment variable to use a custom PostgreSQL instance.
+1.  CPU 利用率
+2.  内存利用率
+3.  待处理（进行中）[运行](/langsmith/runs)的数量
 
-Multiple deployments can share the same PostgreSQL instance. For example, for `Deployment A`, `POSTGRES_URI_CUSTOM` can be set to `postgres://<user>:<password>@/<database_name_1>?host=<hostname_1>` and for `Deployment B`, `POSTGRES_URI_CUSTOM` can be set to `postgres://<user>:<password>@/<database_name_2>?host=<hostname_1>`. `<database_name_1>` and `database_name_2` are different databases within the same instance, but `<hostname_1>` is shared. **The same database cannot be used for separate deployments**.
+对于 CPU 利用率，自动伸缩器的目标是 75% 利用率。这意味着自动伸缩器将增加或减少容器数量，以确保 CPU 利用率处于或接近 75%。对于内存利用率，自动伸缩器的目标也是 75% 利用率。
 
-### Custom Redis
+对于待处理运行的数量，自动伸缩器的目标是 10 个待处理运行。例如，如果当前容器数量为 1，但待处理运行数量为 20，自动伸缩器将把部署扩展到 2 个容器（20 个待处理运行 / 2 个容器 = 每个容器 10 个待处理运行）。
 
-<Info>
-Custom Redis instances are only available for [Hybrid](/langsmith/hybrid) and [Self-Hosted](/langsmith/self-hosted) deployments.
-</Info>
+每个指标都是独立计算的，自动伸缩器将根据导致容器数量最多的指标来确定伸缩操作。
 
-A custom Redis instance can be used instead of the one automatically created by the control plane. Specify the [REDIS_URI_CUSTOM](/langsmith/env-var#redis_uri_custom) environment variable to use a custom Redis instance.
+这些指标并非都适用于每种容器类型。[队列工作进程](/langsmith/agent-server#runtime-architecture)根据待处理运行数量进行伸缩——当积压工作增加时，会启动更多工作进程来处理它。[API 服务器](/langsmith/agent-server#runtime-architecture)根据 CPU 和内存进行伸缩，以响应客户端请求量。这意味着运行提交量的激增不会减慢读取操作（如获取线程状态）的速度。有关自托管配置的详细信息，请参阅[配置代理服务器以实现伸缩](/langsmith/agent-server-scale)。
 
-Multiple deployments can share the same Redis instance. For example, for `Deployment A`, `REDIS_URI_CUSTOM` can be set to `redis://<hostname_1>:<port>/1` and for `Deployment B`, `REDIS_URI_CUSTOM` can be set to `redis://<hostname_1>:<port>/2`. `1` and `2` are different database numbers within the same instance, but `<hostname_1>` is shared. **The same database number cannot be used for separate deployments**.
+缩减操作会延迟 30 分钟后才采取任何行动。换句话说，如果自动伸缩器决定缩减部署，它将首先等待 30 分钟，然后再进行缩减。30 分钟后，将重新计算指标，如果重新计算的指标导致容器数量少于当前数量，则部署将缩减。否则，部署将保持扩展状态。这个“冷却”期确保部署不会过于频繁地扩展和缩减。
 
-### MongoDB checkpointing
+### 静态 IP 地址
 
 <Info>
-Available for [Cloud](/langsmith/cloud) (with an externally managed MongoDB instance) and [Standalone](/langsmith/deploy-standalone-server) deployments.
+**仅适用于云**
+静态 IP 地址仅适用于[云](/langsmith/cloud)部署。
 </Info>
 
-You can use MongoDB as an alternative backend for checkpoint storage. When configured, MongoDB handles only checkpoint data—PostgreSQL remains required for all other server resources.
+2025 年 1 月 6 日之后创建的部署的所有流量都将通过 NAT 网关。该 NAT 网关将根据数据区域拥有多个静态 IP 地址。有关静态 IP 地址列表，请参阅[允许列表 IP 地址表](/langsmith/deploy-to-cloud#allowlist-ip-addresses)。
 
-See [Configure checkpointer backend](/langsmith/configure-checkpointer) for setup instructions.
+### 有效负载大小
+<Info>
+**仅适用于云**
+有效负载大小限制仅适用于[云](/langsmith/cloud)部署。
+</Info>
+发送到[云](/langsmith/cloud)部署的所有请求的最大有效负载大小为 25 MB。尝试发送有效负载大于 25 MB 的请求将导致 `413 Payload Too Large` 错误。
 
-### LangSmith tracing
+### 自定义 PostgreSQL
 
-Agent Server is automatically configured to send traces to LangSmith. See the table below for details with respect to each deployment option.
+<Info>
+自定义 PostgreSQL 实例仅适用于[混合](/langsmith/hybrid)和[自托管](/langsmith/self-hosted)部署。
+</Info>
 
-| Cloud | Hybrid | Self-Hosted |
+可以使用自定义 PostgreSQL 实例来替代[控制平面自动创建的实例](/langsmith/control-plane#database-provisioning)。指定 [`POSTGRES_URI_CUSTOM`](/langsmith/env-var#postgres_uri_custom) 环境变量以使用自定义 PostgreSQL 实例。
+
+多个部署可以共享同一个 PostgreSQL 实例。例如，对于 `Deployment A`，`POSTGRES_URI_CUSTOM` 可以设置为 `postgres://<user>:<password>@/<database_name_1>?host=<hostname_1>`，对于 `Deployment B`，`POSTGRES_URI_CUSTOM` 可以设置为 `postgres://<user>:<password>@/<database_name_2>?host=<hostname_1>`。`<database_name_1>` 和 `database_name_2` 是同一实例内的不同数据库，但 `<hostname_1>` 是共享的。**不能将同一数据库用于不同的部署**。
+
+### 自定义 Redis
+
+<Info>
+自定义 Redis 实例仅适用于[混合](/langsmith/hybrid)和[自托管](/langsmith/self-hosted)部署。
+</Info>
+
+可以使用自定义 Redis 实例来替代控制平面自动创建的实例。指定 [REDIS_URI_CUSTOM](/langsmith/env-var#redis_uri_custom) 环境变量以使用自定义 Redis 实例。
+
+多个部署可以共享同一个 Redis 实例。例如，对于 `Deployment A`，`REDIS_URI_CUSTOM` 可以设置为 `redis://<hostname_1>:<port>/1`，对于 `Deployment B`，`REDIS_URI_CUSTOM` 可以设置为 `redis://<hostname_1>:<port>/2`。`1` 和 `2` 是同一实例内的不同数据库编号，但 `<hostname_1>` 是共享的。**不能将同一数据库编号用于不同的部署**。
+
+### MongoDB 检查点
+
+<Info>
+适用于[云](/langsmith/cloud)（使用外部管理的 MongoDB 实例）和[独立](/langsmith/deploy-standalone-server)部署。
+</Info>
+
+您可以使用 MongoDB 作为检查点存储的替代后端。配置后，MongoDB 仅处理检查点数据——所有其他服务器资源仍需要 PostgreSQL。
+
+有关设置说明，请参阅[配置检查点后端](/langsmith/configure-checkpointer)。
+
+### LangSmith 追踪
+
+代理服务器会自动配置为将追踪发送到 LangSmith。有关每个部署选项的详细信息，请参见下表。
+
+| 云 | 混合 | 自托管 |
 |------------|------------------------|----------------------|
-| Required<br />Trace to LangSmith SaaS. | Optional<br />Disable tracing or trace to LangSmith SaaS. | Optional<br />Disable tracing, trace to LangSmith SaaS, or trace to Self-Hosted LangSmith. |
+| 必需<br />追踪到 LangSmith SaaS。 | 可选<br />禁用追踪或追踪到 LangSmith SaaS。 | 可选<br />禁用追踪、追踪到 LangSmith SaaS 或追踪到自托管 LangSmith。 |
 
-### Telemetry
+### 遥测
 
-Agent Server is automatically configured to report telemetry metadata for billing purposes. See the table below for details with respect to each deployment option.
+代理服务器会自动配置为报告遥测元数据以用于计费。有关每个部署选项的详细信息，请参见下表。
 
-| Cloud | Hybrid | Self-Hosted |
+| 云 | 混合 | 自托管 |
 |------------|------------------------|----------------------|
-| Telemetry sent to LangSmith SaaS. | Telemetry sent to LangSmith SaaS. | Self-reported usage (audit) for air-gapped license key.<br />Telemetry sent to LangSmith SaaS for LangSmith License Key. |
+| 遥测数据发送到 LangSmith SaaS。 | 遥测数据发送到 LangSmith SaaS。 | 用于气隙许可证密钥的自报告使用情况（审计）。<br />用于 LangSmith 许可证密钥的遥测数据发送到 LangSmith SaaS。 |
 
-### Licensing
+### 许可
 
-Agent Server is automatically configured to perform license key validation. See the table below for details with respect to each deployment option.
+代理服务器会自动配置为执行许可证密钥验证。有关每个部署选项的详细信息，请参见下表。
 
-| Cloud | Hybrid | Self-Hosted |
+| 云 | 混合 | 自托管 |
 |------------|------------------------|----------------------|
-| LangSmith API Key validated against LangSmith SaaS. | LangSmith API Key validated against LangSmith SaaS. | Air-gapped license key or Platform License Key validated against LangSmith SaaS. |
+| LangSmith API 密钥针对 LangSmith SaaS 进行验证。 | LangSmith API 密钥针对 LangSmith SaaS 进行验证。 | 气隙许可证密钥或平台许可证密钥针对 LangSmith SaaS 进行验证。 |
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [通过 MCP 将这些文档](/use-these-docs)连接到 Claude、VSCode 等，以获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/data-plane.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/data-plane.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

@@ -1,15 +1,15 @@
 ---
-title: Rollback Concurrent
-sidebarTitle: Rollback
+title: 回滚并发
+sidebarTitle: 回滚
 ---
 
-This guide assumes knowledge of what double-texting is, which you can learn about in the [double-texting conceptual guide](/langsmith/double-texting).
+本指南假设您已了解什么是双重文本，您可以在[双重文本概念指南](/langsmith/double-texting)中学习相关内容。
 
-The guide covers the `rollback` option for double texting, which interrupts the prior run of the graph and starts a new one with the double-text. This option is very similar to the `interrupt` option, but in this case the first run is completely deleted from the database and cannot be restarted. Below is a quick example of using the `rollback` option.
+本指南涵盖双重文本的 `rollback` 选项，该选项会中断图的先前运行，并使用双重文本启动一个新的运行。此选项与 `interrupt` 选项非常相似，但在此情况下，第一次运行会从数据库中完全删除且无法重新启动。以下是使用 `rollback` 选项的快速示例。
 
-## Setup
+## 设置
 
-First, we will define a quick helper function for printing out JS and CURL model outputs (you can skip this if using Python):
+首先，我们将定义一个快速辅助函数，用于打印 JS 和 CURL 模型输出（如果您使用 Python，可以跳过此步骤）：
 
 <Tabs>
     <Tab title="Javascript">
@@ -28,7 +28,7 @@ First, we will define a quick helper function for printing out JS and CURL model
     </Tab>
     <Tab title="CURL">
     ```bash
-    # PLACE THIS IN A FILE CALLED pretty_print.sh
+    # 将此内容放入名为 pretty_print.sh 的文件中
     pretty_print() {
       local type="$1"
       local content="$2"
@@ -49,7 +49,7 @@ First, we will define a quick helper function for printing out JS and CURL model
     </Tab>
 </Tabs>
 
-Now, let's import our required packages and instantiate our client, assistant, and thread.
+现在，让我们导入所需的包并实例化客户端、助手和线程。
 
 <Tabs>
     <Tab title="Python">
@@ -61,7 +61,7 @@ Now, let's import our required packages and instantiate our client, assistant, a
     from langgraph_sdk import get_client
 
     client = get_client(url=<DEPLOYMENT_URL>)
-    # Using the graph deployed with the name "agent"
+    # 使用以名称 "agent" 部署的图
     assistant_id = "agent"
     thread = await client.threads.create()
     ```
@@ -71,7 +71,7 @@ Now, let's import our required packages and instantiate our client, assistant, a
     import { Client } from "@langchain/langgraph-sdk";
 
     const client = new Client({ apiUrl: <DEPLOYMENT_URL> });
-    // Using the graph deployed with the name "agent"
+    // 使用以名称 "agent" 部署的图
     const assistantId = "agent";
     const thread = await client.threads.create();
     ```
@@ -86,14 +86,14 @@ Now, let's import our required packages and instantiate our client, assistant, a
     </Tab>
 </Tabs>
 
-## Create runs
+## 创建运行
 
-Now let's run a thread with the multitask parameter set to "rollback":
+现在，让我们运行一个线程，并将多任务参数设置为 "rollback"：
 
 <Tabs>
     <Tab title="Python">
     ```python
-    # the first run will be rolled back
+    # 第一次运行将被回滚
     rolled_back_run = await client.runs.create(
         thread["thread_id"],
         assistant_id,
@@ -105,13 +105,13 @@ Now let's run a thread with the multitask parameter set to "rollback":
         input={"messages": [{"role": "user", "content": "what's the weather in nyc?"}]},
         multitask_strategy="rollback",
     )
-    # wait until the second run completes
+    # 等待第二次运行完成
     await client.runs.join(thread["thread_id"], run["run_id"])
     ```
     </Tab>
     <Tab title="Javascript">
     ```js
-    // the first run will be interrupted
+    // 第一次运行将被中断
     let rolledBackRun = await client.runs.create(
       thread["thread_id"],
       assistantId,
@@ -127,7 +127,7 @@ Now let's run a thread with the multitask parameter set to "rollback":
       }
     );
 
-    // wait until the second run completes
+    // 等待第二次运行完成
     await client.runs.join(thread["thread_id"], run["run_id"]);
     ```
     </Tab>
@@ -152,9 +152,9 @@ Now let's run a thread with the multitask parameter set to "rollback":
     </Tab>
 </Tabs>
 
-## View run results
+## 查看运行结果
 
-We can see that the thread has data only from the second run
+我们可以看到线程中只有第二次运行的数据
 
 <Tabs>
     <Tab title="Python">
@@ -187,30 +187,30 @@ We can see that the thread has data only from the second run
     </Tab>
 </Tabs>
 
-Output:
+输出：
 
 ```
-================================ Human Message =================================
+================================ 人类消息 =================================
 
 what's the weather in nyc?
-================================== Ai Message ==================================
+================================== AI 消息 ==================================
 
 [{'id': 'toolu_01JzPqefao1gxwajHQ3Yh3JD', 'input': {'query': 'weather in nyc'}, 'name': 'tavily_search_results_json', 'type': 'tool_use'}]
-Tool Calls:
+工具调用:
 tavily_search_results_json (toolu_01JzPqefao1gxwajHQ3Yh3JD)
-Call ID: toolu_01JzPqefao1gxwajHQ3Yh3JD
-Args:
+调用 ID: toolu_01JzPqefao1gxwajHQ3Yh3JD
+参数:
 query: weather in nyc
-================================= Tool Message =================================
-Name: tavily_search_results_json
+================================= 工具消息 =================================
+名称: tavily_search_results_json
 
 [{"url": "https://www.weatherapi.com/", "content": "{'location': {'name': 'New York', 'region': 'New York', 'country': 'United States of America', 'lat': 40.71, 'lon': -74.01, 'tz_id': 'America/New_York', 'localtime_epoch': 1718734479, 'localtime': '2024-06-18 14:14'}, 'current': {'last_updated_epoch': 1718733600, 'last_updated': '2024-06-18 14:00', 'temp_c': 29.4, 'temp_f': 84.9, 'is_day': 1, 'condition': {'text': 'Sunny', 'icon': '//cdn.weatherapi.com/weather/64x64/day/113.png', 'code': 1000}, 'wind_mph': 2.2, 'wind_kph': 3.6, 'wind_degree': 158, 'wind_dir': 'SSE', 'pressure_mb': 1025.0, 'pressure_in': 30.26, 'precip_mm': 0.0, 'precip_in': 0.0, 'humidity': 63, 'cloud': 0, 'feelslike_c': 31.3, 'feelslike_f': 88.3, 'windchill_c': 28.3, 'windchill_f': 82.9, 'heatindex_c': 29.6, 'heatindex_f': 85.3, 'dewpoint_c': 18.4, 'dewpoint_f': 65.2, 'vis_km': 16.0, 'vis_miles': 9.0, 'uv': 7.0, 'gust_mph': 16.5, 'gust_kph': 26.5}}"}]
-================================== Ai Message ==================================
+================================== AI 消息 ==================================
 
-The weather API results show that the current weather in New York City is sunny with a temperature of around 85°F (29°C). The wind is light at around 2-3 mph from the south-southeast. Overall it looks like a nice sunny summer day in NYC.
+天气 API 结果显示，纽约市当前天气晴朗，气温约为 85°F（29°C）。风力较弱，来自南南东方向，时速约 2-3 英里。总体来看，纽约市似乎是一个阳光明媚的夏日。
 ```
 
-Verify that the original, rolled back run was deleted
+验证原始、被回滚的运行已被删除
 
 <Tabs>
     <Tab title="Python">
@@ -218,7 +218,7 @@ Verify that the original, rolled back run was deleted
     try:
         await client.runs.get(thread["thread_id"], rolled_back_run["run_id"])
     except httpx.HTTPStatusError as _:
-        print("Original run was correctly deleted")
+        print("原始运行已被正确删除")
     ```
     </Tab>
     <Tab title="Javascript">
@@ -226,25 +226,25 @@ Verify that the original, rolled back run was deleted
     try {
       await client.runs.get(thread["thread_id"], rolledBackRun["run_id"]);
     } catch (e) {
-      console.log("Original run was correctly deleted");
+      console.log("原始运行已被正确删除");
     }
     ```
     </Tab>
 </Tabs>
 
-Output:
+输出：
 
 ```
-Original run was correctly deleted
+原始运行已被正确删除
 ```
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/rollback-concurrent.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/rollback-concurrent.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

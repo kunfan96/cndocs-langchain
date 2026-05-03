@@ -1,33 +1,33 @@
 ---
-title: Fault tolerance
-description: Configure per-node timeouts, retries, and error handlers in LangGraph.
+title: 容错
+description: 在 LangGraph 中配置节点级超时、重试和错误处理器。
 ---
 
-When a node fails—from a slow external API, a transient network error, or an unhandled exception—LangGraph gives you three composable mechanisms to respond:
+当节点失败时——无论是由于外部 API 响应缓慢、瞬时网络错误还是未处理的异常——LangGraph 提供了三种可组合的机制来应对：
 
-- [**Retries**](#retries) — automatically re-run failed attempts based on exception type and backoff settings
-- [**Timeouts**](#timeouts) — cap how long a single attempt may run
-- [**Error handling**](#error-handling) — run a recovery function after all retries are exhausted
+- [**重试**](#重试) — 根据异常类型和退避设置自动重新运行失败的尝试
+- [**超时**](#超时) — 限制单次尝试的运行时间
+- [**错误处理**](#错误处理) — 在所有重试耗尽后运行恢复函数
 
-These compose in a fixed order: when a node attempt raises any exception (including [`NodeTimeoutError`](https://reference.langchain.com/python/langgraph/errors/NodeTimeoutError) from a timeout), the retry policy decides whether to retry. Only after retries are exhausted does the error handler run.
+这些机制按固定顺序组合：当节点尝试引发任何异常（包括超时产生的 [`NodeTimeoutError`](https://reference.langchain.com/python/langgraph/errors/NodeTimeoutError)）时，重试策略决定是否重试。只有在重试耗尽后，错误处理器才会运行。
 
-For stopping a run cleanly at a superstep boundary and resuming later, see [Graceful shutdown](/oss/python/langgraph/durable-execution#graceful-shutdown).
+有关在超步边界干净地停止运行并在稍后恢复的信息，请参阅[优雅关闭](/oss/python/langgraph/durable-execution#graceful-shutdown)。
 
 <Note>
-Per-node timeouts and node-level error handlers require `langgraph>=1.2`, currently in alpha.
+节点级超时和节点级错误处理器需要 `langgraph>=1.2`，目前处于 alpha 阶段。
 </Note>
 
 ```mermaid
 %%{init:{'theme':'base','themeVariables':{'lineColor':'#40668D','primaryColor':'#E5F4FF','primaryTextColor':'#030710','primaryBorderColor':'#006DDD'}}}%%
 flowchart LR
-    start([Attempt starts]) --> exec[Run node]
-    exec -->|"success"| done([Continue graph])
-    exec -->|"any exception<br/>including NodeTimeoutError"| retry{retry_policy<br/>matches?}
-    retry -->|"yes, attempts left"| exec
-    retry -->|"exhausted or absent"| handler{error_handler?}
-    handler -->|"yes"| run_handler["Invoke handler<br/>with NodeError"]
-    run_handler --> route([Update state +<br/>Command goto])
-    handler -->|"no"| bubble([Exception<br/>bubbles up])
+    start([尝试开始]) --> exec[运行节点]
+    exec -->|"成功"| done([继续图执行])
+    exec -->|"任何异常<br/>包括 NodeTimeoutError"| retry{重试策略<br/>匹配？}
+    retry -->|"是，仍有尝试次数"| exec
+    retry -->|"耗尽或不存在"| handler{错误处理器？}
+    handler -->|"是"| run_handler["调用处理器<br/>传入 NodeError"]
+    run_handler --> route([更新状态 +<br/>Command 跳转])
+    handler -->|"否"| bubble([异常<br/>向上冒泡])
 
     classDef process fill:#E5F4FF,stroke:#006DDD,stroke-width:2px,color:#030710
     classDef decision fill:#FDF3FF,stroke:#7E65AE,stroke-width:2px,color:#504B5F
@@ -40,9 +40,9 @@ flowchart LR
     class done,route,start output
 ```
 
-## Retries
+## 重试
 
-A retry policy automatically re-runs a failed node attempt based on exception type and backoff settings. Pass `retry_policy=` to [`add_node`](https://reference.langchain.com/python/langgraph/graph/state/StateGraph/add_node):
+重试策略根据异常类型和退避设置自动重新运行失败的节点尝试。通过 [`add_node`](https://reference.langchain.com/python/langgraph/graph/state/StateGraph/add_node) 传递 `retry_policy=`：
 
 ```python
 from langgraph.types import RetryPolicy
@@ -54,9 +54,9 @@ builder.add_node(
 )
 ```
 
-### Default behavior
+### 默认行为
 
-By default, `retry_on` uses `default_retry_on`, which retries on **any** exception except the following (and their subclasses):
+默认情况下，`retry_on` 使用 `default_retry_on`，它会对**任何**异常进行重试，但以下异常（及其子类）除外：
 
 - `ValueError`
 - `TypeError`
@@ -71,22 +71,22 @@ By default, `retry_on` uses `default_retry_on`, which retries on **any** excepti
 - `StopAsyncIteration`
 - `OSError`
 
-For exceptions from popular HTTP libraries such as `requests` and `httpx`, it only retries on 5xx status codes. [`NodeTimeoutError`](https://reference.langchain.com/python/langgraph/errors/NodeTimeoutError) is retryable by default.
+对于来自 `requests` 和 `httpx` 等流行 HTTP 库的异常，它仅对 5xx 状态码进行重试。[`NodeTimeoutError`](https://reference.langchain.com/python/langgraph/errors/NodeTimeoutError) 默认可重试。
 
-### Parameters
+### 参数
 
-| Parameter | Type | Default | Description |
+| 参数 | 类型 | 默认值 | 描述 |
 | --------- | ---- | ------- | ----------- |
-| `max_attempts` | `int` | `3` | Maximum number of attempts, including the first. |
-| `initial_interval` | `float` | `0.5` | Seconds before the first retry. |
-| `backoff_factor` | `float` | `2.0` | Multiplier applied to the interval after each retry. |
-| `max_interval` | `float` | `128.0` | Maximum seconds between retries. |
-| `jitter` | `bool` | `True` | Add random jitter to the interval. |
-| `retry_on` | `type[Exception] \| Sequence[type[Exception]] \| Callable[[Exception], bool]` | `default_retry_on` | Exceptions to retry on, or a callable returning `True` for retryable exceptions. |
+| `max_attempts` | `int` | `3` | 最大尝试次数，包括第一次。 |
+| `initial_interval` | `float` | `0.5` | 第一次重试前的秒数。 |
+| `backoff_factor` | `float` | `2.0` | 每次重试后应用于间隔的乘数。 |
+| `max_interval` | `float` | `128.0` | 重试之间的最大秒数。 |
+| `jitter` | `bool` | `True` | 为间隔添加随机抖动。 |
+| `retry_on` | `type[Exception] \| Sequence[type[Exception]] \| Callable[[Exception], bool]` | `default_retry_on` | 要重试的异常，或一个可调用对象，对可重试异常返回 `True`。 |
 
-### Custom retry logic
+### 自定义重试逻辑
 
-Pass a callable or exception type to `retry_on`. Import `default_retry_on` to extend the default behavior:
+将可调用对象或异常类型传递给 `retry_on`。导入 `default_retry_on` 以扩展默认行为：
 
 ```python
 from langgraph.types import RetryPolicy, default_retry_on
@@ -103,9 +103,9 @@ builder.add_node(
 )
 ```
 
-### Inspect retry state
+### 检查重试状态
 
-Use `runtime.execution_info` inside a node to inspect the current attempt number. This is useful for switching to a fallback when the primary call keeps failing:
+在节点内使用 `runtime.execution_info` 检查当前尝试次数。当主要调用持续失败时，这对于切换到备用方案很有用：
 
 ```python
 from langgraph.graph import StateGraph, START, END
@@ -127,36 +127,36 @@ builder.add_edge(START, "my_node")
 builder.add_edge("my_node", END)
 ```
 
-`execution_info` exposes the following fields:
+`execution_info` 暴露以下字段：
 
-| Attribute | Type | Description |
+| 属性 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `node_attempt` | `int` | Current attempt number (1-indexed). `1` on the first try, `2` on the first retry, etc. |
-| `node_first_attempt_time` | `float \| None` | Unix timestamp of when the first attempt started. Constant across retries. |
-| `thread_id` | `str \| None` | Thread ID for the current execution. `None` without a checkpointer. |
-| `run_id` | `str \| None` | Run ID for the current execution. `None` when not provided in config. |
-| `checkpoint_id` | `str` | Checkpoint ID for the current execution. |
-| `task_id` | `str` | Task ID for the current execution. |
+| `node_attempt` | `int` | 当前尝试次数（从 1 开始）。第一次尝试为 `1`，第一次重试为 `2`，依此类推。 |
+| `node_first_attempt_time` | `float \| None` | 第一次尝试开始的 Unix 时间戳。在重试期间保持不变。 |
+| `thread_id` | `str \| None` | 当前执行的线程 ID。没有检查点时为 `None`。 |
+| `run_id` | `str \| None` | 当前执行的运行 ID。配置中未提供时为 `None`。 |
+| `checkpoint_id` | `str` | 当前执行的检查点 ID。 |
+| `task_id` | `str` | 当前执行的任务 ID。 |
 
-`execution_info` is available even without a retry policy—`node_attempt` defaults to `1`.
+即使没有重试策略，`execution_info` 也可用——`node_attempt` 默认为 `1`。
 
-## Timeouts
+## 超时
 
 <Note>
-Requires `langgraph>=1.2`, currently in alpha.
+需要 `langgraph>=1.2`，目前处于 alpha 阶段。
 </Note>
 
-The `timeout=` parameter on [`add_node`](https://reference.langchain.com/python/langgraph/graph/state/StateGraph/add_node) caps how long a single node attempt may run. Pass a number (seconds), a `timedelta`, or a [`TimeoutPolicy`](https://reference.langchain.com/python/langgraph/types/TimeoutPolicy) for separate run and idle limits:
+[`add_node`](https://reference.langchain.com/python/langgraph/graph/state/StateGraph/add_node) 上的 `timeout=` 参数限制单次节点尝试的运行时间。传递一个数字（秒）、一个 `timedelta` 或一个 [`TimeoutPolicy`](https://reference.langchain.com/python/langgraph/types/TimeoutPolicy) 以分别设置运行和空闲限制：
 
 ```python
 from datetime import timedelta
 from langgraph.types import TimeoutPolicy
 
-# Simple wall-clock cap
+# 简单的挂钟时间限制
 builder.add_node("call_model", call_model, timeout=60)
 builder.add_node("call_model", call_model, timeout=timedelta(minutes=2))
 
-# Separate run and idle limits
+# 分别设置运行和空闲限制
 builder.add_node(
     "call_model",
     call_model,
@@ -165,12 +165,12 @@ builder.add_node(
 ```
 
 <Warning>
-Node timeouts only apply to **async** nodes. Sync nodes with a `timeout` are rejected at compile time. To wrap blocking I/O, use `asyncio.to_thread` inside an async node.
+节点超时仅适用于**异步**节点。带有 `timeout` 的同步节点在编译时会被拒绝。要包装阻塞 I/O，请在异步节点内使用 `asyncio.to_thread`。
 </Warning>
 
-### Run timeout
+### 运行超时
 
-`run_timeout` is a hard wall-clock cap on a single attempt. It is never refreshed, regardless of node activity:
+`run_timeout` 是单次尝试的硬性挂钟时间限制。无论节点活动如何，它都不会刷新：
 
 ```python
 from langgraph.types import TimeoutPolicy
@@ -182,11 +182,11 @@ builder.add_node(
 )
 ```
 
-When the limit is exceeded, LangGraph raises [`NodeTimeoutError`](https://reference.langchain.com/python/langgraph/errors/NodeTimeoutError), clears any writes from the failed attempt, and lets the retry policy decide whether to retry.
+当超过限制时，LangGraph 会引发 [`NodeTimeoutError`](https://reference.langchain.com/python/langgraph/errors/NodeTimeoutError)，清除失败尝试的任何写入，并让重试策略决定是否重试。
 
-### Idle timeout
+### 空闲超时
 
-`idle_timeout` is a progress-resetting cap. It fires only when the node stops making observable progress for the specified duration—unlike `run_timeout`, the clock resets whenever the node produces a progress signal:
+`idle_timeout` 是一个进度重置限制。它仅在节点停止产生可观察进度指定持续时间后触发——与 `run_timeout` 不同，只要节点产生进度信号，时钟就会重置：
 
 ```python
 builder.add_node(
@@ -196,21 +196,21 @@ builder.add_node(
 )
 ```
 
-You can set `run_timeout` and `idle_timeout` together. Whichever fires first cancels the attempt.
+你可以同时设置 `run_timeout` 和 `idle_timeout`。先触发的那个将取消尝试。
 
-#### Progress signals
+#### 进度信号
 
-Under the default `refresh_on="auto"`, the idle clock resets on any of the following:
+在默认的 `refresh_on="auto"` 下，空闲时钟在以下任何情况下重置：
 
-- State writes via `CONFIG_KEY_SEND`
-- Stream output (yielded async stream chunks)
-- Child-task scheduling
-- Runtime stream-writer calls
-- Any LangChain callback event from the node or its descendants (LLM tokens, tool calls, chain start/end, etc.)
+- 通过 `CONFIG_KEY_SEND` 进行状态写入
+- 流输出（生成的异步流块）
+- 子任务调度
+- 运行时流写入器调用
+- 节点或其后代的任何 LangChain 回调事件（LLM 令牌、工具调用、链开始/结束等）
 
-#### Heartbeat mode
+#### 心跳模式
 
-Set `refresh_on="heartbeat"` to narrow the refresh source to explicit `runtime.heartbeat()` calls only. This is useful when you want a strict idle definition that isn't reset by chatty subordinates:
+设置 `refresh_on="heartbeat"` 以将刷新源限制为仅显式的 `runtime.heartbeat()` 调用。当你想要一个严格的空闲定义，不会被健谈的子节点重置时，这很有用：
 
 ```python
 builder.add_node(
@@ -220,9 +220,9 @@ builder.add_node(
 )
 ```
 
-#### Manual heartbeats
+#### 手动心跳
 
-For long-running async work that doesn't naturally emit progress signals, call `runtime.heartbeat()` to manually reset the idle clock:
+对于不自然发出进度信号的长时间运行异步工作，调用 `runtime.heartbeat()` 以手动重置空闲时钟：
 
 ```python
 from langgraph.graph import StateGraph, START, END
@@ -249,21 +249,21 @@ builder.add_edge(START, "long_running_node")
 builder.add_edge("long_running_node", END)
 ```
 
-`runtime.heartbeat()` is a no-op outside an idle-timed attempt, so you can call it unconditionally.
+`runtime.heartbeat()` 在空闲计时尝试之外是空操作，因此你可以无条件调用它。
 
 ### NodeTimeoutError
 
-When a timeout fires, LangGraph raises [`NodeTimeoutError`](https://reference.langchain.com/python/langgraph/errors/NodeTimeoutError) with structured context about which limit was hit:
+当超时触发时，LangGraph 会引发 [`NodeTimeoutError`](https://reference.langchain.com/python/langgraph/errors/NodeTimeoutError)，并包含关于触发了哪个限制的结构化上下文：
 
-| Attribute | Type | Description |
+| 属性 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `node` | `str` | Name of the node whose execution timed out. |
-| `elapsed` | `float` | Seconds elapsed before the timeout fired. |
-| `kind` | `Literal["idle", "run"]` | Which timeout fired. |
-| `idle_timeout` | `float \| None` | The configured idle timeout (seconds), if any. |
-| `run_timeout` | `float \| None` | The configured run timeout (seconds), if any. |
+| `node` | `str` | 执行超时的节点名称。 |
+| `elapsed` | `float` | 超时触发前经过的秒数。 |
+| `kind` | `Literal["idle", "run"]` | 触发了哪种超时。 |
+| `idle_timeout` | `float \| None` | 配置的空闲超时（秒），如果有的话。 |
+| `run_timeout` | `float \| None` | 配置的运行超时（秒），如果有的话。 |
 
-`NodeTimeoutError` is retryable by default. Combining `timeout=` with `retry_policy=` works out of the box—the timeout clock resets on each new attempt, and writes from a timed-out attempt are cleared before the next retry:
+`NodeTimeoutError` 默认可重试。将 `timeout=` 与 `retry_policy=` 结合使用开箱即用——超时时钟在每次新尝试时重置，并且在下一次重试之前会清除超时尝试的写入：
 
 ```python
 from langgraph.types import RetryPolicy, TimeoutPolicy
@@ -276,9 +276,9 @@ builder.add_node(
 )
 ```
 
-### Dynamic timeouts with Send
+### 使用 Send 的动态超时
 
-When using [`Send`](https://reference.langchain.com/python/langgraph/types/Send) to dispatch nodes dynamically (for example, in map-reduce patterns), you can pass a `timeout=` directly on the `Send` to override the target node's static timeout for that specific push:
+当使用 [`Send`](https://reference.langchain.com/python/langgraph/types/Send) 动态分派节点时（例如，在 map-reduce 模式中），你可以直接在 `Send` 上传递 `timeout=` 以覆盖该特定推送的目标节点的静态超时：
 
 ```python
 from langgraph.types import Send, TimeoutPolicy
@@ -290,17 +290,17 @@ def fan_out(state: OverallState):
     ]
 ```
 
-If `timeout=` is omitted on the `Send`, the target node's timeout (set at `add_node` time) applies. This lets you set a default timeout on the node and tighten it for individual calls.
+如果在 `Send` 上省略了 `timeout=`，则应用目标节点的超时（在 `add_node` 时设置）。这允许你在节点上设置默认超时，并为单个调用收紧它。
 
-## Error handling
+## 错误处理
 
 <Note>
-Requires `langgraph>=1.2`, currently in alpha.
+需要 `langgraph>=1.2`，目前处于 alpha 阶段。
 </Note>
 
-An error handler runs after a node fails and all retries are exhausted. It receives the current state and can update it or route to a different node using [`Command`](https://reference.langchain.com/python/langgraph/types/Command). This is useful for compensation flows (Saga patterns) where you want to recover gracefully rather than abort the entire graph.
+错误处理器在节点失败且所有重试耗尽后运行。它接收当前状态，并可以使用 [`Command`](https://reference.langchain.com/python/langgraph/types/Command) 更新状态或路由到不同的节点。这对于补偿流程（Saga 模式）很有用，你希望优雅地恢复而不是中止整个图。
 
-Pass `error_handler=` to [`add_node`](https://reference.langchain.com/python/langgraph/graph/state/StateGraph/add_node):
+通过 [`add_node`](https://reference.langchain.com/python/langgraph/graph/state/StateGraph/add_node) 传递 `error_handler=`：
 
 ```python
 from langgraph.errors import NodeError
@@ -337,11 +337,11 @@ graph = (
 )
 ```
 
-The handler fires only after `retry_policy` is exhausted, or immediately if no retry policy is configured. The retry policy and the error handler stay decoupled: configure when to retry and when to compensate independently.
+处理器仅在 `retry_policy` 耗尽后触发，或者如果未配置重试策略则立即触发。重试策略和错误处理器保持解耦：独立配置何时重试和何时补偿。
 
 ### NodeError
 
-Error handlers receive failure context through a typed `error: NodeError` parameter, injected by type annotation (the same pattern as `runtime: Runtime`):
+错误处理器通过类型化的 `error: NodeError` 参数接收失败上下文，该参数通过类型注解注入（与 `runtime: Runtime` 相同的模式）：
 
 ```python
 from langgraph.errors import NodeError
@@ -351,18 +351,18 @@ def my_handler(state: State, error: NodeError) -> Command:
     return Command(update={"status": "recovered"}, goto="next_step")
 ```
 
-[`NodeError`](https://reference.langchain.com/python/langgraph/errors/NodeError) is a frozen dataclass with two fields:
+[`NodeError`](https://reference.langchain.com/python/langgraph/errors/NodeError) 是一个冻结的数据类，包含两个字段：
 
-| Attribute | Type | Description |
+| 属性 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `node` | `str` | Name of the node whose execution failed. |
-| `error` | `BaseException` | The exception raised by the failed node. |
+| `node` | `str` | 执行失败的节点名称。 |
+| `error` | `BaseException` | 失败节点引发的异常。 |
 
-The `error: NodeError` parameter is opt-in. Handlers that don't need failure context can use simpler signatures like `(state)` or `(state, runtime)`.
+`error: NodeError` 参数是可选的。不需要失败上下文的处理器可以使用更简单的签名，如 `(state)` 或 `(state, runtime)`。
 
-### Route with Command
+### 使用 Command 路由
 
-Error handlers can return a [`Command`](https://reference.langchain.com/python/langgraph/types/Command) to update state and route to a specific node, enabling Saga / compensation patterns:
+错误处理器可以返回一个 [`Command`](https://reference.langchain.com/python/langgraph/types/Command) 来更新状态并路由到特定节点，从而实现 Saga / 补偿模式：
 
 ```python
 from langgraph.errors import NodeError
@@ -404,27 +404,27 @@ graph = (
 )
 ```
 
-`charge_payment` retries on `ConnectionError` up to 3 times. If retries are exhausted (or the error isn't a `ConnectionError`), the handler compensates by updating state and routing to `finalize` instead of aborting the graph.
+`charge_payment` 对 `ConnectionError` 重试最多 3 次。如果重试耗尽（或者错误不是 `ConnectionError`），处理器通过更新状态并路由到 `finalize` 进行补偿，而不是中止图。
 
-### Resume-safe failures
+### 可恢复的失败
 
 <Note>
-Failure provenance is checkpointed. If the graph is interrupted or the process crashes after a node fails but before the handler completes, the handler sees the same `NodeError` context when the graph resumes from its checkpoint.
+失败来源会被检查点记录。如果图在节点失败后、处理器完成前被中断或进程崩溃，当图从其检查点恢复时，处理器将看到相同的 `NodeError` 上下文。
 </Note>
 
-### Behavior with `interrupt()`
+### 与 `interrupt()` 的行为
 
 <Warning>
-`interrupt()` raised inside a node is **not** routed to the error handler. Interrupts use the `GraphBubbleUp` mechanism to pause graph execution for human-in-the-loop workflows, bypassing both retry policies and error handlers. The graph pauses as usual.
+在节点内引发的 `interrupt()` **不会**路由到错误处理器。中断使用 `GraphBubbleUp` 机制来暂停图执行以进行人在回路工作流，绕过重试策略和错误处理器。图照常暂停。
 </Warning>
 
-### Subgraph failures
+### 子图失败
 
-If a node wraps a subgraph and the subgraph raises an unhandled exception, that exception surfaces to the parent node. If the parent node has an `error_handler`, the handler fires with the subgraph's exception in `error.error`.
+如果一个节点包装了一个子图，并且子图引发了未处理的异常，该异常将出现在父节点。如果父节点有 `error_handler`，处理器将使用子图的异常（在 `error.error` 中）触发。
 
-## Functional API
+## 函数式 API
 
-The same `timeout=` and `retry_policy=` parameters are available on `@task` and `@entrypoint` in the functional API:
+相同的 `timeout=` 和 `retry_policy=` 参数在函数式 API 的 `@task` 和 `@entrypoint` 上也可用：
 
 ```python
 from langgraph.func import entrypoint, task
@@ -444,22 +444,22 @@ async def my_workflow(inputs: dict) -> str:
     return result
 ```
 
-The behavior is identical to `add_node`: `NodeTimeoutError` is raised on timeout, buffered writes are cleared, and the retry policy decides whether to retry.
+行为与 `add_node` 相同：超时时引发 `NodeTimeoutError`，清除缓冲写入，重试策略决定是否重试。
 
-## Limitations
+## 限制
 
-- **Python only**: timeouts and error handlers are not available in the JavaScript/TypeScript SDK. Retry policies work in both Python and TypeScript.
-- **Timeouts are async-only**: sync nodes with a `timeout` are rejected at compile time.
-- **One handler per node**: each node can have at most one `error_handler`.
-- **Handler failures bubble up**: if the error handler itself raises, that exception propagates as if the node had no handler.
+- **仅限 Python**：超时和错误处理器在 JavaScript/TypeScript SDK 中不可用。重试策略在 Python 和 TypeScript 中都有效。
+- **超时仅限异步**：带有 `timeout` 的同步节点在编译时会被拒绝。
+- **每个节点一个处理器**：每个节点最多只能有一个 `error_handler`。
+- **处理器失败会向上冒泡**：如果错误处理器本身引发异常，该异常将像节点没有处理器一样传播。
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/fault-tolerance.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/fault-tolerance.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

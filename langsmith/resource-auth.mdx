@@ -1,27 +1,27 @@
 ---
-title: Make conversations private
-sidebarTitle: Make conversations private
+title: 使对话私有化
+sidebarTitle: 使对话私有化
 ---
-In this tutorial, you will extend [the chatbot created in the last tutorial](/langsmith/set-up-custom-auth) to give each user their own private conversations. You'll add [resource-level access control](/langsmith/auth#single-owner-resources) so users can only see their own threads.
+在本教程中，你将扩展[上一个教程中创建的聊天机器人](/langsmith/set-up-custom-auth)，为每个用户提供他们自己的私有对话。你将添加[资源级访问控制](/langsmith/auth#single-owner-resources)，以便用户只能看到自己的线程。
 
-![Authorization flow: after authentication, an authorization handler tags each resource with owner=user id and returns a filter so users only see their own threads.](/langsmith/images/authorization.png)
+![授权流程：认证后，授权处理器为每个资源标记 owner=user id 并返回过滤器，使用户只能看到自己的线程。](/langsmith/images/authorization.png)
 
-## Prerequisites
+## 前提条件
 
-Before you start this tutorial, ensure you have the [bot from the first tutorial](/langsmith/set-up-custom-auth) running without errors.
+在开始本教程之前，请确保[第一个教程中的机器人](/langsmith/set-up-custom-auth)正在无错误地运行。
 
-## 1. Add resource authorization
+## 1. 添加资源授权
 
-Recall that in the last tutorial, the [`Auth`](https://reference.langchain.com/python/langgraph-sdk/auth/Auth) object lets you register an [authentication function](/langsmith/auth#authentication), which LangSmith uses to validate the bearer tokens in incoming requests. Now you'll use it to register an **authorization** handler.
+回顾上一个教程，[`Auth`](https://reference.langchain.com/python/langgraph-sdk/auth/Auth) 对象允许你注册一个[认证函数](/langsmith/auth#authentication)，LangSmith 使用该函数来验证传入请求中的承载令牌。现在你将使用它来注册一个**授权**处理器。
 
-Authorization handlers are functions that run **after** authentication succeeds. These handlers can add [metadata](/langsmith/auth#filter-operations) to resources (like who owns them) and filter what each user can see.
+授权处理器是在认证成功**之后**运行的函数。这些处理器可以为资源添加[元数据](/langsmith/auth#filter-operations)（例如所有者是谁）并过滤每个用户可以看到的内容。
 
-Update your `src/security/auth.py` and add one authorization handler to run on every request:
+更新你的 `src/security/auth.py` 并添加一个在每个请求上运行的授权处理器：
 
 ```python {highlight={29-39}} title="src/security/auth.py"
 from langgraph_sdk import Auth
 
-# Keep our test users from the previous tutorial
+# 保留上一个教程中的测试用户
 VALID_TOKENS = {
     "user1-token": {"id": "user1", "name": "Alice"},
     "user2-token": {"id": "user2", "name": "Bob"},
@@ -32,7 +32,7 @@ auth = Auth()
 
 @auth.authenticate
 async def get_current_user(authorization: str | None) -> Auth.types.MinimalUserDict:
-    """Our authentication handler from the previous tutorial."""
+    """我们上一个教程中的认证处理器。"""
     assert authorization
     scheme, token = authorization.split()
     assert scheme.lower() == "bearer"
@@ -48,11 +48,11 @@ async def get_current_user(authorization: str | None) -> Auth.types.MinimalUserD
 
 @auth.on
 async def add_owner(
-    ctx: Auth.types.AuthContext,  # Contains info about the current user
-    value: dict,  # The resource being created/accessed
+    ctx: Auth.types.AuthContext,  # 包含有关当前用户的信息
+    value: dict,  # 正在创建/访问的资源
 ):
-    """Make resources private to their creator."""
-    # Examples:
+    """使资源对其创建者私有。"""
+    # 示例：
     # ctx: AuthContext(
     #     permissions=[],
     #     user=ProxyUser(
@@ -79,7 +79,7 @@ async def add_owner(
     #         'command': None,
     #         'config': {
     #             'configurable': {
-    #                 'langgraph_auth_user': ... Your user object...
+    #                 'langgraph_auth_user': ... 你的用户对象...
     #                 'langgraph_auth_user_id': 'user1'
     #             }
     #         },
@@ -93,36 +93,36 @@ async def add_owner(
     #     }
     # }
 
-    # Does 2 things:
-    # 1. Add the user's ID to the resource's metadata. Each LangGraph resource has a `metadata` dict that persists with the resource.
-    # this metadata is useful for filtering in read and update operations
-    # 2. Return a filter that lets users only see their own resources
+    # 做两件事：
+    # 1. 将用户的 ID 添加到资源的元数据中。每个 LangGraph 资源都有一个随资源持久化的 `metadata` 字典。
+    # 此元数据对于读取和更新操作中的过滤很有用
+    # 2. 返回一个过滤器，使用户只能看到自己的资源
     filters = {"owner": ctx.user.identity}
     metadata = value.setdefault("metadata", {})
     metadata.update(filters)
 
-    # Only let users see their own resources
+    # 只允许用户看到自己的资源
     return filters
 ```
 
-The handler receives two parameters:
+该处理器接收两个参数：
 
-1. `ctx` ([AuthContext](https://reference.langchain.com/python/langgraph-sdk/auth/types/AuthContext)): contains info about the current `user`, the user's `permissions`, the `resource` ("threads", "crons", "assistants"), and the `action` being taken ("create", "read", "update", "delete", "search", "create_run")
-2. `value` (`dict`): data that is being created or accessed. The contents of this dict depend on the resource and action being accessed. See [adding scoped authorization handlers](#scoped-authorization) below for information on how to get more tightly scoped access control.
+1. `ctx` ([AuthContext](https://reference.langchain.com/python/langgraph-sdk/auth/types/AuthContext))：包含有关当前 `user`、用户 `permissions`、`resource`（"threads"、"crons"、"assistants"）和正在执行的 `action`（"create"、"read"、"update"、"delete"、"search"、"create_run"）的信息
+2. `value` (`dict`)：正在创建或访问的数据。此字典的内容取决于正在访问的资源和操作。有关如何获得更严格范围的访问控制的信息，请参阅下面的[添加范围化授权处理器](#scoped-authorization)。
 
-Notice that the simple handler does two things:
+请注意，这个简单的处理器做了两件事：
 
-1. Adds the user's ID to the resource's metadata.
-2. Returns a metadata filter so users only see resources they own.
+1. 将用户的 ID 添加到资源的元数据中。
+2. 返回一个元数据过滤器，使用户只能看到他们拥有的资源。
 
-## 2. Test private conversations
+## 2. 测试私有对话
 
-Test your authorization. If you have set things up correctly, you will see all ✅ messages. Be sure to have your development server running (run `langgraph dev`):
+测试你的授权。如果设置正确，你将看到所有 ✅ 消息。请确保你的开发服务器正在运行（运行 `langgraph dev`）：
 
 ```python
 from langgraph_sdk import get_client
 
-# Create clients for both users
+# 为两个用户创建客户端
 alice = get_client(
     url="http://localhost:2024",
     headers={"Authorization": "Bearer user1-token"}
@@ -133,13 +133,13 @@ bob = get_client(
     headers={"Authorization": "Bearer user2-token"}
 )
 
-# Alice creates an assistant
+# Alice 创建一个助手
 alice_assistant = await alice.assistants.create()
-print(f"✅ Alice created assistant: {alice_assistant['assistant_id']}")
+print(f"✅ Alice 创建了助手: {alice_assistant['assistant_id']}")
 
-# Alice creates a thread and chats
+# Alice 创建一个线程并聊天
 alice_thread = await alice.threads.create()
-print(f"✅ Alice created thread: {alice_thread['thread_id']}")
+print(f"✅ Alice 创建了线程: {alice_thread['thread_id']}")
 
 await alice.runs.create(
     thread_id=alice_thread["thread_id"],
@@ -147,56 +147,56 @@ await alice.runs.create(
     input={"messages": [{"role": "user", "content": "Hi, this is Alice's private chat"}]}
 )
 
-# Bob tries to access Alice's thread
+# Bob 尝试访问 Alice 的线程
 try:
     await bob.threads.get(alice_thread["thread_id"])
-    print("❌ Bob shouldn't see Alice's thread!")
+    print("❌ Bob 不应该看到 Alice 的线程！")
 except Exception as e:
-    print("✅ Bob correctly denied access:", e)
+    print("✅ Bob 正确地被拒绝访问:", e)
 
-# Bob creates his own thread
+# Bob 创建自己的线程
 bob_thread = await bob.threads.create()
 await bob.runs.create(
     thread_id=bob_thread["thread_id"],
     assistant_id="agent",
     input={"messages": [{"role": "user", "content": "Hi, this is Bob's private chat"}]}
 )
-print(f"✅ Bob created his own thread: {bob_thread['thread_id']}")
+print(f"✅ Bob 创建了自己的线程: {bob_thread['thread_id']}")
 
-# List threads - each user only sees their own
+# 列出线程 - 每个用户只能看到自己的
 alice_threads = await alice.threads.search()
 bob_threads = await bob.threads.search()
-print(f"✅ Alice sees {len(alice_threads)} thread")
-print(f"✅ Bob sees {len(bob_threads)} thread")
+print(f"✅ Alice 看到 {len(alice_threads)} 个线程")
+print(f"✅ Bob 看到 {len(bob_threads)} 个线程")
 ```
 
-Output:
+输出：
 
 ```bash
-✅ Alice created assistant: fc50fb08-78da-45a9-93cc-1d3928a3fc37
-✅ Alice created thread: 533179b7-05bc-4d48-b47a-a83cbdb5781d
-✅ Bob correctly denied access: Client error '404 Not Found' for url 'http://localhost:2024/threads/533179b7-05bc-4d48-b47a-a83cbdb5781d'
+✅ Alice 创建了助手: fc50fb08-78da-45a9-93cc-1d3928a3fc37
+✅ Alice 创建了线程: 533179b7-05bc-4d48-b47a-a83cbdb5781d
+✅ Bob 正确地被拒绝访问: Client error '404 Not Found' for url 'http://localhost:2024/threads/533179b7-05bc-4d48-b47a-a83cbdb5781d'
 For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404
-✅ Bob created his own thread: 437c36ed-dd45-4a1e-b484-28ba6eca8819
-✅ Alice sees 1 thread
-✅ Bob sees 1 thread
+✅ Bob 创建了自己的线程: 437c36ed-dd45-4a1e-b484-28ba6eca8819
+✅ Alice 看到 1 个线程
+✅ Bob 看到 1 个线程
 ```
 
-This means:
+这意味着：
 
-1. Each user can create and chat in their own threads
-2. Users can't see each other's threads
-3. Listing threads only shows your own
+1. 每个用户都可以在自己的线程中创建和聊天
+2. 用户无法看到彼此的线程
+3. 列出线程只显示自己的
 
 <a id="scoped-authorization"></a>
-## 3. Add scoped authorization handlers
+## 3. 添加范围化授权处理器
 
-The broad `@auth.on` handler matches on all [authorization events](/langsmith/auth#supported-resources). This is concise, but it means the contents of the `value` dict are not well-scoped, and the same user-level access control is applied to every resource. If you want to be more fine-grained, you can also control specific actions on resources.
+广泛的 `@auth.on` 处理器匹配所有[授权事件](/langsmith/auth#supported-resources)。这很简洁，但意味着 `value` 字典的内容没有很好的范围限定，并且相同的用户级访问控制应用于每个资源。如果你想更细粒度，你也可以控制对资源的特定操作。
 
-Update `src/security/auth.py` to add handlers for specific resource types:
+更新 `src/security/auth.py` 以添加针对特定资源类型的处理器：
 
 ```python
-# Keep our previous handlers...
+# 保留我们之前的处理器...
 
 from langgraph_sdk import Auth
 
@@ -205,22 +205,22 @@ async def on_thread_create(
     ctx: Auth.types.AuthContext,
     value: Auth.types.on.threads.create.value,
 ):
-    """Add owner when creating threads.
+    """创建线程时添加所有者。
 
-    This handler runs when creating new threads and does two things:
-    1. Sets metadata on the thread being created to track ownership
-    2. Returns a filter that ensures only the creator can access it
+    此处理器在创建新线程时运行，做两件事：
+    1. 在正在创建的线程上设置元数据以跟踪所有权
+    2. 返回一个过滤器，确保只有创建者可以访问它
     """
-    # Example value:
+    # 示例 value:
     #  {'thread_id': UUID('99b045bc-b90b-41a8-b882-dabc541cf740'), 'metadata': {}, 'if_exists': 'raise'}
 
-    # Add owner metadata to the thread being created
-    # This metadata is stored with the thread and persists
+    # 将所有者元数据添加到正在创建的线程
+    # 此元数据随线程存储并持久化
     metadata = value.setdefault("metadata", {})
     metadata["owner"] = ctx.user.identity
 
 
-    # Return filter to restrict access to just the creator
+    # 返回过滤器以将访问限制为仅创建者
     return {"owner": ctx.user.identity}
 
 @auth.on.threads.read
@@ -228,11 +228,11 @@ async def on_thread_read(
     ctx: Auth.types.AuthContext,
     value: Auth.types.on.threads.read.value,
 ):
-    """Only let users read their own threads.
+    """只允许用户读取自己的线程。
 
-    This handler runs on read operations. We don't need to set
-    metadata since the thread already exists - we just need to
-    return a filter to ensure users can only see their own threads.
+    此处理器在读取操作上运行。我们不需要设置
+    元数据，因为线程已经存在 - 我们只需要
+    返回一个过滤器来确保用户只能看到自己的线程。
     """
     return {"owner": ctx.user.identity}
 
@@ -241,9 +241,9 @@ async def on_assistants(
     ctx: Auth.types.AuthContext,
     value: Auth.types.on.assistants.value,
 ):
-    # For illustration purposes, we will deny all requests
-    # that touch the assistants resource
-    # Example value:
+    # 为了说明目的，我们将拒绝所有
+    # 涉及助手资源的请求
+    # 示例 value:
     # {
     #     'assistant_id': UUID('63ba56c3-b074-4212-96e2-cc333bbc4eb4'),
     #     'graph_id': 'agent',
@@ -256,76 +256,76 @@ async def on_assistants(
         detail="User lacks the required permissions.",
     )
 
-# Assumes you organize information in store like (user_id, resource_type, resource_id)
+# 假设你像 (user_id, resource_type, resource_id) 这样组织存储中的信息
 @auth.on.store()
 async def authorize_store(ctx: Auth.types.AuthContext, value: dict):
-    # The "namespace" field for each store item is a tuple you can think of as the directory of an item.
+    # 每个存储项的 "namespace" 字段是一个元组，你可以将其视为项目的目录。
     namespace: tuple = value["namespace"]
     assert namespace[0] == ctx.user.identity, "Not authorized"
 ```
 
-Notice that instead of one global handler, you now have specific handlers for:
+请注意，现在你不再有一个全局处理器，而是有针对以下内容的特定处理器：
 
-1. Creating threads
-2. Reading threads
-3. Accessing assistants
+1. 创建线程
+2. 读取线程
+3. 访问助手
 
-The first three of these match specific **actions** on each resource (see [resource actions](/langsmith/auth#resource-specific-handlers)), while the last one (`@auth.on.assistants`) matches _any_ action on the `assistants` resource. For each request, LangGraph will run the most specific handler that matches the resource and action being accessed. This means that the four handlers above will run rather than the broadly scoped "`@auth.on`" handler.
+前三个匹配每个资源上的特定**操作**（参见[资源操作](/langsmith/auth#resource-specific-handlers)），而最后一个（`@auth.on.assistants`）匹配 `assistants` 资源上的*任何*操作。对于每个请求，LangGraph 将运行匹配正在访问的资源和操作的最具体的处理器。这意味着上述四个处理器将运行，而不是广泛范围的 "`@auth.on`" 处理器。
 
-Try adding the following test code to your test file:
+尝试将以下测试代码添加到你的测试文件中：
 
 ```python
-# ... Same as before
-# Try creating an assistant. This should fail
+# ... 与之前相同
+# 尝试创建一个助手。这应该失败
 try:
     await alice.assistants.create("agent")
-    print("❌ Alice shouldn't be able to create assistants!")
+    print("❌ Alice 不应该能够创建助手！")
 except Exception as e:
-    print("✅ Alice correctly denied access:", e)
+    print("✅ Alice 正确地被拒绝访问:", e)
 
-# Try searching for assistants. This also should fail
+# 尝试搜索助手。这也应该失败
 try:
     await alice.assistants.search()
-    print("❌ Alice shouldn't be able to search assistants!")
+    print("❌ Alice 不应该能够搜索助手！")
 except Exception as e:
-    print("✅ Alice correctly denied access to searching assistants:", e)
+    print("✅ Alice 正确地被拒绝搜索助手:", e)
 
-# Alice can still create threads
+# Alice 仍然可以创建线程
 alice_thread = await alice.threads.create()
-print(f"✅ Alice created thread: {alice_thread['thread_id']}")
+print(f"✅ Alice 创建了线程: {alice_thread['thread_id']}")
 ```
 
-Output:
+输出：
 
 ```bash
-✅ Alice created thread: dcea5cd8-eb70-4a01-a4b6-643b14e8f754
-✅ Bob correctly denied access: Client error '404 Not Found' for url 'http://localhost:2024/threads/dcea5cd8-eb70-4a01-a4b6-643b14e8f754'
+✅ Alice 创建了线程: dcea5cd8-eb70-4a01-a4b6-643b14e8f754
+✅ Bob 正确地被拒绝访问: Client error '404 Not Found' for url 'http://localhost:2024/threads/dcea5cd8-eb70-4a01-a4b6-643b14e8f754'
 For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404
-✅ Bob created his own thread: 400f8d41-e946-429f-8f93-4fe395bc3eed
-✅ Alice sees 1 thread
-✅ Bob sees 1 thread
-✅ Alice correctly denied access:
+✅ Bob 创建了自己的线程: 400f8d41-e946-429f-8f93-4fe395bc3eed
+✅ Alice 看到 1 个线程
+✅ Bob 看到 1 个线程
+✅ Alice 正确地被拒绝访问:
 For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500
-✅ Alice correctly denied access to searching assistants:
+✅ Alice 正确地被拒绝搜索助手:
 ```
 
-Congratulations! You've built a chatbot where each user has their own private conversations. While this system uses simple token-based authentication, these authorization patterns will work with implementing any real authentication system. In the next tutorial, you'll replace your test users with real user accounts using OAuth2.
+恭喜！你已经构建了一个每个用户都有自己私有对话的聊天机器人。虽然这个系统使用简单的基于令牌的认证，但这些授权模式将适用于实现任何真实的认证系统。在下一个教程中，你将使用 OAuth2 将你的测试用户替换为真实的用户帐户。
 
-## Next steps
+## 后续步骤
 
-Now that you can control access to resources, you might want to:
+现在你可以控制对资源的访问，你可能想要：
 
-1. Move on to [Connect an authentication provider](/langsmith/add-auth-server) to add real user accounts.
-2. Read more about [authorization patterns](/langsmith/auth#authorization).
-3. Check out the [API reference](https://reference.langchain.com/python/langgraph-sdk/auth/Auth) for details about the interfaces and methods used in this tutorial.
+1. 继续[连接认证提供商](/langsmith/add-auth-server)以添加真实的用户帐户。
+2. 阅读更多关于[授权模式](/langsmith/auth#authorization)的信息。
+3. 查看 [API 参考](https://reference.langchain.com/python/langgraph-sdk/auth/Auth) 以获取有关本教程中使用的接口和方法的详细信息。
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [通过 MCP 将这些文档](/use-these-docs)连接到 Claude、VSCode 等，以获得实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/resource-auth.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/resource-auth.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

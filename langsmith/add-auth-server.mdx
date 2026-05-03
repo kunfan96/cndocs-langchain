@@ -1,24 +1,24 @@
 ---
-title: Connect an authentication provider
-sidebarTitle: Connect an authentication provider
+title: 连接身份验证提供者
+sidebarTitle: 连接身份验证提供者
 ---
-In [the last tutorial](/langsmith/resource-auth), you added resource authorization to give users private conversations. However, you are still using hard-coded tokens for authentication, which is not secure. Now you'll replace those tokens with real user accounts using [OAuth2](/langsmith/deployment-quickstart).
+在[上一个教程](/langsmith/resource-auth)中，您添加了资源授权以赋予用户私有对话。然而，您仍在使用硬编码的令牌进行身份验证，这并不安全。现在，您将使用 [OAuth2](/langsmith/deployment-quickstart) 将这些令牌替换为真实的用户账户。
 
-You'll keep the same [`Auth`](https://reference.langchain.com/python/langgraph-sdk/auth/Auth) object and [resource-level access control](/langsmith/auth#single-owner-resources), but upgrade authentication to use Supabase as your identity provider. While Supabase is used in this tutorial, the concepts apply to any OAuth2 provider. You'll learn how to:
+您将保留相同的 [`Auth`](https://reference.langchain.com/python/langgraph-sdk/auth/Auth) 对象和[资源级访问控制](/langsmith/auth#single-owner-resources)，但将身份验证升级为使用 Supabase 作为您的身份提供者。虽然本教程使用 Supabase，但这些概念适用于任何 OAuth2 提供者。您将学习如何：
 
-1. Replace test tokens with real JWT tokens
-2. Integrate with OAuth2 providers for secure user authentication
-3. Handle user sessions and metadata while maintaining our existing authorization logic
+1. 用真实的 JWT 令牌替换测试令牌
+2. 与 OAuth2 提供者集成以实现安全的用户身份验证
+3. 处理用户会话和元数据，同时保持我们现有的授权逻辑
 
-## Background
+## 背景
 
-OAuth2 involves three main roles:
+OAuth2 涉及三个主要角色：
 
-1. **Authorization server**: The identity provider (e.g., Supabase, Auth0, Google) that handles user authentication and issues tokens
-2. **Application backend**: Your LangGraph application. This validates tokens and serves protected resources (conversation data)
-3. **Client application**: The web or mobile app where users interact with your service
+1. **授权服务器**：处理用户身份验证并颁发令牌的身份提供者（例如 Supabase、Auth0、Google）
+2. **应用后端**：您的 LangGraph 应用程序。它验证令牌并提供受保护的资源（对话数据）
+3. **客户端应用程序**：用户与您的服务进行交互的 Web 或移动应用程序
 
-A standard OAuth2 flow works something like this:
+标准的 OAuth2 流程大致如下：
 
 ```mermaid
 sequenceDiagram
@@ -27,25 +27,25 @@ sequenceDiagram
     participant AuthServer
     participant Agent Server
 
-    User->>Client: Initiate login
-    User->>AuthServer: Enter credentials
-    AuthServer->>Client: Send tokens
-    Client->>Agent Server: Request with token
-    Agent Server->>AuthServer: Validate token
-    AuthServer->>Agent Server: Token valid
-    Agent Server->>Client: Serve request (e.g., run agent or graph)
+    User->>Client: 发起登录
+    User->>AuthServer: 输入凭据
+    AuthServer->>Client: 发送令牌
+    Client->>Agent Server: 使用令牌请求
+    Agent Server->>AuthServer: 验证令牌
+    AuthServer->>Agent Server: 令牌有效
+    Agent Server->>Client: 提供请求服务（例如，运行代理或图）
 ```
 
-## Prerequisites
+## 先决条件
 
-Before you start this tutorial, ensure you have:
+在开始本教程之前，请确保您已具备：
 
-* The [bot from the second tutorial](/langsmith/resource-auth) running without errors.
-* A [Supabase project](https://supabase.com/dashboard) to use its authentication server.
+* [第二个教程中的机器人](/langsmith/resource-auth)正在无错误地运行。
+* 一个 [Supabase 项目](https://supabase.com/dashboard)以使用其身份验证服务器。
 
-## 1. Install dependencies
+## 1. 安装依赖项
 
-Install the required dependencies. Start in your `custom-auth` directory and ensure you have the `langgraph-cli` installed:
+安装所需的依赖项。从您的 `custom-auth` 目录开始，并确保您已安装 `langgraph-cli`：
 
 <CodeGroup>
 ```bash pip
@@ -60,37 +60,37 @@ uv add "langgraph-cli[inmem]"
 </CodeGroup>
 
 <a id="setup-auth-provider"></a>
-## 2. Set up the authentication provider
+## 2. 设置身份验证提供者
 
-Next, fetch the URL of your auth server and the private key for authentication.
-Since you're using Supabase for this, you can do this in the Supabase dashboard:
+接下来，获取您的身份验证服务器的 URL 和用于身份验证的私钥。
+由于您在此使用 Supabase，您可以在 Supabase 仪表板中完成此操作：
 
-1. In the left sidebar, click on t️⚙ Project Settings" and then click "API"
-2. Copy your project URL and add it to your `.env` file
+1. 在左侧边栏中，点击“⚙ 项目设置”，然后点击“API”
+2. 复制您的项目 URL 并将其添加到您的 `.env` 文件中
   ```shell
   echo "SUPABASE_URL=your-project-url" >> .env
   ```
-3. Copy your service role secret key and add it to your `.env` file:
+3. 复制您的服务角色密钥并将其添加到您的 `.env` 文件中：
   ```shell
   echo "SUPABASE_SERVICE_KEY=your-service-role-key" >> .env
   ```
-4. Copy your "anon public" key and note it down. This will be used later when you set up our client code.
+4. 复制您的“anon public”密钥并记下它。这将在您设置客户端代码时使用。
   ```bash
   SUPABASE_URL=your-project-url
   SUPABASE_SERVICE_KEY=your-service-role-key
   ```
 
-## 3. Implement token validation
+## 3. 实现令牌验证
 
-In the previous tutorials, you used the [`Auth`](https://reference.langchain.com/python/langgraph-sdk/auth/Auth) object to [validate hard-coded tokens](/langsmith/set-up-custom-auth) and [add resource ownership](/langsmith/resource-auth).
+在之前的教程中，您使用了 [`Auth`](https://reference.langchain.com/python/langgraph-sdk/auth/Auth) 对象来[验证硬编码的令牌](/langsmith/set-up-custom-auth)并[添加资源所有权](/langsmith/resource-auth)。
 
-Now you'll upgrade your authentication to validate real JWT tokens from Supabase. The main changes will all be in the [`@auth.authenticate`](https://reference.langchain.com/python/langgraph-sdk/auth/Auth/authenticate) decorated function:
+现在，您将升级身份验证以验证来自 Supabase 的真实 JWT 令牌。主要更改都将位于 [`@auth.authenticate`](https://reference.langchain.com/python/langgraph-sdk/auth/Auth/authenticate) 装饰器函数中：
 
-* Instead of checking against a hard-coded list of tokens, you'll make an HTTP request to Supabase to validate the token.
-* You'll extract real user information (ID, email) from the validated token.
-* The existing resource authorization logic remains unchanged.
+* 您将不再检查硬编码的令牌列表，而是向 Supabase 发送 HTTP 请求以验证令牌。
+* 您将从已验证的令牌中提取真实的用户信息（ID、电子邮件）。
+* 现有的资源授权逻辑保持不变。
 
-Update `src/security/auth.py` to implement this:
+更新 `src/security/auth.py` 以实现此功能：
 
 ```python {highlight={8-9,20-30}} title="src/security/auth.py"
 import os
@@ -99,20 +99,20 @@ from langgraph_sdk import Auth
 
 auth = Auth()
 
-# This is loaded from the `.env` file you created above
+# 这是从您上面创建的 `.env` 文件中加载的
 SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_SERVICE_KEY = os.environ["SUPABASE_SERVICE_KEY"]
 
 
 @auth.authenticate
 async def get_current_user(authorization: str | None):
-    """Validate JWT tokens and extract user information."""
+    """验证 JWT 令牌并提取用户信息。"""
     assert authorization
     scheme, token = authorization.split()
     assert scheme.lower() == "bearer"
 
     try:
-        # Verify token with auth provider
+        # 使用身份提供者验证令牌
         async with httpx.AsyncClient() as client:
             response = await client.get(
                 f"{SUPABASE_URL}/auth/v1/user",
@@ -124,34 +124,34 @@ async def get_current_user(authorization: str | None):
             assert response.status_code == 200
             user = response.json()
             return {
-                "identity": user["id"],  # Unique user identifier
+                "identity": user["id"],  # 唯一的用户标识符
                 "email": user["email"],
                 "is_authenticated": True,
             }
     except Exception as e:
         raise Auth.exceptions.HTTPException(status_code=401, detail=str(e))
 
-# ... the rest is the same as before
+# ... 其余部分与之前相同
 
-# Keep our resource authorization from the previous tutorial
+# 保留我们上一个教程中的资源授权
 @auth.on
 async def add_owner(ctx, value):
-    """Make resources private to their creator using resource metadata."""
+    """使用资源元数据使资源对其创建者私有。"""
     filters = {"owner": ctx.user.identity}
     metadata = value.setdefault("metadata", {})
     metadata.update(filters)
     return filters
 ```
 
-The most important change is that we're now validating tokens with a real authentication server. Our authentication handler has the private key for our Supabase project, which we can use to validate the user's token and extract their information.
+最重要的变化是，我们现在正在使用真实的身份验证服务器验证令牌。我们的身份验证处理程序拥有我们 Supabase 项目的私钥，我们可以用它来验证用户的令牌并提取他们的信息。
 
-## 4. Test authentication flow
+## 4. 测试身份验证流程
 
-Let's test out the new authentication flow. You can run the following code in a file or notebook. You will need to provide:
+让我们测试新的身份验证流程。您可以在文件或笔记本中运行以下代码。您需要提供：
 
-* A valid email address
-* A Supabase project URL (from [above](#setup-auth-provider))
-* A Supabase anon **public key** (also from [above](#setup-auth-provider))
+* 一个有效的电子邮件地址
+* 一个 Supabase 项目 URL（来自[上方](#setup-auth-provider)）
+* 一个 Supabase anon **公钥**（也来自[上方](#setup-auth-provider)）
 
 ```python
 import os
@@ -160,10 +160,10 @@ from getpass import getpass
 from langgraph_sdk import get_client
 
 
-# Get email from command line
+# 从命令行获取电子邮件
 email = getpass("Enter your email: ")
 base_email = email.split("@")
-password = "secure-password"  # CHANGEME
+password = "secure-password"  # 请修改
 email1 = f"{base_email[0]}+1@{base_email[1]}"
 email2 = f"{base_email[0]}+2@{base_email[1]}"
 
@@ -171,15 +171,15 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL")
 if not SUPABASE_URL:
     SUPABASE_URL = getpass("Enter your Supabase project URL: ")
 
-# This is your PUBLIC anon key (which is safe to use client-side)
-# Do NOT mistake this for the secret service role key
+# 这是您的 PUBLIC anon 密钥（在客户端使用是安全的）
+# 不要将其与 secret service role 密钥混淆
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 if not SUPABASE_ANON_KEY:
     SUPABASE_ANON_KEY = getpass("Enter your public Supabase anon  key: ")
 
 
 async def sign_up(email: str, password: str):
-    """Create a new user account."""
+    """创建一个新用户账户。"""
     async with httpx.AsyncClient() as client:
         response = await client.post(
             f"{SUPABASE_URL}/auth/v1/signup",
@@ -189,19 +189,19 @@ async def sign_up(email: str, password: str):
         assert response.status_code == 200
         return response.json()
 
-# Create two test users
+# 创建两个测试用户
 print(f"Creating test users: {email1} and {email2}")
 await sign_up(email1, password)
 await sign_up(email2, password)
 ```
 
-⚠️ Before continuing: Check your email and click both confirmation links. Supabase will reject `/login` requests until after you have confirmed your users' email.
+⚠️ 继续之前：检查您的电子邮件并点击两个确认链接。在您确认用户电子邮件之前，Supabase 将拒绝 `/login` 请求。
 
-Now test that users can only see their own data. Make sure the server is running (run `langgraph dev`) before proceeding. The following snippet requires the "anon public" key that you copied from the Supabase dashboard while [setting up the auth provider](#setup-auth-provider) previously.
+现在测试用户是否只能看到自己的数据。在继续之前，请确保服务器正在运行（运行 `langgraph dev`）。以下代码片段需要您在[设置身份验证提供者](#setup-auth-provider)时从 Supabase 仪表板复制的“anon public”密钥。
 
 ```python
 async def login(email: str, password: str):
-    """Get an access token for an existing user."""
+    """获取现有用户的访问令牌。"""
     async with httpx.AsyncClient() as client:
         response = await client.post(
             f"{SUPABASE_URL}/auth/v1/token?grant_type=password",
@@ -218,17 +218,17 @@ async def login(email: str, password: str):
         return response.json()["access_token"]
 
 
-# Log in as user 1
+# 以用户 1 身份登录
 user1_token = await login(email1, password)
 user1_client = get_client(
     url="http://localhost:2024", headers={"Authorization": f"Bearer {user1_token}"}
 )
 
-# Create a thread as user 1
+# 以用户 1 身份创建一个线程
 thread = await user1_client.threads.create()
 print(f"✅ User 1 created thread: {thread['thread_id']}")
 
-# Try to access without a token
+# 尝试在没有令牌的情况下访问
 unauthenticated_client = get_client(url="http://localhost:2024")
 try:
     await unauthenticated_client.threads.create()
@@ -236,7 +236,7 @@ try:
 except Exception as e:
     print("✅ Unauthenticated access blocked:", e)
 
-# Try to access user 1's thread as user 2
+# 尝试以用户 2 身份访问用户 1 的线程
 user2_token = await login(email2, password)
 user2_client = get_client(
     url="http://localhost:2024", headers={"Authorization": f"Bearer {user2_token}"}
@@ -249,7 +249,7 @@ except Exception as e:
     print("✅ User 2 blocked from User 1's thread:", e)
 ```
 
-The output should look like this:
+输出应如下所示：
 
 ```shell
 ✅ User 1 created thread: d6af3754-95df-4176-aa10-dbd8dca40f1a
@@ -257,36 +257,36 @@ The output should look like this:
 ✅ User 2 blocked from User 1's thread: Client error '404 Not Found' for url 'http://localhost:2024/threads/d6af3754-95df-4176-aa10-dbd8dca40f1a'
 ```
 
-Your authentication and authorization are working together:
+您的身份验证和授权正在协同工作：
 
-1. Users must log in to access the bot
-2. Each user can only see their own threads
+1. 用户必须登录才能访问机器人
+2. 每个用户只能看到自己的线程
 
-All users are managed by the Supabase auth provider, so you don't need to implement any additional user management logic.
+所有用户都由 Supabase 身份验证提供者管理，因此您无需实现任何额外的用户管理逻辑。
 
-## Next steps
+## 后续步骤
 
-You've successfully built a production-ready authentication system for your LangGraph application! Let's review what you've accomplished:
+您已成功为 LangGraph 应用程序构建了一个生产就绪的身份验证系统！让我们回顾一下您所完成的工作：
 
-1. Set up an authentication provider (Supabase in this case)
-2. Added real user accounts with email/password authentication
-3. Integrated JWT token validation into your Agent Server
-4. Implemented proper authorization to ensure users can only access their own data
-5. Created a foundation that's ready to handle your next authentication challenge
+1. 设置了一个身份验证提供者（本例中为 Supabase）
+2. 添加了具有电子邮件/密码身份验证的真实用户账户
+3. 将 JWT 令牌验证集成到您的代理服务器中
+4. 实现了适当的授权，确保用户只能访问自己的数据
+5. 创建了一个基础，准备好应对您下一个身份验证挑战
 
-Now that you have production authentication, consider:
+既然您拥有了生产环境的身份验证，请考虑：
 
-1. Building a web UI with your preferred framework (see the [Custom Auth](https://github.com/langchain-ai/custom-auth) template for an example)
-2. Learn more about the other aspects of authentication and authorization in the [conceptual guide on authentication](/langsmith/auth).
-3. Customize your handlers and setup further after reading the [reference docs](https://reference.langchain.com/python/langgraph-sdk/auth/Auth).
+1. 使用您喜欢的框架构建 Web UI（参见 [Custom Auth](https://github.com/langchain-ai/custom-auth) 模板获取示例）
+2. 在[身份验证概念指南](/langsmith/auth)中了解更多关于身份验证和授权的其他方面。
+3. 阅读[参考文档](https://reference.langchain.com/python/langgraph-sdk/auth/Auth)后，进一步自定义您的处理程序和设置。
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档](/use-these-docs)通过 MCP 连接到 Claude、VSCode 等，以获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/add-auth-server.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/add-auth-server.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

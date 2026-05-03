@@ -1,35 +1,24 @@
 ---
-title: Test
+title: 测试
 ---
 
+在你为 LangGraph 代理制作原型之后，一个自然的下一步是添加测试。本指南涵盖了一些在编写单元测试时可以使用的有用模式。
 
+请注意，本指南是针对 LangGraph 的，涵盖了具有自定义结构的图的相关场景——如果你刚刚开始，请查看使用 LangChain 内置的 [`createAgent`](https://reference.langchain.com/javascript/langchain/index/createAgent) 的 [测试](/oss/javascript/langchain/test/)。
 
-After you've prototyped your LangGraph agent, a natural next step is to add tests. This guide covers some useful patterns you can use when writing unit tests.
+## 前提条件
 
-
-
-Note that this guide is LangGraph-specific and covers scenarios around graphs with custom structures - if you are just getting started, check out [Test](/oss/javascript/langchain/test/) that uses LangChain's built-in [`createAgent`](https://reference.langchain.com/javascript/langchain/index/createAgent) instead.
-
-
-
-## Prerequisites
-
-
-
-First, make sure you have [`vitest`](https://vitest.dev/) installed:
+首先，确保你已安装 [`vitest`](https://vitest.dev/)：
 
 ```bash
 $ npm install -D vitest
 ```
 
+## 入门
 
-## Getting started
+因为许多 LangGraph 代理依赖于状态，一个有用的模式是在每次测试前创建你的图，然后在测试中使用一个新的检查点实例对其进行编译。
 
-Because many LangGraph agents depend on state, a useful pattern is to create your graph before each test where you use it, then compile it within tests with a new checkpointer instance.
-
-The below example shows how this works with a simple, linear graph that progresses through `node1` and `node2`. Each node updates the single state key `my_key`:
-
-
+下面的示例展示了一个简单的线性图如何工作，该图依次经过 `node1` 和 `node2`。每个节点更新单个状态键 `my_key`：
 
 ```ts
 import { test, expect } from 'vitest';
@@ -67,12 +56,9 @@ test('basic agent execution', async () => {
 });
 ```
 
+## 测试单个节点和边
 
-## Testing individual nodes and edges
-
-Compiled LangGraph agents expose references to each individual node as `graph.nodes`. You can take advantage of this to test individual nodes within your agent. Note that this will bypass any checkpointers passed when compiling the graph:
-
-
+编译后的 LangGraph 代理通过 `graph.nodes` 暴露对每个单独节点的引用。你可以利用这一点来测试代理中的单个节点。请注意，这将绕过编译图时传递的任何检查点：
 
 ```ts
 import { test, expect } from 'vitest';
@@ -111,22 +97,17 @@ test('individual node execution', async () => {
 });
 ```
 
+## 部分执行
 
-## Partial execution
+对于由更大图组成的代理，你可能希望测试代理内的部分执行路径，而不是整个端到端的流程。在某些情况下，[将这些部分重构为子图](/oss/javascript/langgraph/use-subgraphs) 在语义上可能是合理的，你可以像正常情况一样单独调用它们。
 
-For agents made up of larger graphs, you may wish to test partial execution paths within your agent rather than the entire flow end-to-end. In some cases, it may make semantic sense to [restructure these sections as subgraphs](/oss/javascript/langgraph/use-subgraphs), which you can invoke in isolation as normal.
+但是，如果你不希望更改代理图的整体结构，可以使用 LangGraph 的持久化机制来模拟代理在所需部分开始之前暂停的状态，并在所需部分结束时再次暂停。步骤如下：
 
-However, if you do not wish to make changes to your agent graph's overall structure, you can use LangGraph's persistence mechanisms to simulate a state where your agent is paused right before the beginning of the desired section, and will pause again at the end of the desired section. The steps are as follows:
+1. 使用检查点编译你的代理（内存中的检查点 [`MemorySaver`](https://reference.langchain.com/javascript/classes/_langchain_langgraph-checkpoint.MemorySaver.html) 对于测试来说就足够了）。
+2. 使用 [`asNode`](/oss/javascript/langgraph/use-time-travel#from-a-specific-node) 参数调用代理的 [`update_state`](/oss/javascript/langgraph/use-time-travel) 方法，该参数设置为*你想要开始测试的节点之前*的节点名称。
+3. 使用与更新状态时相同的 `thread_id` 调用你的代理，并将 `interruptBefore` 参数设置为你想要停止的节点名称。
 
-
-1. Compile your agent with a checkpointer (the in-memory checkpointer [`MemorySaver`](https://reference.langchain.com/javascript/classes/_langchain_langgraph-checkpoint.MemorySaver.html) will suffice for testing).
-2. Call your agent's [`update_state`](/oss/javascript/langgraph/use-time-travel) method with an [`asNode`](/oss/javascript/langgraph/use-time-travel#from-a-specific-node) parameter set to the name of the node *before* the one you want to start your test.
-3. Invoke your agent with the same `thread_id` you used to update the state and an `interruptBefore` parameter set to the name of the node you want to stop at.
-
-
-Here's an example that executes only the second and third nodes in a linear graph:
-
-
+以下是一个在线性图中仅执行第二个和第三个节点的示例：
 
 ```ts
 import { test, expect } from 'vitest';
@@ -186,9 +167,9 @@ test('partial execution from node2 to node3', async () => {
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/test.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/test.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

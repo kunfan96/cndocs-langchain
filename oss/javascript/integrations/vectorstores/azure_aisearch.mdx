@@ -1,60 +1,60 @@
 ---
-title: "Azure AI search integration"
-description: "Integrate with the Azure AI search vector store using LangChain JavaScript."
+title: "Azure AI 搜索集成"
+description: "使用 LangChain JavaScript 与 Azure AI 搜索向量存储进行集成。"
 ---
 
-[Azure AI Search](https://azure.microsoft.com/products/ai-services/ai-search) (formerly known as Azure Search and Azure Cognitive Search) is a distributed, RESTful search engine optimized for speed and relevance on production-scale workloads on Azure. It supports also vector search using the [k-nearest neighbor](https://en.wikipedia.org/wiki/Nearest_neighbor_search) (kNN) algorithm and also [semantic search](https://learn.microsoft.com/azure/search/semantic-search-overview).
+[Azure AI 搜索](https://azure.microsoft.com/products/ai-services/ai-search)（前身为 Azure Search 和 Azure Cognitive Search）是一个分布式、RESTful 的搜索引擎，针对 Azure 上生产规模工作负载的速度和相关性进行了优化。它还支持使用 [k-近邻](https://en.wikipedia.org/wiki/Nearest_neighbor_search) (kNN) 算法进行向量搜索，以及[语义搜索](https://learn.microsoft.com/azure/search/semantic-search-overview)。
 
-This vector store integration supports full text search, vector search and [hybrid search for best ranking performance](https://techcommunity.microsoft.com/t5/ai-azure-ai-services-blog/azure-cognitive-search-outperforming-vector-search-with-hybrid/ba-p/3929167).
+此向量存储集成支持全文搜索、向量搜索以及[混合搜索以获得最佳排名性能](https://techcommunity.microsoft.com/t5/ai-azure-ai-services-blog/azure-cognitive-search-outperforming-vector-search-with-hybrid/ba-p/3929167)。
 
-Learn how to leverage the vector search capabilities of Azure AI Search from [this page](https://learn.microsoft.com/azure/search/vector-search-overview). If you don't have an Azure account, you can [create a free account](https://azure.microsoft.com/free/) to get started.
+了解如何利用 Azure AI 搜索的向量搜索功能，请参阅[此页面](https://learn.microsoft.com/azure/search/vector-search-overview)。如果您没有 Azure 帐户，可以[创建一个免费帐户](https://azure.microsoft.com/free/)来开始使用。
 
-## Setup
+## 设置
 
-You'll first need to install the `@azure/search-documents` SDK and the [`@langchain/community`](https://www.npmjs.com/package/@langchain/community) package:
+您首先需要安装 `@azure/search-documents` SDK 和 [`@langchain/community`](https://www.npmjs.com/package/@langchain/community) 包：
 
 <Tip>
-See [this section for general instructions on installing LangChain packages](/oss/javascript/langchain/install).
+有关安装 LangChain 包的一般说明，请参阅[此部分](/oss/javascript/langchain/install)。
 </Tip>
 
 ```bash npm
 npm install -S @langchain/community @langchain/core @azure/search-documents
 ```
 
-You'll also need to have an Azure AI Search instance running. You can deploy a free version on Azure Portal without any cost, following [this guide](https://learn.microsoft.com/azure/search/search-create-service-portal).
+您还需要有一个正在运行的 Azure AI 搜索实例。您可以按照[此指南](https://learn.microsoft.com/azure/search/search-create-service-portal)在 Azure 门户上免费部署一个版本，无需任何费用。
 
-Once you have your instance running, make sure you have the endpoint and the admin key (query keys can be used only to search document, not to index, update or delete). The endpoint is the URL of your instance which you can find in the Azure Portal, under the "Overview" section of your instance. The admin key can be found under the "Keys" section of your instance. Then you need to set the following environment variables:
+一旦您的实例开始运行，请确保您拥有端点和管理员密钥（查询密钥只能用于搜索文档，不能用于索引、更新或删除）。端点是您实例的 URL，您可以在 Azure 门户中实例的“概述”部分下找到。管理员密钥可以在实例的“密钥”部分下找到。然后您需要设置以下环境变量：
 
 ```bash .env vars
-# Azure AI Search connection settings
+# Azure AI 搜索连接设置
 AZURE_AISEARCH_ENDPOINT=
 AZURE_AISEARCH_KEY=
 
-# If you're using Azure OpenAI API, you'll need to set these variables
+# 如果您使用 Azure OpenAI API，您需要设置这些变量
 AZURE_OPENAI_API_KEY=
 AZURE_OPENAI_API_INSTANCE_NAME=
 AZURE_OPENAI_API_DEPLOYMENT_NAME=
 AZURE_OPENAI_API_EMBEDDINGS_DEPLOYMENT_NAME=
 AZURE_OPENAI_API_VERSION=
 
-# Or you can use the OpenAI API directly
-OPENAI_API_KEY=
+# 或者您可以直接使用 OpenAI API
+OPENAI_OPENAI_API_KEY=
 ```
 
-## About hybrid search
+## 关于混合搜索
 
-Hybrid search is a feature that combines the strengths of full text search and vector search to provide the best ranking performance. It's enabled by default in Azure AI Search vector stores, but you can select a different search query type by setting the `search.type` property when creating the vector store.
+混合搜索是一项结合了全文搜索和向量搜索优势的功能，以提供最佳的排名性能。它在 Azure AI 搜索向量存储中默认启用，但您可以通过在创建向量存储时设置 `search.type` 属性来选择不同的搜索查询类型。
 
-You can read more about hybrid search and how it may improve your search results in the [official documentation](https://learn.microsoft.com/azure/search/hybrid-search-overview).
+您可以在[官方文档](https://learn.microsoft.com/azure/search/hybrid-search-overview)中阅读更多关于混合搜索以及它如何改进搜索结果的信息。
 
-In some scenarios like retrieval-augmented generation (RAG), you may want to enable **semantic ranking** in addition to hybrid search to improve the relevance of the search results. You can enable semantic ranking by setting the `search.type` property to `AzureAISearchQueryType.SemanticHybrid` when creating the vector store.
-Note that semantic ranking capabilities are only available in the Basic and higher pricing tiers, and subject to [regional availability](https://azure.microsoft.com/en-us/explore/global-infrastructure/products-by-region/?products=search).
+在某些场景中，例如检索增强生成 (RAG)，您可能希望在混合搜索之外启用**语义排名**，以提高搜索结果的相关性。您可以通过在创建向量存储时将 `search.type` 属性设置为 `AzureAISearchQueryType.SemanticHybrid` 来启用语义排名。
+请注意，语义排名功能仅在基本版及更高定价层中可用，并且受[区域可用性](https://azure.microsoft.com/en-us/explore/global-infrastructure/products-by-region/?products=search)限制。
 
-You can read more about the performance of using semantic ranking with hybrid search in [this blog post](https://techcommunity.microsoft.com/t5/ai-azure-ai-services-blog/azure-cognitive-search-outperforming-vector-search-with-hybrid/ba-p/3929167).
+您可以在[这篇博客文章](https://techcommunity.microsoft.com/t5/ai-azure-ai-services-blog/azure-cognitive-search-outperforming-vector-search-with-hybrid/ba-p/3929167)中阅读更多关于使用语义排名与混合搜索的性能信息。
 
-## Example: index docs, vector search and LLM integration
+## 示例：索引文档、向量搜索和 LLM 集成
 
-Below is an example that indexes documents from a file in Azure AI Search, runs a hybrid search query, and finally uses a chain to answer a question in natural language based on the retrieved documents.
+下面是一个示例，它将文件中的文档索引到 Azure AI 搜索中，运行混合搜索查询，最后使用链根据检索到的文档用自然语言回答问题。
 
 ```typescript
 import {
@@ -68,7 +68,7 @@ import { createRetrievalChain } from "@langchain/classic/chains/retrieval";
 import { TextLoader } from "@langchain/classic/document_loaders/fs/text";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 
-// Load documents from file
+// 从文件加载文档
 const loader = new TextLoader("./state_of_the_union.txt");
 const rawDocuments = await loader.load();
 const splitter = new RecursiveCharacterTextSplitter({
@@ -77,7 +77,7 @@ const splitter = new RecursiveCharacterTextSplitter({
 });
 const documents = await splitter.splitDocuments(rawDocuments);
 
-// Create Azure AI Search vector store
+// 创建 Azure AI 搜索向量存储
 const store = await AzureAISearchVectorStore.fromDocuments(
   documents,
   new OpenAIEmbeddings(),
@@ -88,33 +88,33 @@ const store = await AzureAISearchVectorStore.fromDocuments(
   }
 );
 
-// The first time you run this, the index will be created.
-// You may need to wait a bit for the index to be created before you can perform
-// a search, or you can create the index manually beforehand.
+// 首次运行时，索引将被创建。
+// 您可能需要等待一段时间让索引创建完成，然后才能执行搜索，
+// 或者您可以事先手动创建索引。
 
-// Performs a similarity search
+// 执行相似性搜索
 const resultDocuments = await store.similaritySearch(
-  "What did the president say about Ketanji Brown Jackson?"
+  "总统对凯坦吉·布朗·杰克逊说了什么？"
 );
 
-console.log("Similarity search results:");
+console.log("相似性搜索结果：");
 console.log(resultDocuments[0].pageContent);
 /*
-  Tonight. I call on the Senate to: Pass the Freedom to Vote Act. Pass the John Lewis Voting Rights Act. And while you’re at it, pass the Disclose Act so Americans can know who is funding our elections.
+  今晚。我呼吁参议院：通过《自由投票法案》。通过《约翰·刘易斯投票权法案》。并且，趁此机会，通过《披露法案》，以便美国人能够知道谁在资助我们的选举。
 
-  Tonight, I’d like to honor someone who has dedicated his life to serve this country: Justice Stephen Breyer—an Army veteran, Constitutional scholar, and retiring Justice of the United States Supreme Court. Justice Breyer, thank you for your service.
+  今晚，我想向一位毕生致力于服务这个国家的人致敬：斯蒂芬·布雷耶大法官——一位陆军退伍军人、宪法学者，以及即将退休的美国最高法院大法官。布雷耶大法官，感谢您的服务。
 
-  One of the most serious constitutional responsibilities a President has is nominating someone to serve on the United States Supreme Court.
+  总统最严肃的宪法职责之一是提名某人在美国最高法院任职。
 
-  And I did that 4 days ago, when I nominated Circuit Court of Appeals Judge Ketanji Brown Jackson. One of our nation’s top legal minds, who will continue Justice Breyer’s legacy of excellence.
+  我在四天前就这样做了，当时我提名了巡回上诉法院法官凯坦吉·布朗·杰克逊。他是我们国家顶尖的法律头脑之一，将继续布雷耶大法官卓越的遗产。
 */
 
-// Use the store as part of a chain
+// 将存储用作链的一部分
 const model = new ChatOpenAI({ model: "gpt-3.5-turbo-1106" });
 const questionAnsweringPrompt = ChatPromptTemplate.fromMessages([
   [
     "system",
-    "Answer the user's questions based on the below context:\n\n{context}",
+    "根据以下上下文回答用户的问题：\n\n{context}",
   ],
   ["human", "{input}"],
 ]);
@@ -130,28 +130,28 @@ const chain = await createRetrievalChain({
 });
 
 const response = await chain.invoke({
-  input: "What is the president's top priority regarding prices?",
+  input: "总统在价格方面的首要任务是什么？",
 });
 
-console.log("Chain response:");
+console.log("链响应：");
 console.log(response.answer);
 /*
-  The president's top priority is getting prices under control.
+  总统的首要任务是控制价格。
 */
 ```
 
-## Related
+## 相关内容
 
-- Vector store [conceptual guide](/oss/javascript/integrations/vectorstores)
-- Vector store [how-to guides](/oss/javascript/integrations/vectorstores)
+- 向量存储[概念指南](/oss/javascript/integrations/vectorstores)
+- 向量存储[操作指南](/oss/javascript/integrations/vectorstores)
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档](/use-these-docs)通过 MCP 连接到 Claude、VSCode 等，以获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/javascript/integrations/vectorstores/azure_aisearch.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/javascript/integrations/vectorstores/azure_aisearch.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

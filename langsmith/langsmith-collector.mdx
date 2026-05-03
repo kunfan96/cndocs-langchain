@@ -1,21 +1,21 @@
 ---
-title: Configure your collector for LangSmith telemetry
-sidebarTitle: Configure your collector for telemetry
+title: 为 LangSmith 遥测配置您的收集器
+sidebarTitle: 为遥测配置您的收集器
 ---
 
-The various services in a LangSmith deployment emit telemetry data in the form of logs, metrics, and traces. You may already have telemetry collectors set up in your Kubernetes cluster, or would like to deploy one to monitor your application.
+LangSmith 部署中的各种服务以日志、指标和追踪的形式发出遥测数据。您可能已经在 Kubernetes 集群中设置了遥测收集器，或者希望部署一个来监控您的应用程序。
 
-This page describes how to configure an [OTel Collector](https://opentelemetry.io/docs/collector/configuration/) to gather telemetry data from LangSmith. Note that all of the concepts discussed below can be translated to other collectors such as [Fluentd](https://www.fluentd.org/) or [FluentBit](https://fluentbit.io/).
+本页描述了如何配置一个 [OTel 收集器](https://opentelemetry.io/docs/collector/configuration/) 以从 LangSmith 收集遥测数据。请注意，下面讨论的所有概念都可以转换到其他收集器，例如 [Fluentd](https://www.fluentd.org/) 或 [FluentBit](https://fluentbit.io/)。
 
 <Warning>
-**This section is only applicable for Kubernetes deployments.**
+**此部分仅适用于 Kubernetes 部署。**
 </Warning>
 
-# Receivers
+# 接收器
 
-## Logs
+## 日志
 
-This is an example for a ***Sidecar*** collector to read logs from its own pod, excluding logs from non domain-specific containers. A Sidecar configuration is useful here because we require access to every container's filesystem. A DaemonSet can also be used.
+这是一个 ***Sidecar*** 收集器从其自身 Pod 读取日志的示例，排除了非领域特定容器的日志。Sidecar 配置在这里很有用，因为我们要求访问每个容器的文件系统。也可以使用 DaemonSet。
 
 ```yaml
 filelog:
@@ -55,12 +55,12 @@ volumeMounts:
 ```
 
 <Info>
-**This configuration requires 'get', 'list', and 'watch' permissions on pods in the given namespace.**
+**此配置需要对给定命名空间中的 Pod 具有 'get'、'list' 和 'watch' 权限。**
 </Info>
 
-## Metrics
+## 指标
 
-Metrics can be scraped using the Prometheus endpoints. A single instance ***Gateway*** collector can be used to avoid duplication of queries when fetching metrics. The following config scrapes all of the default named LangSmith services:
+可以使用 Prometheus 端点来抓取指标。可以使用单个 ***Gateway*** 收集器实例来避免在获取指标时查询重复。以下配置抓取所有默认命名的 LangSmith 服务：
 
 ```yaml
 prometheus:
@@ -69,37 +69,37 @@ prometheus:
       - job_name: langsmith-services
         metrics_path: /metrics
         scrape_interval: 15s
-        # Only scrape endpoints in the LangSmith namespace
+        # 仅抓取 LangSmith 命名空间中的端点
         kubernetes_sd_configs:
           - role: endpoints
             namespaces:
               names: [<langsmith-namespace>]
         relabel_configs:
-          # Only scrape services with the name langsmith-.*
+          # 仅抓取名称为 langsmith-.* 的服务
           - source_labels: [__meta_kubernetes_service_name]
             regex: "langsmith-.*"
             action: keep
-          # Only scrape ports with the following names
+          # 仅抓取具有以下名称的端口
           - source_labels: [__meta_kubernetes_endpoint_port_name]
             regex: "(backend|platform|playground|redis-metrics|postgres-metrics|metrics)"
             action: keep
-          # Promote useful metadata into regular labels
+          # 将有用的元数据提升为常规标签
           - source_labels: [__meta_kubernetes_service_name]
             target_label: k8s_service
           - source_labels: [__meta_kubernetes_pod_name]
             target_label: k8s_pod
-          # Replace the default "host:port" as Prom's instance label
+          # 替换默认的 "host:port" 作为 Prom 的实例标签
           - source_labels: [__address__]
             target_label: instance
 ```
 
 <Info>
-**This configuration requires 'get', 'list', and 'watch' permissions on pods, services and endpoints in the given namespace.**
+**此配置需要对给定命名空间中的 Pod、服务和端点具有 'get'、'list' 和 'watch' 权限。**
 </Info>
 
-### Traces
+### 追踪
 
-For traces, you need to enable the OTLP receiver. The following configuration can be used to listen to HTTP traces on port 4318, and GRPC on port 4317:
+对于追踪，您需要启用 OTLP 接收器。以下配置可用于监听端口 4318 上的 HTTP 追踪和端口 4317 上的 GRPC 追踪：
 
 ```yaml
 otlp:
@@ -110,19 +110,19 @@ otlp:
       endpoint: 0.0.0.0:4318
 ```
 
-## Processors
+## 处理器
 
-### Recommended OTEL processors
+### 推荐的 OTEL 处理器
 
-The following processors are recommended when using the OTel collector:
+使用 OTel 收集器时，推荐以下处理器：
 
-* [Batch Processor](https://github.com/open-telemetry/opentelemetry-collector/blob/main/processor/batchprocessor/README.md): Groups the data into batches before sending to exporters.
-* [Memory Limiter](https://github.com/open-telemetry/opentelemetry-collector/blob/main/processor/memorylimiterprocessor/README.md): Prevents the collector from using too much memory and crashing. When the soft limit is crossed, the collector stops accepting new data.
-* [Kubernetes Attributes Processor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/k8sattributesprocessor): Adds Kubernetes metadata such as pod name into the telemetry data.
+* [批处理器](https://github.com/open-telemetry/opentelemetry-collector/blob/main/processor/batchprocessor/README.md)：在将数据发送到导出器之前，将数据分组成批。
+* [内存限制器](https://github.com/open-telemetry/opentelemetry-collector/blob/main/processor/memorylimiterprocessor/README.md)：防止收集器使用过多内存而崩溃。当超过软限制时，收集器将停止接受新数据。
+* [Kubernetes 属性处理器](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/k8sattributesprocessor)：将 Kubernetes 元数据（如 Pod 名称）添加到遥测数据中。
 
-## Exporters
+## 导出器
 
-Exporters just need to point to an external endpoint of your liking. The following configuration allows you to configure a separate endpoint for logs, metrics and traces:
+导出器只需要指向您喜欢的外部端点。以下配置允许您为日志、指标和追踪配置单独的端点：
 
 ```yaml
 otlphttp/logs:
@@ -134,10 +134,10 @@ otlphttp/traces:
 ```
 
 <Note>
-**The OTel Collector also supports exporting directly to a [Datadog](https://docs.datadoghq.com/opentelemetry/setup/collector_exporter) endpoint.**
+**OTel 收集器也支持直接导出到 [Datadog](https://docs.datadoghq.com/opentelemetry/setup/collector_exporter) 端点。**
 </Note>
 
-# Example collector configuration: Logs sidecar
+# 收集器配置示例：日志 Sidecar
 
 ```yaml
 mode: sidecar
@@ -197,7 +197,7 @@ volumeMounts:
     readOnly: true
 ```
 
-# Example collector configuration: Metrics and traces Gateway
+# 收集器配置示例：指标和追踪 Gateway
 
 ```yaml
 mode: deployment
@@ -210,26 +210,26 @@ config:
           - job_name: langsmith-services
             metrics_path: /metrics
             scrape_interval: 15s
-            # Only scrape endpoints in the LangSmith namespace
+            # 仅抓取 LangSmith 命名空间中的端点
             kubernetes_sd_configs:
               - role: endpoints
                 namespaces:
                   names: [<langsmith-namespace>]
             relabel_configs:
-              # Only scrape services with the name langsmith-.*
+              # 仅抓取名称为 langsmith-.* 的服务
               - source_labels: [__meta_kubernetes_service_name]
                 regex: "langsmith-.*"
                 action: keep
-              # Only scrape ports with the following names
+              # 仅抓取具有以下名称的端口
               - source_labels: [__meta_kubernetes_endpoint_port_name]
                 regex: "(backend|platform|playground|redis-metrics|postgres-metrics|metrics)"
                 action: keep
-              # Promote useful metadata into regular labels
+              # 将有用的元数据提升为常规标签
               - source_labels: [__meta_kubernetes_service_name]
                 target_label: k8s_service
               - source_labels: [__meta_kubernetes_pod_name]
                 target_label: k8s_pod
-              # Replace the default "host:port" as Prom's instance label
+              # 替换默认的 "host:port" 作为 Prom 的实例标签
               - source_labels: [__address__]
                 target_label: instance
     otlp:
@@ -267,9 +267,9 @@ config:
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/langsmith-collector.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/langsmith-collector.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

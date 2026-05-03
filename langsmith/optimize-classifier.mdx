@@ -1,24 +1,24 @@
 ---
-title: Optimize a classifier
-sidebarTitle: Optimize a classifier
+title: 优化分类器
+sidebarTitle: 优化分类器
 ---
 
-This tutorial walks through optimizing a classifier based on user a feedback. Classifiers are great to optimize because its generally pretty simple to collect the desired output, which makes it easy to create few shot examples based on user feedback. That is exactly what we will do in this example.
+本教程将指导你如何基于用户反馈来优化一个分类器。分类器非常适合优化，因为收集期望输出通常相当简单，这使得基于用户反馈创建少量示例变得容易。这正是我们在这个示例中要做的事情。
 
-## The objective
+## 目标
 
-In this example, we will build a bot that classify GitHub issues based on their title. It will take in a title and classify it into one of many different classes. Then, we will start to collect user feedback and use that to shape how this classifier performs.
+在这个示例中，我们将构建一个机器人，根据 GitHub issue 的标题对其进行分类。它将接收一个标题并将其分类到多个不同类别中的一个。然后，我们将开始收集用户反馈，并利用这些反馈来塑造这个分类器的表现。
 
-## Getting started
+## 开始
 
-To get started, we will first set it up so that we send all traces to a specific project. We can do this by setting an environment variable:
+首先，我们将进行设置，以便将所有跟踪发送到特定项目。我们可以通过设置一个环境变量来实现：
 
 ```python
 import os
 os.environ["LANGSMITH_PROJECT"] = "classifier"
 ```
 
-We can then create our initial application. This will be a really simple function that just takes in a GitHub issue title and tries to label it.
+然后，我们可以创建初始应用程序。这将是一个非常简单的函数，它只接收一个 GitHub issue 标题并尝试为其打标签。
 
 ```python
 import openai
@@ -59,9 +59,9 @@ def topic_classifier(
     ).choices[0].message.content
 ```
 
-We can then start to interact with it. When interacting with it, we will generate the LangSmith run id ahead of time and pass that into this function. We do this so we can attach feedback later on.
+然后，我们可以开始与它交互。在交互时，我们将提前生成 LangSmith 运行 ID 并将其传递给这个函数。这样做是为了我们以后可以附加反馈。
 
-Here's how we can invoke the application:
+以下是我们如何调用应用程序：
 
 ```python
 from langsmith import uuid7
@@ -72,9 +72,9 @@ topic_classifier(
     langsmith_extra={"run_id": run_id})
 ```
 
-Here's how we can attach feedback after. We can collect feedback in two forms.
+以下是我们之后如何附加反馈。我们可以收集两种形式的反馈。
 
-First, we can collect "positive" feedback - this is for examples that the model got right.
+首先，我们可以收集“正面”反馈——这是针对模型判断正确的示例。
 
 ```python
 ls_client = Client()
@@ -89,7 +89,7 @@ ls_client.create_feedback(
 )
 ```
 
-Next, we can focus on collecting feedback that corresponds to a "correction" to the generation. In this example the model will classify it as a bug, whereas I really want this to be classified as documentation.
+接下来，我们可以专注于收集对应于对生成结果进行“纠正”的反馈。在这个示例中，模型会将其分类为 bug，而我实际上希望它被分类为 documentation。
 
 ```python
 ls_client = Client()
@@ -103,34 +103,34 @@ ls_client.create_feedback(
     correction="documentation")
 ```
 
-## Set up automations
+## 设置自动化
 
-We can now set up automations to move examples with feedback of some form into a dataset. We will set up two automations, one for positive feedback and the other for negative feedback.
+我们现在可以设置自动化，将带有某种形式反馈的示例移动到数据集中。我们将设置两个自动化，一个用于正面反馈，另一个用于负面反馈。
 
-The first will take all runs with positive feedback and automatically add them to a dataset. The logic behind this is that any run with positive feedback we can use as a good example in future iterations. Let's create a dataset called `classifier-github-issues` to add this data to.
+第一个将获取所有带有正面反馈的运行，并自动将它们添加到数据集。背后的逻辑是，任何带有正面反馈的运行我们都可以在未来的迭代中用作好的示例。让我们创建一个名为 `classifier-github-issues` 的数据集来添加这些数据。
 
-![Optimization Negative](/langsmith/images/class-optimization-neg.png)
+![优化负面](/langsmith/images/class-optimization-neg.png)
 
-The second will take all runs with a correction and use a webhook to add them to a dataset. When creating this webhook, we will select the option to "Use Corrections". This option will make it so that when creating a dataset from a run, rather than using the output of the run as the gold-truth output of the datapoint, it will use the correction.
+第二个将获取所有带有纠正的运行，并使用 webhook 将它们添加到数据集。创建此 webhook 时，我们将选择“使用纠正”选项。此选项将使得在从运行创建数据集时，不是使用运行的输出作为数据点的真实输出，而是使用纠正内容。
 
-![Optimization Positive](/langsmith/images/class-optimization-pos.png)
+![优化正面](/langsmith/images/class-optimization-pos.png)
 
-## Update the application
+## 更新应用程序
 
-We can now update our code to pull down the dataset we are sending runs to. Once we pull it down, we can create a string with the examples in it. We can then put this string as part of the prompt!
+我们现在可以更新代码，以拉取我们正在发送运行的数据集。一旦拉取下来，我们就可以创建一个包含示例的字符串。然后，我们可以将此字符串作为提示的一部分！
 
 ```python
-### NEW CODE ###
-# Initialize the LangSmith Client so we can use to get the dataset
+### 新代码 ###
+# 初始化 LangSmith 客户端，以便我们可以使用它来获取数据集
 ls_client = Client()
 
-# Create a function that will take in a list of examples and format them into a string
+# 创建一个函数，该函数接收一个示例列表并将其格式化为字符串
 def create_example_string(examples):
     final_strings = []
     for e in examples:
         final_strings.append(f"Input: {e.inputs['topic']}\n> {e.outputs['output']}")
     return "\n\n".join(final_strings)
-### NEW CODE ###
+### 新代码 ###
 
 client = openai.Client()
 
@@ -157,10 +157,10 @@ Issue: {text}
 )
 def topic_classifier(
     topic: str):
-    # We can now pull down the examples from the dataset
-    # We do this inside the function so it always get the most up-to-date examples,
-    # But this can be done outside and cached for speed if desired
-    examples = list(ls_client.list_examples(dataset_name="classifier-github-issues"))  # <- New Code
+    # 我们现在可以从数据集中拉取示例
+    # 我们在函数内部执行此操作，以便始终获取最新的示例，
+    # 但如果需要，也可以在外部执行并缓存以提高速度
+    examples = list(ls_client.list_examples(dataset_name="classifier-github-issues"))  # <- 新代码
     example_string = create_example_string(examples)
     return client.chat.completions.create(
         model="gpt-5.4-mini",
@@ -178,21 +178,21 @@ def topic_classifier(
     ).choices[0].message.content
 ```
 
-If now run the application with a similar input as before, we can see that it correctly learns that anything related to docs (even if a bug) should be classified as `documentation`
+如果现在使用与之前类似的输入运行应用程序，我们可以看到它正确地学会了任何与文档相关的内容（即使是 bug）都应该被分类为 `documentation`
 
 ```python
 ls_client = Client()
 run_id = uuid7()
 topic_classifier(
     "address bug in documentation",
-    langsmith_extra={"run_id": run_id})
+    langsmith_extra={"reset_id": run_id})
 ```
 
-## Semantic search over examples
+## 对示例进行语义搜索
 
-One additional thing we can do is only use the most semantically similar examples. This is useful when you start to build up a lot of examples.
+我们可以做的另一件事是只使用语义上最相似的示例。当你开始积累大量示例时，这很有用。
 
-In order to do this, we can first define an example to find the `k` most similar examples:
+为了做到这一点，我们可以首先定义一个函数来查找 `k` 个最相似的示例：
 
 ```python
 import numpy as np
@@ -207,7 +207,7 @@ def find_similar(examples, topic, k=5):
     return examples
 ```
 
-We can then use that in the application
+然后我们可以在应用程序中使用它
 
 ```python
 ls_client = Client()
@@ -266,9 +266,9 @@ def topic_classifier(
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [连接这些文档](/use-these-docs) 到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/optimize-classifier.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/optimize-classifier.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

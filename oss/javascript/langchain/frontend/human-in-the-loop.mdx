@@ -1,41 +1,32 @@
 ---
-title: Human-in-the-Loop
-description: Add approval workflows with interrupt-based human review
+title: 人类在环
+description: 添加基于中断的人工审核审批工作流
 ---
 
-Not every agent action should run unsupervised. When an agent is about to send
-an email, delete a record, execute a financial transaction, or perform any
-irreversible operation, you need a human to review and approve the action first.
-The Human-in-the-Loop (HITL) pattern lets your agent pause execution, present
-the pending action to the user, and resume only after explicit approval.
+并非所有代理操作都应在无人监督的情况下运行。当代理即将发送电子邮件、删除记录、执行金融交易或执行任何不可逆操作时，您需要人工先审核并批准该操作。人类在环（HITL）模式允许您的代理暂停执行，将待处理操作呈现给用户，并在获得明确批准后才恢复执行。
 
 import { PatternEmbed } from "/snippets/pattern-embed.jsx"
 
 <PatternEmbed pattern="human-in-the-loop" />
 
-## How interrupts work
+## 中断如何工作
 
-LangGraph agents support **interrupts**, explicit pause points where the agent
-yields control back to the client. When the agent hits an interrupt:
+LangGraph 代理支持**中断**，这是代理将控制权交还给客户端的显式暂停点。当代理遇到中断时：
 
-1. The agent stops executing and emits an interrupt payload
-2. The `useStream` hook surfaces the interrupt via `stream.interrupt`
-3. Your UI renders a review card with approve/reject/edit options
-4. The user makes a decision
-5. Your code calls `stream.submit()` with a resume command
-6. The agent picks up where it left off
+1. 代理停止执行并发出中断载荷
+2. `useStream` 钩子通过 `stream.interrupt` 呈现该中断
+3. 您的 UI 渲染一个带有批准/拒绝/编辑选项的审核卡片
+4. 用户做出决定
+5. 您的代码使用恢复命令调用 `stream.submit()`
+6. 代理从上次中断处继续执行
 
-## Setting up useStream for HITL
+## 为 HITL 设置 useStream
 
-
-
-Import your agent and pass `typeof myAgent` as a type parameter to `useStream` for type-safe access to state values:
+导入您的代理，并将 `typeof myAgent` 作为类型参数传递给 `useStream`，以实现对状态值的类型安全访问：
 
 ```ts
 import type { myAgent } from "./agent";
 ```
-
-
 
 <CodeGroup>
 ```tsx React
@@ -162,10 +153,9 @@ export class ChatComponent {
 ```
 </CodeGroup>
 
-## The interrupt payload
+## 中断载荷
 
-When the agent pauses, `stream.interrupt` contains a `HITLRequest` with the
-following structure:
+当代理暂停时，`stream.interrupt` 包含一个具有以下结构的 `HITLRequest`：
 
 ```ts
 interface HITLRequest {
@@ -184,22 +174,22 @@ interface ReviewConfig {
 }
 ```
 
-| Property | Description |
+| 属性 | 描述 |
 | --- | --- |
-| `actionRequests` | Array of pending actions the agent wants to perform |
-| `actionRequests[].action` | The action name (e.g. `"send_email"`, `"delete_record"`) |
-| `actionRequests[].args` | Structured arguments for the action |
-| `actionRequests[].description` | Optional human-readable description of what the action does |
-| `reviewConfigs` | Per-action configuration controlling which decisions are allowed |
-| `reviewConfigs[].allowedDecisions` | Which buttons to show: `"approve"`, `"reject"`, `"edit"`, `"respond"` |
+| `actionRequests` | 代理想要执行的待处理操作数组 |
+| `actionRequests[].action` | 操作名称（例如 `"send_email"`、`"delete_record"`） |
+| `actionRequests[].args` | 操作的结构化参数 |
+| `actionRequests[].description` | 可选的、人类可读的操作描述 |
+| `reviewConfigs` | 控制允许哪些决策的每个操作配置 |
+| `reviewConfigs[].allowedDecisions` | 要显示的按钮：`"approve"`、`"reject"`、`"edit"`、`"respond"` |
 
-## Decision types
+## 决策类型
 
-The HITL pattern supports four decision types:
+HITL 模式支持四种决策类型：
 
-### Approve
+### 批准
 
-The user confirms the action should proceed as-is:
+用户确认操作应按原样继续：
 
 ```ts
 const response: HITLResponse = {
@@ -209,9 +199,9 @@ const response: HITLResponse = {
 stream.submit(null, { command: { resume: response } });
 ```
 
-### Reject
+### 拒绝
 
-The user denies the action with an optional reason:
+用户拒绝操作，并可提供原因：
 
 ```ts
 const response: HITLResponse = {
@@ -223,14 +213,12 @@ stream.submit(null, { command: { resume: response } });
 ```
 
 <Note>
-When an action is rejected, the agent receives the rejection reason and can
-decide how to proceed. It may rephrase, ask clarifying questions, or abandon
-the action entirely.
+当操作被拒绝时，代理会收到拒绝原因，并可以决定如何继续。它可能会重新措辞、提出澄清问题或完全放弃该操作。
 </Note>
 
-### Edit
+### 编辑
 
-The user modifies the action's arguments before approving:
+用户在批准前修改操作的参数：
 
 ```ts
 const response: HITLResponse = {
@@ -245,9 +233,9 @@ const response: HITLResponse = {
 stream.submit(null, { command: { resume: response } });
 ```
 
-### Respond
+### 回复
 
-The user provides a direct reply for "ask user" style tools. The `message` becomes the tool result and the tool itself is not executed:
+用户为“询问用户”风格的工具提供直接回复。`message` 成为工具结果，工具本身不会被执行：
 
 ```ts
 const response: HITLResponse = {
@@ -259,12 +247,12 @@ stream.submit(null, { command: { resume: response } });
 ```
 
 <Note>
-Use `respond` when the tool is intentionally a placeholder for human input — for example, an `ask_user` tool that prompts the agent to collect information from the user.
+当工具本身是用于人工输入的占位符时，请使用 `respond`——例如，一个 `ask_user` 工具，提示代理从用户那里收集信息。
 </Note>
 
-## Building the ApprovalCard
+## 构建 ApprovalCard
 
-Here is a full approval card component that handles all four decision types:
+这是一个处理所有四种决策类型的完整审批卡片组件：
 
 ```tsx
 function ApprovalCard({
@@ -289,9 +277,9 @@ function ApprovalCard({
 
   return (
     <div className="rounded-lg border-2 border-amber-300 bg-amber-50 p-4">
-      <h3 className="font-semibold text-amber-800">Action Review Required</h3>
+      <h3 className="font-semibold text-amber-800">需要操作审核</h3>
       <p className="mt-1 text-sm text-amber-700">
-        {action.description ?? `The agent wants to perform: ${action.action}`}
+        {action.description ?? `代理想要执行：${action.action}`}
       </p>
 
       <div className="mt-3 rounded bg-white p-3 font-mono text-sm">
@@ -305,7 +293,7 @@ function ApprovalCard({
               className="rounded bg-green-600 px-4 py-2 text-white"
               onClick={() => onRespond({ decision: "approve" })}
             >
-              Approve
+              批准
             </button>
           )}
           {config.allowedDecisions.includes("reject") && (
@@ -313,7 +301,7 @@ function ApprovalCard({
               className="rounded bg-red-600 px-4 py-2 text-white"
               onClick={() => setMode("reject")}
             >
-              Reject
+              拒绝
             </button>
           )}
           {config.allowedDecisions.includes("edit") && (
@@ -321,7 +309,7 @@ function ApprovalCard({
               className="rounded bg-blue-600 px-4 py-2 text-white"
               onClick={() => setMode("edit")}
             >
-              Edit
+              编辑
             </button>
           )}
           {config.allowedDecisions.includes("respond") && (
@@ -329,7 +317,7 @@ function ApprovalCard({
               className="rounded bg-purple-600 px-4 py-2 text-white"
               onClick={() => setMode("respond")}
             >
-              Respond
+              回复
             </button>
           )}
         </div>
@@ -339,7 +327,7 @@ function ApprovalCard({
         <div className="mt-4 space-y-2">
           <textarea
             className="w-full rounded border p-2"
-            placeholder="Reason for rejection..."
+            placeholder="拒绝原因..."
             value={rejectReason}
             onChange={(e) => setRejectReason(e.target.value)}
           />
@@ -349,7 +337,7 @@ function ApprovalCard({
               onRespond({ decision: "reject", reason: rejectReason })
             }
           >
-            Confirm Rejection
+            确认拒绝
           </button>
         </div>
       )}
@@ -363,7 +351,7 @@ function ApprovalCard({
               try {
                 setEditedArgs(JSON.parse(e.target.value));
               } catch {
-                // allow invalid JSON while editing
+                // 允许编辑时输入无效的 JSON
               }
             }}
           />
@@ -373,7 +361,7 @@ function ApprovalCard({
               onRespond({ decision: "edit", args: editedArgs })
             }
           >
-            Submit Edits
+            提交编辑
           </button>
         </div>
       )}
@@ -382,7 +370,7 @@ function ApprovalCard({
         <div className="mt-4 space-y-2">
           <textarea
             className="w-full rounded border p-2"
-            placeholder="Your response..."
+            placeholder="您的回复..."
             value={respondMessage}
             onChange={(e) => setRespondMessage(e.target.value)}
           />
@@ -392,7 +380,7 @@ function ApprovalCard({
               onRespond({ decision: "respond", message: respondMessage })
             }
           >
-            Send Response
+            发送回复
           </button>
         </div>
       )}
@@ -401,41 +389,37 @@ function ApprovalCard({
 }
 ```
 
-## The resume flow
+## 恢复流程
 
-After the user makes a decision, the full cycle looks like this:
+用户做出决定后，完整流程如下：
 
-1. Call `stream.submit(null, { command: { resume: hitlResponse } })`
-2. The `useStream` hook sends the resume command to the LangGraph backend
-3. The agent receives the `HITLResponse` and continues execution. The HITL response may be one of:
-    - `"approve"`: The agent continues executing the next action
-    - `"reject"`: The agent receives the rejection reasoning and decides its next step
-    - `"edit"`: The agent runs the tool with the edited arguments
-    - `"respond"`: The human's message is returned directly as the tool result without executing the tool
-4. The `interrupt` property resets to `null` as the agent resumes streaming
+1. 调用 `stream.submit(null, { command: { resume: hitlResponse } })`
+2. `useStream` 钩子将恢复命令发送到 LangGraph 后端
+3. 代理接收 `HITLResponse` 并继续执行。HITL 响应可能是以下之一：
+    - `"approve"`：代理继续执行下一个操作
+    - `"reject"`：代理接收拒绝理由并决定下一步
+    - `"edit"`：代理使用编辑后的参数运行工具
+    - `"respond"`：人工的消息直接作为工具结果返回，而不执行工具
+4. 随着代理恢复流式传输，`interrupt` 属性重置为 `null`
 
 <Tip>
-You can chain multiple HITL checkpoints in a single agent run. For example, an
-agent might ask for approval to search, then ask again before sending an email
-with the results. Each interrupt is handled independently.
+您可以在单次代理运行中链接多个 HITL 检查点。例如，代理可能会请求批准进行搜索，然后在发送包含结果的电子邮件之前再次请求批准。每个中断都是独立处理的。
 </Tip>
 
-## Common use cases
+## 常见用例
 
-| Use Case | Action | Review Config |
+| 用例 | 操作 | 审核配置 |
 | --- | --- | --- |
-| Email sending | `send_email` | `["approve", "reject", "edit"]` |
-| Database writes | `update_record` | `["approve", "reject"]` |
-| Financial transactions | `transfer_funds` | `["approve", "reject"]` |
-| File deletion | `delete_files` | `["approve", "reject"]` |
-| API calls to external services | `call_api` | `["approve", "reject", "edit"]` |
-| Collecting user input | `ask_user` | `["respond"]` |
+| 发送电子邮件 | `send_email` | `["approve", "reject", "edit"]` |
+| 数据库写入 | `update_record` | `["approve", "reject"]` |
+| 金融交易 | `transfer_funds` | `["approve", "reject"]` |
+| 文件删除 | `delete_files` | `["approve", "reject"]` |
+| 调用外部服务的 API | `call_api` | `["approve", "reject", "edit"]` |
+| 收集用户输入 | `ask_user` | `["respond"]` |
 
-## Handling multiple pending actions
+## 处理多个待处理操作
 
-An interrupt can contain multiple `actionRequests` when the agent wants to
-perform several actions at once. Render a card for each and collect all
-decisions before resuming:
+当代理想要同时执行多个操作时，一个中断可以包含多个 `actionRequests`。为每个操作渲染一个卡片，并在恢复前收集所有决定：
 
 ```tsx
 function MultiActionReview({
@@ -472,7 +456,7 @@ function MultiActionReview({
             )
           }
         >
-          Submit All Decisions
+          提交所有决定
         </button>
       )}
     </div>
@@ -480,32 +464,24 @@ function MultiActionReview({
 }
 ```
 
-## Best practices
+## 最佳实践
 
-Keep these guidelines in mind when implementing HITL workflows:
+实施 HITL 工作流时，请牢记以下准则：
 
-- **Show clear context**. Always display *what* the agent wants to do and
-  *why*. Include the action description and the full arguments.
-- **Make approve the easiest path**. If the action looks correct, approving
-  should be a single click. Reserve multi-step flows for reject/edit.
-- **Validate edited args**. When users edit action arguments, validate the
-  JSON structure before sending. Show inline errors for malformed input.
-- **Persist the interrupt state**. If the user refreshes the page, the
-  interrupt should still be visible. `useStream` handles this via the thread's
-  checkpoint.
-- **Log all decisions**. For audit trails, log every approve/reject/edit
-  decision with timestamps and the user who made the decision.
-- **Set timeouts thoughtfully**. Long-running agents should not block
-  indefinitely on human review. Consider showing how long the agent has been
-  waiting.
+- **显示清晰的上下文**。始终显示代理*想要做什么*以及*为什么*。包括操作描述和完整参数。
+- **使批准成为最简单的路径**。如果操作看起来正确，批准应该只需一次点击。将多步骤流程保留给拒绝/编辑。
+- **验证编辑后的参数**。当用户编辑操作参数时，在发送前验证 JSON 结构。对格式错误的输入显示内联错误。
+- **持久化中断状态**。如果用户刷新页面，中断仍应可见。`useStream` 通过线程的检查点处理此问题。
+- **记录所有决定**。为了审计跟踪，记录每个批准/拒绝/编辑决定的时间戳和做出决定的用户。
+- **谨慎设置超时**。长时间运行的代理不应在人工审核上无限期阻塞。考虑显示代理已等待了多长时间。
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/frontend/human-in-the-loop.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/frontend/human-in-the-loop.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

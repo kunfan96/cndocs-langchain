@@ -1,74 +1,74 @@
 ---
-title: Data storage and privacy
-sidebarTitle: Data storage and privacy
+title: 数据存储与隐私
+sidebarTitle: 数据存储与隐私
 ---
-This document describes how data is processed in the LangGraph CLI and the Agent Server for both the in-memory server (`langgraph dev`) and the local Docker server (`langgraph up`). It also describes what data is tracked when interacting with the hosted Studio frontend.
+本文档描述了 LangGraph CLI 和 Agent Server 在内存服务器（`langgraph dev`）和本地 Docker 服务器（`langgraph up`）中如何处理数据。同时也描述了与托管的 Studio 前端交互时跟踪的数据。
 
 ## CLI
 
-LangGraph **CLI** is the command-line interface for building and running LangGraph applications; see the [CLI guide](/langsmith/cli) to learn more.
+LangGraph **CLI** 是用于构建和运行 LangGraph 应用程序的命令行界面；请参阅 [CLI 指南](/langsmith/cli) 了解更多信息。
 
-By default, calls to most CLI commands log a single analytics event upon invocation. This helps us better prioritize improvements to the CLI experience. Each telemetry event contains the calling process's OS, OS version, Python version, the CLI version, the command name (`dev`, `up`, `run`, etc.), and booleans representing whether a flag was passed to the command. For more information, see the [full analytics logic](https://github.com/langchain-ai/langgraph/blob/main/libs/cli/langgraph-cli/analytics.py).
+默认情况下，调用大多数 CLI 命令时会在调用时记录一个分析事件。这有助于我们更好地优先改进 CLI 体验。每个遥测事件包含调用进程的操作系统、操作系统版本、Python 版本、CLI 版本、命令名称（`dev`、`up`、`run` 等）以及表示是否向命令传递了标志的布尔值。更多信息，请参阅[完整的分析逻辑](https://github.com/langchain-ai/langgraph/blob/main/libs/cli/langgraph-cli/analytics.py)。
 
-You can disable all CLI telemetry by setting `LANGGRAPH_CLI_NO_ANALYTICS=1`.
+您可以通过设置 `LANGGRAPH_CLI_NO_ANALYTICS=1` 来禁用所有 CLI 遥测。
 
 <a id="in-memory-docker"></a>
 ## Agent Server
 
-The [Agent Server](/langsmith/agent-server) provides a durable execution runtime that relies on persisting checkpoints of your application state, long-term memories, thread metadata, assistants, and similar resources to the local file system or a database. Unless you have deliberately customized the storage location, this information is either written to local disk (for `langgraph dev`) or a PostgreSQL database (for `langgraph up` and in all deployments).
+[Agent Server](/langsmith/agent-server) 提供了一个持久执行运行时，它依赖于将应用程序状态的检查点、长期记忆、线程元数据、助手和类似资源持久化到本地文件系统或数据库。除非您特意自定义了存储位置，否则这些信息要么写入本地磁盘（对于 `langgraph dev`），要么写入 PostgreSQL 数据库（对于 `langgraph up` 和所有部署）。
 
-### LangSmith tracing
+### LangSmith 追踪
 
-When running the Agent server (either in-memory or in Docker), LangSmith tracing may be enabled to facilitate faster debugging and offer observability of graph state and LLM prompts in production. You can always disable tracing by setting `LANGSMITH_TRACING=false` in your server's runtime environment.
+运行 Agent 服务器（无论是内存模式还是 Docker 模式）时，可以启用 LangSmith 追踪，以便更快地调试并提供生产环境中图状态和 LLM 提示的可观测性。您始终可以通过在服务器的运行时环境中设置 `LANGSMITH_TRACING=false` 来禁用追踪。
 
 <Note>
-For more granular control, you can use [conditional tracing](/langsmith/conditional-tracing) to selectively enable or disable tracing based on runtime conditions, such as client requirements or data sensitivity.
+如需更精细的控制，您可以使用[条件追踪](/langsmith/conditional-tracing)，根据运行时条件（如客户端要求或数据敏感性）选择性地启用或禁用追踪。
 </Note>
 
 <a id="langgraph-dev"></a>
-### In-memory development server
+### 内存开发服务器
 
-`langgraph dev` runs an [in-memory development server](/langsmith/local-dev-testing) as a single Python process, designed for quick development and testing. It saves all checkpointing and memory data to disk within a `.langgraph_api` directory in the current working directory. Apart from the telemetry data described in the [CLI](#cli) section, no data leaves the machine unless you have enabled tracing or your graph code explicitly contacts an external service.
+`langgraph dev` 作为单个 Python 进程运行一个[内存开发服务器](/langsmith/local-dev-testing)，专为快速开发和测试而设计。它将所有检查点和内存数据保存到当前工作目录中 `.langgraph_api` 目录内的磁盘上。除了 [CLI](#cli) 部分描述的遥测数据外，除非您启用了追踪或您的图代码明确联系外部服务，否则没有数据会离开您的机器。
 
 <a id="langgraph-up"></a>
-### Standalone Server
+### 独立服务器
 
-`langgraph up` builds your local package into a Docker image and runs the server as the [data plane](/langsmith/self-hosted) consisting of three containers: the API server, a PostgreSQL container, and a Redis container. All persistent data (checkpoints, assistants, etc.) are stored in the PostgreSQL database. Redis is used as a pubsub connection for real-time streaming of events. You can encrypt all checkpoints before saving to the database by setting a valid `LANGGRAPH_AES_KEY` environment variable. You can also specify [TTLs](/langsmith/configure-ttl) for checkpoints and cross-thread memories in `langgraph.json` to control how long data is stored. All persisted threads, memories, and other data can be deleted via the relevant API endpoints.
+`langgraph up` 将您的本地包构建为 Docker 镜像，并作为由三个容器组成的[数据平面](/langsmith/self-hosted)运行服务器：API 服务器、一个 PostgreSQL 容器和一个 Redis 容器。所有持久化数据（检查点、助手等）都存储在 PostgreSQL 数据库中。Redis 用作事件实时流的发布/订阅连接。您可以通过设置有效的 `LANGGRAPH_AES_KEY` 环境变量，在保存到数据库之前加密所有检查点。您还可以在 `langgraph.json` 中为检查点和跨线程记忆指定 [TTL](/langsmith/configure-ttl)，以控制数据存储的时间。所有持久化的线程、记忆和其他数据都可以通过相关的 API 端点删除。
 
-Additional API calls are made to confirm that the server has a valid license and to track the number of executed runs and tasks. Periodically, the API server validates the provided license key (or API key).
+会进行额外的 API 调用以确认服务器具有有效的许可证，并跟踪执行的运行和任务数量。API 服务器会定期验证提供的许可证密钥（或 API 密钥）。
 
-If you've disabled [tracing](#langsmith-tracing), no user data is persisted externally unless your graph code explicitly contacts an external service.
+如果您已禁用[追踪](#langsmith-tracing)，除非您的图代码明确联系外部服务，否则没有用户数据会被持久化到外部。
 
 ## Studio
 
-[Studio](/langsmith/studio) is a graphical interface for interacting with your Agent Server. It does not persist any private data (the data you send to your server is not sent to LangSmith). Though the Studio interface is served at [smith.langchain.com](https://smith.langchain.com), it is run in your browser and connects directly to your local Agent Server so that no data needs to be sent to LangSmith.
+[Studio](/langsmith/studio) 是一个用于与您的 Agent Server 交互的图形界面。它不持久化任何私有数据（您发送到服务器的数据不会发送到 LangSmith）。虽然 Studio 界面在 [smith.langchain.com](https://smith.langchain.com) 上提供服务，但它在您的浏览器中运行，并直接连接到您的本地 Agent Server，因此无需将数据发送到 LangSmith。
 
-If you are logged in, LangSmith does collect some usage analytics to help improve the debugging user experience. This includes:
+如果您已登录，LangSmith 确实会收集一些使用分析数据，以帮助改善调试用户体验。这包括：
 
-* Page visits and navigation patterns
-* User actions (button clicks)
-* Browser type and version
-* Screen resolution and viewport size
+* 页面访问和导航模式
+* 用户操作（按钮点击）
+* 浏览器类型和版本
+* 屏幕分辨率和视口大小
 
-Importantly, no application data or code (or other sensitive configuration details) are collected. All of that is stored in the persistence layer of your Agent Server. When using Studio anonymously, no account creation is required and usage analytics are not collected.
+重要的是，不收集任何应用程序数据或代码（或其他敏感配置详细信息）。所有这些都存储在 Agent Server 的持久化层中。匿名使用 Studio 时，无需创建账户，也不会收集使用分析数据。
 
-## Quick reference
+## 快速参考
 
-In summary, you can opt-out of server-side telemetry by turning off CLI analytics and disabling tracing.
+总而言之，您可以通过关闭 CLI 分析和禁用追踪来选择退出服务器端遥测。
 
-| Variable                       | Purpose                   | Default                          |
+| 变量                           | 用途                   | 默认值                          |
 | ------------------------------ | ------------------------- | -------------------------------- |
-| `LANGGRAPH_CLI_NO_ANALYTICS=1` | Disable CLI analytics     | Analytics enabled                |
-| `LANGSMITH_API_KEY`            | Enable LangSmith tracing  | Tracing disabled                 |
-| `LANGSMITH_TRACING=false`      | Disable LangSmith tracing | Depends on environment           |
+| `LANGGRAPH_CLI_NO_ANALYTICS=1` | 禁用 CLI 分析     | 分析已启用                |
+| `LANGSMITH_API_KEY`            | 启用 LangSmith 追踪  | 追踪已禁用                 |
+| `LANGSMITH_TRACING=false`      | 禁用 LangSmith 追踪 | 取决于环境           |
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档](/use-these-docs)通过 MCP 连接到 Claude、VSCode 等，以获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/data-storage-and-privacy.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/data-storage-and-privacy.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

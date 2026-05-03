@@ -1,62 +1,62 @@
 ---
-title: Attribute-based access control
-sidebarTitle: Attribute-based access control
+title: 基于属性的访问控制
+sidebarTitle: 基于属性的访问控制
 ---
 
-This reference explains LangSmith's Attribute-Based Access Control (ABAC) system, which enables fine-grained access control based on resource attributes, complementing [RBAC](/langsmith/rbac). For automated user provisioning into roles, see [SCIM](/langsmith/user-management#set-up-scim-for-your-organization).
+本参考文档解释了 LangSmith 的基于属性的访问控制（ABAC）系统，该系统支持基于资源属性的细粒度访问控制，作为 [RBAC](/langsmith/rbac) 的补充。有关将用户自动配置到角色的信息，请参阅 [SCIM](/langsmith/user-management#set-up-scim-for-your-organization)。
 
 <Note>
-ABAC (Attribute-Based Access Control) is an Enterprise feature for managing fine-grained access control. If you are interested in this feature, [contact our sales team](https://www.langchain.com/contact-sales). Other plans default to using the Admin role for all users.
+ABAC（基于属性的访问控制）是一项用于管理细粒度访问控制的企业功能。如果您对此功能感兴趣，[请联系我们的销售团队](https://www.langchain.com/contact-sales)。其他计划默认对所有用户使用管理员角色。
 </Note>
 
-ABAC complements [Role-Based Access Control (RBAC)](/langsmith/rbac) by adding tag-based conditions to access decisions. While RBAC grants blanket permissions based on a user's role (e.g., "can read all projects"), ABAC lets you restrict or grant access based on resource tags (e.g., "can only read projects tagged with Environment=Development").
+ABAC 通过向访问决策添加基于标签的条件来补充[基于角色的访问控制（RBAC）](/langsmith/rbac)。RBAC 根据用户的角色授予宽泛的权限（例如，“可以读取所有项目”），而 ABAC 允许您根据资源标签限制或授予访问权限（例如，“只能读取标记为 Environment=Development 的项目”）。
 
 <Note>
-Roles and resource tags can be managed via the UI or API. ABAC policies are configurable via the [API](https://api.smith.langchain.com/docs#/access_policies). Once configured, policies are automatically enforced in both the API and the UI.
+角色和资源标签可以通过 UI 或 API 进行管理。ABAC 策略可通过 [API](https://api.smith.langchain.com/docs#/access_policies) 进行配置。配置后，策略会在 API 和 UI 中自动强制执行。
 </Note>
 
-## Before you begin
+## 开始之前
 
-* [Set up resource tags](/langsmith/set-up-resource-tags) in your workspace.
-* ABAC currently only supports `resource_tag_key` as an `attribute_name` in policies, for evaluating against resource tags. No other attributes are supported yet.
+* 在您的工作区中[设置资源标签](/langsmith/set-up-resource-tags)。
+* ABAC 目前仅支持 `resource_tag_key` 作为策略中的 `attribute_name`，用于根据资源标签进行评估。尚不支持其他属性。
 
-## Enable ABAC for self-hosted deployments
+## 为自托管部署启用 ABAC
 
-1. ABAC requires a [self-hosted](/langsmith/self-hosted) LangSmith deployment running Helm chart 0.11.28 or later (application version 0.12.1). Once you've upgraded, use one of the following options to enable ABAC:
+1. ABAC 需要运行 Helm chart 0.11.28 或更高版本（应用程序版本 0.12.1）的[自托管](/langsmith/self-hosted) LangSmith 部署。升级后，使用以下选项之一启用 ABAC：
 
-    - **Enable for a specific organization:** Run the following against your LangSmith PostgreSQL database, replacing `<organization_id>` with the ID copied from the organization settings page in the UI:
+    - **为特定组织启用：** 针对您的 LangSmith PostgreSQL 数据库运行以下命令，将 `<organization_id>` 替换为从 UI 组织设置页面复制的 ID：
 
         ```sql
         UPDATE organizations SET config = config || '{"can_use_abac": true}' WHERE id = '<organization_id>' AND NOT is_personal;
         ```
 
-    - **Enable for all organizations:** Add the following environment variable to `commonEnv` in your `values.yaml`:
+    - **为所有组织启用：** 在您的 `values.yaml` 中的 `commonEnv` 添加以下环境变量：
 
         ```yaml
         DEFAULT_ORG_FEATURE_CAN_USE_ABAC: "true"
         ```
 
         <Note>
-        This environment variable has no effect on personal organizations, because [RBAC](/langsmith/rbac) is not enabled for personal organizations.
+        此环境变量对个人组织无效，因为个人组织未启用 [RBAC](/langsmith/rbac)。
         </Note>
 
-1. Set up authentication. To manage access policies via the API, you need a Personal Access Token (PAT) from an [Organization Admin](/langsmith/rbac#organization-admin) user, or an organization-scoped service key with Organization Admin permissions. Set the following environment variables before running any scripts:
+1. 设置身份验证。要通过 API 管理访问策略，您需要来自[组织管理员](/langsmith/rbac#organization-admin)用户的个人访问令牌（PAT），或具有组织管理员权限的组织范围服务密钥。在运行任何脚本之前设置以下环境变量：
 
     ```bash
     export LANGSMITH_API_KEY="your_admin_api_key"
-    # Required for self-hosted or EU deployments:
+    # 自托管或欧盟部署所需：
     # export LANGCHAIN_ENDPOINT="https://eu.api.smith.langchain.com"
     # export LANGCHAIN_ENDPOINT="https://langsmith.yourdomain.com/api"
     ```
 
-## Access policy structure
+## 访问策略结构
 
-An access policy defines conditions under which access is granted or denied. Here's the structure:
+访问策略定义了授予或拒绝访问的条件。其结构如下：
 
 ```json
 {
-  "name": "Policy Name",
-  "description": "Optional description",
+  "name": "策略名称",
+  "description": "可选描述",
   "effect": "allow | deny",
   "condition_groups": [
     {
@@ -76,126 +76,126 @@ An access policy defines conditions under which access is granted or denied. Her
 }
 ```
 
-### Effect
+### 效果
 
-The `effect` determines what happens when conditions match:
+`effect` 决定条件匹配时发生的情况：
 
-- **`allow`** - Grant access when conditions match
-- **`deny`** - Block access when conditions match
+- **`allow`** - 条件匹配时授予访问权限
+- **`deny`** - 条件匹配时阻止访问
 
 <Note>
-Deny policies always take precedence. If both an allow and deny policy match, access is denied.
+拒绝策略始终优先。如果允许策略和拒绝策略都匹配，则拒绝访问。
 </Note>
 
-### Condition groups
+### 条件组
 
-The `condition_groups` array contains one or more condition groups. Multiple condition groups are evaluated with **OR logic** - if any group matches, the policy applies.
+`condition_groups` 数组包含一个或多个条件组。多个条件组使用 **OR 逻辑** 进行评估 - 如果任何组匹配，则应用该策略。
 
-Each condition group specifies:
-- **`permission`** - The permission this group applies to
-- **`resource_type`** - The resource type to match
-- **`conditions`** - Array of conditions (evaluated with **AND logic** within the group)
+每个条件组指定：
+- **`permission`** - 此组适用的权限
+- **`resource_type`** - 要匹配的资源类型
+- **`conditions`** - 条件数组（组内使用 **AND 逻辑** 进行评估）
 
-#### Resource types and permissions
+#### 资源类型和权限
 
-| Resource type | Supported permissions |
+| 资源类型 | 支持的权限 |
 |---------------|----------------------|
 | `project` | `projects:read`, `projects:update`, `projects:delete`, `runs:read`, `runs:share`, `runs:delete`, `projects:increase-trace-tier`, `projects:decrease-trace-tier` |
 | `prompt` | `prompts:read`, `prompts:update`, `prompts:delete`, `prompts:share`, `prompts:tag` |
 | `dataset` | `datasets:read`, `datasets:update`, `datasets:delete`, `datasets:share` |
 | `deployment` | `deployments:read`, `deployments:update`, `deployments:delete` |
-| `mcp_server` | `mcp-servers:read`, `mcp-servers:invoke`, `mcp-servers:update`, `mcp-servers:delete`. See [Fleet tool access control](/langsmith/fleet/access-and-oversight#tool-access-control). |
-| `fleet_integration` | `mcp-servers:read`, `mcp-servers:invoke`. See [Fleet tool access control](/langsmith/fleet/access-and-oversight#tool-access-control). |
+| `mcp_server` | `mcp-servers:read`, `mcp-servers:invoke`, `mcp-servers:update`, `mcp-servers:delete`。参见 [Fleet 工具访问控制](/langsmith/fleet/access-and-oversight#tool-access-control)。 |
+| `fleet_integration` | `mcp-servers:read`, `mcp-servers:invoke`。参见 [Fleet 工具访问控制](/langsmith/fleet/access-and-oversight#tool-access-control)。 |
 
 <Note>
-Runs don't have their own tags. Run permissions (`runs:read`, `runs:create`, `runs:share`, `runs:delete`) are evaluated against the parent project's tags.
+运行（Runs）没有自己的标签。运行权限（`runs:read`, `runs:create`, `runs:share`, `runs:delete`）根据其父项目的标签进行评估。
 </Note>
 
-#### Conditions
+#### 条件
 
-Each condition in the `conditions` array specifies:
-- **`attribute_name`** - Currently only `resource_tag_key` is supported
-- **`attribute_key`** - The tag key to match (e.g., `Environment`, `Team`)
-- **`operator`** - The comparison operator
-- **`attribute_value`** - The value to compare against
+`conditions` 数组中的每个条件指定：
+- **`attribute_name`** - 目前仅支持 `resource_tag_key`
+- **`attribute_key`** - 要匹配的标签键（例如，`Environment`、`Team`）
+- **`operator`** - 比较运算符
+- **`attribute_value`** - 要比较的值
 
-##### Operators
+##### 运算符
 
-| Operator | Description |
+| 运算符 | 描述 |
 |----------|-------------|
-| `equals` | Exact match (case sensitive) |
-| `not_equals` | Values differ (case sensitive) |
-| `equals_ignore_case` | Exact match (case insensitive) |
-| `not_equals_ignore_case` | Values differ (case insensitive) |
-| `matches` | Glob pattern matching with `*` and `?` wildcards |
-| `not_matches` | Match when value doesn't match glob pattern |
+| `equals` | 精确匹配（区分大小写） |
+| `not_equals` | 值不同（区分大小写） |
+| `equals_ignore_case` | 精确匹配（不区分大小写） |
+| `not_equals_ignore_case` | 值不同（不区分大小写） |
+| `matches` | 使用 `*` 和 `?` 通配符的 Glob 模式匹配 |
+| `not_matches` | 当值不匹配 Glob 模式时匹配 |
 
-##### `_if_exists` variants
+##### `_if_exists` 变体
 
-Each operator has an `_if_exists` variant that matches by default when the tag key is absent, or evaluates the condition normally when the tag exists:
+每个运算符都有一个 `_if_exists` 变体，当标签键不存在时默认匹配，或者当标签存在时正常评估条件：
 
-| Operator | Description |
+| 运算符 | 描述 |
 |----------|-------------|
-| `equals_if_exists` | Exact match (case sensitive), or if tag key absent |
-| `not_equals_if_exists` | Values differ (case sensitive), or if tag key absent |
-| `equals_ignore_case_if_exists` | Exact match (case insensitive), or if tag key absent |
-| `not_equals_ignore_case_if_exists` | Values differ (case insensitive), or if tag key absent |
-| `matches_if_exists` | Glob pattern match, or if tag key absent |
-| `not_matches_if_exists` | Match when value doesn't match glob pattern, or if tag key absent |
+| `equals_if_exists` | 精确匹配（区分大小写），或标签键不存在时 |
+| `not_equals_if_exists` | 值不同（区分大小写），或标签键不存在时 |
+| `equals_ignore_case_if_exists` | 精确匹配（不区分大小写），或标签键不存在时 |
+| `not_equals_ignore_case_if_exists` | 值不同（不区分大小写），或标签键不存在时 |
+| `matches_if_exists` | Glob 模式匹配，或标签键不存在时 |
+| `not_matches_if_exists` | 当值不匹配 Glob 模式时匹配，或标签键不存在时 |
 
 <Tip>
-In an **allow** policy, `_if_exists` variants grant access to resources that either match the condition or don't have the specified tag key. In a **deny** policy, they block resources that either match the condition or don't have the tag key.
+在 **allow** 策略中，`_if_exists` 变体授予对匹配条件或没有指定标签键的资源的访问权限。在 **deny** 策略中，它们阻止匹配条件或没有该标签键的资源。
 </Tip>
 
-### Roles
+### 角色
 
-The `role_ids` array specifies which workspace roles the policy applies to. When a user with that role accesses a resource, the policy conditions are evaluated.
+`role_ids` 数组指定策略适用的工作区角色。当具有该角色的用户访问资源时，将评估策略条件。
 
-Policies can be attached to roles when creating the policy, or attached later via the API.
+策略可以在创建策略时附加到角色，也可以稍后通过 API 附加。
 
-## Managing access policies
+## 管理访问策略
 
-Access policies are managed via the LangSmith API by [Organization Admins](/langsmith/rbac#organization-admin). Before creating policies, [set up resource tags](/langsmith/set-up-resource-tags) in your workspace.
+访问策略由[组织管理员](/langsmith/rbac#organization-admin)通过 LangSmith API 管理。在创建策略之前，请在您的工作区中[设置资源标签](/langsmith/set-up-resource-tags)。
 
-## How ABAC works with RBAC
+## ABAC 如何与 RBAC 协同工作
 
-[RBAC](/langsmith/rbac) permissions and ABAC policies are both considered when determining access to resources:
+在确定资源访问权限时，会同时考虑 [RBAC](/langsmith/rbac) 权限和 ABAC 策略：
 
-- ABAC **deny** policies override RBAC permissions
-- ABAC **allow** policies can grant access even without RBAC permissions
-- If no ABAC policies match, the system falls back to RBAC
+- ABAC **deny** 策略覆盖 RBAC 权限
+- ABAC **allow** 策略即使没有 RBAC 权限也可以授予访问权限
+- 如果没有 ABAC 策略匹配，系统将回退到 RBAC
 
-### Policy evaluation outcomes
+### 策略评估结果
 
-**Feature combinations:**
+**功能组合：**
 
-| RBAC enabled | ABAC enabled | Behavior |
+| RBAC 已启用 | ABAC 已启用 | 行为 |
 |--------------|--------------|----------|
-| ✗ | ✗ | All workspace members have Admin-level access |
-| ✓ | ✗ | Standard RBAC - access based on role permissions |
-| ✓ | ✓ | RBAC + ABAC - fine-grained tag-based access control |
+| ✗ | ✗ | 所有工作区成员都具有管理员级别的访问权限 |
+| ✓ | ✗ | 标准 RBAC - 基于角色权限的访问 |
+| ✓ | ✓ | RBAC + ABAC - 基于标签的细粒度访问控制 |
 
-**When both RBAC and ABAC are enabled:**
+**当 RBAC 和 ABAC 都启用时：**
 
-| RBAC permits | Allow policy matches | Deny policy matches | Result |
+| RBAC 允许 | Allow 策略匹配 | Deny 策略匹配 | 结果 |
 |--------------|---------------------|---------------------|--------|
-| ✓ | ✓ | ✗ | **Allowed** |
-| ✓ | ✗ | ✗ | **Allowed** (RBAC fallback) |
-| ✓ | ✓ | ✓ | **Denied** (deny wins) |
-| ✓ | ✗ | ✓ | **Denied** (deny wins) |
-| ✗ | ✓ | ✗ | **Allowed** (ABAC grants access) |
-| ✗ | ✗ | ✗ | **Denied** |
-| ✗ | ✓ | ✓ | **Denied** (deny wins) |
+| ✓ | ✓ | ✗ | **允许** |
+| ✓ | ✗ | ✗ | **允许**（RBAC 回退） |
+| ✓ | ✓ | ✓ | **拒绝**（拒绝优先） |
+| ✓ | ✗ | ✓ | **拒绝**（拒绝优先） |
+| ✗ | ✓ | ✗ | **允许**（ABAC 授予访问权限） |
+| ✗ | ✗ | ✗ | **拒绝** |
+| ✗ | ✓ | ✓ | **拒绝**（拒绝优先） |
 
-## Example scenarios
+## 示例场景
 
-### 1. Annotator team assignment
+### 1. 标注团队分配
 
-Allow annotators to only access datasets tagged for their team:
+允许标注员仅访问为其团队标记的数据集：
 
 ```json
 {
-  "name": "Annotator Team A Access",
+  "name": "标注员团队 A 访问",
   "effect": "allow",
   "condition_groups": [{
     "permission": "datasets:read",
@@ -210,13 +210,13 @@ Allow annotators to only access datasets tagged for their team:
 }
 ```
 
-### 2. Block sensitive data
+### 2. 阻止敏感数据
 
-Deny access to datasets containing PII. Since deny policies override allow policies, this blocks access even for users with RBAC permissions:
+拒绝访问包含 PII 的数据集。由于拒绝策略覆盖允许策略，即使对于具有 RBAC 权限的用户，这也会阻止访问：
 
 ```json
 {
-  "name": "Block PII Datasets",
+  "name": "阻止 PII 数据集",
   "effect": "deny",
   "condition_groups": [{
     "permission": "datasets:read",
@@ -231,13 +231,13 @@ Deny access to datasets containing PII. Since deny policies override allow polic
 }
 ```
 
-### 3. Application-based access with wildcards
+### 3. 基于应用程序的访问（使用通配符）
 
-Allow engineers to access projects for any application in the "chatbot" family using glob patterns:
+允许工程师使用 Glob 模式访问 "chatbot" 系列中任何应用程序的项目：
 
 ```json
 {
-  "name": "Chatbot Apps Access",
+  "name": "聊天机器人应用访问",
   "effect": "allow",
   "condition_groups": [{
     "permission": "projects:read",
@@ -252,13 +252,13 @@ Allow engineers to access projects for any application in the "chatbot" family u
 }
 ```
 
-### 4. Client and purpose isolation (AND logic)
+### 4. 客户和用途隔离（AND 逻辑）
 
-Grant access only if both conditions are met - dataset is for training AND belongs to a specific client:
+仅当两个条件都满足时才授予访问权限 - 数据集用于训练且属于特定客户：
 
 ```json
 {
-  "name": "Client Training Data Access",
+  "name": "客户训练数据访问",
   "effect": "allow",
   "condition_groups": [{
     "permission": "datasets:read",
@@ -281,13 +281,13 @@ Grant access only if both conditions are met - dataset is for training AND belon
 }
 ```
 
-### 5. Client data plus resources without a `Client` tag using `_if_exists`
+### 5. 客户数据加上没有 `Client` 标签的资源（使用 `_if_exists`）
 
-Consultants don't have RBAC `datasets:read` permission, but this policy grants them access to datasets tagged `Client=Acme-Corp`, as well as datasets that don't have a `Client` tag at all. Datasets tagged with a different client (e.g., `Client=Other-Corp`) remain blocked:
+顾问没有 RBAC `datasets:read` 权限，但此策略授予他们访问标记为 `Client=Acme-Corp` 的数据集，以及根本没有 `Client` 标签的数据集的权限。标记为其他客户（例如 `Client=Other-Corp`）的数据集仍被阻止：
 
 ```json
 {
-  "name": "Acme Consultant Access",
+  "name": "Acme 顾问访问",
   "effect": "allow",
   "condition_groups": [{
     "permission": "datasets:read",
@@ -302,33 +302,33 @@ Consultants don't have RBAC `datasets:read` permission, but this policy grants t
 }
 ```
 
-## Troubleshooting
+## 故障排除
 
-**Access unexpectedly denied?**
-- Check if a deny policy is matching (deny always takes precedence)
-- Check if the user has RBAC permissions or a matching allow policy
-- Verify the resource has the expected tag and value
-- Deny policies with `_if_exists` operators block resources missing that tag key
-- For case-sensitive operators (`equals`, `not_equals`), check for case mismatches
-- With multiple conditions in a group, all must match (AND logic)
+**访问意外被拒绝？**
+- 检查是否有拒绝策略匹配（拒绝始终优先）
+- 检查用户是否具有 RBAC 权限或匹配的允许策略
+- 验证资源是否具有预期的标签和值
+- 带有 `_if_exists` 运算符的拒绝策略会阻止缺少该标签键的资源
+- 对于区分大小写的运算符（`equals`、`not_equals`），检查大小写是否不匹配
+- 当组中有多个条件时，所有条件都必须匹配（AND 逻辑）
 
-**Access unexpectedly granted?**
-- Review RBAC permissions (users may have access via their role)
-- Check if an allow policy is too broad (e.g., using wildcards)
-- `_if_exists` operators match resources missing that tag key
+**访问意外被授予？**
+- 审查 RBAC 权限（用户可能通过其角色获得访问权限）
+- 检查允许策略是否过于宽泛（例如，使用通配符）
+- `_if_exists` 运算符匹配缺少该标签键的资源
 
-**Policy not taking effect?**
-- Confirm the policy is attached to the correct role
-- Verify the user has that role in the workspace
-- Check that `resource_type` and `permission` match the resource being accessed
+**策略未生效？**
+- 确认策略已附加到正确的角色
+- 验证用户在工作区中具有该角色
+- 检查 `resource_type` 和 `permission` 是否与正在访问的资源匹配
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档](/use-these-docs)通过 MCP 连接到 Claude、VSCode 等，以获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/abac.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/abac.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

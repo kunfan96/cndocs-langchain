@@ -1,72 +1,72 @@
 ---
-title: How to improve your evaluator with few-shot examples
-sidebarTitle: Improve your evaluator with few-shot examples
+title: 如何使用少样本示例改进您的评估器
+sidebarTitle: 使用少样本示例改进您的评估器
 ---
 
-Using LLM-as-a-judge evaluators can be very helpful when you can't evaluate your system programmatically. However, their effectiveness depends on their quality and how well they align with human reviewer feedback. LangSmith provides the ability to improve the alignment of LLM-as-a-judge evaluator to human preferences using few-shot examples.
+当您无法通过编程方式评估系统时，使用LLM作为评判者的评估器可能非常有帮助。然而，它们的有效性取决于其质量以及与人类评审反馈的契合程度。LangSmith提供了使用少样本示例来改进LLM作为评判者的评估器与人类偏好对齐的能力。
 
-Human corrections are automatically inserted into your evaluator prompt using few-shot examples. Few-shot examples is a technique inspired by [few-shot prompting](https://www.promptingguide.ai/techniques/fewshot) that guides the models output with a few high-quality examples.
+人类修正会通过少样本示例自动插入到您的评估器提示中。少样本示例是一种受[少样本提示](https://www.promptingguide.ai/techniques/fewshot)启发的技术，它通过几个高质量的示例来引导模型的输出。
 
-This guide covers how to set up few-shot examples as part of your LLM-as-a-judge evaluator and apply corrections to feedback scores.
+本指南介绍如何将少样本示例设置为LLM作为评判者的评估器的一部分，并将修正应用于反馈分数。
 
-## How few-shot examples work
+## 少样本示例的工作原理
 
-* Few-shot examples are added to your evaluator prompt using the `{{Few-shot examples}}` variable
-* Creating an evaluator with few-shot examples, will automatically create a dataset for you, which will be auto-populated with few-shot examples once you start making corrections
-* At runtime, these examples will inserted into the evaluator to serve as a guide for its outputs - this will help the evaluator to better align with human preferences
+* 少样本示例通过 `{{Few-shot examples}}` 变量添加到您的评估器提示中
+* 创建带有少样本示例的评估器将自动为您创建一个数据集，一旦您开始进行修正，该数据集将自动填充少样本示例
+* 在运行时，这些示例将被插入到评估器中，作为其输出的指南——这将帮助评估器更好地与人类偏好对齐
 
-## Configure your evaluator
+## 配置您的评估器
 
 <Note>
-Few-shot examples are not currently supported in LLM-as-a-judge evaluators that use the prompt hub and are only compatible with prompts that use mustache formatting.
+目前，使用提示中心的LLM作为评判者的评估器不支持少样本示例，并且仅与使用mustache格式的提示兼容。
 </Note>
 
-Before enabling few-shot examples, set up your LLM-as-a-judge evaluator. If you haven't done this yet, follow the steps in the [LLM-as-a-judge evaluator guide](/langsmith/llm-as-judge).
+在启用少样本示例之前，请设置您的LLM作为评判者的评估器。如果您尚未完成此操作，请按照[LLM作为评判者的评估器指南](/langsmith/llm-as-judge)中的步骤操作。
 
-### 1. Configure variable mapping
+### 1. 配置变量映射
 
-Each few-shot example is formatted according to the variable mapping specified in the configuration. The variable mapping for few-shot examples, should contain the same variables as your main prompt, plus a `few_shot_explanation` and a `score` variable which should have the same name as your feedback key.
+每个少样本示例都根据配置中指定的变量映射进行格式化。少样本示例的变量映射应包含与主提示相同的变量，外加一个 `few_shot_explanation` 和一个 `score` 变量，后者的名称应与您的反馈键相同。
 
-For example, if your main prompt has variables `question` and `response`, and your evaluator outputs a `correctness` score, then your few-shot prompt should have the variables `question`, `response`, `few_shot_explanation`, and `correctness`.
+例如，如果您的主提示包含变量 `question` 和 `response`，并且您的评估器输出一个 `correctness` 分数，那么您的少样本提示应包含变量 `question`、`response`、`few_shot_explanation` 和 `correctness`。
 
-### 2. Specify the number of few-shot examples to use
+### 2. 指定要使用的少样本示例数量
 
-You may also specify the number of few-shot examples to use. The default is 5. If your examples are very long, you may want to set this number lower to save tokens - whereas if your examples tend to be short, you can set a higher number in order to give your evaluator more examples to learn from. If you have more examples in your dataset than this number, we will randomly choose them for you.
+您还可以指定要使用的少样本示例数量。默认值为5。如果您的示例非常长，您可能希望将此数字设置得较低以节省令牌——而如果您的示例通常较短，您可以设置一个较高的数字，以便为您的评估器提供更多可学习的示例。如果您的数据集中的示例数量超过此数字，我们将为您随机选择它们。
 
-## Make corrections
+## 进行修正
 
 <Info>
-[Audit evaluator scores](/langsmith/audit-evaluator-scores)
+[审核评估器分数](/langsmith/audit-evaluator-scores)
 </Info>
 
-As you start logging traces or running experiments, you will likely disagree with some of the scores that your evaluator has given. When you [make corrections to these scores](/langsmith/audit-evaluator-scores), you will begin seeing examples populated inside your corrections dataset. As you make corrections, make sure to attach explanations - these will get populated into your evaluator prompt in place of the `few_shot_explanation` variable.
+当您开始记录跟踪或运行实验时，您可能会不同意评估器给出的某些分数。当您[对这些分数进行修正](/langsmith/audit-evaluator-scores)时，您将开始在修正数据集中看到填充的示例。在进行修正时，请务必附加解释——这些解释将填充到您的评估器提示中，替代 `few_shot_explanation` 变量。
 
-The inputs to the few-shot examples will be the relevant fields from the inputs, outputs, and reference (if this an offline evaluator) of your chain/dataset. The outputs will be the corrected evaluator score and the explanations that you created when you left the corrections. Feel free to edit these to your liking. Here is an example of a few-shot example in a corrections dataset:
+少样本示例的输入将是来自您的链/数据集的输入、输出和参考（如果这是离线评估器）的相关字段。输出将是修正后的评估器分数以及您在留下修正时创建的解释。您可以随意编辑这些内容。以下是修正数据集中少样本示例的示例：
 
-![Few-shot example](/langsmith/images/few-shot-example.png)
+![少样本示例](/langsmith/images/few-shot-example.png)
 
-Note that the corrections may take a minute or two to be populated into your few-shot dataset. Once they are there, future runs of your evaluator will include them in the prompt!
+请注意，修正可能需要一两分钟才能填充到您的少样本数据集中。一旦它们在那里，您评估器的未来运行将在提示中包含它们！
 
-## View your corrections dataset
+## 查看您的修正数据集
 
-In order to view your corrections dataset:
+要查看您的修正数据集：
 
-* **Online evaluators**: Select your run rule and click **Edit Rule**
-* **Offline evaluators**: Select your evaluator and click **Edit Evaluator**
+* **在线评估器**：选择您的运行规则并点击 **编辑规则**
+* **离线评估器**：选择您的评估器并点击 **编辑评估器**
 
-![Edit Evaluator](/langsmith/images/edit-evaluator.png)
+![编辑评估器](/langsmith/images/edit-evaluator.png)
 
-Head to your dataset of corrections linked in the **Improve evaluator accuracy using few-shot examples** section. You can view and update your few-shot examples in the dataset.
+前往 **使用少样本示例改进评估器准确性** 部分链接的修正数据集。您可以在数据集中查看和更新您的少样本示例。
 
-![View few-shot dataset](/langsmith/images/view-few-shot-ds.png)
+![查看少样本数据集](/langsmith/images/view-few-shot-ds.png)
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [连接这些文档](/use-these-docs)到Claude、VSCode等，通过MCP获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/create-few-shot-evaluators.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在GitHub上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/create-few-shot-evaluators.mdx)或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

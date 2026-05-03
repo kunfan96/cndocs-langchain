@@ -1,49 +1,49 @@
 ---
-title: Scalability & resilience
-sidebarTitle: Scalability & resilience
+title: 可扩展性与弹性
+sidebarTitle: 可扩展性与弹性
 ---
 
-LangSmith is designed to scale horizontally with your workload. Each instance of the service is stateless, and keeps no resources in memory. The service is designed to gracefully handle new instances being added or removed, including hard shutdown cases.
+LangSmith 设计为可随工作负载水平扩展。服务的每个实例都是无状态的，且不在内存中保留任何资源。该设计旨在优雅地处理实例的添加或移除，包括强制关闭的情况。
 
-## Server scalability
+## 服务器可扩展性
 
-As you add more instances to a service, they will share the HTTP load as long as an appropriate load balancer mechanism is placed in front of them. In most deployment modalities we configure a load balancer for the service automatically. In the “self-hosted without control plane” modality it’s your responsibility to add a load balancer. Since the instances are stateless any load balancing strategy will work, no session stickiness is needed, or recommended. Any instance of the server can communicate with any queue instance (through Redis PubSub), meaning that requests to cancel or stream an in-progress run can be handled by any arbitrary instance.
+当您向服务添加更多实例时，只要在它们前面配置了适当的负载均衡机制，它们将共享 HTTP 负载。在大多数部署模式中，我们会自动为服务配置负载均衡器。在“无控制平面的自托管”模式下，您需要自行添加负载均衡器。由于实例是无状态的，任何负载均衡策略都适用，无需也不建议使用会话粘性。服务器的任何实例都可以与任何队列实例通信（通过 Redis PubSub），这意味着取消或流式传输进行中运行的请求可以由任意实例处理。
 
-## Queue scalability
+## 队列可扩展性
 
-As you add more instances to a service, they will increase run throughput linearly, as each instance is configured to handle a set number of concurrent runs (by default 10). Each attempt for each run will be handled by a single instance, with exactly-once semantics enforced through Postgres’s MVCC model (refer to section below for crash resilience details). Attempts that fail due to transient database errors are retried up to 3 times. We do not make use of long-lived transactions or locks, this enables us to make more efficient use of Postgres resources.
+当您向服务添加更多实例时，运行吞吐量将线性增加，因为每个实例被配置为处理一定数量的并发运行（默认为 10）。每次运行的每次尝试将由单个实例处理，并通过 Postgres 的 MVCC 模型强制执行精确一次语义（有关崩溃弹性的详细信息，请参阅下文部分）。由于瞬态数据库错误而失败的尝试最多会重试 3 次。我们不使用长期事务或锁，这使我们能够更高效地利用 Postgres 资源。
 
-## Resilience
+## 弹性
 
-While a run is being handled by a queue instance, a periodic heartbeat timestamp will be recorded in Redis by that queue worker.
+当运行由队列实例处理时，该队列工作进程会在 Redis 中记录定期心跳时间戳。
 
-When a graceful shutdown request is received (SIGINT) an instance enters shutdown mode, which
+当收到优雅关闭请求（SIGINT）时，实例进入关闭模式，该模式：
 
-* stops accepting new HTTP requests
-* gives any in-progress runs a limited number of seconds to finish (if not finished it will be put back in the queue)
-* stops the instance from picking up more runs from the queue
+*   停止接受新的 HTTP 请求
+*   给任何进行中的运行有限的秒数来完成（如果未完成，它将被放回队列）
+*   停止实例从队列中获取更多运行
 
-If a hard shutdown occurs due to a server crash or an infrastructure failure, any runs that were in progress will be picked up by an internal sweeper task that looks for in-progress runs that have breached their heartbeat window. The sweeper runs every 2 minutes and will put the runs back in the queue for another instance to pick them up.
+如果由于服务器崩溃或基础设施故障发生强制关闭，任何正在进行的运行将由内部清理任务拾取，该任务会查找超出其心跳窗口的进行中运行。清理任务每 2 分钟运行一次，并将运行放回队列，以便另一个实例拾取它们。
 
-## Postgres resilience
+## Postgres 弹性
 
-For deployment modalities where we manage the Postgres database, we have periodic backups and continuously replicated standby replicas for automatic failover. This Postgres configuration is available in the [Cloud deployment option](/langsmith/cloud) for [`Production` deployment types](/langsmith/control-plane#deployment-types) only.
+对于由我们管理 Postgres 数据库的部署模式，我们有定期备份和持续复制的备用副本以实现自动故障转移。此 Postgres 配置仅在 [Cloud 部署选项](/langsmith/cloud) 中的 [`Production` 部署类型](/langsmith/control-plane#deployment-types) 可用。
 
-All communication with Postgres implements retries for retry-able errors. If Postgres is momentarily unavailable, such as during a database restart, most/all traffic should continue to succeed. Prolonged failure of Postgres will render the Agent Server unavailable.
+所有与 Postgres 的通信都对可重试错误实施了重试。如果 Postgres 暂时不可用（例如在数据库重启期间），大多数/所有流量应继续成功。Postgres 的长时间故障将导致代理服务器不可用。
 
-## Redis resilience
+## Redis 弹性
 
-All data that requires durable storage is stored in Postgres, not Redis. Redis is used only for ephemeral metadata, and communication between instances. Therefore we place no durability requirements on Redis.
+所有需要持久存储的数据都存储在 Postgres 中，而不是 Redis。Redis 仅用于临时元数据和实例之间的通信。因此，我们不对 Redis 提出持久性要求。
 
-All communication with Redis implements retries for retry-able errors. If Redis is momentarily unavailable, such as during a database restart, most/all traffic should continue to succeed. Prolonged failure of Redis will render the Agent Server unavailable.
+所有与 Redis 的通信都对可重试错误实施了重试。如果 Redis 暂时不可用（例如在数据库重启期间），大多数/所有流量应继续成功。Redis 的长时间故障将导致代理服务器不可用。
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/scalability-and-resilience.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/scalability-and-resilience.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

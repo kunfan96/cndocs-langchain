@@ -1,18 +1,18 @@
 ---
-title: Add custom authentication
-sidebarTitle: Add custom authentication
+title: 添加自定义认证
+sidebarTitle: 添加自定义认证
 ---
 
-This guide shows you how to add custom authentication to your LangSmith application. The steps on this page apply to both [cloud](/langsmith/cloud) and [self-hosted](/langsmith/self-hosted) deployments. It does not apply to isolated usage of the [LangGraph open source library](/oss/python/langgraph/overview) in your own custom server.
+本指南向您展示如何为您的 LangSmith 应用程序添加自定义认证。此页面上的步骤适用于 [云部署](/langsmith/cloud) 和 [自托管部署](/langsmith/self-hosted)。它不适用于在您自己的自定义服务器中独立使用 [LangGraph 开源库](/oss/python/langgraph/overview) 的情况。
 
-## Add custom authentication to your deployment
+## 为您的部署添加自定义认证
 
-To leverage custom authentication and access user-level metadata in your deployments, set up custom authentication to automatically populate the `config["configurable"]["langgraph_auth_user"]` object through a custom authentication handler. You can then access this object in your graph with the `langgraph_auth_user` key to [allow an agent to perform authenticated actions on behalf of the user](#enable-agent-authentication).
+要利用自定义认证并在您的部署中访问用户级元数据，请设置自定义认证，通过自定义认证处理器自动填充 `config["configurable"]["langgraph_auth_user"]` 对象。然后，您可以在图中使用 `langgraph_auth_user` 键访问此对象，以[允许代理代表用户执行经过认证的操作](#enable-agent-authentication)。
 
-1. Implement authentication:
+1. 实现认证：
 
     <Note>
-    Without a custom `@auth.authenticate` handler, LangGraph sees only the API-key owner (usually the developer), so requests aren’t scoped to individual end-users. To propagate custom tokens, you must implement your own handler.
+    如果没有自定义的 `@auth.authenticate` 处理器，LangGraph 只能看到 API 密钥所有者（通常是开发者），因此请求不会限定到单个最终用户。要传播自定义令牌，您必须实现自己的处理器。
     </Note>
 
     ```python
@@ -22,7 +22,7 @@ To leverage custom authentication and access user-level metadata in your deploym
     auth = Auth()
 
     def is_valid_key(api_key: str) -> bool:
-        is_valid = # your API key validation logic
+        is_valid = # 您的 API 密钥验证逻辑
         return is_valid
 
     @auth.authenticate # (1)!
@@ -31,20 +31,20 @@ To leverage custom authentication and access user-level metadata in your deploym
         if not api_key or not is_valid_key(api_key):
             raise Auth.exceptions.HTTPException(status_code=401, detail="Invalid API key")
 
-        # Fetch user-specific tokens from your secret store
+        # 从您的密钥存储中获取用户特定的令牌
         user_tokens = await fetch_user_tokens(api_key)
 
         return { # (2)!
-            "identity": api_key,  #  fetch user ID from LangSmith
+            "identity": api_key,  # 从 LangSmith 获取用户 ID
             "github_token" : user_tokens.github_token
             "jira_token" : user_tokens.jira_token
-            # ... custom fields/secrets here
+            # ... 此处为自定义字段/密钥
         }
     ```
-  - This handler receives the request (headers, etc.), validates the user, and returns a dictionary with at least an identity field.
-  - You can add any custom fields you want (e.g., OAuth tokens, roles, org IDs, etc.).
+  - 此处理器接收请求（标头等），验证用户，并返回一个至少包含身份字段的字典。
+  - 您可以添加任何想要的自定义字段（例如，OAuth 令牌、角色、组织 ID 等）。
 
-2. In your [`langgraph.json`](/langsmith/application-structure#configuration-file), add the path to your auth file:
+2. 在您的 [`langgraph.json`](/langsmith/application-structure#configuration-file) 文件中，添加您的认证文件路径：
 
     ```json highlight={7-9}
     {
@@ -58,14 +58,14 @@ To leverage custom authentication and access user-level metadata in your deploym
         }
     }
     ```
-3. Once you've set up authentication in your server, requests must include the required authorization information based on your chosen scheme. Assuming you are using JWT token authentication, you could access your deployments using any of the following methods:
+3. 一旦您在服务器中设置了认证，请求必须根据您选择的方案包含所需的授权信息。假设您使用 JWT 令牌认证，您可以使用以下任何一种方法访问您的部署：
 
     <Tabs>
-        <Tab title="Python Client">
+        <Tab title="Python 客户端">
       ```python
       from langgraph_sdk import get_client
 
-      my_token = "your-token" # In practice, you would generate a signed token with your auth provider
+      my_token = "your-token" # 实际上，您会使用您的认证提供商生成一个签名令牌
       client = get_client(
           url="http://localhost:2024",
           headers={"Authorization": f"Bearer {my_token}"}
@@ -77,7 +77,7 @@ To leverage custom authentication and access user-level metadata in your deploym
       ```python
       from langgraph.pregel.remote import RemoteGraph
 
-      my_token = "your-token" # In practice, you would generate a signed token with your auth provider
+      my_token = "your-token" # 实际上，您会使用您的认证提供商生成一个签名令牌
       remote-graph = RemoteGraph(
           "agent",
           url="http://localhost:2024",
@@ -86,11 +86,11 @@ To leverage custom authentication and access user-level metadata in your deploym
       threads = await remote-graph.ainvoke(...)
       ```
         </Tab>
-        <Tab title="JavaScript Client">
+        <Tab title="JavaScript 客户端">
       ```javascript
       import { Client } from "@langchain/langgraph-sdk";
 
-      const my_token = "your-token"; // In practice, you would generate a signed token with your auth provider
+      const my_token = "your-token"; // 实际上，您会使用您的认证提供商生成一个签名令牌
       const client = new Client({
       apiUrl: "http://localhost:2024",
       defaultHeaders: { Authorization: `Bearer ${my_token}` },
@@ -102,7 +102,7 @@ To leverage custom authentication and access user-level metadata in your deploym
       ```javascript
       import { RemoteGraph } from "@langchain/langgraph/remote";
 
-      const my_token = "your-token"; // In practice, you would generate a signed token with your auth provider
+      const my_token = "your-token"; // 实际上，您会使用您的认证提供商生成一个签名令牌
       const remoteGraph = new RemoteGraph({
       graphId: "agent",
       url: "http://localhost:2024",
@@ -118,45 +118,45 @@ To leverage custom authentication and access user-level metadata in your deploym
         </Tab>
     </Tabs>
 
-    For more details on RemoteGraph, refer to the [Use RemoteGraph](/langsmith/use-remote-graph) guide.
+    有关 RemoteGraph 的更多详细信息，请参阅 [使用 RemoteGraph](/langsmith/use-remote-graph) 指南。
 
-## Enable agent authentication
+## 启用代理认证
 
-After [authentication](#add-custom-authentication-to-your-deployment), the platform creates a special configuration object (`config`) that is passed to LangSmith deployment. This object contains information about the current user, including any custom fields you return from your `@auth.authenticate` handler.
+在[认证](#为您的部署添加自定义认证)之后，平台会创建一个特殊的配置对象（`config`），该对象被传递给 LangSmith 部署。此对象包含有关当前用户的信息，包括您从 `@auth.authenticate` 处理器返回的任何自定义字段。
 
-To allow an agent to perform authenticated actions on behalf of the user, access this object in your graph with the `langgraph_auth_user` key:
+要允许代理代表用户执行经过认证的操作，请在图中使用 `langgraph_auth_user` 键访问此对象：
 
 ```python
 def my_node(state, config):
     user_config = config["configurable"].get("langgraph_auth_user")
-    # token was resolved during the @auth.authenticate function
+    # 令牌在 @auth.authenticate 函数期间已解析
     token = user_config.get("github_token","")
     ...
 ```
 
 <Note>
-Fetch user credentials from a secure secret store. Storing secrets in graph state is not recommended.
+从安全的密钥存储中获取用户凭据。不建议将密钥存储在图状态中。
 </Note>
 
-### Authorizing a user for Studio
+### 为 Studio 授权用户
 
-By default, if you add custom authorization on your resources, this will also apply to interactions made from [Studio](/langsmith/studio). If you want, you can handle logged-in Studio users differently by checking [is_studio_user()](https://langchain-ai.github.io/langgraph/cloud/reference/sdk/python_sdk_ref/#langgraph_sdk.auth.types.StudioUser).
+默认情况下，如果您在资源上添加了自定义授权，这也将应用于从 [Studio](/langsmith/studio) 进行的交互。如果您愿意，可以通过检查 [is_studio_user()](https://langchain-ai.github.io/langgraph/cloud/reference/sdk/python_sdk_ref/#langgraph_sdk.auth.types.StudioUser) 来以不同方式处理已登录的 Studio 用户。
 
 <Note>
-`is_studio_user` was added in version 0.1.73 of the langgraph-sdk. If you're on an older version, you can still check whether `isinstance(ctx.user, StudioUser)`.
+`is_studio_user` 在 langgraph-sdk 的 0.1.73 版本中添加。如果您使用的是较旧版本，仍然可以检查 `isinstance(ctx.user, StudioUser)`。
 </Note>
 
 ```python
 from langgraph_sdk.auth import is_studio_user, Auth
 auth = Auth()
 
-# ... Setup authenticate, etc.
+# ... 设置 authenticate 等。
 
 @auth.on
 async def add_owner(
     ctx: Auth.types.AuthContext,
-    value: dict  # The payload being sent to this access method
-) -> dict:  # Returns a filter dict that restricts access to resources
+    value: dict  # 发送到此访问方法的负载
+) -> dict:  # 返回一个限制资源访问的过滤器字典
     if is_studio_user(ctx.user):
         return {}
 
@@ -166,20 +166,20 @@ async def add_owner(
     return filters
 ```
 
-Only use this if you want to permit developer access to a graph deployed on the managed LangSmith SaaS.
+仅当您希望允许开发者访问部署在托管 LangSmith SaaS 上的图时，才使用此功能。
 
-## Learn more
+## 了解更多
 
-* [Authentication & Access Control](/langsmith/auth)
-* [Setting up custom authentication tutorial](/langsmith/set-up-custom-auth)
+* [认证与访问控制](/langsmith/auth)
+* [设置自定义认证教程](/langsmith/set-up-custom-auth)
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档](/use-these-docs)通过 MCP 连接到 Claude、VSCode 等，以获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/custom-auth.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/custom-auth.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

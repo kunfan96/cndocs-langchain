@@ -1,24 +1,22 @@
 ---
-title: How to retry failed runs in experiments (Python only)
-sidebarTitle: Retry on failed experiment runs (Python)
+title: 如何在实验中重试失败的运行（仅限Python）
+sidebarTitle: 重试失败的实验运行（Python）
 ---
 
+在对大型[数据集](/langsmith/evaluation-concepts#datasets)运行[评估](/langsmith/evaluation-concepts#evaluation-lifecycle)时，由于速率限制、网络问题或其他临时性错误，您可能会遇到一小部分示例的失败。您无需重新运行整个评估，而是可以识别并仅在[实验](/langsmith/evaluation-concepts#experiment)中重试失败的示例。
 
-When running [evaluations](/langsmith/evaluation-concepts#evaluation-lifecycle) on large [datasets](/langsmith/evaluation-concepts#datasets), you may encounter failures on a small subset of examples due to rate limits, network issues, or other transient errors. Rather than re-running the entire evaluation, you can identify and retry only the failed examples on an [experiment](/langsmith/evaluation-concepts#experiment).
+本指南展示了一种将重试逻辑构建到评估工作流中并仅重试失败示例的方法。您可以使用 `error_handling='ignore'` 参数来跳过记录出错的运行，然后自动识别不成功的示例并在Python中重新运行它们。
 
-This guide shows an approach to build retry logic into your evaluation workflow and to retry only the failed examples. You can use the `error_handling='ignore'` parameter to skip logging errored runs, then automatically identify unsuccessful examples and re-run them in Python.
-
-
-## Step 1. Run the initial evaluation
-Run the initial evaluation, ignoring errors to  prevent errored runs from being logged:
+## 步骤 1. 运行初始评估
+运行初始评估，忽略错误以防止记录出错的运行：
 
 ```python
 from langsmith import Client
 
 client = Client()
 
-# Run initial evaluation, ignoring errors
-# error_handling='ignore' prevents errored runs from being logged
+# 运行初始评估，忽略错误
+# error_handling='ignore' 防止记录出错的运行
 results = await client.aevaluate(
     target,
     data="dataset",
@@ -27,19 +25,19 @@ results = await client.aevaluate(
 )
 ```
 
-## Step 2. Retry on failed examples and log to same experiment
+## 步骤 2. 重试失败的示例并记录到同一实验
 
-Fetch all the unsuccessful examples:
+获取所有不成功的示例：
 ```python
-# Identify unsuccessful examples
+# 识别不成功的示例
 runs = client.list_runs(project_name=results.experiment_name)
 successful_example_ids = [r.reference_example_id for r in runs]
 unsuccessful_examples = (e for e in client.list_examples(dataset_name="dataset") if e.id not in successful_examples)
 ```
 
-Next, re-run all the failed examples and log them to the same experiment:
+接下来，重新运行所有失败的示例，并将它们记录到同一实验中：
 ```python
-# Retry only the failed examples, log
+# 仅重试失败的示例，记录
 results_retry = await client.aevaluate(
     target,
     unsuccessful_examples,
@@ -49,20 +47,20 @@ results_retry = await client.aevaluate(
 )
 ```
 
-## Related topics
-* [Run an evaluation](/langsmith/evaluate-llm-application)
-* [Run an evaluation asynchronously](/langsmith/evaluation-async)
-* [Handle model rate limits](/langsmith/rate-limiting)
-* [Experiment configuration](/langsmith/experiment-configuration)
-* [Evaluate existing experiment](/langsmith/evaluate-existing-experiment)
+## 相关主题
+* [运行评估](/langsmith/evaluate-llm-application)
+* [异步运行评估](/langsmith/evaluation-async)
+* [处理模型速率限制](/langsmith/rate-limiting)
+* [实验配置](/langsmith/experiment-configuration)
+* [评估现有实验](/langsmith/evaluate-existing-experiment)
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [连接这些文档](/use-these-docs)到Claude、VSCode等，通过MCP获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/evaluate-with-retry.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在GitHub上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/evaluate-with-retry.mdx)或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

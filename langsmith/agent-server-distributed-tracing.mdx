@@ -1,36 +1,36 @@
 ---
-title: Distributed tracing with Agent Server
-sidebarTitle: Distributed tracing
-description: Unify traces when calling your deployed Agent Server from another service using RemoteGraph or the SDK.
+title: 使用代理服务器进行分布式追踪
+sidebarTitle: 分布式追踪
+description: 当从另一个服务调用您部署的代理服务器时，使用 RemoteGraph 或 SDK 统一追踪。
 ---
 
-When you call a deployed [Agent Server](/langsmith/agent-server) from another service, you can propagate trace context so that the entire request appears as a single unified trace in LangSmith. This uses LangSmith's [distributed tracing](/langsmith/distributed-tracing) capabilities, which propagate context via HTTP headers.
+当您从另一个服务调用已部署的[代理服务器](/langsmith/agent-server)时，您可以传播追踪上下文，以便整个请求在 LangSmith 中显示为一个统一的追踪。这利用了 LangSmith 的[分布式追踪](/langsmith/distributed-tracing)功能，该功能通过 HTTP 头传播上下文。
 
-## How it works
+## 工作原理
 
-Distributed tracing links runs across services using context propagation headers:
+分布式追踪通过上下文传播头链接跨服务的运行：
 
-1. The **client** infers the trace context from the current run and sends it as HTTP headers.
-2. The **server** reads the headers and adds them to the run's config and metadata as `langsmith-trace` and `langsmith-project` configurable values. You can choose to use these to set the tracing context for a given run when your agent is used.
+1. **客户端**从当前运行中推断追踪上下文，并将其作为 HTTP 头发送。
+2. **服务器**读取这些头，并将其作为 `langsmith-trace` 和 `langsmith-project` 可配置值添加到运行的配置和元数据中。您可以选择在使用代理时使用这些值来设置给定运行的追踪上下文。
 
-The headers used are:
-- `langsmith-trace`: Contains the trace's dotted order.
-- `baggage`: Specifies the LangSmith project and other optional tags and metadata.
+使用的头包括：
+- `langsmith-trace`：包含追踪的点分顺序。
+- `baggage`：指定 LangSmith 项目以及其他可选标签和元数据。
 
-To opt-in to distributed tracing, both client and server need to opt in.
+要启用分布式追踪，客户端和服务器都需要选择加入。
 
-## Configure the server
+## 配置服务器
 
-To accept distributed trace context, your graph must read the trace headers from the config and set the tracing context. The headers are passed through the `configurable` field as `langsmith-trace` and `langsmith-project`.
+要接受分布式追踪上下文，您的图必须从配置中读取追踪头并设置追踪上下文。这些头通过 `configurable` 字段传递，作为 `langsmith-trace` 和 `langsmith-project`。
 
 ```python
 import contextlib
 import langsmith as ls
 from langgraph.graph import StateGraph, MessagesState
 
-# Define your graph
+# 定义您的图
 builder = StateGraph(MessagesState)
-# ... add nodes and edges ...
+# ... 添加节点和边 ...
 my_graph = builder.compile()
 
 @contextlib.contextmanager
@@ -38,14 +38,14 @@ async def graph(config):
     configurable = config.get("configurable", {})
     parent_trace = configurable.get("langsmith-trace")
     parent_project = configurable.get("langsmith-project")
-    # If you want to also include metadata and tags from the client
+    # 如果您还想包含来自客户端的元数据和标签
     metadata = configurable.get("langsmith-metadata")
     tags = configurable.get("langsmith-tags")
     with ls.tracing_context(parent=parent_trace, project_name=parent_project, metadata=metadata, tags=tags):
         yield my_graph
 ```
 
-Export this `graph` function in your `langgraph.json`:
+在您的 `langgraph.json` 中导出此 `graph` 函数：
 
 ```json
 {
@@ -55,12 +55,12 @@ Export this `graph` function in your `langgraph.json`:
 }
 ```
 
-## Connect from the client
+## 从客户端连接
 
 <Tabs>
 <Tab title="RemoteGraph">
 
-Set `distributed_tracing=True` when initializing [`RemoteGraph`](https://reference.langchain.com/python/langgraph/pregel/remote/RemoteGraph). This automatically propagates trace headers on all requests.
+在初始化 [`RemoteGraph`](https://reference.langchain.com/python/langgraph/pregel/remote/RemoteGraph) 时设置 `distributed_tracing=True`。这会自动在所有请求上传播追踪头。
 
 ```python
 from langgraph.graph import StateGraph
@@ -69,32 +69,32 @@ from langgraph.pregel.remote import RemoteGraph
 remote_graph = RemoteGraph(
     "agent",
     url="<DEPLOYMENT_URL>",
-    distributed_tracing=True,  # Enable trace propagation
+    distributed_tracing=True,  # 启用追踪传播
 )
 
 def subgraph_node(query: str):
-    # Trace context is automatically propagated
+    # 追踪上下文会自动传播
     return remote_graph.invoke({
         "messages": [{"role": "user", "content": query}]
     })['messages'][-1]['content']
 
-# The RemoteGraph is called in the context of some on going work.
-# This could be a parent LangGraph agent, code traced with `@ls.traceable`,
-# or any other instrumented code.
+# RemoteGraph 在某个正在进行的工作上下文中被调用。
+# 这可能是一个父 LangGraph 代理、使用 `@ls.traceable` 追踪的代码，
+# 或任何其他已检测的代码。
 graph = (
         StateGraph(str)
             .add_node(subgraph_node)
             .add_edge("__start__", "subgraph_node")
             .compile()
 )
-# The remote graph's execution will appear as a child of this trace
+# 远程图的执行将显示为此追踪的子项
 result = graph.invoke("What's the weather in SF?")
 ```
 
 </Tab>
 <Tab title="SDK">
 
-If you're using the [LangGraph SDK](/langsmith/reference) directly, propagate trace headers manually using `run_tree.to_headers()`:
+如果您直接使用 [LangGraph SDK](/langsmith/reference)，请使用 `run_tree.to_headers()` 手动传播追踪头：
 
 ```python
 from langgraph_sdk import get_client
@@ -109,7 +109,7 @@ with ls.trace("call_remote_agent", inputs={"query": query}) as rt:
         assistant_id="agent",
         input={"messages": [{"role": "user", "content": query}]},
         stream_mode="values",
-        headers=headers,  # Pass trace headers
+        headers=headers,  # 传递追踪头
     ):
         pass
     return chunk
@@ -120,18 +120,18 @@ result = await call_remote_agent("What's the weather in SF?")
 </Tab>
 </Tabs>
 
-## Related
+## 相关内容
 
-- [Distributed tracing](/langsmith/distributed-tracing): General distributed tracing concepts and patterns
-- [RemoteGraph](/langsmith/use-remote-graph): Full guide to interacting with deployments using RemoteGraph
+- [分布式追踪](/langsmith/distributed-tracing)：通用分布式追踪概念和模式
+- [RemoteGraph](/langsmith/use-remote-graph)：使用 RemoteGraph 与部署交互的完整指南
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档](/use-these-docs)通过 MCP 连接到 Claude、VSCode 等，以获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/agent-server-distributed-tracing.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/agent-server-distributed-tracing.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

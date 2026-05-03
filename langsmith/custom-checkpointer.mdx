@@ -1,30 +1,30 @@
 ---
-title: How to use a custom checkpointer
-sidebarTitle: Add custom checkpointer
-description: Replace the built-in Postgres checkpointer with a custom BaseCheckpointSaver implementation in your agent deployment.
+title: 如何使用自定义检查点器
+sidebarTitle: 添加自定义检查点器
+description: 在您的智能体部署中，使用自定义的 BaseCheckpointSaver 实现替换内置的 Postgres 检查点器。
 ---
 
-When deploying agents to LangSmith, the server provides a built-in Postgres-backed checkpointer that handles state persistence across graph runs. You can replace this with your own [BaseCheckpointSaver](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.base.BaseCheckpointSaver) implementation to use a different storage backend.
+当将智能体部署到 LangSmith 时，服务器提供了一个内置的、基于 Postgres 的检查点器，用于处理跨图运行的状态持久化。您可以将其替换为您自己的 [BaseCheckpointSaver](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.base.BaseCheckpointSaver) 实现，以使用不同的存储后端。
 
-You provide a path to an async context manager that yields a `BaseCheckpointSaver` instance, and the server manages its lifecycle automatically.
+您提供一个指向异步上下文管理器的路径，该管理器会生成一个 `BaseCheckpointSaver` 实例，服务器将自动管理其生命周期。
 
 <Warning>
-Custom checkpointers are in **alpha**. This feature may experience breaking changes in minor version updates.
+自定义检查点器目前处于 **alpha** 阶段。此功能在次版本更新中可能会发生破坏性变更。
 </Warning>
 
 <Tip>
-To use MongoDB instead of PostgreSQL for checkpoint storage, see [Configure checkpointer backend](/langsmith/configure-checkpointer). This page is for implementing a fully custom storage backend.
+要使用 MongoDB 而非 PostgreSQL 进行检查点存储，请参阅 [配置检查点器后端](/langsmith/configure-checkpointer)。本页面用于实现完全自定义的存储后端。
 </Tip>
 
-## Define the checkpointer
+## 定义检查点器
 
-Starting from an **existing** LangSmith application, create a file that defines an async context manager yielding your custom checkpointer. If you are beginning a new project, you can create an app from a template using the CLI.
+从一个**现有的** LangSmith 应用程序开始，创建一个文件，定义一个异步上下文管理器，该管理器生成您的自定义检查点器。如果您是开始一个新项目，可以使用 CLI 从模板创建应用。
 
 ```bash
 langgraph new --template=new-langgraph-project-python my_new_project
 ```
 
-The async context manager pattern lets the server open and close the database connection at the right points in the application lifecycle:
+异步上下文管理器模式允许服务器在应用程序生命周期的适当时间点打开和关闭数据库连接：
 
 ```python
 # ./src/agent/checkpointer.py
@@ -33,34 +33,34 @@ import contextlib
 class MyCheckpointer(BaseCheckpointSaver):
     def __init__(self):
         super().__init__()
-        # Initialize your custom checkpointer here
+        # 在此处初始化您的自定义检查点器
     ...
 
     @contextlib.asynccontextmanager
     async def aget(self, config: RunnableConfig):
-        # Your custom logic to create a connection pool and initialize your checkpointer here.
+        # 在此处编写您的自定义逻辑以创建连接池并初始化检查点器。
         yield
 
 
 @contextlib.asynccontextmanager
 async def generate_checkpointer():
-    """Yield a BaseCheckpointSaver, open for the duration of the server."""
+    """生成一个 BaseCheckpointSaver，在服务器运行期间保持打开状态。"""
     async with AsyncSqliteSaver.from_conn_string("./checkpoints.db") as saver:
         await saver.setup()
         yield saver
 ```
 
-## Test against the conformance suite
+## 针对一致性测试套件进行测试
 
-Most open source checkpointer implementations do not yet implement all the operations required by Agent Server. Before configuring your checkpointer, validate it against the conformance test suite to ensure compatibility.
+大多数开源检查点器实现尚未实现智能体服务器所需的所有操作。在配置您的检查点器之前，请使用一致性测试套件对其进行验证，以确保兼容性。
 
-Install the package:
+安装包：
 
 ```bash
 pip install langgraph-checkpoint-conformance
 ```
 
-Register your checkpointer and run validation:
+注册您的检查点器并运行验证：
 
 ```python
 import asyncio
@@ -83,7 +83,7 @@ async def main():
 asyncio.run(main())
 ```
 
-The suite auto-detects which extended capabilities your checkpointer implements and runs the appropriate tests. You can also run it as a pytest test:
+该套件会自动检测您的检查点器实现了哪些扩展功能，并运行相应的测试。您也可以将其作为 pytest 测试运行：
 
 ```python
 import pytest
@@ -104,11 +104,11 @@ async def test_conformance():
     assert report.passed_all_base()
 ```
 
-To view the full list of base and extended operations that the suite validates, refer to the [capabilities](#capabilities) section.
+要查看该套件验证的基础和扩展操作的完整列表，请参阅 [功能](#capabilities) 部分。
 
-## Configure `langgraph.json`
+## 配置 `langgraph.json`
 
-Add the `checkpointer` key to your [`langgraph.json` configuration file](/langsmith/application-structure#configuration-file-concepts). The `path` points to the async context manager you [defined earlier](#define-the-checkpointer).
+在您的 [`langgraph.json` 配置文件](/langsmith/application-structure#configuration-file-concepts) 中添加 `checkpointer` 键。`path` 指向您[之前定义](#define-the-checkpointer)的异步上下文管理器。
 
 ```json
 {
@@ -123,54 +123,54 @@ Add the `checkpointer` key to your [`langgraph.json` configuration file](/langsm
 }
 ```
 
-## Start server
+## 启动服务器
 
-Test the server out locally:
+在本地测试服务器：
 
 ```bash
 langgraph dev --no-browser
 ```
 
-The server logs will confirm that your custom checkpointer is active.
+服务器日志将确认您的自定义检查点器已激活。
 
-## Capabilities
+## 功能
 
-The server checks your checkpointer for **base** (required) and **extended** (optional) capabilities at startup. If an extended capability is missing, the server either uses a fallback or disables the corresponding feature.
+服务器在启动时会检查您的检查点器是否具备**基础**（必需）和**扩展**（可选）功能。如果缺少某个扩展功能，服务器将使用回退方案或禁用相应特性。
 
-### Base capabilities (required)
+### 基础功能（必需）
 
-| Method | Description |
+| 方法 | 描述 |
 |---|---|
-| `aput` | Store a checkpoint |
-| `aput_writes` | Store pending writes |
-| `aget_tuple` | Retrieve a checkpoint |
-| `alist` | List checkpoints |
-| `adelete_thread` | Delete a thread |
+| `aput` | 存储检查点 |
+| `aput_writes` | 存储待处理的写入 |
+| `aget_tuple` | 检索检查点 |
+| `alist` | 列出检查点 |
+| `adelete_thread` | 删除线程 |
 
-### Extended capabilities (optional)
+### 扩展功能（可选）
 
-| Method | Description | Fallback if missing |
+| 方法 | 描述 | 缺失时的回退方案 |
 |---|---|---|
-| `adelete_for_runs` | Delete checkpoints for specific runs | Rollback multitask strategy unavailable |
-| `acopy_thread` | Copy a thread | Slow fallback (re-inserts checkpoints one by one) |
-| `aprune` | Prune thread history | Thread history pruning unavailable |
+| `adelete_for_runs` | 删除特定运行的检查点 | 多任务策略回滚不可用 |
+| `acopy_thread` | 复制线程 | 缓慢回退（逐个重新插入检查点） |
+| `aprune` | 修剪线程历史 | 线程历史修剪不可用 |
 
-## Deploying
+## 部署
 
-You can deploy this app as-is to LangSmith or to your self-hosted platform.
+您可以将此应用原样部署到 LangSmith 或您的自托管平台。
 
-## Next steps
+## 后续步骤
 
-- [Use a custom store](/langsmith/custom-store) to replace the built-in long-term memory store.
-- Learn about [persistence and memory](/oss/python/langgraph/persistence) in LangGraph.
+- [使用自定义存储](/langsmith/custom-store) 替换内置的长期记忆存储。
+- 了解 LangGraph 中的[持久化与记忆](/oss/python/langgraph/persistence)。
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等工具，通过 MCP 获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/custom-checkpointer.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/custom-checkpointer.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

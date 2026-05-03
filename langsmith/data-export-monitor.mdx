@@ -1,27 +1,27 @@
 ---
-title: Monitor and troubleshoot bulk exports
-description: Monitor bulk export status, manage running exports, and troubleshoot failures.
+title: 监控和故障排除批量导出
+description: 监控批量导出状态、管理正在运行的导出并排除故障。
 ---
 
-Once you have [created an export job](/langsmith/data-export#2-create-an-export-job), you can use the APIs on this page to track its progress, inspect individual runs, and stop it if needed. This page also covers how LangSmith handles failures automatically, and what to do when an export fails after exhausting retries.
+一旦您[创建了导出任务](/langsmith/data-export#2-create-an-export-job)，就可以使用本页上的 API 来跟踪其进度、检查单个运行，并在需要时停止它。本页还介绍了 LangSmith 如何自动处理故障，以及在导出因重试次数耗尽而失败后应采取的措施。
 
-This page covers:
+本页涵盖：
 
-- [Monitoring export status](#monitor-export-status) and [listing runs](#list-runs-for-an-export) for a specific export.
-- [Listing all exports](#list-all-exports) in your workspace.
-- [Stopping an export](#stop-an-export).
-- [Failure modes and retry policy](#failure-modes-and-retry-policy), including automatic retry behavior, failure scenarios, status lifecycle, concurrency limits, and progress tracking.
-- [Troubleshooting failed exports](#troubleshooting-failed-exports).
+- [监控导出状态](#monitor-export-status) 和 [列出特定导出的运行记录](#list-runs-for-an-export)。
+- [列出工作区中的所有导出](#list-all-exports)。
+- [停止导出](#stop-an-export)。
+- [故障模式和重试策略](#failure-modes-and-retry-policy)，包括自动重试行为、故障场景、状态生命周期、并发限制和进度跟踪。
+- [故障排除失败的导出](#troubleshooting-failed-exports)。
 
 <Note>
-**For self-hosted, EU (GCP), and US (AWS) SaaS**
+**适用于自托管、欧盟 (GCP) 和美国 (AWS) SaaS 版本**
 
-Update the LangSmith URL in the requests below for self-hosted installs, EU (GCP) (`eu.api.smith.langchain.com`), or US (AWS) (`aws.api.smith.langchain.com`).
+对于自托管安装、欧盟 (GCP) (`eu.api.smith.langchain.com`) 或美国 (AWS) (`aws.api.smith.langchain.com`)，请更新以下请求中的 LangSmith URL。
 </Note>
 
-## Monitor export status
+## 监控导出状态
 
-To monitor the status of an export job, use the following cURL command:
+要监控导出任务的状态，请使用以下 cURL 命令：
 
 ```bash
 curl --request GET \
@@ -31,12 +31,12 @@ curl --request GET \
   --header 'X-Tenant-Id: YOUR_WORKSPACE_ID'
 ```
 
-Replace `{export_id}` with the ID of the export you want to monitor. This command retrieves the current status of the specified export job.
+将 `{export_id}` 替换为您要监控的导出的 ID。此命令检索指定导出任务的当前状态。
 
-## List runs for an export
+## 列出导出的运行记录
 
-An export is typically broken up into multiple runs which correspond to a specific date partition to export.
-To list all runs associated with a specific export, use the following cURL command:
+一个导出通常被分解为多个运行，每个运行对应要导出的特定日期分区。
+要列出与特定导出关联的所有运行，请使用以下 cURL 命令：
 
 ```bash
 curl --request GET \
@@ -46,11 +46,11 @@ curl --request GET \
   --header 'X-Tenant-Id: YOUR_WORKSPACE_ID'
 ```
 
-This command fetches all runs related to the specified export, providing details such as run ID, status, creation time, rows exported, etc.
+此命令获取与指定导出相关的所有运行，提供运行 ID、状态、创建时间、导出行数等详细信息。
 
-## List all exports
+## 列出所有导出
 
-To retrieve a list of all export jobs, use the following cURL command:
+要检索所有导出任务的列表，请使用以下 cURL 命令：
 
 ```bash
 curl --request GET \
@@ -60,11 +60,11 @@ curl --request GET \
   --header 'X-Tenant-Id: YOUR_WORKSPACE_ID'
 ```
 
-This command returns a list of all export jobs along with their current statuses and creation timestamps.
+此命令返回所有导出任务的列表及其当前状态和创建时间戳。
 
-## Stop an export
+## 停止导出
 
-To stop an existing export, use the following cURL command:
+要停止现有的导出，请使用以下 cURL 命令：
 
 ```bash
 curl --request PATCH \
@@ -77,100 +77,100 @@ curl --request PATCH \
 }'
 ```
 
-Replace `{export_id}` with the ID of the export you wish to cancel. Note that a job cannot be restarted once it has been cancelled,
-you will need to create a new export job instead.
+将 `{export_id}` 替换为您希望取消的导出的 ID。请注意，任务一旦取消就无法重新启动，
+您需要创建一个新的导出任务。
 
-## Failure modes and retry policy
+## 故障模式和重试策略
 
-LangSmith bulk exports handle transient failures and infrastructure issues automatically to ensure resilience.
+LangSmith 批量导出会自动处理瞬时故障和基础设施问题，以确保弹性。
 
-Each bulk export is divided into multiple _runs_, where each run processes data for a [specific date partition](/langsmith/data-export#partitioning-scheme) (typically organized by day). Runs are processed independently, which enables:
+每个批量导出被划分为多个 _运行_，每个运行处理[特定日期分区](/langsmith/data-export#partitioning-scheme)（通常按天组织）的数据。运行是独立处理的，这使得：
 
-- Parallel processing of different time periods.
-- Independent retry logic for each run.
-- Resumption from specific checkpoints if interrupted.
+- 可以并行处理不同的时间段。
+- 每个运行都有独立的重试逻辑。
+- 如果中断，可以从特定检查点恢复。
 
-Each run (date range) in your export has its own [failure handling](#failure-scenarios) and [retry budget](#automatic-retry-behavior). If a run fails after exhausting all retries, the entire export is marked as `FAILED`.
+导出中的每个运行（日期范围）都有自己的[故障处理](#failure-scenarios)和[重试预算](#automatic-retry-behavior)。如果一个运行在耗尽所有重试后失败，整个导出将被标记为 `FAILED`。
 
-### Automatic retry behavior
+### 自动重试行为
 
-Export jobs automatically retry transient failures with the following behavior:
+导出任务会自动重试瞬时故障，行为如下：
 
-- **Maximum retry attempts**: 20 retries per run (subject to change).
-- **Retry delay**: 30 seconds between attempts (fixed, no exponential backoff).
-- **Run timeout**: 4 hours maximum per run.
-- **Overall workflow timeout**: 72 hours for the entire export.
+- **最大重试次数**：每个运行最多重试 20 次（可能会更改）。
+- **重试延迟**：每次尝试间隔 30 秒（固定，无指数退避）。
+- **运行超时**：每个运行最长 4 小时。
+- **整个工作流超时**：整个导出最长 72 小时。
 
-### Failure scenarios
+### 故障场景
 
-| Failure type | Cause | Automatic retry? | Action required |
+| 故障类型 | 原因 | 自动重试？ | 所需操作 |
 |--------------|-------|------------------|-----------------|
-| **Infrastructure interruption** | [Deployments](/langsmith/deployment), server restarts, worker crashes | Yes, automatically requeued with remaining retries. | None, jobs resume automatically. |
-| **Run timeout** | Single run exceeds 4-hour limit | Yes, retried up to 20 times (subject to change). | If persistent, narrow date range, add filters, or [limit the exported fields](/langsmith/data-export#limit-exported-fields). |
-| **Workflow timeout** | Entire export exceeds 72 hours | No | Reduce export scope (date range, filters) or break into smaller exports. |
-| **Storage/destination errors** | [Invalid credentials](/langsmith/data-export-destinations#credentials-configuration), [missing bucket](/langsmith/data-export-destinations#configuration-fields), [permission issues](/langsmith/data-export-destinations#permissions-required) | No | Fix destination configuration and create new export. |
-| **Destination deleted** | Bucket removed during export | No | Recreate destination and restart export. |
-| **Terminal processing errors** | Data serialization issues, resource exhaustion | Yes, retried up to 20 times (subject to change). | Check run error details; may require investigation. |
+| **基础设施中断** | [部署](/langsmith/deployment)、服务器重启、工作进程崩溃 | 是，自动重新排队并保留剩余重试次数。 | 无需操作，任务自动恢复。 |
+| **运行超时** | 单个运行超过 4 小时限制 | 是，最多重试 20 次（可能会更改）。 | 如果持续发生，请缩小日期范围、添加过滤器或[限制导出字段](/langsmith/data-export#limit-exported-fields)。 |
+| **工作流超时** | 整个导出超过 72 小时 | 否 | 减少导出范围（日期范围、过滤器）或拆分为更小的导出。 |
+| **存储/目标错误** | [无效凭据](/langsmith/data-export-destinations#credentials-configuration)、[存储桶缺失](/langsmith/data-export-destinations#configuration-fields)、[权限问题](/langsmith/data-export-destinations#permissions-required) | 否 | 修复目标配置并创建新的导出。 |
+| **目标已删除** | 导出期间存储桶被移除 | 否 | 重新创建目标并重新启动导出。 |
+| **终端处理错误** | 数据序列化问题、资源耗尽 | 是，最多重试 20 次（可能会更改）。 | 检查运行错误详情；可能需要调查。 |
 
 <Note>
-Any single run failure (after all retries are exhausted) causes the entire export to fail.
+任何单个运行失败（在所有重试耗尽后）都会导致整个导出失败。
 </Note>
 
-### Export status lifecycle
+### 导出状态生命周期
 
-Exports can have the following statuses:
+导出可以具有以下状态：
 
-| Status | Description |
+| 状态 | 描述 |
 |--------|-------------|
-| `CREATED` | Export has been created but not yet started processing. |
-| `RUNNING` | Export is actively processing runs. |
-| `COMPLETED` | All runs successfully exported. |
-| `FAILED` | One or more runs failed after exhausting retries. |
-| `CANCELLED` | Export was manually cancelled by user. |
-| `TIMEDOUT` | Export exceeded the 48-hour workflow timeout. |
+| `CREATED` | 导出已创建但尚未开始处理。 |
+| `RUNNING` | 导出正在积极处理运行。 |
+| `COMPLETED` | 所有运行成功导出。 |
+| `FAILED` | 一个或多个运行在重试耗尽后失败。 |
+| `CANCELLED` | 导出被用户手动取消。 |
+| `TIMEDOUT` | 导出超过 48 小时的工作流超时。 |
 
-Individual runs can have the same possible statuses: `CREATED`, `RUNNING`, `COMPLETED`, `FAILED`, `CANCELLED`, or `TIMEDOUT`.
+单个运行也可以具有相同的状态：`CREATED`、`RUNNING`、`COMPLETED`、`FAILED`、`CANCELLED` 或 `TIMEDOUT`。
 
-### Concurrency and rate limits
+### 并发和速率限制
 
-To ensure system stability, exports are subject to the following limits:
+为确保系统稳定性，导出受以下限制：
 
-- **Maximum concurrent runs per export**: 45
-- **Maximum concurrent exports per workspace**: 15
+- **每个导出的最大并发运行数**：45
+- **每个工作区的最大并发导出数**：15
 
-If you have multiple exports running, new run jobs will queue until capacity becomes available.
+如果您有多个导出正在运行，新的运行任务将排队等待，直到有可用容量。
 
-### Progress tracking and resumability
+### 进度跟踪和可恢复性
 
-The export system maintains detailed progress metadata for each run:
-- Latest cursor position in the data stream.
-- Number of rows exported.
-- List of Parquet files written.
+导出系统为每个运行维护详细的进度元数据：
+- 数据流中的最新游标位置。
+- 已导出的行数。
+- 已写入的 Parquet 文件列表。
 
-This progress tracking enables:
-- **Graceful resumption**: If a run is interrupted (e.g., by a deployment), it resumes from the last checkpoint rather than starting over.
-- **Progress monitoring**: Track how much data has been exported through the API.
-- **Efficient retries**: Failed runs don't re-export data that was already successfully written.
+此进度跟踪支持：
+- **优雅恢复**：如果运行中断（例如，由于部署），它将从最后一个检查点恢复，而不是重新开始。
+- **进度监控**：通过 API 跟踪已导出的数据量。
+- **高效重试**：失败的运行不会重新导出已成功写入的数据。
 
-### Troubleshooting failed exports
+### 故障排除失败的导出
 
-If your export fails, follow these steps:
+如果您的导出失败，请按照以下步骤操作：
 
-1. **Check the export status**: Use the [`GET /api/v1/bulk-exports/{export_id}` endpoint](https://api.smith.langchain.com/redoc#tag/bulk-exports) to retrieve the export details and status.
-2. **Review run errors**: You can monitor your runs using the [List Runs API](#list-runs-for-an-export). Each run includes an `errors` field with detailed error messages keyed by retry attempt (e.g., `retry_0`, `retry_1`).
-3. **Verify destination access**: Ensure your [destination bucket](/langsmith/data-export-destinations#configuration-fields) still exists and [credentials](/langsmith/data-export-destinations#credentials-configuration) are valid.
-4. **Check run size**: If you see timeout errors, your date partitions may contain too much data. It may be helpful to [limit the exported fields](/langsmith/data-export#limit-exported-fields).
-5. **Review system limits**: Ensure you're not hitting [concurrency limits](#concurrency-and-rate-limits) (5 runs per export, 3 exports per workspace).
+1. **检查导出状态**：使用 [`GET /api/v1/bulk-exports/{export_id}` 端点](https://api.smith.langchain.com/redoc#tag/bulk-exports) 检索导出详情和状态。
+2. **查看运行错误**：您可以使用[列出运行 API](#list-runs-for-an-export) 监控您的运行。每个运行包含一个 `errors` 字段，其中包含按重试尝试（例如 `retry_0`、`retry_1`）键控的详细错误消息。
+3. **验证目标访问权限**：确保您的[目标存储桶](/langsmith/data-export-destinations#configuration-fields)仍然存在且[凭据](/langsmith/data-export-destinations#credentials-configuration)有效。
+4. **检查运行大小**：如果您看到超时错误，您的日期分区可能包含太多数据。[限制导出字段](/langsmith/data-export#limit-exported-fields)可能会有所帮助。
+5. **查看系统限制**：确保您没有达到[并发限制](#concurrency-and-rate-limits)（每个导出 5 个运行，每个工作区 3 个导出）。
 
-For storage-related errors, you can test your destination configuration using the AWS CLI or gsutil before retrying the export.
+对于存储相关错误，您可以在重试导出之前使用 AWS CLI 或 gsutil 测试您的目标配置。
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/data-export-monitor.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/data-export-monitor.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

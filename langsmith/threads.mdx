@@ -1,44 +1,44 @@
 ---
-title: Configure threads
-sidebarTitle: Threads
+title: 配置线程
+sidebarTitle: 线程
 ---
 
-Many LLM applications have a chatbot-like interface in which the user and the LLM application engage in a multi-turn conversation. In order to track these conversations, you can use [_threads_](/langsmith/observability-concepts#threads) in LangSmith.
+许多大语言模型应用都具有类似聊天机器人的界面，用户与大语言模型应用在其中进行多轮对话。为了追踪这些对话，你可以在 LangSmith 中使用[线程](/langsmith/observability-concepts#threads)。
 
-## Group traces into threads
+## 将追踪分组到线程中
 
-To associate traces together into a thread, you need to pass in a special `metadata` key where the value is the unique identifier for that thread. The key name should be one of:
+要将追踪关联到一个线程中，你需要传入一个特殊的 `metadata` 键，其值是该线程的唯一标识符。键名应为以下之一：
 
 - `session_id`
 - `thread_id`
 - `conversation_id`
 
-The value can be any string you want, but we recommend using **UUID v7** thread IDs.
+值可以是任何你想要的字符串，但我们建议使用 **UUID v7** 作为线程 ID。
 
-The [LangSmith SDK](/langsmith/reference) exports a `uuid7` helper (Python v0.4.43+, JS v0.3.80+):
+[LangSmith SDK](/langsmith/reference) 导出了一个 `uuid7` 辅助函数（Python v0.4.43+，JS v0.3.80+）：
 
-- **Python**: `from langsmith import uuid7`
-- **JS/TS**: `import { uuid7 } from 'langsmith'`
+- **Python**：`from langsmith import uuid7`
+- **JS/TS**：`import { uuid7 } from 'langsmith'`
 
-For instructions, refer to [Add metadata and tags to traces](/langsmith/add-metadata-tags).
+有关说明，请参阅[向追踪添加元数据和标签](/langsmith/add-metadata-tags)。
 
 <Warning>
-**Important:** To ensure filtering and token counting work correctly across your entire thread, you must set the thread metadata (`session_id`, `thread_id`, or `conversation_id`) on **all runs**, including child runs within a trace.
+**重要：** 为确保过滤和令牌计数在整个线程中正常工作，你必须在**所有运行**上设置线程元数据（`session_id`、`thread_id` 或 `conversation_id`），包括追踪中的子运行。
 
-If child runs don't have the thread_id metadata, they won't be included when:
+如果子运行没有 `thread_id` 元数据，它们将不会被包含在以下情况中：
 
-- Filtering runs by thread.
-- Calculating token usage for a thread.
-- Aggregating costs across a thread.
+- 按线程过滤运行时。
+- 计算线程的令牌使用量时。
+- 聚合线程的成本时。
 
-When creating child runs (e.g., using `@traceable` for nested functions or creating child spans), ensure you propagate the thread metadata to all child runs.
+创建子运行时（例如，使用 `@traceable` 进行嵌套函数或创建子 span），请确保将线程元数据传播到所有子运行。
 </Warning>
 
-### Example
+### 示例
 
-This example demonstrates how to log and retrieve conversation history using a structured message format to maintain long-running chats.
+此示例演示了如何使用结构化消息格式记录和检索对话历史，以维护长时间运行的聊天。
 
-The example generates a `THREAD_ID` with `uuid7()` and passes it via `metadata` to `@traceable`, linking every run from that session into the same thread in LangSmith. Conversation history is persisted locally between turns—replace the file-based store with a database or cache in production. The `get_chat_history` flag controls whether the pipeline continues an existing thread or starts a fresh one:
+该示例使用 `uuid7()` 生成一个 `THREAD_ID`，并通过 `metadata` 将其传递给 `@traceable`，将该会话中的所有运行链接到 LangSmith 中的同一个线程。对话历史在轮次之间本地持久化——在生产环境中，请将基于文件的存储替换为数据库或缓存。`get_chat_history` 标志控制管道是继续现有线程还是开始一个新线程：
 
 <CodeGroup>
 
@@ -47,24 +47,24 @@ import os
 import json
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
+# 从 .env 文件加载环境变量
 load_dotenv()
 
 import openai
 from langsmith import traceable, Client, uuid7
 from langsmith.wrappers import wrap_openai
 
-# Initialize clients
+# 初始化客户端
 langsmith_client = Client()
 client = wrap_openai(openai.Client())
 
-# Configuration
+# 配置
 THREAD_ID = str(uuid7())
 
-# Using a local directory to store thread history. For production use, use a persistent storage solution.
+# 使用本地目录存储线程历史。生产环境中，请使用持久化存储解决方案。
 THREADS_DIR = os.path.join(os.path.dirname(__file__), "threads")
 
-# gets a history of all LLM calls in the thread to construct conversation history
+# 获取线程中所有大语言模型调用的历史以构建对话历史
 def get_thread_history(thread_id: str) -> list:
     path = os.path.join(THREADS_DIR, f"{thread_id}.json")
     if not os.path.exists(path):
@@ -80,21 +80,21 @@ def save_thread_history(thread_id: str, messages: list):
 
 @traceable(name="Chat Bot", metadata={"thread_id": THREAD_ID})
 def chat_pipeline(messages: list, get_chat_history: bool = False):
-    # Whether to continue an existing thread or start a new one
+    # 是继续现有线程还是开始新线程
     if get_chat_history:
         history_messages = get_thread_history(THREAD_ID)
-        # Get existing conversation history and append new messages
+        # 获取现有对话历史并追加新消息
         all_messages = history_messages + messages
     else:
         all_messages = messages
 
-    # Invoke the model
+    # 调用模型
     chat_completion = client.chat.completions.create(
         model="gpt-5.4-mini", messages=all_messages
     )
 
     response_message = chat_completion.choices[0].message
-    print("Response from model:", response_message)
+    print("模型响应:", response_message)
 
     full_conversation = all_messages + [{"role": response_message.role, "content": response_message.content}]
     save_thread_history(THREAD_ID, full_conversation)
@@ -102,15 +102,15 @@ def chat_pipeline(messages: list, get_chat_history: bool = False):
     return {"messages": full_conversation}
 
 
-# Format message
+# 格式化消息
 messages = [
     {
-        "content": "Hi, my name is Sally",
+        "content": "你好，我叫萨莉",
         "role": "user"
     }
 ]
 
-# Call the chat pipeline
+# 调用聊天管道
 result = chat_pipeline(messages, get_chat_history=False)
 ```
 
@@ -126,21 +126,21 @@ import { uuid7 } from "langsmith";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Load environment variables from .env file
+// 从 .env 文件加载环境变量
 dotenv.config();
 
-// Initialize client
+// 初始化客户端
 const client = wrapOpenAI(new OpenAI());
 
-// Configuration
+// 配置
 const THREAD_ID = uuid7();
 
-// Using a local directory to store thread history. For production use, use a persistent storage solution.
+// 使用本地目录存储线程历史。生产环境中，请使用持久化存储解决方案。
 const THREADS_DIR = path.join(__dirname, "threads");
 
 type Message = { role: string; content: string };
 
-// Gets a history of all LLM calls in the thread to construct conversation history
+// 获取线程中所有大语言模型调用的历史以构建对话历史
 function getThreadHistory(threadId: string): Message[] {
   const filePath = path.join(THREADS_DIR, `${threadId}.json`);
   if (!fs.existsSync(filePath)) return [];
@@ -157,21 +157,21 @@ function saveThreadHistory(threadId: string, messages: Message[]): void {
 
 const chatPipeline = traceable(
   async function chatPipeline({ messages, get_chat_history = false }: { messages: Message[]; get_chat_history?: boolean }) {
-    // Whether to continue an existing thread or start a new one
+    // 是继续现有线程还是开始新线程
     if (get_chat_history) {
       const historyMessages = getThreadHistory(THREAD_ID);
-      // Get existing conversation history and append new messages
+      // 获取现有对话历史并追加新消息
       messages = [...historyMessages, ...messages];
     }
 
-    // Invoke the model
+    // 调用模型
     const chatCompletion = await client.chat.completions.create({
       model: "gpt-5.4-mini",
       messages,
     });
 
     const responseMessage = chatCompletion.choices[0].message;
-    console.log("Response from model:", responseMessage);
+    console.log("模型响应:", responseMessage);
 
     const fullConversation: Message[] = [
       ...messages,
@@ -184,49 +184,49 @@ const chatPipeline = traceable(
   { name: "Chat Bot", metadata: { thread_id: THREAD_ID } }
 );
 
-// Format message
-const messages: Message[] = [{ role: "user", content: "Hi! My name is Sally" }];
+// 格式化消息
+const messages: Message[] = [{ role: "user", content: "你好！我叫萨莉" }];
 
-// Call the chat pipeline
+// 调用聊天管道
 await chatPipeline({ messages, get_chat_history: false });
 ```
 
 </CodeGroup>
 
-Make the following calls to continue the conversation. By passing `get_chat_history=True,`/`getChatHistory: true`, you can continue the conversation from where it left off. This means that the LLM will receive the entire message history and respond to it, instead of just responding to the latest message:
+进行以下调用以继续对话。通过传递 `get_chat_history=True,`/`getChatHistory: true`，你可以从上次中断的地方继续对话。这意味着大语言模型将接收整个消息历史并对其做出响应，而不仅仅是响应最新消息：
 
 <CodeGroup>
 
 ```python Python
-# Format message
+# 格式化消息
 messages = [
     {
-        "content": "What is my name",
+        "content": "我叫什么名字",
         "role": "user"
     }
 ]
 
-# Call the chat pipeline
+# 调用聊天管道
 result = chat_pipeline(messages, get_chat_history=True)
 ```
 
 ```typescript TypeScript
-// Continue the conversation.
-const messages: Message[] = [{ role: "user", content: "What is my name" }];
+// 继续对话。
+const messages: Message[] = [{ role: "user", content: "我叫什么名字" }];
 
 await chatPipeline(messages, true);
 ```
 </CodeGroup>
 
-Keep the conversation going. Since past messages are included, the LLM will remember the conversation:
+继续对话。由于包含了过去的消息，大语言模型将记住对话内容：
 
 <CodeGroup>
 
 ```python Python
-# Continue the conversation.
+# 继续对话。
 messages = [
     {
-        "content": "What was the first message I sent you?",
+        "content": "我发给你的第一条消息是什么？",
         "role": "user"
     }
 ]
@@ -235,99 +235,99 @@ chat_pipeline(messages, get_chat_history=True)
 ```
 
 ```typescript TypeScript
-// Continue the conversation.
-const messages: Message[] = [{ role: "user", content: "What was the first message I sent you?" }];
+// 继续对话。
+const messages: Message[] = [{ role: "user", content: "我发给你的第一条消息是什么？" }];
 
 await chatPipeline(messages, true);
 ```
 
 </CodeGroup>
 
-## View threads
+## 查看线程
 
-You can view threads by clicking on the **Threads** tab in any project details page. You will then see a list of all threads, sorted by the most recent activity.
+你可以通过在任何项目详情页面中点击 **Threads** 选项卡来查看线程。然后你将看到所有线程的列表，按最近活动排序。
 
 <div style={{ textAlign: 'center' }}>
 <img
     className="block dark:hidden"
     src="/langsmith/images/threads-tab-light.png"
-    alt="LangSmith UI showing the threads table."
+    alt="显示线程表的 LangSmith UI。"
 />
 
 <img
     className="hidden dark:block"
     src="/langsmith/images/threads-tab-dark.png"
-    alt="LangSmith UI showing the threads table."
+    alt="显示线程表的 LangSmith UI。"
 />
 </div>
 
 <Callout type="info" icon="feather">
-Use **[Polly](/langsmith/polly)** in thread views to analyze conversation threads, understand user sentiment, identify pain points, and track whether issues were resolved.
+在线程视图中使用 **[Polly](/langsmith/polly)** 来分析对话线程、理解用户情绪、识别痛点并跟踪问题是否已解决。
 </Callout>
 
-You can then click into a particular thread. This will open the history for a particular thread:
+然后你可以点击进入特定的线程。这将打开特定线程的历史记录：
 
 <div style={{ textAlign: 'center' }}>
 <img
     className="block dark:hidden"
     src="/langsmith/images/thread-overview-light.png"
-    alt="LangSmith UI showing the threads table."
+    alt="显示线程表的 LangSmith UI。"
 />
 
 <img
     className="hidden dark:block"
     src="/langsmith/images/thread-overview-dark.png"
-    alt="LangSmith UI showing the threads table."
+    alt="显示线程表的 LangSmith UI。"
 />
 </div>
 
-You can view threads in two different ways:
+你可以通过两种不同的方式查看线程：
 
-- [Thread overview](#thread-overview)
-- [Trace view](#trace-view)
+- [线程概览](#thread-overview)
+- [追踪视图](#trace-view)
 
-You can use the buttons at the top of the page to switch between the two views or use the keyboard shortcut `T` to toggle between the two views.
+你可以使用页面顶部的按钮在两种视图之间切换，或使用键盘快捷键 `T` 在两种视图之间切换。
 
-### Thread overview
+### 线程概览
 
-The thread overview displays each turn of the conversation sequentially, showing the inputs and outputs for each trace in the thread. You can configure which fields in the inputs and outputs are displayed in the overview, or show multiple fields by clicking the **Configure** button.
+线程概览按顺序显示对话的每一轮，显示线程中每个追踪的输入和输出。你可以配置概览中显示输入和输出的哪些字段，或通过点击 **Configure** 按钮显示多个字段。
 
-The JSON path for the inputs and outputs supports negative indexing, so you can use `-1` to access the last element of an array. For example, `inputs.messages[-1].content` will access the last message in the `messages` array.
+输入和输出的 JSON 路径支持负索引，因此你可以使用 `-1` 访问数组的最后一个元素。例如，`inputs.messages[-1].content` 将访问 `messages` 数组中的最后一条消息。
 
 
-### Trace view
+### 追踪视图
 
-The trace view for threads is similar to the trace view when looking at a [single run](/langsmith/observability-concepts#runs), except that you have access to all the runs for each turn in the thread.
+线程的追踪视图类似于查看[单个运行](/langsmith/observability-concepts#runs)时的追踪视图，不同之处在于你可以访问线程中每一轮的所有运行。
 
-### View feedback
+### 查看反馈
 
-When viewing a thread, across the top of the page you will see a section called **Feedback**. This is where you can review the feedback for each of the runs that make up the thread. This feedback is aggregated, so if you evaluate each run of a thread for the same criteria, you will see the average score across all the displayed runs. You can also see [thread-level feedback](/langsmith/online-evaluations-multi-turn) left here.
+查看线程时，页面顶部会有一个名为 **Feedback** 的部分。你可以在这里查看构成线程的每个运行的反馈。此反馈是聚合的，因此如果你对线程的每个运行使用相同的标准进行评估，你将看到所有显示运行的平均分数。你还可以看到此处留下的[线程级反馈](/langsmith/online-evaluations-multi-turn)。
 
-### Save thread-level filter
+### 保存线程级过滤器
 
 <Note>
-Thread filters look through all runs and surface a thread if at least 1 run matches the filter.
+线程过滤器会查看所有运行，并在至少 1 个运行匹配过滤器时显示该线程。
 </Note>
 
-Similar to saving filters at the project level, you can also save commonly used filters at the thread level. To save filters on the **Threads** table, [set a filter](/langsmith/filter-traces-in-application#create-and-apply-filters) using the **Add filter** button and then click the **Save view** button.
+与在项目级别保存过滤器类似，你也可以在线程级别保存常用过滤器。要在 **Threads** 表上保存过滤器，请使用 **Add filter** 按钮[设置过滤器](/langsmith/filter-traces-in-application#create-and-apply-filters)，然后点击 **Save view** 按钮。
 
-You can open up the trace or annotate the trace in a side panel by clicking on **Annotate** and **Open trace**, respectively.
+你可以通过分别点击 **Annotate** 和 **Open trace** 在侧面板中打开追踪或注释追踪。
 
-## Related
+## 相关内容
 
-- [Observability concepts](/langsmith/observability-concepts#threads): background on threads and how they relate to runs and traces.
-- [Add metadata and tags to traces](/langsmith/add-metadata-tags): how to pass `thread_id` and other metadata keys.
-- [Filter traces](/langsmith/filter-traces-in-application): filter by thread metadata in the tracing UI.
-- [Set up multi-turn online evaluators](/langsmith/online-evaluations-multi-turn): evaluate threads rather than individual runs.
-- [Log user feedback using the SDK](/langsmith/attach-user-feedback): attach feedback to runs within a thread.
+- [可观测性概念](/langsmith/observability-concepts#threads)：关于线程及其与运行和追踪关系的背景信息。
+- [向追踪添加元数据和标签](/langsmith/add-metadata-tags)：如何传递 `thread_id` 和其他元数据键。
+- [过滤追踪](/langsmith/filter-traces-in-application)：在追踪 UI 中按线程元数据过滤。
+- [设置多轮在线评估器](/langsmith/online-evaluations-multi-turn)：评估线程而非单个运行。
+- [使用 SDK 记录用户反馈](/langsmith/attach-user-feedback)：将反馈附加到线程中的运行。
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/threads.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/threads.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

@@ -1,45 +1,45 @@
 ---
-title: How to sync prompts with GitHub
-sidebarTitle: Sync prompts with GitHub
+title: 如何与 GitHub 同步提示词
+sidebarTitle: 与 GitHub 同步提示词
 ---
 
-LangSmith provides a collaborative interface to create, test, and iterate on prompts.
+LangSmith 提供了一个协作界面，用于创建、测试和迭代提示词。
 
-While you can [dynamically fetch prompts](/langsmith/manage-prompts-programmatically#pull-a-prompt) from LangSmith into your application at runtime, you may prefer to sync prompts with your own database or version control system. To support this workflow, LangSmith allows you to receive notifications of prompt updates via webhooks.
+虽然你可以[动态获取提示词](/langsmith/manage-prompts-programmatically#pull-a-prompt)在运行时从 LangSmith 拉取到你的应用程序中，但你可能更倾向于将提示词与自己的数据库或版本控制系统同步。为了支持这种工作流程，LangSmith 允许你通过 webhook 接收提示词更新的通知。
 
-**Why sync prompts with GitHub?**
+**为什么要与 GitHub 同步提示词？**
 
-* **Version Control:** Keep your prompts versioned alongside your application code in a familiar system.
-* **CI/CD Integration:** Trigger automated staging or production deployments when critical prompts change.
+* **版本控制：** 在熟悉的系统中，将你的提示词与应用程序代码一起进行版本管理。
+* **CI/CD 集成：** 当关键提示词发生更改时，触发自动化的预发布或生产环境部署。
 
-![Prompt Webhook Diagram](/langsmith/images/prompt-excalidraw.png)
+![提示词 Webhook 示意图](/langsmith/images/prompt-excalidraw.png)
 
-## Prerequisites
+## 前提条件
 
-Before we begin, ensure you have the following set up:
+在开始之前，请确保你已设置好以下内容：
 
-1. **GitHub Account:** A standard GitHub account.
+1. **GitHub 账户：** 一个标准的 GitHub 账户。
 
-2. **GitHub Repository:** Create a new (or choose an existing) repository where your LangSmith prompt manifests will be stored. This could be the same repository as your application code or a dedicated one for prompts.
+2. **GitHub 仓库：** 创建一个新的（或选择一个现有的）仓库，用于存储你的 LangSmith 提示词清单。这可以是与你的应用程序代码相同的仓库，也可以是专门用于提示词的仓库。
 
-3. **GitHub Personal Access Token (PAT):**
+3. **GitHub 个人访问令牌 (PAT)：**
 
-   * LangSmith webhooks don't directly interact with GitHub—they call an intermediary server that *you* create.
-   * This server requires a GitHub PAT to authenticate and make commits to your repository.
-   * Must include the `repo` scope (`public_repo` is sufficient for public repositories).
-   * Go to **GitHub > Settings > Developer settings > Personal access tokens > Tokens (classic)**.
-   * Click **Generate new token (classic)**.
-   * Name it (e.g., "LangSmith Prompt Sync"), set an expiration, and select the required scopes.
-   * Click **Generate token** and **copy it immediately** — it won't be shown again.
-   * Store the token securely and provide it as an environment variable to your server.
+   * LangSmith webhook 不会直接与 GitHub 交互——它们会调用一个由*你*创建的中间服务器。
+   * 此服务器需要一个 GitHub PAT 来进行身份验证并向你的仓库提交代码。
+   * 必须包含 `repo` 范围（对于公共仓库，`public_repo` 就足够了）。
+   * 前往 **GitHub > 设置 > 开发者设置 > 个人访问令牌 > 令牌（经典）**。
+   * 点击 **生成新令牌（经典）**。
+   * 为其命名（例如 "LangSmith Prompt Sync"），设置过期时间，并选择所需的范围。
+   * 点击 **生成令牌** 并 **立即复制它**——它不会再次显示。
+   * 安全地存储令牌，并将其作为环境变量提供给你的服务器。
 
-## Understanding LangSmith "Prompt commits" and webhooks
+## 理解 LangSmith “提示词提交”和 webhook
 
-In LangSmith, when you save changes to a prompt, you're essentially creating a new version or a "Prompt Commit." These commits are what can trigger webhooks.
+在 LangSmith 中，当你保存对提示词的更改时，你实际上是在创建一个新版本或一个“提示词提交”。这些提交可以触发 webhook。
 
-The webhook will send a JSON payload containing the new **prompt manifest**.
+webhook 将发送一个包含新**提示词清单**的 JSON 负载。
 
-<Accordion title="Sample Webhook Payload">
+<Accordion title="示例 Webhook 负载">
   ```json
   {
     "prompt_id": "f33dcb51-eb17-47a5-83ca-64ac8a027a29",
@@ -149,27 +149,27 @@ The webhook will send a JSON payload containing the new **prompt manifest**.
 </Accordion>
 
 <Note>
-It's important to understand that LangSmith webhooks for prompt commits are generally triggered at the **workspace level**. This means if *any* prompt within your LangSmith workspace is modified and a "prompt commit" is saved, the webhook will fire and send the updated manifest of the prompt. The payloads are identifiable by prompt id. Your receiving server should be designed with this in mind.
+重要的是要理解，用于提示词提交的 LangSmith webhook 通常是在**工作区级别**触发的。这意味着如果*任何*在你的 LangSmith 工作区内的提示词被修改并保存了“提示词提交”，webhook 就会触发并发送该提示词的更新清单。负载可以通过提示词 ID 来识别。你的接收服务器在设计时应考虑到这一点。
 </Note>
 
-## Implementing a FastAPI server for webhook reception
+## 实现用于接收 webhook 的 FastAPI 服务器
 
-To effectively process webhook notifications from LangSmith when prompts are updated, an intermediary server application is necessary. This server will act as the receiver for HTTP POST requests sent by LangSmith. For demonstration purposes in this guide, we will outline the creation of a simple FastAPI application to fulfill this role.
+为了在提示词更新时有效处理来自 LangSmith 的 webhook 通知，需要一个中间服务器应用程序。该服务器将充当 LangSmith 发送的 HTTP POST 请求的接收者。在本指南中，我们将概述创建一个简单的 FastAPI 应用程序来履行此职责。
 
-This publicly accessible server will be responsible for:
+这个公开可访问的服务器将负责：
 
-1. **Receiving Webhook Requests:** Listening for incoming HTTP POST requests.
-2. **Parsing Payloads:** Extracting and interpreting the JSON-formatted prompt manifest from the request body.
-3. **Committing to GitHub:** Programmatically creating a new commit in your specified GitHub repository, containing the updated prompt manifest. This ensures your prompts remain version-controlled and synchronized with changes made in LangSmith.
+1. **接收 Webhook 请求：** 监听传入的 HTTP POST 请求。
+2. **解析负载：** 从请求体中提取并解释 JSON 格式的提示词清单。
+3. **提交到 GitHub：** 以编程方式在你指定的 GitHub 仓库中创建一个新的提交，包含更新后的提示词清单。这确保了你的提示词保持版本控制，并与 LangSmith 中的更改同步。
 
-For deployment, platforms like [Render.com](https://render.com/) (offering a suitable free tier), Vercel, Fly.io, or other cloud providers (AWS, GCP, Azure) can be utilized to host the FastAPI application and obtain a public URL.
+对于部署，可以使用 [Render.com](https://render.com/)（提供合适的免费套餐）、Vercel、Fly.io 或其他云提供商（AWS、GCP、Azure）等平台来托管 FastAPI 应用程序并获取公共 URL。
 
-The server's core functionality will include an endpoint for webhook reception, logic for parsing the manifest, and integration with the GitHub API (using a Personal Access Token for authentication) to manage commits.
+服务器的核心功能将包括一个用于接收 webhook 的端点、解析清单的逻辑，以及与 GitHub API 的集成（使用个人访问令牌进行身份验证）来管理提交。
 
-<Accordion title="Minimal FastAPI Server Code ()">
+<Accordion title="最小化 FastAPI 服务器代码 ()">
   `main.py`
 
-  This server will listen for incoming webhooks from LangSmith and commit the received prompt manifest to your GitHub repository.
+  此服务器将监听来自 LangSmith 的传入 webhook，并将接收到的提示词清单提交到你的 GitHub 仓库。
 
   ```python
   import base64
@@ -181,11 +181,11 @@ The server's core functionality will include an endpoint for webhook reception, 
   from pydantic import BaseModel, Field
   from pydantic_settings import BaseSettings, SettingsConfigDict
 
-  # --- Configuration ---
+  # --- 配置 ---
   class AppConfig(BaseSettings):
       """
-      Application configuration model.
-      Loads settings from environment variables.
+      应用程序配置模型。
+      从环境变量加载设置。
       """
       GITHUB_TOKEN: str
       GITHUB_REPO_OWNER: str
@@ -200,40 +200,40 @@ The server's core functionality will include an endpoint for webhook reception, 
 
   settings = AppConfig()
 
-  # --- Pydantic Models ---
+  # --- Pydantic 模型 ---
   class WebhookPayload(BaseModel):
       """
-      Defines the expected structure of the incoming webhook payload.
+      定义传入 webhook 负载的预期结构。
       """
       prompt_id: UUID = Field(
           ...,
-          description="The unique identifier for the prompt."
+          description="提示词的唯一标识符。"
       )
       prompt_name: str = Field(
           ...,
-          description="The name/title of the prompt."
+          description="提示词的名称/标题。"
       )
       commit_hash: str = Field(
           ...,
-          description="An identifier for the commit event that triggered the webhook."
+          description="触发 webhook 的提交事件的标识符。"
       )
       created_at: str = Field(
           ...,
-          description="Timestamp indicating when the event was created (ISO format preferred)."
+          description="指示事件创建时间的时间戳（首选 ISO 格式）。"
       )
       created_by: str = Field(
           ...,
-          description="The name of the user who created the event."
+          description="创建事件的用户名称。"
       )
       manifest: Dict[str, Any] = Field(
           ...,
-          description="The main content or configuration data to be committed to GitHub."
+          description="要提交到 GitHub 的主要内容或配置数据。"
       )
 
-  # --- GitHub Helper Function ---
+  # --- GitHub 辅助函数 ---
   async def commit_manifest_to_github(payload: WebhookPayload) -> Dict[str, Any]:
       """
-      Helper function to commit the manifest directly to the configured branch.
+      辅助函数，用于将清单直接提交到配置的分支。
       """
       github_api_base_url = "https://api.github.com"
       repo_file_url = (
@@ -247,7 +247,7 @@ The server's core functionality will include an endpoint for webhook reception, 
       }
       manifest_json_string = json.dumps(payload.manifest, indent=2)
       content_base64 = base64.b64encode(manifest_json_string.encode('utf-8')).decode('utf-8')
-      commit_message = f"feat: Update {settings.GITHUB_FILE_PATH} via webhook - commit {payload.commit_hash}"
+      commit_message = f"feat: 通过 webhook 更新 {settings.GITHUB_FILE_PATH} - 提交 {payload.commit_hash}"
       data_to_commit = {
           "message": commit_message,
           "content": content_base64,
@@ -260,14 +260,14 @@ The server's core functionality will include an endpoint for webhook reception, 
               response_get = await client.get(repo_file_url, headers=headers, params=params_get)
               if response_get.status_code == 200:
                   current_file_sha = response_get.json().get("sha")
-              elif response_get.status_code != 404: # If not 404 (not found), it's an unexpected error
+              elif response_get.status_code != 404: # 如果不是 404（未找到），则是意外错误
                   response_get.raise_for_status()
           except httpx.HTTPStatusError as e:
-              error_detail = f"GitHub API error (GET file SHA): {e.response.status_code} - {e.response.text}"
+              error_detail = f"GitHub API 错误 (GET 文件 SHA): {e.response.status_code} - {e.response.text}"
               print(f"[ERROR] {error_detail}")
               raise HTTPException(status_code=e.response.status_code, detail=error_detail)
           except httpx.RequestError as e:
-              error_detail = f"Network error connecting to GitHub (GET file SHA): {str(e)}"
+              error_detail = f"连接 GitHub 的网络错误 (GET 文件 SHA): {str(e)}"
               print(f"[ERROR] {error_detail}")
               raise HTTPException(status_code=503, detail=error_detail)
           if current_file_sha:
@@ -277,140 +277,140 @@ The server's core functionality will include an endpoint for webhook reception, 
               response_put.raise_for_status()
               return response_put.json()
           except httpx.HTTPStatusError as e:
-              error_detail = f"GitHub API error (PUT content): {e.response.status_code} - {e.response.text}"
-              if e.response.status_code == 409: # Conflict
+              error_detail = f"GitHub API 错误 (PUT 内容): {e.response.status_code} - {e.response.text}"
+              if e.response.status_code == 409: # 冲突
                   error_detail = (
-                      f"GitHub API conflict (PUT content): {e.response.text}. "
-                      "This might be due to an outdated SHA or branch protection rules."
+                      f"GitHub API 冲突 (PUT 内容): {e.response.text}. "
+                      "这可能是由于 SHA 过时或分支保护规则导致的。"
                   )
-              elif e.response.status_code == 422: # Unprocessable Entity
+              elif e.response.status_code == 422: # 无法处理的实体
                   error_detail = (
-                      f"GitHub API Unprocessable Entity (PUT content): {e.response.text}. "
-                      f"Ensure the branch '{settings.GITHUB_BRANCH}' exists and the payload is correctly formatted."
+                      f"GitHub API 无法处理的实体 (PUT 内容): {e.response.text}. "
+                      f"确保分支 '{settings.GITHUB_BRANCH}' 存在且负载格式正确。"
                   )
               print(f"[ERROR] {error_detail}")
               raise HTTPException(status_code=e.response.status_code, detail=error_detail)
           except httpx.RequestError as e:
-              error_detail = f"Network error connecting to GitHub (PUT content): {str(e)}"
+              error_detail = f"连接 GitHub 的网络错误 (PUT 内容): {str(e)}"
               print(f"[ERROR] {error_detail}")
               raise HTTPException(status_code=503, detail=error_detail)
 
-  # --- FastAPI Application ---
+  # --- FastAPI 应用程序 ---
   app = FastAPI(
-      title="Minimal Webhook to GitHub Commit Service",
-      description="Receives a webhook and commits its 'manifest' part directly to a GitHub repository.",
+      title="最小化 Webhook 到 GitHub 提交服务",
+      description="接收 webhook 并将其 'manifest' 部分直接提交到 GitHub 仓库。",
       version="0.1.0",
   )
 
   @app.post("/webhook/commit", status_code=201, tags=["GitHub Webhooks"])
   async def handle_webhook_direct_commit(payload: WebhookPayload = Body(...)):
       """
-      Webhook endpoint to receive events and commit DIRECTLY to the configured branch.
+      用于接收事件并直接提交到配置分支的 webhook 端点。
       """
       try:
           github_response = await commit_manifest_to_github(payload)
           return {
-              "message": "Webhook received and manifest committed directly to GitHub successfully.",
+              "message": "Webhook 已接收，清单已成功直接提交到 GitHub。",
               "github_commit_details": github_response.get("commit", {}),
               "github_content_details": github_response.get("content", {})
           }
       except HTTPException:
-          raise # Re-raise if it's an HTTPException from the helper
+          raise # 如果是来自辅助函数的 HTTPException，则重新引发
       except Exception as e:
-          error_message = f"An unexpected error occurred: {str(e)}"
+          error_message = f"发生意外错误: {str(e)}"
           print(f"[ERROR] {error_message}")
-          raise HTTPException(status_code=500, detail="An internal server error occurred.")
+          raise HTTPException(status_code=500, detail="发生内部服务器错误。")
 
   @app.get("/health", status_code=200, tags=["Health"])
   async def health_check():
       """
-      A simple health check endpoint.
+      一个简单的健康检查端点。
       """
-      return {"status": "ok", "message": "Service is running."}
+      return {"status": "ok", "message": "服务正在运行。"}
 
-  # To run this server (save as main.py):
-  # 1. Install dependencies: pip install fastapi uvicorn pydantic pydantic-settings httpx python-dotenv
-  # 2. Create a .env file with your GitHub token and repo details.
-  # 3. Run with Uvicorn: uvicorn main:app --reload
-  # 4. Deploy to a public platform like Render.com.
+  # 要运行此服务器（保存为 main.py）：
+  # 1. 安装依赖项：pip install fastapi uvicorn pydantic pydantic-settings httpx python-dotenv
+  # 2. 创建一个 .env 文件，包含你的 GitHub 令牌和仓库详细信息。
+  # 3. 使用 Uvicorn 运行：uvicorn main:app --reload
+  # 4. 部署到公共平台，如 Render.com。
   ```
 
-  **Key aspects of this server:**
+  **此服务器的关键方面：**
 
-  * **Configuration (`.env`):** It expects a `.env` file with your `GITHUB_TOKEN`, `GITHUB_REPO_OWNER`, and `GITHUB_REPO_NAME`. You can also customize `GITHUB_FILE_PATH` (default: `LangSmith_prompt_manifest.json`) and `GITHUB_BRANCH` (default: `main`).
-  * **GitHub Interaction:** The `commit_manifest_to_github` function handles the logic of fetching the current file's SHA (to update it) and then committing the new manifest content.
-  * **Webhook Endpoint (`/webhook/commit`):** This is the URL path your LangSmith webhook will target.
-  * **Error Handling:** Basic error handling for GitHub API interactions is included.
+  * **配置 (`.env`)：** 它期望一个包含你的 `GITHUB_TOKEN`、`GITHUB_REPO_OWNER` 和 `GITHUB_REPO_NAME` 的 `.env` 文件。你也可以自定义 `GITHUB_FILE_PATH`（默认：`LangSmith_prompt_manifest.json`）和 `GITHUB_BRANCH`（默认：`main`）。
+  * **GitHub 交互：** `commit_manifest_to_github` 函数处理获取当前文件 SHA（用于更新它）然后提交新清单内容的逻辑。
+  * **Webhook 端点 (`/webhook/commit`)：** 这是你的 LangSmith webhook 将指向的 URL 路径。
+  * **错误处理：** 包含了 GitHub API 交互的基本错误处理。
 
-  **Deploy this server to your chosen platform (e.g., Render) and note down its public URL (e.g., `https://prompt-commit-webhook.onrender.com`).**
+  **将此服务器部署到你选择的平台（例如 Render）并记下其公共 URL（例如 `https://prompt-commit-webhook.onrender.com`）。**
 </Accordion>
 
-## Configuring the webhook in LangSmith
+## 在 LangSmith 中配置 webhook
 
-Once your FastAPI server is deployed and you have its public URL, you can configure the webhook in LangSmith:
+一旦你的 FastAPI 服务器部署完毕并拥有了其公共 URL，你就可以在 LangSmith 中配置 webhook：
 
-1. Navigate to your LangSmith workspace.
+1. 导航到你的 LangSmith 工作区。
 
-2. Go to the **Prompts** section. Here you'll see a list of your prompts.
+2. 转到 **提示词** 部分。在这里你将看到你的提示词列表。
 
-   ![LangSmith Prompts section](/langsmith/images/prompt-commit-main.png)
+   ![LangSmith 提示词部分](/langsmith/images/prompt-commit-main.png)
 
-3. On the top right of the Prompts page, click the **+ Webhook** button.
+3. 在提示词页面的右上角，点击 **+ Webhook** 按钮。
 
-4. You'll be presented with a form to configure your webhook:
+4. 你将看到一个用于配置 webhook 的表单：
 
-   ![LangSmith Webhook configuration modal](/langsmith/images/prompt-commit-webhook.png)
+   ![LangSmith Webhook 配置模态框](/langsmith/images/prompt-commit-webhook.png)
 
-   * **Webhook URL:** Enter the full public URL of your deployed FastAPI server's endpoint. For our example server, this would be `https://prompt-commit-webhook.onrender.com/webhook/commit`.
-   * **Headers (Optional):**
-     * You can add custom headers that LangSmith will send with each webhook request.
+   * **Webhook URL：** 输入你部署的 FastAPI 服务器端点的完整公共 URL。对于我们示例服务器，这将是 `https://prompt-commit-webhook.onrender.com/webhook/commit`。
+   * **Headers (可选)：**
+     * 你可以添加自定义头信息，LangSmith 将在每个 webhook 请求中发送这些信息。
 
-5. **Test the Webhook:** LangSmith provides a "Send Test Notification" button. Use this to send a sample payload to your server. Check your server logs (e.g., on Render) to ensure it receives the request and processes it successfully (or to debug any issues).
+5. **测试 Webhook：** LangSmith 提供了一个“发送测试通知”按钮。使用此按钮向你的服务器发送一个示例负载。检查你的服务器日志（例如在 Render 上）以确保它接收并成功处理了请求（或用于调试任何问题）。
 
-6. **Save** the webhook configuration.
+6. **保存** webhook 配置。
 
-## The workflow in action
+## 工作流程实际运行
 
-![Workflow Diagram showing: User saves prompt in LangSmith, LangSmith sends webhook to FastAPI Server, which interacts with GitHub to update files](/langsmith/images/prompt-sequence-diagram.png)
+![工作流程图显示：用户在 LangSmith 中保存提示词，LangSmith 向 FastAPI 服务器发送 webhook，该服务器与 GitHub 交互以更新文件](/langsmith/images/prompt-sequence-diagram.png)
 
-Now, with everything set up, here's what happens:
+现在，一切就绪，以下是发生的过程：
 
-1. **Prompt Modification:** A user (developer or non-technical team member) modifies a prompt in the LangSmith UI and saves it, creating a new "prompt commit."
+1. **提示词修改：** 用户（开发人员或非技术团队成员）在 LangSmith UI 中修改一个提示词并保存，创建一个新的“提示词提交”。
 
-2. **Webhook Trigger:** LangSmith detects this new prompt commit and triggers the configured webhook.
+2. **Webhook 触发：** LangSmith 检测到这个新的提示词提交并触发配置的 webhook。
 
-3. **HTTP Request:** LangSmith sends an HTTP POST request to the public URL of your FastAPI server (e.g., `https://prompt-commit-webhook.onrender.com/webhook/commit`). The body of this request contains the JSON prompt manifest for the entire workspace.
+3. **HTTP 请求：** LangSmith 向你的 FastAPI 服务器的公共 URL（例如 `https://prompt-commit-webhook.onrender.com/webhook/commit`）发送一个 HTTP POST 请求。此请求的正文包含整个工作区的 JSON 提示词清单。
 
-4. **Server Receives Payload:** Your FastAPI server's endpoint receives the request.
+4. **服务器接收负载：** 你的 FastAPI 服务器端点接收该请求。
 
-5. **GitHub Commit:** The server parses the JSON manifest from the request body. It then uses the configured GitHub Personal Access Token, repository owner, repository name, file path, and branch to:
+5. **GitHub 提交：** 服务器从请求体中解析 JSON 清单。然后，它使用配置的 GitHub 个人访问令牌、仓库所有者、仓库名称、文件路径和分支来：
 
-   * Check if the manifest file already exists in the repository on the specified branch to get its SHA (this is necessary for updating an existing file).
-   * Create a new commit with the latest prompt manifest, either creating the file or updating it if it already exists. The commit message will indicate that it's an update from LangSmith.
+   * 检查清单文件是否已存在于指定分支的仓库中，以获取其 SHA（这对于更新现有文件是必要的）。
+   * 使用最新的提示词清单创建一个新的提交，如果文件已存在则更新它，如果不存在则创建它。提交消息将表明这是来自 LangSmith 的更新。
 
-6. **Confirmation:** You should see the new commit appear in your GitHub repository.
+6. **确认：** 你应该会看到新的提交出现在你的 GitHub 仓库中。
 
-   ![Manifest commited to GitHub](/langsmith/images/prompt-commit-github.png)
+   ![清单已提交到 GitHub](/langsmith/images/prompt-commit-github.png)
 
-You've now successfully synced your LangSmith prompts with GitHub!
+你现在已经成功地将你的 LangSmith 提示词与 GitHub 同步了！
 
-## Beyond a simple commit
+## 超越简单的提交
 
-Our example FastAPI server performs a direct commit of the entire prompt manifest. However, this is just the starting point. You can extend the server's functionality to perform more sophisticated actions:
+我们的示例 FastAPI 服务器执行了整个提示词清单的直接提交。然而，这只是一个起点。你可以扩展服务器的功能以执行更复杂的操作：
 
-* **Granular Commits:** Parse the manifest and commit changes to individual prompt files if you prefer a more granular structure in your repository.
-* **Trigger CI/CD:** Instead of (or in addition to) committing, have the server trigger a CI/CD pipeline (e.g., Jenkins, GitHub Actions, GitLab CI) to deploy a staging environment, run tests, or build new application versions.
-* **Update Databases/Caches:** If your application loads prompts from a database or cache, update these stores directly.
-* **Notifications:** Send notifications to Slack, email, or other communication channels about prompt changes.
-* **Selective Processing:** Based on metadata within the LangSmith payload (if available, e.g., which specific prompt changed or by whom), you could apply different logic.
+* **细粒度提交：** 解析清单，并将更改提交到单个提示词文件，如果你更喜欢在仓库中采用更细粒度的结构。
+* **触发 CI/CD：** 除了（或除了）提交之外，让服务器触发一个 CI/CD 流水线（例如 Jenkins、GitHub Actions、GitLab CI）来部署预发布环境、运行测试或构建新的应用程序版本。
+* **更新数据库/缓存：** 如果你的应用程序从数据库或缓存加载提示词，则直接更新这些存储。
+* **通知：** 向 Slack、电子邮件或其他通信渠道发送有关提示词更改的通知。
+* **选择性处理：** 根据 LangSmith 负载中的元数据（如果可用，例如哪个特定提示词被更改或由谁更改），你可以应用不同的逻辑。
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/prompt-commit.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/prompt-commit.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

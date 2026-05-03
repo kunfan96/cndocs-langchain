@@ -1,79 +1,79 @@
 ---
-title: Connect to an external PostgreSQL database
-sidebarTitle: Connect to an external PostgreSQL database
+title: 连接到外部 PostgreSQL 数据库
+sidebarTitle: 连接到外部 PostgreSQL 数据库
 ---
 
-LangSmith uses a PostgreSQL database as the primary data store for transactional workloads and operational data (almost everything besides runs). By default, LangSmith Self-Hosted will use an internal PostgreSQL database. However, you can configure LangSmith to use an external PostgreSQL database. By configuring an external PostgreSQL database, you can more easily manage backups, scaling, and other operational tasks for your database.
+LangSmith 使用 PostgreSQL 数据库作为事务性工作负载和操作数据（几乎所有非运行数据）的主要数据存储。默认情况下，LangSmith 自托管版本将使用内部 PostgreSQL 数据库。但是，您可以配置 LangSmith 以使用外部 PostgreSQL 数据库。通过配置外部 PostgreSQL 数据库，您可以更轻松地管理数据库的备份、扩展和其他运维任务。
 
 <Tip>
-**If you're using a managed PostgreSQL service**, we recommend:
+**如果您使用的是托管 PostgreSQL 服务**，我们推荐：
 - [Amazon RDS](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_GettingStarted.CreatingConnecting.PostgreSQL.html) (AWS)
 - [Google Cloud SQL](https://cloud.google.com/curated-resources/cloud-sql#section-1) (GCP)
 - [Azure Database for PostgreSQL](https://azure.microsoft.com/en-us/products/postgresql#features) (Azure)
 
-For cloud-specific IAM/Workload Identity authentication, refer to the [IAM authentication section](#iam-authentication).
+有关云特定的 IAM/工作负载身份验证，请参阅 [IAM 身份验证部分](#iam-authentication)。
 </Tip>
 
-## Requirements
+## 要求
 
-* A provisioned PostgreSQL database that your LangSmith instance will have network access to. We recommend using a managed PostgreSQL service like:
+* 一个您的 LangSmith 实例可以网络访问的已配置 PostgreSQL 数据库。我们建议使用托管 PostgreSQL 服务，例如：
 
   * [Amazon RDS](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_GettingStarted.CreatingConnecting.PostgreSQL.html)
   * [Google Cloud SQL](https://cloud.google.com/curated-resources/cloud-sql#section-1)
   * [Azure Database for PostgreSQL](https://azure.microsoft.com/en-us/products/postgresql#features)
 
-* Note: We only officially support PostgreSQL versions >= 14.
+* 注意：我们仅官方支持 PostgreSQL 版本 >= 14。
 
-* We support password and [IAM/Workload Identity](#iam-authentication) authentication.
+* 我们支持密码和 [IAM/工作负载身份](#iam-authentication) 验证。
 
-* A user with admin access to the PostgreSQL database. This user will be used to create the necessary tables, indexes, and schemas.
+* 一个对 PostgreSQL 数据库具有管理员访问权限的用户。此用户将用于创建必要的表、索引和模式。
 
-* This user will also need to have the ability to create extensions in the database. We use/will try to install the `btree_gin`, `btree_gist`, `pgcrypto`, `citext`, `ltree`, and `pg_trgm` extensions.
+* 此用户还需要能够在数据库中创建扩展。我们使用/将尝试安装 `btree_gin`、`btree_gist`、`pgcrypto`、`citext`、`ltree` 和 `pg_trgm` 扩展。
 
-* If using a schema other than public, ensure that you do not have any other schemas with the extensions enabled, or you must include that in your search path.
+* 如果使用非 public 的模式，请确保没有其他模式启用了这些扩展，或者您必须将其包含在搜索路径中。
 
-* Support for pgbouncer and other connection poolers is community-based. Community members have reported that pgbouncer has worked with `pool_mode` = `session` and a suitable setting for `ignore_startup_parameters` (as of writing, `search_path` and `lock_timeout` need to be ignored). Care is needed to avoid polluting connection pools; some level of PostgreSQL expertise is advisable. LangChain Inc currently does not have roadmap plans for formal test coverage or commercial support of pgbouncer or amazon rds proxy or any other poolers, but the community is welcome to discuss and collaborate on support through GitHub issues.
+* 对 pgbouncer 和其他连接池的支持是基于社区的。社区成员报告称，pgbouncer 在 `pool_mode` = `session` 和适当的 `ignore_startup_parameters` 设置下可以工作（撰写本文时，需要忽略 `search_path` 和 `lock_timeout`）。需要小心避免污染连接池；建议具备一定的 PostgreSQL 专业知识。LangChain Inc 目前没有将 pgbouncer、Amazon RDS Proxy 或任何其他连接池的正式测试覆盖或商业支持纳入路线图计划，但欢迎社区通过 GitHub issues 讨论和协作支持。
 
-* By default, we recommend an instance with **at least 2 vCPUs and 8GB of memory**. However, the actual requirements will depend on your workload and the number of users you have. We recommend monitoring your PostgreSQL instance and scaling up as needed.
+* 默认情况下，我们建议使用**至少 2 个 vCPU 和 8GB 内存**的实例。但是，实际要求将取决于您的工作负载和用户数量。我们建议监控您的 PostgreSQL 实例，并根据需要进行扩展。
 
-## Connection string
+## 连接字符串
 
-You will need to provide a connection string to your PostgreSQL database. This connection string should include the following information:
+您需要提供一个指向您的 PostgreSQL 数据库的连接字符串。此连接字符串应包含以下信息：
 
-* Host
-* Port
-* Database
-* Username
-* Password (Make sure to URL encode this if there are any special characters) - **Note:** When using IAM authentication, the password is not required in the connection string. More below.
-* URL params
+* 主机
+* 端口
+* 数据库
+* 用户名
+* 密码（如果包含任何特殊字符，请确保对其进行 URL 编码）- **注意：** 使用 IAM 身份验证时，连接字符串中不需要密码。详情见下文。
+* URL 参数
 
-This will take the form of:
+其格式如下：
 
 ```
 username:password@host:port/database?<url_params>
 ```
 
-An example connection string might look like:
+一个示例连接字符串可能如下所示：
 
 ```
 myuser:mypassword@myhost:5432/mydatabase?sslmode=disable
 ```
 
-Without URL parameters, the connection string would look like:
+不带 URL 参数时，连接字符串如下所示：
 
 ```
 myuser:mypassword@myhost:5432/mydatabase
 ```
 
-For IAM authentication, omit the password and use the identity name as the username:
+对于 IAM 身份验证，省略密码并使用身份名称作为用户名：
 
 ```
 my-workload-identity@myhost:5432/mydatabase?sslmode=require
 ```
 
-## Configuration
+## 配置
 
-With your connection string in hand, you can configure your LangSmith instance to use an external PostgreSQL database. You can do this by modifying the `values` file for your LangSmith Helm Chart installation or the `.env` file for your Docker installation.
+有了连接字符串，您就可以配置 LangSmith 实例以使用外部 PostgreSQL 数据库。您可以通过修改 LangSmith Helm Chart 安装的 `values` 文件或 Docker 安装的 `.env` 文件来完成此操作。
 
 <CodeGroup>
 
@@ -81,40 +81,40 @@ With your connection string in hand, you can configure your LangSmith instance t
 postgres:
   external:
     enabled: true
-    connectionUrl: "Your connection url"
+    connectionUrl: "您的连接 URL"
 ```
 
 ```bash Docker
-# In your .env file
-POSTGRES_DATABASE_URI="Your connection url"
+# 在您的 .env 文件中
+POSTGRES_DATABASE_URI="您的连接 URL"
 ```
 
 </CodeGroup>
 
-Once configured, you should be able to reinstall your LangSmith instance. If everything is configured correctly, your LangSmith instance should now be using your external PostgreSQL database.
+配置完成后，您应该能够重新安装 LangSmith 实例。如果一切配置正确，您的 LangSmith 实例现在应该使用您的外部 PostgreSQL 数据库。
 
-## TLS with PostgreSQL
+## PostgreSQL 的 TLS
 
-Use this section to configure TLS for PostgreSQL connections. For mounting internal/public CAs so LangSmith trusts your PostgreSQL server certificate, see [Configure custom TLS certificates](/langsmith/self-host-custom-tls-certificates#mount-internal-cas-for-tls).
+使用此部分配置 PostgreSQL 连接的 TLS。有关挂载内部/公共 CA 以使 LangSmith 信任您的 PostgreSQL 服务器证书的信息，请参阅 [配置自定义 TLS 证书](/langsmith/self-host-custom-tls-certificates#mount-internal-cas-for-tls)。
 
-### Server TLS (one-way)
+### 服务器 TLS（单向）
 
-To validate the PostgreSQL server certificate:
+要验证 PostgreSQL 服务器证书：
 
-- Provide a CA bundle using `config.customCa.secretName` and `config.customCa.secretKey`.
-- Use `sslmode=require` or `sslmode=verify-full`, as well as `sslrootcert=system` to your connection URL.
+- 使用 `config.customCa.secretName` 和 `config.customCa.secretKey` 提供 CA 包。
+- 在连接 URL 中使用 `sslmode=require` 或 `sslmode=verify-full`，以及 `sslrootcert=system`。
 
 <Warning>
-Mount a custom CA only when your PostgreSQL server uses an internal or private CA. Publicly trusted CAs do not require this configuration.
+仅当您的 PostgreSQL 服务器使用内部或私有 CA 时才挂载自定义 CA。公共信任的 CA 不需要此配置。
 </Warning>
 
 <CodeGroup>
 
-```yaml Helm (server TLS)
+```yaml Helm (服务器 TLS)
 config:
   customCa:
-    secretName: "langsmith-custom-ca"  # Secret containing your CA bundle
-    secretKey: "ca.crt"    # Key in the Secret with the CA bundle
+    secretName: "langsmith-custom-ca"  # 包含您的 CA 包的 Secret
+    secretKey: "ca.crt"    # Secret 中包含 CA 包的键
 postgres:
   external:
     enabled: true
@@ -122,7 +122,7 @@ postgres:
     customTls: true
 ```
 
-```yaml Kubernetes Secret (CA bundle)
+```yaml Kubernetes Secret (CA 包)
 apiVersion: v1
 kind: Secret
 metadata:
@@ -131,25 +131,25 @@ type: Opaque
 stringData:
   ca.crt: |
     -----BEGIN CERTIFICATE-----
-    <ROOT_OR_INTERMEDIATE_CA_CERT_CHAIN>
+    <根或中间 CA 证书链>
     -----END CERTIFICATE-----
 ```
 
 </CodeGroup>
 
-### Mutual TLS with client auth (mTLS)
+### 带客户端身份验证的双向 TLS (mTLS)
 
-As of LangSmith helm chart version **0.12.29**, we support mTLS for PostgreSQL clients. For server-side authentication in mTLS, use the [Server TLS steps](#server-tls-one-way) (custom CA) in addition to the following client certificate configuration.
+从 LangSmith helm chart 版本 **0.12.29** 开始，我们支持 PostgreSQL 客户端的 mTLS。对于 mTLS 中的服务器端身份验证，请使用 [服务器 TLS 步骤](#server-tls-one-way)（自定义 CA），并附加以下客户端证书配置。
 
-If your PostgreSQL server requires client certificate authentication:
+如果您的 PostgreSQL 服务器需要客户端证书身份验证：
 
-- Provide a Secret with your client certificate and key.
-- Reference it via `postgres.external.clientCert.secretName` and specify the keys with `certSecretKey` and `keySecretKey`.
-- Use `sslmode=verify-full` and `sslrootcert=system` in your connection URL.
+- 提供一个包含客户端证书和密钥的 Secret。
+- 通过 `postgres.external.clientCert.secretName` 引用它，并使用 `certSecretKey` 和 `keySecretKey` 指定键。
+- 在连接 URL 中使用 `sslmode=verify-full` 和 `sslrootcert=system`。
 
 <CodeGroup>
 
-```yaml Helm (client Auth)
+```yaml Helm (客户端身份验证)
 postgres:
   external:
     enabled: true
@@ -161,7 +161,7 @@ postgres:
       keySecretKey: "tls.key"
 ```
 
-```yaml Kubernetes Secret (client cert/key)
+```yaml Kubernetes Secret (客户端证书/密钥)
 apiVersion: v1
 kind: Secret
 metadata:
@@ -170,41 +170,41 @@ type: Opaque
 stringData:
   tls.crt: |
     -----BEGIN CERTIFICATE-----
-    <CLIENT_CERT>
+    <客户端证书>
     -----END CERTIFICATE-----
   tls.key: |
     -----BEGIN PRIVATE KEY-----
-    <CLIENT_KEY>
+    <客户端密钥>
     -----END PRIVATE KEY-----
 ```
 
 </CodeGroup>
 
-#### Pod security context for certificate volumes
+#### 用于证书卷的 Pod 安全上下文
 
-The certificate volumes mounted for mTLS are protected by file access restrictions. To ensure all LangSmith pods can read the certificate files, you must set `fsGroup: 1000` in the pod security context.
+为 mTLS 挂载的证书卷受文件访问限制保护。为确保所有 LangSmith Pod 可以读取证书文件，您必须在 Pod 安全上下文中设置 `fsGroup: 1000`。
 
-You can configure this in one of two ways:
+您可以通过以下两种方式之一进行配置：
 
-**Option 1: Use `commonPodSecurityContext`**
+**选项 1：使用 `commonPodSecurityContext`**
 
-Set the `fsGroup` at the top level to apply it to all pods:
+在顶层设置 `fsGroup` 以将其应用于所有 Pod：
 
 ```yaml
 commonPodSecurityContext:
   fsGroup: 1000
 ```
 
-**Option 2: Add to individual pod security contexts**
+**选项 2：添加到各个 Pod 安全上下文**
 
-If you need more granular control, add the `fsGroup` to each pod's security context individually. See the [mTLS configuration example](https://github.com/langchain-ai/helm/blob/main/charts/langsmith/examples/mtls_config.yaml) for a complete reference.
+如果您需要更细粒度的控制，请将 `fsGroup` 单独添加到每个 Pod 的安全上下文中。有关完整参考，请参阅 [mTLS 配置示例](https://github.com/langchain-ai/helm/blob/main/charts/langsmith/examples/mtls_config.yaml)。
 
-## IAM authentication
+## IAM 身份验证
 
-As of LangSmith helm chart version **0.12.34**, we support IAM authentication for PostgreSQL. This allows you to use cloud provider workload identity instead of static passwords.
+从 LangSmith helm chart 版本 **0.12.34** 开始，我们支持 PostgreSQL 的 IAM 身份验证。这允许您使用云提供商的工作负载身份，而不是静态密码。
 
 <Warning>
-IAM authentication only handles connection authentication. You may still need to run SQL commands in your database to create the IAM user/role and grant it the necessary permissions and privileges to access the LangSmith schema.
+IAM 身份验证仅处理连接身份验证。您可能仍需要在数据库中运行 SQL 命令来创建 IAM 用户/角色，并授予其访问 LangSmith 模式所需的权限和特权。
 </Warning>
 
 <Tabs>
@@ -212,22 +212,22 @@ IAM authentication only handles connection authentication. You may still need to
 
 <a id="amazon-rds"></a>
 
-### Amazon RDS IAM authentication
+### Amazon RDS IAM 身份验证
 
-Amazon RDS supports [IAM database authentication](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html), which allows you to authenticate to your PostgreSQL instance using AWS IAM credentials instead of database passwords.
+Amazon RDS 支持 [IAM 数据库身份验证](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html)，允许您使用 AWS IAM 凭据而不是数据库密码来验证您的 PostgreSQL 实例。
 
-#### Prerequisites
+#### 先决条件
 
-1. **Configure workload identity** in your Kubernetes cluster using [AWS IRSA](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html) or [EKS Pod Identity](https://docs.aws.amazon.com/eks/latest/userguide/pod-identities.html)
-2. **Enable IAM authentication** on your RDS PostgreSQL instance and grant access to your workload identity
+1. 使用 [AWS IRSA](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html) 或 [EKS Pod Identity](https://docs.aws.amazon.com/eks/latest/userguide/pod-identities.html) 在 Kubernetes 集群中**配置工作负载身份**
+2. 在您的 RDS PostgreSQL 实例上**启用 IAM 身份验证**，并授予您的工作负载身份访问权限
 
-#### Configuration
+#### 配置
 
 <Warning>
-If you switch to a new IAM user after LangSmith has already run initial migrations, you may need to transfer ownership of existing tables to the new IAM user. Otherwise, migrations may fail due to insufficient privileges on tables owned by the previous user.
+如果在 LangSmith 已经运行初始迁移后切换到新的 IAM 用户，您可能需要将现有表的所有权转移给新的 IAM 用户。否则，迁移可能会因前一个用户拥有的表权限不足而失败。
 </Warning>
 
-Set the `iamAuthProvider` to `"aws"` and provide an IAM-compatible connection string (without password):
+将 `iamAuthProvider` 设置为 `"aws"` 并提供一个兼容 IAM 的连接字符串（不带密码）：
 
 ```yaml
 postgres:
@@ -244,27 +244,27 @@ metadata:
   name: postgres-secret
 type: Opaque
 stringData:
-  # IAM connection URL - note no password, username is the IAM identity name
+  # IAM 连接 URL - 注意没有密码，用户名是 IAM 身份名称
   connection_url: "<iam-identity-name>@<rds-host>:5432/<database>?sslmode=require"
 ```
 
 <Warning>
-IAM authentication requires TLS. You must include `sslmode=require` in your connection string.
+IAM 身份验证需要 TLS。您必须在连接字符串中包含 `sslmode=require`。
 </Warning>
 
-#### Required annotations
+#### 所需注解
 
-You must apply the ServiceAccount annotations required by AWS IRSA to all LangSmith components that connect to PostgreSQL:
+您必须将 AWS IRSA 所需的 ServiceAccount 注解应用于所有连接到 PostgreSQL 的 LangSmith 组件：
 
-**Deployments:** `backend`, `queue`, `platformBackend`, `hostBackend`, `ingestQueue`
+**部署：** `backend`、`queue`、`platformBackend`、`hostBackend`、`ingestQueue`
 
-**Jobs:** `migrations`, `authBootstrap`, `feedbackConfigMigration`, `feedbackDataMigration`, `e2eTest`
+**作业：** `migrations`、`authBootstrap`、`feedbackConfigMigration`、`feedbackDataMigration`、`e2eTest`
 
 <Note>
-All jobs listed above (except `e2eTest`) use the `backend` service account. The `e2eTest` job uses its own service account and requires separate annotation configuration.
+上面列出的所有作业（`e2eTest` 除外）都使用 `backend` 服务账户。`e2eTest` 作业使用其自己的服务账户，需要单独的注解配置。
 </Note>
 
-Example configuration for the backend service:
+后端服务的示例配置：
 
 ```yaml
 backend:
@@ -293,29 +293,29 @@ ingestQueue:
       eks.amazonaws.com/role-arn: "arn:aws:iam::<account-id>:role/<role-name>"
 ```
 
-See the [Helm values reference](https://github.com/langchain-ai/helm/blob/main/charts/langsmith/values.yaml) for the full list of configurable services.
+有关可配置服务的完整列表，请参阅 [Helm values 参考](https://github.com/langchain-ai/helm/blob/main/charts/langsmith/values.yaml)。
 
   </Tab>
   <Tab title="GCP">
 
 <a id="google-cloud-sql"></a>
 
-### Cloud SQL IAM authentication
+### Cloud SQL IAM 身份验证
 
-Cloud SQL supports [IAM authentication](https://cloud.google.com/sql/docs/postgres/iam-authentication), which allows you to authenticate using GCP service accounts instead of database passwords.
+Cloud SQL 支持 [IAM 身份验证](https://cloud.google.com/sql/docs/postgres/iam-authentication)，允许您使用 GCP 服务账户而不是数据库密码进行身份验证。
 
-#### Prerequisites
+#### 先决条件
 
-1. **Configure workload identity** in your Kubernetes cluster using [GCP Workload Identity](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity)
-2. **Enable IAM authentication** on your Cloud SQL instance and grant access to your workload identity
+1. 使用 [GCP Workload Identity](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity) 在 Kubernetes 集群中**配置工作负载身份**
+2. 在您的 Cloud SQL 实例上**启用 IAM 身份验证**，并授予您的工作负载身份访问权限
 
-#### Configuration
+#### 配置
 
 <Warning>
-If you switch to a new IAM user after LangSmith has already run initial migrations, you may need to transfer ownership of existing tables to the new IAM user. Otherwise, migrations may fail due to insufficient privileges on tables owned by the previous user.
+如果在 LangSmith 已经运行初始迁移后切换到新的 IAM 用户，您可能需要将现有表的所有权转移给新的 IAM 用户。否则，迁移可能会因前一个用户拥有的表权限不足而失败。
 </Warning>
 
-Set the `iamAuthProvider` to `"gcp"` and provide an IAM-compatible connection string (without password):
+将 `iamAuthProvider` 设置为 `"gcp"` 并提供一个兼容 IAM 的连接字符串（不带密码）：
 
 ```yaml
 postgres:
@@ -332,27 +332,27 @@ metadata:
   name: postgres-secret
 type: Opaque
 stringData:
-  # IAM connection URL - note no password, username is the service account email
+  # IAM 连接 URL - 注意没有密码，用户名是服务账户电子邮件
   connection_url: "<service-account>@<project>.iam@<cloud-sql-host>:5432/<database>?sslmode=require"
 ```
 
 <Warning>
-IAM authentication requires TLS. You must include `sslmode=require` in your connection string.
+IAM 身份验证需要 TLS。您必须在连接字符串中包含 `sslmode=require`。
 </Warning>
 
-#### Required annotations
+#### 所需注解
 
-You must apply the ServiceAccount annotations required by GCP Workload Identity to all LangSmith components that connect to PostgreSQL:
+您必须将 GCP Workload Identity 所需的 ServiceAccount 注解应用于所有连接到 PostgreSQL 的 LangSmith 组件：
 
-**Deployments:** `backend`, `queue`, `platformBackend`, `hostBackend`, `ingestQueue`
+**部署：** `backend`、`queue`、`platformBackend`、`hostBackend`、`ingestQueue`
 
-**Jobs:** `migrations`, `authBootstrap`, `feedbackConfigMigration`, `feedbackDataMigration`, `e2eTest`
+**作业：** `migrations`、`authBootstrap`、`feedbackConfigMigration`、`feedbackDataMigration`、`e2eTest`
 
 <Note>
-All jobs listed above (except `e2eTest`) use the `backend` service account. The `e2eTest` job uses its own service account and requires separate annotation configuration.
+上面列出的所有作业（`e2eTest` 除外）都使用 `backend` 服务账户。`e2eTest` 作业使用其自己的服务账户，需要单独的注解配置。
 </Note>
 
-Example configuration for the backend service:
+后端服务的示例配置：
 
 ```yaml
 backend:
@@ -381,29 +381,29 @@ ingestQueue:
       iam.gke.io/gcp-service-account: "<service-account>@<project>.iam.gserviceaccount.com"
 ```
 
-See the [Helm values reference](https://github.com/langchain-ai/helm/blob/main/charts/langsmith/values.yaml) for the full list of configurable services.
+有关可配置服务的完整列表，请参阅 [Helm values 参考](https://github.com/langchain-ai/helm/blob/main/charts/langsmith/values.yaml)。
 
   </Tab>
   <Tab title="Azure">
 
 <a id="azure-database-for-postgresql"></a>
 
-### Azure Database for PostgreSQL with Microsoft Entra authentication
+### 使用 Microsoft Entra 身份验证的 Azure Database for PostgreSQL
 
-Azure Database for PostgreSQL supports [Microsoft Entra authentication](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/concepts-azure-ad-authentication), which allows you to authenticate using Azure managed identities instead of database passwords.
+Azure Database for PostgreSQL 支持 [Microsoft Entra 身份验证](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/concepts-azure-ad-authentication)，允许您使用 Azure 托管标识而不是数据库密码进行身份验证。
 
-#### Prerequisites
+#### 先决条件
 
-1. **Configure workload identity** in your Kubernetes cluster using [Azure Workload Identity](https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview)
-2. **Enable Microsoft Entra authentication** on your Azure Database for PostgreSQL instance and grant access to your workload identity
+1. 使用 [Azure Workload Identity](https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview) 在 Kubernetes 集群中**配置工作负载身份**
+2. 在您的 Azure Database for PostgreSQL 实例上**启用 Microsoft Entra 身份验证**，并授予您的工作负载身份访问权限
 
-#### Configuration
+#### 配置
 
 <Warning>
-If you switch to a new IAM user after LangSmith has already run initial migrations, you may need to transfer ownership of existing tables to the new IAM user. Otherwise, migrations may fail due to insufficient privileges on tables owned by the previous user.
+如果在 LangSmith 已经运行初始迁移后切换到新的 IAM 用户，您可能需要将现有表的所有权转移给新的 IAM 用户。否则，迁移可能会因前一个用户拥有的表权限不足而失败。
 </Warning>
 
-Set the `iamAuthProvider` to `"azure"` and provide an IAM-compatible connection string (without password):
+将 `iamAuthProvider` 设置为 `"azure"` 并提供一个兼容 IAM 的连接字符串（不带密码）：
 
 ```yaml
 postgres:
@@ -420,27 +420,27 @@ metadata:
   name: postgres-secret
 type: Opaque
 stringData:
-  # IAM connection URL - note no password, username is the managed identity name
+  # IAM 连接 URL - 注意没有密码，用户名是托管标识名称
   connection_url: "<managed-identity-name>@<azure-postgres-host>:5432/<database>?sslmode=require"
 ```
 
 <Warning>
-IAM authentication requires TLS. You must include `sslmode=require` in your connection string.
+IAM 身份验证需要 TLS。您必须在连接字符串中包含 `sslmode=require`。
 </Warning>
 
-#### Required annotations
+#### 所需注解
 
-You must apply the ServiceAccount annotations and pod labels required by Azure Workload Identity to all LangSmith components that connect to PostgreSQL:
+您必须将 Azure Workload Identity 所需的 ServiceAccount 注解和 Pod 标签应用于所有连接到 PostgreSQL 的 LangSmith 组件：
 
-**Deployments:** `backend`, `queue`, `platformBackend`, `hostBackend`, `ingestQueue`
+**部署：** `backend`、`queue`、`platformBackend`、`hostBackend`、`ingestQueue`
 
-**Jobs:** `migrations`, `authBootstrap`, `feedbackConfigMigration`, `feedbackDataMigration`, `e2eTest`
+**作业：** `migrations`、`authBootstrap`、`feedbackConfigMigration`、`feedbackDataMigration`、`e2eTest`
 
 <Note>
-All jobs listed above (except `e2eTest`) use the `backend` service account. For these jobs, you only need to configure pod labels (Azure requires `azure.workload.identity/use: "true"` on pods). The `e2eTest` job uses its own service account and requires separate annotation configuration.
+上面列出的所有作业（`e2eTest` 除外）都使用 `backend` 服务账户。对于这些作业，您只需要配置 Pod 标签（Azure 要求 Pod 上有 `azure.workload.identity/use: "true"`）。`e2eTest` 作业使用其自己的服务账户，需要单独的注解配置。
 </Note>
 
-Example configuration for the backend service:
+后端服务的示例配置：
 
 ```yaml
 backend:
@@ -487,7 +487,7 @@ ingestQueue:
       azure.workload.identity/use: "true"
 ```
 
-See the [Helm values reference](https://github.com/langchain-ai/helm/blob/main/charts/langsmith/values.yaml) for the full list of configurable services.
+有关可配置服务的完整列表，请参阅 [Helm values 参考](https://github.com/langchain-ai/helm/blob/main/charts/langsmith/values.yaml)。
 
   </Tab>
 </Tabs>
@@ -496,9 +496,9 @@ See the [Helm values reference](https://github.com/langchain-ai/helm/blob/main/c
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/self-host-external-postgres.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/self-host-external-postgres.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

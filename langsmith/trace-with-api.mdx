@@ -1,36 +1,36 @@
 ---
-title: Trace with API
-sidebarTitle: Trace with API
-description: Learn how to trace LLM applications using the LangSmith REST API directly.
+title: 使用 API 进行追踪
+sidebarTitle: 使用 API 进行追踪
+description: 了解如何直接使用 LangSmith REST API 追踪 LLM 应用程序。
 ---
 
-This guide covers two approaches to tracing with the [REST API](/langsmith/smith-api-ref): basic tracing using the `POST /runs` and `PATCH /runs` endpoints, and batch ingestion using `POST /runs/multipart` for higher throughput.
+本指南涵盖两种使用 [REST API](/langsmith/smith-api-ref) 进行追踪的方法：使用 `POST /runs` 和 `PATCH /runs` 端点进行基本追踪，以及使用 `POST /runs/multipart` 进行批量摄取以获得更高吞吐量。
 
-For a full list of endpoints and request/response schemas, refer to the [API reference](https://api.smith.langchain.com/redoc).
+有关端点和请求/响应模式的完整列表，请参阅 [API 参考文档](https://api.smith.langchain.com/redoc)。
 
 <Warning>
-We strongly recommend using the [Python](/langsmith/smith-python-sdk) or [TypeScript](/langsmith/smith-js-ts-sdk) SDK to send traces to LangSmith instead of the REST API directly. The SDKs include batching and background sending optimizations that prevent tracing from affecting your application's performance.
+我们强烈建议使用 [Python](/langsmith/smith-python-sdk) 或 [TypeScript](/langsmith/smith-js-ts-sdk) SDK 将追踪数据发送到 LangSmith，而不是直接使用 REST API。SDK 包含批处理和后台发送优化，可防止追踪影响应用程序的性能。
 
-If you cannot use an SDK, note that sending traces synchronously may impact application performance.
+如果无法使用 SDK，请注意同步发送追踪数据可能会影响应用程序性能。
 </Warning>
 
 <Note>
-We recommend using **UUID v7** for run IDs. UUIDv7 embeds a timestamp, which preserves correct time-ordering of runs in a trace. Use `uuid7()` from the LangSmith SDK to generate them, or see [Specify a custom run ID](/langsmith/annotate-code#specify-a-custom-run-id) for more details.
+我们建议为运行 ID 使用 **UUID v7**。UUIDv7 嵌入了时间戳，这可以保留追踪中运行的正确时间顺序。使用 LangSmith SDK 中的 `uuid7()` 生成它们，或参阅[指定自定义运行 ID](/langsmith/annotate-code#specify-a-custom-run-id)了解更多详情。
 </Note>
 
-## Basic tracing
+## 基本追踪
 
-The simplest way to log runs is via the `POST /runs` and `PATCH /runs` endpoints. This approach requires minimal information to establish the trace hierarchy.
+记录运行的最简单方法是通过 `POST /runs` 和 `PATCH /runs` 端点。此方法需要最少的信息来建立追踪层次结构。
 
 <Note>
-When using the LangSmith REST API, provide your [API key](/langsmith/create-account-api-key) in the request headers as `"x-api-key"`.
+使用 LangSmith REST API 时，请在请求头中提供您的 [API 密钥](/langsmith/create-account-api-key)，格式为 `"x-api-key"`。
 
-If your API key is linked to multiple workspaces, specify the workspace in the header with `"x-tenant-id"`.
+如果您的 API 密钥链接到多个工作区，请在请求头中使用 `"x-tenant-id"` 指定工作区。
 
-In this approach, you do not need to set the `dotted_order` or `trace_id` fields—the system generates them automatically. Though simpler, it is slower and subject to lower rate limits than batch ingestion.
+在此方法中，您无需设置 `dotted_order` 或 `trace_id` 字段——系统会自动生成它们。虽然更简单，但比批量摄取更慢，且受更低的速率限制。
 </Note>
 
-The following example traces a chat completion with a parent chain run and a child LLM run. Set [`parent_run_id`](/langsmith/run-data-format) on a child run to attach it to its parent:
+以下示例追踪一个聊天补全，包含一个父链运行和一个子 LLM 运行。在子运行上设置 [`parent_run_id`](/langsmith/run-data-format) 以将其附加到其父运行：
 
 ```python expandable wrap
 import openai
@@ -39,34 +39,34 @@ import requests
 from datetime import datetime, timezone
 from langsmith import uuid7
 
-# Send your API Key in the request headers
+# 在请求头中发送您的 API 密钥
 headers = {
     "x-api-key": os.environ["LANGSMITH_API_KEY"],
     "x-tenant-id": os.environ["LANGSMITH_WORKSPACE_ID"]
 }
 
 def post_run(run_id, name, run_type, inputs, parent_id=None):
-    """Function to post a new run to the API."""
+    """向 API 发送新运行的函数。"""
     data = {
         "id": run_id.hex,
         "name": name,
         "run_type": run_type,
         "inputs": inputs,
         "start_time": datetime.utcnow().isoformat(),
-        # "session_name": "project-name",  # the name of the project to trace to
-        # "session_id": "project-id",  # the ID of the project to trace to. specify one of session_name or session_id
+        # "session_name": "project-name",  # 要追踪到的项目名称
+        # "session_id": "project-id",  # 要追踪到的项目 ID。指定 session_name 或 session_id 之一
     }
     if parent_id:
         data["parent_run_id"] = parent_id.hex
 
     requests.post(
-        "https://api.smith.langchain.com/runs",  # Update for self-hosted, EU (GCP) (`eu.api...`), or US (AWS) (`aws.api...`)
+        "https://api.smith.langchain.com/runs",  # 对于自托管、欧盟 (GCP) (`eu.api...`) 或美国 (AWS) (`aws.api...`) 请更新
         json=data,
         headers=headers
     )
 
 def patch_run(run_id, outputs):
-    """Function to patch a run with outputs."""
+    """使用输出更新运行的函数。"""
     requests.patch(
         f"https://api.smith.langchain.com/runs/{run_id}",
         json={
@@ -76,10 +76,10 @@ def patch_run(run_id, outputs):
         headers=headers,
     )
 
-# This can be a user input to your app
+# 这可以是您应用程序的用户输入
 question = "Can you summarize this morning's meetings?"
 
-# This can be retrieved in a retrieval step
+# 这可以在检索步骤中检索到
 context = "During this morning's meeting, we solved all world conflict."
 
 messages = [
@@ -87,35 +87,35 @@ messages = [
     {"role": "user", "content": f"Question: {question}\nContext: {context}"}
 ]
 
-# Create parent run
+# 创建父运行
 parent_run_id = uuid7()
 post_run(parent_run_id, "Chat Pipeline", "chain", {"question": question})
 
-# Create child run
+# 创建子运行
 child_run_id = uuid7()
 post_run(child_run_id, "OpenAI Call", "llm", {"messages": messages}, parent_run_id)
 
-# Generate a completion
+# 生成补全
 client = openai.Client()
 chat_completion = client.chat.completions.create(
     model="gpt-5.4-mini",
     messages=messages
 )
 
-# End runs
+# 结束运行
 patch_run(child_run_id, chat_completion.dict())
 patch_run(parent_run_id, {"answer": chat_completion.choices[0].message.content})
 ```
 
-For more information, refer to [Run (span) data format](/langsmith/run-data-format).
+更多信息，请参阅[运行（跨度）数据格式](/langsmith/run-data-format)。
 
-## Batch ingestion
+## 批量摄取
 
-For faster ingestion and higher rate limits, use the [`POST /runs/multipart`](https://api.smith.langchain.com/redoc#tag/run/operation/multipart_ingest_runs_api_v1_runs_multipart_post) endpoint. This requires the [`requests-toolbelt`](https://pypi.org/project/requests-toolbelt/) and [`uuid-utils`](https://pypi.org/project/uuid-utils/) packages.
+为了更快的摄取和更高的速率限制，请使用 [`POST /runs/multipart`](https://api.smith.langchain.com/redoc#tag/run/operation/multipart_ingest_runs_api_v1_runs_multipart_post) 端点。这需要 [`requests-toolbelt`](https://pypi.org/project/requests-toolbelt/) 和 [`uuid-utils`](https://pypi.org/project/uuid-utils/) 包。
 
-Unlike basic tracing, this endpoint requires you to compute and set [`dotted_order`](/langsmith/run-data-format#what-is-dotted_order) and [`trace_id`](/langsmith/run-data-format) yourself. `dotted_order` encodes each run's timestamp and UUID with parent and child entries joined by dots (e.g., `20240101T000000Z<parent-uuid>.20240101T000001Z<child-uuid>`), telling LangSmith how runs relate and in what order they occurred. `trace_id` is the UUID of the root run.
+与基本追踪不同，此端点要求您自行计算并设置 [`dotted_order`](/langsmith/run-data-format#what-is-dotted_order) 和 [`trace_id`](/langsmith/run-data-format)。`dotted_order` 编码每个运行的时间戳和 UUID，父条目和子条目用点连接（例如，`20240101T000000Z<parent-uuid>.20240101T000001Z<child-uuid>`），告诉 LangSmith 运行之间的关系以及它们发生的顺序。`trace_id` 是根运行的 UUID。
 
-The following example creates a parent run and a child run, sends them in a single batch request, then patches both with their outputs:
+以下示例创建一个父运行和一个子运行，在单个批量请求中发送它们，然后使用它们的输出更新两者：
 
 ```python expandable
 import json
@@ -131,10 +131,10 @@ def create_dotted_order(
     start_time: datetime | None = None,
     run_id: uuid.UUID | None = None
 ) -> str:
-    """Create a dotted order string for run ordering and hierarchy.
+    """为运行排序和层次结构创建点序字符串。
 
-    The dotted order is used to establish the sequence and relationships between runs.
-    It combines a timestamp with a unique identifier to ensure proper ordering and tracing.
+    点序用于建立运行之间的顺序和关系。
+    它将时间戳与唯一标识符结合，以确保正确的排序和追踪。
     """
     st = start_time or datetime.now(timezone.utc)
     id_ = run_id or uuid7()
@@ -146,7 +146,7 @@ def create_run_base(
     inputs: dict,
     start_time: datetime
 ) -> dict:
-    """Create the base structure for a run."""
+    """创建运行的基础结构。"""
     run_id = uuid7()
     return {
         "id": str(run_id),
@@ -163,10 +163,9 @@ def construct_run(
     inputs: dict,
     parent_dotted_order: str | None = None,
 ) -> dict:
-    """Construct a run dictionary with the given parameters.
+    """使用给定参数构建运行字典。
 
-    This function creates a run with a unique ID and dotted order, establishing its place
-    in the trace hierarchy if it's a child run.
+    此函数创建一个具有唯一 ID 和点序的运行，如果它是子运行，则建立其在追踪层次结构中的位置。
     """
     start_time = datetime.now(timezone.utc)
     run = create_run_base(name, run_type, inputs, start_time)
@@ -181,21 +180,21 @@ def construct_run(
     return run
 
 def serialize_run(operation: str, run_data: dict) -> List[tuple]:
-    """Serialize a run for the multipart request.
+    """为多部分请求序列化运行。
 
-    This function separates the run data into parts for efficient transmission and storage.
-    The main run data and optional fields (inputs, outputs, events) are serialized separately.
+    此函数将运行数据分离为多个部分，以便高效传输和存储。
+    主要运行数据和可选字段（输入、输出、事件）分别序列化。
     """
     run_id = run_data.get("id", str(uuid7()))
 
-    # Separate optional fields
+    # 分离可选字段
     inputs = run_data.pop("inputs", None)
     outputs = run_data.pop("outputs", None)
     events = run_data.pop("events", None)
 
     parts = []
 
-    # Serialize main run data
+    # 序列化主要运行数据
     run_data_json = json.dumps(run_data).encode("utf-8")
     parts.append(
         (
@@ -209,7 +208,7 @@ def serialize_run(operation: str, run_data: dict) -> List[tuple]:
         )
     )
 
-    # Serialize optional fields
+    # 序列化可选字段
     for key, value in [("inputs", inputs), ("outputs", outputs), ("events", events)]:
         if value:
             serialized_value = json.dumps(value).encode("utf-8")
@@ -233,10 +232,10 @@ def batch_ingest_runs(
     posts: list[dict] | None = None,
     patches: list[dict] | None = None,
 ) -> None:
-    """Ingest multiple runs in a single batch request.
+    """在单个批量请求中摄取多个运行。
 
-    This function handles both creating new runs (posts) and updating existing runs (patches).
-    It's more efficient for ingesting multiple runs compared to individual API calls.
+    此函数处理创建新运行（posts）和更新现有运行（patches）。
+    与单独的 API 调用相比，它对于摄取多个运行更有效率。
     """
     boundary = uuid.uuid4().hex
     all_parts = []
@@ -260,24 +259,24 @@ def batch_ingest_runs(
         print("Successfully ingested runs.")
     except requests.RequestException as e:
         print(f"Error ingesting runs: {e}")
-        # In a production environment, you might want to log this error or handle it more robustly
+        # 在生产环境中，您可能希望记录此错误或更稳健地处理它
 
-# Configure API URL and key
-# For production use, consider using a configuration file or environment variables
-api_url = "https://api.smith.langchain.com"  # EU (GCP): eu.api...; US (AWS): aws.api... for regional SaaS
+# 配置 API URL 和密钥
+# 对于生产用途，考虑使用配置文件或环境变量
+api_url = "https://api.smith.langchain.com"  # 欧盟 (GCP): eu.api...; 美国 (AWS): aws.api... 用于区域 SaaS
 api_key = os.environ.get("LANGSMITH_API_KEY")
 
 if not api_key:
     raise ValueError("LANGSMITH_API_KEY environment variable is not set")
 
-# Create a parent run
+# 创建父运行
 parent_run = construct_run(
     name="Parent Run",
     run_type="chain",
     inputs={"main_question": "Tell me about France"},
 )
 
-# Create a child run, linked to the parent
+# 创建子运行，链接到父运行
 child_run = construct_run(
     name="Child Run",
     run_type="llm",
@@ -285,11 +284,11 @@ child_run = construct_run(
     parent_dotted_order=parent_run["dotted_order"],
 )
 
-# First, post the runs to create them
+# 首先，发送运行以创建它们
 posts = [parent_run, child_run]
 batch_ingest_runs(api_url, api_key, posts=posts)
 
-# Then, update the runs with their end times and any outputs
+# 然后，使用结束时间和任何输出更新运行
 child_run_update = {
     **child_run,
     "end_time": datetime.now(timezone.utc).isoformat(),
@@ -305,24 +304,24 @@ parent_run_update = {
 patches = [parent_run_update, child_run_update]
 batch_ingest_runs(api_url, api_key, patches=patches)
 
-# Note: This example requires the `requests` and `requests_toolbelt` libraries.
-# You can install them using pip:
+# 注意：此示例需要 `requests` 和 `requests_toolbelt` 库。
+# 您可以使用 pip 安装它们：
 # pip install requests requests_toolbelt
 ```
 
-## Related
+## 相关内容
 
-- [Run (span) data format](/langsmith/run-data-format)
-- [Specify a custom run ID](/langsmith/annotate-code#specify-a-custom-run-id)
-- [Custom instrumentation](/langsmith/annotate-code)
+- [运行（跨度）数据格式](/langsmith/run-data-format)
+- [指定自定义运行 ID](/langsmith/annotate-code#specify-a-custom-run-id)
+- [自定义检测](/langsmith/annotate-code)
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档](/use-these-docs)通过 MCP 连接到 Claude、VSCode 等，以获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/trace-with-api.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/trace-with-api.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

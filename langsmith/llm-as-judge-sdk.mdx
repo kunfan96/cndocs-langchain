@@ -1,71 +1,70 @@
 ---
-title: How to define an LLM-as-a-judge evaluator
-sidebarTitle: LLM-as-a-judge
+title: 如何定义LLM作为评判者的评估器
+sidebarTitle: LLM作为评判者
 ---
 
-LLM applications can be challenging to evaluate since they often generate conversational text with no single correct answer.
+LLM应用程序可能具有挑战性，因为它们通常生成对话式文本，没有单一的正确答案。
 
-This guide shows you how to define an [LLM-as-a-judge evaluator](/langsmith/evaluation-concepts#llm-as-judge) for [offline evaluation](/langsmith/evaluation-concepts#offline-evaluations) using the [LangSmith SDK](https://reference.langchain.com/python/langsmith/observability/sdk).
+本指南向您展示如何使用[LangSmith SDK](https://reference.langchain.com/python/langsmith/observability/sdk)为[离线评估](/langsmith/evaluation-concepts#offline-evaluations)定义一个[LLM作为评判者的评估器](/langsmith/evaluation-concepts#llm-as-judge)。
 
 <Tip>
-For a quick start, use [openevals](/langsmith/openevals), which provides ready-to-use LLM-as-a-judge evaluators.
+如需快速入门，请使用[openevals](/langsmith/openevals)，它提供了开箱即用的LLM作为评判者的评估器。
 </Tip>
 
-## Create your own LLM-as-a-judge evaluator
+## 创建您自己的LLM作为评判者的评估器
 
-For complete control of evaluator logic, create your own LLM-as-a-judge evaluator and run it using the LangSmith SDK ([Python](https://docs.smith.langchain.com/reference/python/reference) / [TypeScript](https://docs.smith.langchain.com/reference/js)).
+要完全控制评估器逻辑，请创建您自己的LLM作为评判者的评估器，并使用LangSmith SDK（[Python](https://docs.smith.langchain.com/reference/python/reference) / [TypeScript](https://docs.smith.langchain.com/reference/js)）运行它。
 
-Requires `langsmith>=0.2.0`
+需要 `langsmith>=0.2.0`
 
-An LLM-as-a-judge evaluator consists of three key components:
+一个LLM作为评判者的评估器由三个关键组件组成：
 
-1. **Evaluator function**: A function that receives the example inputs and application outputs, then uses an LLM to score the quality. The function should return a boolean, number, string, or dictionary with score information.
-1. **Target function**: Your application logic being evaluated (wrapped with [`@traceable`](https://reference.langchain.com/python/langsmith/run_helpers/traceable) for observability).
-1. **Dataset and evaluation**: A dataset of test examples and the `evaluate()` function that runs your target function on each example and applies your evaluators.
+1. **评估器函数**：一个接收示例输入和应用程序输出，然后使用LLM对质量进行评分的函数。该函数应返回一个布尔值、数字、字符串或包含分数信息的字典。
+1. **目标函数**：您正在评估的应用程序逻辑（使用 [`@traceable`](https://reference.langchain.com/python/langsmith/run_helpers/traceable) 进行包装以实现可观测性）。
+1. **数据集和评估**：一个包含测试示例的数据集，以及 `evaluate()` 函数，该函数在每个示例上运行您的目标函数并应用您的评估器。
 
-### Example
+### 示例
 
 ```python
 from langsmith import evaluate, traceable, wrappers, Client
 from openai import OpenAI
 from pydantic import BaseModel
 
-# Wrap the OpenAI client to automatically trace all LLM calls
+# 包装 OpenAI 客户端以自动跟踪所有 LLM 调用
 oai_client = wrappers.wrap_openai(OpenAI())
 
-# 1. Define your evaluator function
-# This function receives the inputs and outputs from each test example
+# 1. 定义您的评估器函数
+# 此函数接收每个测试示例的输入和输出
 def valid_reasoning(inputs: dict, outputs: dict) -> bool:
-    """Use an LLM to judge if the reasoning and the answer are consistent."""
-    # Define the evaluation criteria
+    """使用 LLM 判断推理和答案是否一致。"""
+    # 定义评估标准
     instructions = """
-Given the following question, answer, and reasoning, determine if the reasoning
-for the answer is logically valid and consistent with the question and the answer."""
+给定以下问题、答案和推理，判断答案的推理在逻辑上是否有效，并且与问题和答案一致。"""
 
-    # Use structured output to get a boolean score
+    # 使用结构化输出获取布尔分数
     class Response(BaseModel):
         reasoning_is_valid: bool
 
-    # Construct the prompt with the actual inputs and outputs
-    msg = f"Question: {inputs['question']}\nAnswer: {outputs['answer']}\nReasoning: {outputs['reasoning']}"
+    # 使用实际输入和输出构建提示
+    msg = f"问题: {inputs['question']}\n答案: {outputs['answer']}\n推理: {outputs['reasoning']}"
 
-    # Call the LLM to judge the output
+    # 调用 LLM 来判断输出
     response = oai_client.beta.chat.completions.parse(
         model="gpt-4o",
         messages=[{"role": "system", "content": instructions}, {"role": "user", "content": msg}],
         response_format=Response
     )
 
-    # Return the boolean score
+    # 返回布尔分数
     return response.choices[0].message.parsed.reasoning_is_valid
 
-# 2. Define your target function (the application being evaluated)
-# The @traceable decorator logs traces to LangSmith for debugging
+# 2. 定义您的目标函数（被评估的应用程序）
+# @traceable 装饰器将跟踪记录到 LangSmith 以进行调试
 @traceable
 def dummy_app(inputs: dict) -> dict:
     return {"answer": "hmm i'm not sure", "reasoning": "i didn't understand the question"}
 
-# 3. Create a dataset with test examples
+# 3. 创建包含测试示例的数据集
 ls_client = Client()
 dataset = ls_client.create_dataset("big questions")
 examples = [
@@ -74,24 +73,24 @@ examples = [
 ]
 ls_client.create_examples(dataset_id=dataset.id, examples=examples)
 
-# 4. Run the evaluation
-# This runs dummy_app on each example and applies the valid_reasoning evaluator
+# 4. 运行评估
+# 这会在每个示例上运行 dummy_app 并应用 valid_reasoning 评估器
 results = evaluate(
-    dummy_app,              # Your application function
-    data=dataset,           # Dataset to evaluate on
-    evaluators=[valid_reasoning]  # List of evaluator functions
+    dummy_app,              # 您的应用程序函数
+    data=dataset,           # 要评估的数据集
+    evaluators=[valid_reasoning]  # 评估器函数列表
 )
 ```
 
-For more information on how to write a custom evaluator, refer to [How to define a code evaluator (SDK)](/langsmith/code-evaluator-sdk).
+有关如何编写自定义评估器的更多信息，请参阅[如何定义代码评估器（SDK）](/langsmith/code-evaluator-sdk)。
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/llm-as-judge-sdk.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/llm-as-judge-sdk.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

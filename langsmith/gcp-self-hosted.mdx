@@ -1,166 +1,164 @@
 ---
-title: Self-hosted LangSmith on GCP
+title: 在 GCP 上自托管 LangSmith
 sidebarTitle: GCP
 icon: "brand-google"
 ---
 
-When running LangSmith on [Google Cloud Platform (GCP)](https://cloud.google.com/), you can set up in either [full self-hosted](/langsmith/self-hosted) or [hybrid](/langsmith/hybrid) mode. Full self-hosted mode deploys a complete LangSmith platform with observability functionality as well as the option to create agent deployments. Hybrid mode entails just the infrastructure to run agents in a data plane within your cloud, while our SaaS provides the control plane and observability functionality.
+在 [Google Cloud Platform (GCP)](https://cloud.google.com/) 上运行 LangSmith 时，您可以选择 [完全自托管](/langsmith/self-hosted) 或 [混合](/langsmith/hybrid) 模式进行设置。完全自托管模式部署一个完整的 LangSmith 平台，包含可观测性功能以及创建代理部署的选项。混合模式仅包含在您的云内数据平面中运行代理所需的基础设施，而我们的 SaaS 提供控制平面和可观测性功能。
 
-This page provides:
+本页面提供：
 
-- [Initial setup steps](#initial-setup) for deploying to GKE, configuring managed services, and setting up authentication.
-- [GCP-specific architecture patterns](#reference-architecture) and reference diagrams.
-- [Service recommendations](#compute-options) and best practices.
-- [Google Cloud Well-Architected best practices](#google-cloud-well-architected-best-practices) for operational excellence, security, and reliability.
+- [初始设置步骤](#initial-setup)，用于部署到 GKE、配置托管服务和设置身份验证。
+- [GCP 特定的架构模式](#reference-architecture) 和参考图。
+- [服务建议](#compute-options) 和最佳实践。
+- [Google Cloud Well-Architected 最佳实践](#google-cloud-well-architected-best-practices)，涵盖卓越运营、安全性和可靠性。
 
 <Note>
-LangChain provides Terraform modules specifically for GCP to help provision infrastructure for LangSmith. These modules can quickly set up GKE clusters, Cloud SQL, Memorystore Redis, Cloud Storage, and networking resources.
+LangChain 提供专门针对 GCP 的 Terraform 模块，以帮助为 LangSmith 配置基础设施。这些模块可以快速设置 GKE 集群、Cloud SQL、Memorystore Redis、Cloud Storage 和网络资源。
 
-View the [GCP Terraform modules](https://github.com/langchain-ai/terraform/tree/main/modules/gcp) for documentation and examples.
+查看 [GCP Terraform 模块](https://github.com/langchain-ai/terraform/tree/main/modules/gcp) 以获取文档和示例。
 </Note>
 
-## Initial setup
+## 初始设置
 
 <Steps>
-  <Step title="Deploy to Kubernetes">
-    Follow the [Kubernetes installation guide](/langsmith/kubernetes). LangSmith is tested on Google Kubernetes Engine (GKE).
+  <Step title="部署到 Kubernetes">
+    按照 [Kubernetes 安装指南](/langsmith/kubernetes) 操作。LangSmith 已在 Google Kubernetes Engine (GKE) 上进行测试。
 
-    **GKE-specific notes:**
-    - LangSmith works with standard GKE clusters
-    - Use GCE persistent disk storage class
+    **GKE 特定说明：**
+    - LangSmith 适用于标准 GKE 集群
+    - 使用 GCE 持久盘存储类
   </Step>
 
-  <Step title="Configure external services">
-    For production deployments, connect to GCP managed services:
+  <Step title="配置外部服务">
+    对于生产部署，请连接到 GCP 托管服务：
 
     <CardGroup cols={2}>
       <Card title="Google Cloud Storage" icon="database" href="/langsmith/self-host-blob-storage#google-cloud-storage">
-        Store trace data in GCS
+        将跟踪数据存储在 GCS 中
       </Card>
       <Card title="Cloud SQL" icon="database" href="/langsmith/self-host-external-postgres#google-cloud-sql">
-        PostgreSQL database
+        PostgreSQL 数据库
       </Card>
       <Card title="Memorystore" icon="cpu" href="/langsmith/self-host-external-redis#google-cloud-memorystore">
-        Redis or Valkey for caching
+        用于缓存的 Redis 或 Valkey
       </Card>
       <Card title="ClickHouse Cloud" icon="chart-line" href="/langsmith/self-host-external-clickhouse">
-        Analytics database
+        分析数据库
       </Card>
     </CardGroup>
   </Step>
 
-  <Step title="Set up authentication">
-    Use [Workload Identity](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity) to authenticate LangSmith pods to GCP services.
+  <Step title="设置身份验证">
+    使用 [Workload Identity](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity) 让 LangSmith Pod 向 GCP 服务进行身份验证。
 
-    **Key pages:**
-    - [GCS HMAC key authentication](/langsmith/self-host-blob-storage#google-cloud-storage)
-    - [Cloud SQL IAM authentication](/langsmith/self-host-external-postgres#iam-authentication)
-    - [Memorystore IAM authentication](/langsmith/self-host-external-redis#iam-authentication)
+    **关键页面：**
+    - [GCS HMAC 密钥身份验证](/langsmith/self-host-blob-storage#google-cloud-storage)
+    - [Cloud SQL IAM 身份验证](/langsmith/self-host-external-postgres#iam-authentication)
+    - [Memorystore IAM 身份验证](/langsmith/self-host-external-redis#iam-authentication)
   </Step>
 </Steps>
 
-After completing these initial setup steps, you can review the complete GCP architecture and best practices below.
+完成这些初始设置步骤后，您可以查看下面完整的 GCP 架构和最佳实践。
 
-## Reference architecture
+## 参考架构
 
-We recommend leveraging GCP's managed services to provide a scalable, secure, and resilient platform. The following architecture applies to both self-hosted and hybrid and aligns with the [Google Cloud Well-Architected Framework](https://docs.cloud.google.com/architecture/framework):
+我们建议利用 GCP 的托管服务来提供一个可扩展、安全且有弹性的平台。以下架构适用于自托管和混合模式，并符合 [Google Cloud Well-Architected Framework](https://docs.cloud.google.com/architecture/framework)：
 
-![Architecture diagram showing GCP relations to LangSmith services](/langsmith/images/gcp-architecture-self-hosted.png)
+![显示 GCP 与 LangSmith 服务关系的架构图](/langsmith/images/gcp-architecture-self-hosted.png)
 
-- <Icon icon="globe" /> **Ingress & networking**: Requests enter via [Cloud Load Balancing](https://cloud.google.com/load-balancing) within your [VPC](https://cloud.google.com/vpc), secured using [Cloud Armor](https://cloud.google.com/armor) and [IAM](https://cloud.google.com/iam)-based authentication.
-- <Icon icon="cube" /> **Frontend & backend services:** Containers run on [Google Kubernetes Engine (GKE)](https://cloud.google.com/kubernetes-engine), orchestrated behind the load balancer. Routes requests to other services within the cluster as necessary.
-- <Icon icon="database" /> **Storage & databases:**
-  - [Cloud SQL for PostgreSQL](https://cloud.google.com/sql/docs/postgres): metadata, projects, users, and short-term and long-term memory for deployed agents. LangSmith supports PostgreSQL version 14 or higher.
-  - [Memorystore](https://cloud.google.com/memorystore) ([Redis](https://cloud.google.com/memorystore/docs/redis) or [Valkey](https://cloud.google.com/memorystore/docs/valkey)): caching and job queues. Memorystore can be in single-instance or cluster mode. LangSmith requires Redis OSS version 5 or higher, or Valkey 8.
-  - ClickHouse + [Persistent Disks](https://cloud.google.com/compute/docs/disks): analytics and trace storage.
-    - We recommend using an [externally managed ClickHouse solution](/langsmith/self-host-external-clickhouse) unless security or compliance reasons
-    prevent you from doing so.
-    - ClickHouse is not required for hybrid deployments.
-  - [Cloud Storage](https://cloud.google.com/storage): object storage for trace artifacts and telemetry.
+- <Icon icon="globe" /> **入口与网络**：请求通过您 [VPC](https://cloud.google.com/vpc) 内的 [Cloud Load Balancing](https://cloud.google.com/load-balancing) 进入，使用 [Cloud Armor](https://cloud.google.com/armor) 和基于 [IAM](https://cloud.google.com/iam) 的身份验证进行保护。
+- <Icon icon="cube" /> **前端和后端服务：** 容器运行在 [Google Kubernetes Engine (GKE)](https://cloud.google.com/kubernetes-engine) 上，在负载均衡器后进行编排。根据需要将请求路由到集群内的其他服务。
+- <Icon icon="database" /> **存储和数据库：**
+  - [Cloud SQL for PostgreSQL](https://cloud.google.com/sql/docs/postgres)：元数据、项目、用户以及已部署代理的短期和长期记忆。LangSmith 支持 PostgreSQL 14 或更高版本。
+  - [Memorystore](https://cloud.google.com/memorystore) ([Redis](https://cloud.google.com/memorystore/docs/redis) 或 [Valkey](https://cloud.google.com/memorystore/docs/valkey))：缓存和作业队列。Memorystore 可以是单实例或集群模式。LangSmith 需要 Redis OSS 5 或更高版本，或 Valkey 8。
+  - ClickHouse + [持久盘](https://cloud.google.com/compute/docs/disks)：分析和跟踪存储。
+    - 除非安全或合规性原因阻止，否则我们建议使用 [外部管理的 ClickHouse 解决方案](/langsmith/self-host-external-clickhouse)。
+    - 混合部署不需要 ClickHouse。
+  - [Cloud Storage](https://cloud.google.com/storage)：用于跟踪工件和遥测的对象存储。
 
-- <Icon icon="sparkles" /> **LLM integration:** Optionally proxy requests to [Vertex AI](https://cloud.google.com/vertex-ai) for LLM inference.
-- <Icon icon="chart-line" /> **Monitoring & observability:** Integrate with [Cloud Monitoring](https://cloud.google.com/monitoring) and [Cloud Logging](https://cloud.google.com/logging)
+- <Icon icon="sparkles" /> **LLM 集成：** 可选地将请求代理到 [Vertex AI](https://cloud.google.com/vertex-ai) 进行 LLM 推理。
+- <Icon icon="chart-line" /> **监控与可观测性：** 与 [Cloud Monitoring](https://cloud.google.com/monitoring) 和 [Cloud Logging](https://cloud.google.com/logging) 集成。
 
+## 计算选项
 
-## Compute options
+LangSmith 支持多种计算选项，具体取决于您的需求：
 
-LangSmith supports multiple compute options depending on your requirements:
-
-| Compute option | Description | Suitable for |
+| 计算选项 | 描述 | 适用场景 |
 |-----------------|-------------|--------------|
-| **Google Kubernetes Engine (preferred)** | Advanced scaling and multi-tenant support | Large enterprises |
-| **Compute Engine-based** | Full control, BYO-infra | Regulated or air-gapped environments |
+| **Google Kubernetes Engine（首选）** | 高级扩展和多租户支持 | 大型企业 |
+| **基于 Compute Engine** | 完全控制，自带基础设施 | 受监管或气隙环境 |
 
-## Google cloud Well-Architected best practices
+## Google Cloud Well-Architected 最佳实践
 
-This reference is designed to align with the six pillars of the Google Cloud Well-Architected Framework:
+本参考旨在与 Google Cloud Well-Architected Framework 的六大支柱保持一致：
 
-### Operational excellence
+### 卓越运营
 
-- Automate deployments with IaC ([Terraform](https://www.terraform.io/) / [Deployment Manager](https://cloud.google.com/deployment-manager)).
-- Use [Secret Manager](https://cloud.google.com/secret-manager) for configuration and sensitive data.
-- Configure your LangSmith instance to [export telemetry data](/langsmith/export-backend) and continuously monitor via [Cloud Logging](https://cloud.google.com/logging).
-- The preferred method to manage [LangSmith deployments](/langsmith/deployment) is to create a CI process that builds [Agent Server](/langsmith/agent-server) images and pushes them to [Artifact Registry](https://cloud.google.com/artifact-registry). Create a test deployment for pull requests before deploying a new revision to staging or production upon PR merge.
+- 使用 IaC（[Terraform](https://www.terraform.io/) / [Deployment Manager](https://cloud.google.com/deployment-manager)）自动化部署。
+- 使用 [Secret Manager](https://cloud.google.com/secret-manager) 管理配置和敏感数据。
+- 配置您的 LangSmith 实例以 [导出遥测数据](/langsmith/export-backend)，并通过 [Cloud Logging](https://cloud.google.com/logging) 持续监控。
+- 管理 [LangSmith 部署](/langsmith/deployment) 的首选方法是创建一个 CI 流程，该流程构建 [Agent Server](/langsmith/agent-server) 镜像并将其推送到 [Artifact Registry](https://cloud.google.com/artifact-registry)。在将新版本部署到暂存或生产环境之前，为拉取请求创建测试部署。
 
-### Security
+### 安全性
 
-- Use [IAM](https://cloud.google.com/iam) roles with least-privilege policies and [Workload Identity](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity) for secure pod-to-GCP-service authentication.
-- Enable encryption at rest ([Cloud SQL](https://docs.cloud.google.com/sql/docs/postgres/cmek), [Cloud Storage](https://cloud.google.com/storage/docs/encryption), Persistent Disks) and in transit (TLS 1.2+).
-- Integrate with [Secret Manager](https://cloud.google.com/secret-manager) for credentials.
-- Use [Identity Platform](https://cloud.google.com/identity-platform) or [Workload Identity Federation](https://cloud.google.com/iam/docs/workload-identity-federation) as an IDP in conjunction with LangSmith's built-in authentication and authorization features to secure access to agents and their tools.
+- 使用具有最小权限策略的 [IAM](https://cloud.google.com/iam) 角色和 [Workload Identity](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity) 进行安全的 Pod 到 GCP 服务的身份验证。
+- 启用静态加密（[Cloud SQL](https://docs.cloud.google.com/sql/docs/postgres/cmek)、[Cloud Storage](https://cloud.google.com/storage/docs/encryption)、持久盘）和传输中加密（TLS 1.2+）。
+- 与 [Secret Manager](https://cloud.google.com/secret-manager) 集成以管理凭证。
+- 使用 [Identity Platform](https://cloud.google.com/identity-platform) 或 [Workload Identity Federation](https://cloud.google.com/iam/docs/workload-identity-federation) 作为 IDP，结合 LangSmith 的内置身份验证和授权功能，以保护对代理及其工具的访问。
 
-### Reliability
+### 可靠性
 
-- Replicate the LangSmith [data plane](/langsmith/data-plane) across regions: Deploy identical data planes to Kubernetes clusters in different regions for LangSmith Deployment. Deploy [Cloud SQL](https://cloud.google.com/sql/docs/postgres/high-availability) and [GKE](https://docs.cloud.google.com/kubernetes-engine/docs/concepts/configuration-overview) services across multiple zones.
-- Implement [autoscaling](https://cloud.google.com/kubernetes-engine/docs/concepts/cluster-autoscaler) for backend workers using [Horizontal Pod Autoscaler](https://cloud.google.com/kubernetes-engine/docs/concepts/horizontalpodautoscaler) and [Cluster Autoscaler](https://cloud.google.com/kubernetes-engine/docs/concepts/cluster-autoscaler).
-- Use [Cloud DNS](https://cloud.google.com/dns) health checks and failover policies.
+- 跨区域复制 LangSmith [数据平面](/langsmith/data-plane)：在不同区域的 Kubernetes 集群中部署相同的数据平面用于 LangSmith Deployment。跨多个可用区部署 [Cloud SQL](https://cloud.google.com/sql/docs/postgres/high-availability) 和 [GKE](https://docs.cloud.google.com/kubernetes-engine/docs/concepts/configuration-overview) 服务。
+- 使用 [Horizontal Pod Autoscaler](https://cloud.google.com/kubernetes-engine/docs/concepts/horizontalpodautoscaler) 和 [Cluster Autoscaler](https://cloud.google.com/kubernetes-engine/docs/concepts/cluster-autoscaler) 为后端工作程序实现 [自动扩展](https://cloud.google.com/kubernetes-engine/docs/concepts/cluster-autoscaler)。
+- 使用 [Cloud DNS](https://cloud.google.com/dns) 健康检查和故障转移策略。
 
-### Performance optimization
+### 性能优化
 
-- Leverage [Compute Engine](https://cloud.google.com/compute) instances for optimized compute with [machine type selection](https://cloud.google.com/compute/docs/machine-types).
-- Use [Cloud Storage lifecycle policies](https://cloud.google.com/storage/docs/lifecycle) for infrequently accessed trace data, moving to [Nearline](https://cloud.google.com/storage/docs/storage-classes#nearline) or [Coldline](https://cloud.google.com/storage/docs/storage-classes#coldline) storage classes.
+- 利用 [Compute Engine](https://cloud.google.com/compute) 实例，通过 [机器类型选择](https://cloud.google.com/compute/docs/machine-types) 实现优化计算。
+- 对不常访问的跟踪数据使用 [Cloud Storage 生命周期策略](https://cloud.google.com/storage/docs/lifecycle)，将其移动到 [Nearline](https://cloud.google.com/storage/docs/storage-classes#nearline) 或 [Coldline](https://cloud.google.com/storage/docs/storage-classes#coldline) 存储类别。
 
-### Cost optimization
+### 成本优化
 
-- Right-size [GKE](https://cloud.google.com/kubernetes-engine) clusters using [Committed Use Discounts](https://cloud.google.com/compute/docs/instances/signing-up-committed-use-discounts) and [Sustained Use Discounts](https://cloud.google.com/compute/docs/sustained-use-discounts).
-- Monitor cost KPIs using [Cloud Billing](https://cloud.google.com/billing/docs) dashboards and [Cost Management](https://cloud.google.com/cost-management) tools.
+- 使用 [承诺使用折扣](https://cloud.google.com/compute/docs/instances/signing-up-committed-use-discounts) 和 [持续使用折扣](https://cloud.google.com/compute/docs/sustained-use-discounts) 对 [GKE](https://cloud.google.com/kubernetes-engine) 集群进行合理规模调整。
+- 使用 [Cloud Billing](https://cloud.google.com/billing/docs) 仪表板和 [Cost Management](https://cloud.google.com/cost-management) 工具监控成本 KPI。
 
-### Sustainability
+### 可持续性
 
-- Minimize idle workloads with on-demand compute and [autoscaling](https://cloud.google.com/kubernetes-engine/docs/concepts/cluster-autoscaler).
-- Store telemetry in low-latency, low-cost tiers using [Cloud Storage lifecycle policies](https://cloud.google.com/storage/docs/lifecycle).
-- Enable auto-shutdown for non-prod environments using [scheduled actions](https://cloud.google.com/compute/docs/instances/schedule-instance-start-stop).
+- 通过按需计算和 [自动扩展](https://cloud.google.com/kubernetes-engine/docs/concepts/cluster-autoscaler) 最小化空闲工作负载。
+- 使用 [Cloud Storage 生命周期策略](https://cloud.google.com/storage/docs/lifecycle) 将遥测数据存储在低延迟、低成本的层级中。
+- 使用 [计划操作](https://cloud.google.com/compute/docs/instances/schedule-instance-start-stop) 为非生产环境启用自动关闭。
 
-## Security and compliance
+## 安全与合规
 
-LangSmith can be configured for:
+LangSmith 可配置为：
 
-- [Private Service Connect](https://cloud.google.com/vpc/docs/private-service-connect)-only access (no public internet exposure, besides egress necessary for billing).
-- [Cloud KMS](https://cloud.google.com/kms)-based encryption keys for Cloud Storage, Cloud SQL, and Persistent Disks.
-- Audit logging to [Cloud Logging](https://cloud.google.com/logging) and [Cloud Audit Logs](https://cloud.google.com/logging/docs/audit).
+- 仅通过 [Private Service Connect](https://cloud.google.com/vpc/docs/private-service-connect) 访问（无公共互联网暴露，计费所需的出站流量除外）。
+- 基于 [Cloud KMS](https://cloud.google.com/kms) 的加密密钥，用于 Cloud Storage、Cloud SQL 和持久盘。
+- 审计日志记录到 [Cloud Logging](https://cloud.google.com/logging) 和 [Cloud Audit Logs](https://cloud.google.com/logging/docs/audit)。
 
-Customers can deploy in [Assured Workloads](https://cloud.google.com/assured-workloads) regions for compliance with ISO, HIPAA, or other regulatory requirements as needed.
+客户可以在 [Assured Workloads](https://cloud.google.com/assured-workloads) 区域进行部署，以根据需要满足 ISO、HIPAA 或其他监管要求。
 
-## Monitoring and evals
+## 监控与评估
 
-Use LangSmith to:
+使用 LangSmith 来：
 
-- Capture traces from LLM apps running on [Vertex AI](https://cloud.google.com/vertex-ai).
-- Evaluate model outputs via [LangSmith datasets](/langsmith/manage-datasets).
-- Track latency, token usage, and success rates.
+- 捕获在 [Vertex AI](https://cloud.google.com/vertex-ai) 上运行的 LLM 应用的跟踪。
+- 通过 [LangSmith 数据集](/langsmith/manage-datasets) 评估模型输出。
+- 跟踪延迟、令牌使用量和成功率。
 
-Integrate with:
+与以下内容集成：
 
-- [Cloud Monitoring](https://cloud.google.com/monitoring) dashboards.
-- [OpenTelemetry](https://opentelemetry.io/) and [Prometheus](https://prometheus.io/) exporters.
+- [Cloud Monitoring](https://cloud.google.com/monitoring) 仪表板。
+- [OpenTelemetry](https://opentelemetry.io/) 和 [Prometheus](https://prometheus.io/) 导出器。
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档](/use-these-docs) 通过 MCP 连接到 Claude、VSCode 等，以获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/gcp-self-hosted.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/gcp-self-hosted.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

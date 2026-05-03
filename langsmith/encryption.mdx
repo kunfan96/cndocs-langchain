@@ -1,22 +1,23 @@
 ---
-title: Add encryption at rest
-sidebarTitle: Encryption at rest
+title: 添加静态加密
+sidebarTitle: 静态加密
 ---
 
-Agent Server supports encryption at rest for checkpoint data and metadata. You can choose between basic encryption with a single key or custom encryption for advanced use cases.
+Agent Server 支持对检查点数据和元数据进行静态加密。您可以选择使用单个密钥的基本加密，或针对高级用例的自定义加密。
 
-## Choosing an encryption method
+## 选择加密方法
 
-| Method | What's encrypted | Use case |
-|--------|------------------|----------|
-| **Basic encryption** | Checkpoint blobs, optionally JSON fields | Single static key, automatic AES encryption |
-| **Custom encryption** | Checkpoints, threads, runs, assistants, crons and stores | Per-tenant keys, KMS integration, selective field encryption |
+| 方法           | 加密内容                                 | 用例                                 |
+| -------------- | ---------------------------------------- | ------------------------------------ |
+| **基本加密**   | 检查点 blob，可选 JSON 字段              | 单个静态密钥，自动 AES 加密          |
+| **自定义加密** | 检查点、线程、运行、助手、定时任务和存储 | 每租户密钥、KMS 集成、选择性字段加密 |
 
-## Basic encryption
+## 基本加密
 
-For simple encryption with a single static key, set the `LANGGRAPH_AES_KEY` environment variable. LangGraph will automatically encrypt checkpoint blobs using AES.
+要使用单个静态密钥进行简单加密，请设置 `LANGGRAPH_AES_KEY` 环境变量。LangGraph 将自动使用 AES 加密检查点 blob。
 
-1. Add `pycryptodome` to your dependencies in `langgraph.json`:
+1. 在 `langgraph.json` 的依赖项中添加 `pycryptodome`：
+
    ```json
    {
      "dependencies": [".", "pycryptodome"],
@@ -26,53 +27,53 @@ For simple encryption with a single static key, set the `LANGGRAPH_AES_KEY` envi
    }
    ```
 
-2. Set the `LANGGRAPH_AES_KEY` environment variable to a 16, 24, or 32-byte key (for AES-128, AES-192, or AES-256 respectively).
+2. 将 `LANGGRAPH_AES_KEY` 环境变量设置为 16、24 或 32 字节的密钥（分别对应 AES-128、AES-192 或 AES-256）。
 
-### Encrypting JSON fields
+### 加密 JSON 字段
 
-To also encrypt specific JSON fields, set `LANGGRAPH_AES_JSON_KEYS` to a comma-separated list of keys to encrypt:
+要同时加密特定的 JSON 字段，请将 `LANGGRAPH_AES_JSON_KEYS` 设置为逗号分隔的要加密的键列表：
 
 ```bash
 export LANGGRAPH_AES_KEY="your-16-24-or-32-byte-key"
 export LANGGRAPH_AES_JSON_KEYS="api_key,secret_token,user_credentials"
 ```
 
-These keys are encrypted wherever they appear in thread, assistant, run, cron, and store data.
+这些键在它们出现的线程、助手、运行、定时任务和存储数据中都会被加密。
 
-<Warning>
-Encrypted fields cannot be searched or filtered.
-</Warning>
+<Warning>加密字段无法被搜索或过滤。</Warning>
 
-System fields cannot be encrypted: `langgraph_version`, `langgraph_api_version`, `langgraph_plan`, `langgraph_host`, `langgraph_api_url`, `langgraph_request_id`, `langgraph_auth_user_id`, and `langgraph_auth_permissions`.
+系统字段无法加密：`langgraph_version`、`langgraph_api_version`、`langgraph_plan`、`langgraph_host`、`langgraph_api_url`、`langgraph_request_id`、`langgraph_auth_user_id` 和 `langgraph_auth_permissions`。
 
-## Custom encryption
+## 自定义加密
 
 <Note>
-Requires Agent Server version 0.6.22+ and Python SDK version `langgraph-sdk>=0.3.1`.
+需要 Agent Server 版本 0.6.22+ 和 Python SDK 版本 `langgraph-sdk>=0.3.1`。
 </Note>
 
 <Warning>
-Agent Server versions 0.5.34–0.6.21 included a pre-release version of custom encryption. Data encrypted with these versions will be corrupted when upgrading to 0.6.22+. Do not use custom encryption on these versions.
+  Agent Server 版本 0.5.34–0.6.21
+  包含了自定义加密的预发布版本。使用这些版本加密的数据在升级到 0.6.22+
+  时会损坏。请勿在这些版本上使用自定义加密。
 </Warning>
 
-Use custom encryption when you need:
+当您需要以下功能时，请使用自定义加密：
 
-- **Per-tenant key isolation** — different encryption keys for different customers
-- **KMS integration** — AWS KMS, Google Cloud KMS, or HashiCorp Vault for key management, rotation, and audit logging
-- **Selective field encryption** — encrypt sensitive metadata fields while keeping others searchable
+- **每租户密钥隔离** —— 为不同客户使用不同的加密密钥
+- **KMS 集成** —— 使用 AWS KMS、Google Cloud KMS 或 HashiCorp Vault 进行密钥管理、轮换和审计日志记录
+- **选择性字段加密** —— 加密敏感元数据字段，同时保持其他字段可搜索
 
-### How it works
+### 工作原理
 
-1. [Configure](#configuration) the encryption module path in `langgraph.json`
-2. [Define your encryption module](#defining-your-encryption-module) with handlers for blob and JSON encryption
-3. [Pass encryption context](#passing-encryption-context) (like tenant ID) via the `X-Encryption-Context` header
-4. LangGraph calls your handlers before storing and after retrieving data
+1. [配置](#配置) `langgraph.json` 中的加密模块路径
+2. [定义您的加密模块](#定义您的加密模块)，包含 blob 和 JSON 加密的处理程序
+3. 通过 `X-Encryption-Context` 头 [传递加密上下文](#传递加密上下文)（如租户 ID）
+4. LangGraph 在存储数据前和检索数据后调用您的处理程序
 
-For production deployments with key rotation and audit logging, see [Envelope encryption with AWS Encryption SDK](#envelope-encryption-with-aws-encryption-sdk).
+有关具有密钥轮换和审计日志记录的生产部署，请参阅 [使用 AWS Encryption SDK 的信封加密](#使用-aws-encryption-sdk-的信封加密)。
 
-### Configuration
+### 配置
 
-Add your encryption module to `langgraph.json`:
+将您的加密模块添加到 `langgraph.json`：
 
 ```json
 {
@@ -87,14 +88,15 @@ Add your encryption module to `langgraph.json`:
 ```
 
 <Note>
-If you're migrating from basic encryption, keep `LANGGRAPH_AES_KEY` configured. Custom encryption handles new writes while existing AES-encrypted data remains readable.
+  如果您从基本加密迁移过来，请保持 `LANGGRAPH_AES_KEY`
+  已配置。自定义加密处理新的写入，而现有的 AES 加密数据仍然可读。
 </Note>
 
-### Defining your encryption module
+### 定义您的加密模块
 
-#### Blob encryption (checkpoints)
+#### Blob 加密（检查点）
 
-Blob handlers encrypt checkpoint data—the serialized state from graph execution. Here's a simplified example using per-tenant keys with [Fernet](https://cryptography.io/en/latest/fernet/) (a symmetric encryption scheme from the `cryptography` library):
+Blob 处理程序加密检查点数据——来自图执行的序列化状态。这是一个使用 [Fernet](https://cryptography.io/en/latest/fernet/)（来自 `cryptography` 库的对称加密方案）的每租户密钥的简化示例：
 
 ```python
 import os
@@ -103,7 +105,7 @@ from langgraph_sdk import Encryption, EncryptionContext
 
 encryption = Encryption()
 
-# In production, fetch from a secrets manager
+# 在生产环境中，从密钥管理器获取
 TENANT_KEYS = {
     "tenant-a": Fernet(os.environ["TENANT_A_KEY"]),
     "tenant-b": Fernet(os.environ["TENANT_B_KEY"]),
@@ -127,11 +129,11 @@ async def decrypt_blob(ctx: EncryptionContext, data: bytes) -> bytes:
     return _get_fernet(ctx).decrypt(data)
 ```
 
-The `ctx.metadata` dict comes from the `X-Encryption-Context` header and is stored in plaintext alongside encrypted data, so the correct key is used on decryption.
+`ctx.metadata` 字典来自 `X-Encryption-Context` 头，并以明文形式与加密数据一起存储，以便在解密时使用正确的密钥。
 
-#### JSON encryption (metadata)
+#### JSON 加密（元数据）
 
-JSON handlers encrypt structured data like thread metadata, assistant context, and run kwargs. Unlike blob encryption, you choose which fields to encrypt—keeping some unencrypted for search and filtering.
+JSON 处理程序加密结构化数据，如线程元数据、助手上下文和运行 kwargs。与 blob 加密不同，您可以选择要加密哪些字段——保持某些字段未加密以用于搜索和过滤。
 
 ```python
 import json
@@ -192,51 +194,57 @@ async def decrypt_json(ctx: EncryptionContext, data: dict) -> dict:
     return result
 ```
 
-#### JSON encryption considerations
+#### JSON 加密注意事项
 
 <Warning>
-**Encrypted fields cannot be searched or filtered.** Design your metadata schema so that fields you need to query remain unencrypted.
+  **加密字段无法被搜索或过滤。**
+  设计您的元数据模式时，请确保需要查询的字段保持未加密。
 </Warning>
 
 <Warning>
-**JSON encryptors must preserve key structure.** SQL JSONB merge operations work at the key level. Encryptors that change keys—whether by consolidating fields (e.g., moving sensitive data into `__encrypted__`) or by encrypting key names themselves—cause data loss during merges. Use per-key encryption: transform values in-place while preserving keys.
+  **JSON 加密器必须保留键结构。** SQL JSONB
+  合并操作在键级别进行。更改键的加密器——无论是通过合并字段（例如，将敏感数据移入
+  `__encrypted__`）还是通过加密键名本身——都会在合并期间导致数据丢失。使用每键加密：就地转换值，同时保留键。
 </Warning>
 
 <Note>
-**Migration consideration:** Use a recognizable prefix or format in encrypted values so your decryptor can detect and skip unencrypted data. This allows you to encrypt additional fields in the future without re-encrypting existing records. The example above uses this pattern.
+  **迁移注意事项：**
+  在加密值中使用可识别的前缀或格式，以便您的解密器可以检测并跳过未加密的数据。这使您将来可以加密额外的字段，而无需重新加密现有记录。上面的示例使用了这种模式。
 </Note>
 
 <Note>
-**Performance consideration:** Per-key encryption means one encryption call per field. If your encryption involves round-trips to an external service (e.g., KMS), this can significantly impact latency. Consider caching data keys locally or using envelope encryption where you encrypt a local data key with KMS and use it for multiple fields.
+  **性能注意事项：**
+  每键加密意味着每个字段一次加密调用。如果您的加密涉及与外部服务（例如
+  KMS）的往返，这可能会显著影响延迟。考虑在本地缓存数据密钥，或使用信封加密，您使用
+  KMS 加密本地数据密钥并将其用于多个字段。
 </Note>
 
-User-defined fields for authorization (e.g., `tenant_id`, `owner`) should generally be left **unencrypted**, as should fields used for search and filtering. Additionally, **some system-managed fields will never be encrypted**:
+用于授权的用户定义字段（例如 `tenant_id`、`owner`）通常应保持**未加密**，用于搜索和过滤的字段也应如此。此外，**某些系统管理的字段永远不会被加密**：
 
-- Resource identifiers (`thread_id`, `run_id`, `assistant_id`, `graph_id`, `checkpoint_id`, `task_id`)
-- Most fields beginning with `langgraph_` (except for `langgraph_auth_user`)
-- Required checkpoint metadata (`source`, `step`, `parents`, `run_attempt`)
-- Internal fields used for scheduling and orchestration (`__after_seconds__`, `__request_start_time_ms__`, most fields beginning with `__pregel`)
-- Run-level execution limits (`max_concurrency`, `recursion_limit`) specified in a run's `config`
-- Thread TTL updates (`ttl`) specified in a run's `config.configurable`
+- 资源标识符（`thread_id`、`run_id`、`assistant_id`、`graph_id`、`checkpoint_id`、`task_id`）
+- 大多数以 `langgraph_` 开头的字段（`langgraph_auth_user` 除外）
+- 必需的检查点元数据（`source`、`step`、`parents`、`run_attempt`）
+- 用于调度和编排的内部字段（`__after_seconds__`、`__request_start_time_ms__`、大多数以 `__pregel` 开头的字段）
+- 在运行的 `config` 中指定的运行级执行限制（`max_concurrency`、`recursion_limit`）
+- 在运行的 `config.configurable` 中指定的线程 TTL 更新（`ttl`）
 
+#### 加密内容
 
-#### What gets encrypted
+**JSON 处理程序**（`@encryption.encrypt.json` / `@encryption.decrypt.json`）递归应用于以下字段：
 
-**JSON handlers** (`@encryption.encrypt.json` / `@encryption.decrypt.json`) are applied recursively to the following fields:
-- `thread.metadata`, `thread.values`
-- `assistant.metadata`, `assistant.context`
-- `run.metadata`, `run.kwargs`
-- `cron.metadata`, `cron.payload`
+- `thread.metadata`、`thread.values`
+- `assistant.metadata`、`assistant.context`
+- `run.metadata`、`run.kwargs`
+- `cron.metadata`、`cron.payload`
 - `store.value`
 
-[Some fields are excluded from encryption.](#what-gets-encrypted) Unless otherwise noted, these exclusions apply at every level of a nested JSON object, not just the root level.
+[某些字段被排除在加密之外。](#加密内容) 除非另有说明，这些排除适用于嵌套 JSON 对象的每个级别，而不仅仅是根级别。
 
-**Blob handlers** (`@encryption.encrypt.blob` / `@encryption.decrypt.blob`) are applied to checkpoint blobs (graph execution state).
+**Blob 处理程序**（`@encryption.encrypt.blob` / `@encryption.decrypt.blob`）应用于检查点 blob（图执行状态）。
 
+#### 从认证派生上下文
 
-#### Deriving context from authentication
-
-Instead of passing `X-Encryption-Context` explicitly, derive encryption context from the authenticated user:
+无需显式传递 `X-Encryption-Context`，可以从经过身份验证的用户派生加密上下文：
 
 ```python
 from langgraph_sdk import Encryption, EncryptionContext
@@ -252,11 +260,11 @@ async def get_encryption_context(user: BaseUser, ctx: EncryptionContext) -> dict
     }
 ```
 
-This handler runs once per request after authentication. The returned dict becomes `ctx.metadata` for all encryption operations in that request.
+此处理程序在身份验证后每个请求运行一次。返回的字典成为该请求中所有加密操作的 `ctx.metadata`。
 
-### Passing encryption context
+### 传递加密上下文
 
-Pass encryption context via the `X-Encryption-Context` header. The context is arbitrary data that you define—you control the schema and can include any fields your encryption logic needs (e.g., `tenant_id`, `key_version`). The context is available in your handlers as `ctx.metadata` and is stored in plaintext for use during decryption.
+通过 `X-Encryption-Context` 头传递加密上下文。上下文是您定义的任意数据——您控制模式，并可以包含加密逻辑所需的任何字段（例如 `tenant_id`、`key_version`）。上下文在您的处理程序中作为 `ctx.metadata` 可用，并以明文形式存储以供解密时使用。
 
 ```python
 import base64
@@ -278,19 +286,19 @@ result = await client.runs.wait(
 ```
 
 <Note>
-The encryption context is stored in plaintext. On decryption, it's automatically restored—callers don't need to pass the header when reading.
+  加密上下文以明文形式存储。解密时，它会自动恢复——调用者在读取时不需要传递该头。
 </Note>
 
-### Envelope encryption with AWS Encryption SDK
+### 使用 AWS Encryption SDK 的信封加密
 
-For production deployments on AWS, use the [AWS Encryption SDK](https://docs.aws.amazon.com/encryption-sdk/latest/developer-guide/python.html) with AWS KMS, or an equivalent within your cloud provider. This approach:
+对于 AWS 上的生产部署，请使用 [AWS Encryption SDK](https://docs.aws.amazon.com/encryption-sdk/latest/developer-guide/python.html) 与 AWS KMS，或在您的云提供商中使用等效方案。此方法：
 
-- Handles envelope encryption automatically (no manual key packing)
-- Provides key rotation and audit logging
-- Binds ciphertext to encryption context (tenant isolation)
-- Caches data keys locally to avoid repeated KMS calls, latency and rate limits
+- 自动处理信封加密（无需手动打包密钥）
+- 提供密钥轮换和审计日志记录
+- 将密文绑定到加密上下文（租户隔离）
+- 在本地缓存数据密钥以避免重复的 KMS 调用、延迟和速率限制
 
-#### Complete example
+#### 完整示例
 
 ```python
 import base64
@@ -308,8 +316,8 @@ from langgraph_sdk import Encryption, EncryptionContext
 
 encryption = Encryption()
 
-# The SDK uses envelope encryption: one KMS API call generates a data key,
-# then encrypts/decrypts locally. The cache reuses data keys across operations.
+# SDK 使用信封加密：一次 KMS API 调用生成数据密钥，
+# 然后在本地加密/解密。缓存跨操作重用数据密钥。
 client = aws_encryption_sdk.EncryptionSDKClient(
     commitment_policy=CommitmentPolicy.REQUIRE_ENCRYPT_REQUIRE_DECRYPT
 )
@@ -379,23 +387,26 @@ async def decrypt_json(ctx: EncryptionContext, data: dict) -> dict:
     return result
 ```
 
-The `encryption_context` is cryptographically bound to the ciphertext via KMS—decryption fails if the context doesn't match. The context is embedded in the ciphertext, so decrypt handlers don't need to reference `ctx.metadata`.
+`encryption_context` 通过 KMS 在密码学上绑定到密文——如果上下文不匹配，解密将失败。上下文嵌入在密文中，因此解密处理程序不需要引用 `ctx.metadata`。
 
-#### Key rotation
+#### 密钥轮换
 
-KMS handles master key rotation automatically. When you enable automatic rotation on your KMS key, old encrypted data keys can still be decrypted while new operations use the rotated key material. No re-encryption of existing data is required.
+KMS 自动处理主密钥轮换。当您在 KMS 密钥上启用自动轮换时，旧的加密数据密钥仍然可以解密，而新操作使用轮换后的密钥材料。无需重新加密现有数据。
 
-## Related
+## 相关内容
 
-- [Custom authentication](/langsmith/custom-auth)
+- [自定义身份验证](/langsmith/custom-auth)
 
 ---
 
 <div className="source-links">
-<Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
-</Callout>
-<Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/encryption.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
-</Callout>
+  <Callout icon="terminal-2">
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP
+    获取实时答案。
+  </Callout>
+  <Callout icon="edit">
+    [在 GitHub
+    上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/encryption.mdx)
+    或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
+  </Callout>
 </div>

@@ -1,64 +1,64 @@
 ---
-title: How to run an evaluation locally (Python only)
-sidebarTitle: Run an evaluation locally (Python)
+title: 如何在本地运行评估（仅限Python）
+sidebarTitle: 在本地运行评估（Python）
 ---
 
-Sometimes it is helpful to run an evaluation locally without uploading any results to LangSmith. For example, if you're quickly iterating on a prompt and want to smoke test it on a few examples, or if you're validating that your target and evaluator functions are defined correctly, you may not want to record these evaluations.
+有时在本地运行评估而不将任何结果上传到LangSmith会很有帮助。例如，如果您正在快速迭代提示词并想在几个示例上进行快速测试，或者您正在验证目标函数和评估函数是否正确定义，您可能不希望记录这些评估。
 
-You can do this by using the LangSmith Python SDK and passing `upload_results=False` to `evaluate()` / `aevaluate()`.
+您可以通过使用LangSmith Python SDK并在`evaluate()` / `aevaluate()`中传递`upload_results=False`来实现这一点。
 
-This will run you application and evaluators exactly as it always does and return the same output, but nothing will be recorded to LangSmith. This includes not just the experiment results but also the application and evaluator traces.
+这将完全按照常规方式运行您的应用程序和评估器并返回相同的输出，但不会有任何内容记录到LangSmith。这不仅包括实验结果，还包括应用程序和评估器的跟踪信息。
 
 <Note>
-If you want to upload results to LangSmith but also need to process them in your script (for quality gates, custom aggregations, etc.), refer to [Read experiment results locally](/langsmith/read-local-experiment-results).
+如果您想将结果上传到LangSmith，但同时需要在脚本中处理它们（用于质量门控、自定义聚合等），请参阅[在本地读取实验结果](/langsmith/read-local-experiment-results)。
 </Note>
 
-## Example
+## 示例
 
-Let's take a look at an example:
+让我们看一个示例：
 
-Requires `langsmith>=0.2.0`. Example also uses `pandas`.
+需要 `langsmith>=0.2.0`。示例还使用了 `pandas`。
 
 ```python
 from langsmith import Client
 
-# 1. Create and/or select your dataset
+# 1. 创建和/或选择您的数据集
 ls_client = Client()
 dataset = ls_client.clone_public_dataset(
     "https://smith.langchain.com/public/a63525f9-bdf2-4512-83e3-077dc9417f96/d"
 )
 
-# 2. Define an evaluator
+# 2. 定义一个评估器
 def is_concise(outputs: dict, reference_outputs: dict) -> bool:
     return len(outputs["answer"]) < (3 * len(reference_outputs["answer"]))
 
-# 3. Define the interface to your app
+# 3. 定义您的应用接口
 def chatbot(inputs: dict) -> dict:
     return {"answer": inputs["question"] + " is a good question. I don't know the answer."}
 
-# 4. Run an evaluation
+# 4. 运行评估
 experiment = ls_client.evaluate(
     chatbot,
     data=dataset,
     evaluators=[is_concise],
     experiment_prefix="my-first-experiment",
-    # 'upload_results' is the relevant arg.
+    # 'upload_results' 是相关参数。
     upload_results=False
 )
 
-# 5. Analyze results locally
+# 5. 在本地分析结果
 results = list(experiment)
 
-# Check if 'is_concise' returned False.
+# 检查 'is_concise' 是否返回了 False。
 failed = [r for r in results if not r["evaluation_results"]["results"][0].score]
 
-# Explore the failed inputs and outputs.
+# 查看失败的输入和输出。
 for r in failed:
     print(r["example"].inputs)
     print(r["run"].outputs)
 
-# Explore the results as a Pandas DataFrame.
-# Must have 'pandas' installed.
+# 将结果作为 Pandas DataFrame 进行查看。
+# 必须已安装 'pandas'。
 df = experiment.to_pandas()
 df[["inputs.question", "outputs.answer", "reference.answer", "feedback.is_concise"]]
 ```
@@ -79,9 +79,9 @@ df[["inputs.question", "outputs.answer", "reference.answer", "feedback.is_concis
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接](/use-these-docs)到Claude、VSCode等，通过MCP获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/local.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在GitHub上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/local.mdx)或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

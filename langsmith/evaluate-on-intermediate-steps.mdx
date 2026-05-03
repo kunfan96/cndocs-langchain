@@ -1,22 +1,22 @@
 ---
-title: How to evaluate an application's intermediate steps
-sidebarTitle: Evaluate intermediate steps
+title: 如何评估应用程序的中间步骤
+sidebarTitle: 评估中间步骤
 ---
 
-While, in many scenarios, it is sufficient to evaluate the final output of your task, in some cases you might want to evaluate the intermediate steps of your pipeline.
+虽然在许多情况下，评估任务的最终输出就足够了，但在某些情况下，您可能希望评估管道的中间步骤。
 
-For example, for retrieval-augmented generation (RAG), you might want to
+例如，对于检索增强生成（RAG），您可能希望：
 
-1. Evaluate the retrieval step to ensure that the correct documents are retrieved w\.r.t the input query.
-2. Evaluate the generation step to ensure that the correct answer is generated w\.r.t the retrieved documents.
+1. 评估检索步骤，以确保相对于输入查询检索到了正确的文档。
+2. 评估生成步骤，以确保相对于检索到的文档生成了正确的答案。
 
-In this guide, we will use a simple, fully-custom evaluator for evaluating criteria 1 and an LLM-based evaluator for evaluating criteria 2 to highlight both scenarios.
+在本指南中，我们将使用一个简单的、完全自定义的评估器来评估标准1，并使用一个基于LLM的评估器来评估标准2，以突出这两种场景。
 
-In order to evaluate the intermediate steps of your pipeline, your evaluator function should traverse and process the `run`/`rootRun` argument, which is a `Run` object that contains the intermediate steps of your pipeline.
+为了评估管道的中间步骤，您的评估器函数应遍历并处理 `run`/`rootRun` 参数，该参数是一个 `Run` 对象，包含管道的中间步骤。
 
-## 1. Define your LLM pipeline
+## 1. 定义您的LLM管道
 
-The below RAG pipeline consists of 1) generating a Wikipedia query given the input question, 2) retrieving relevant documents from Wikipedia, and 3) generating an answer given the retrieved documents.
+下面的RAG管道包括：1) 根据输入问题生成维基百科查询，2) 从维基百科检索相关文档，3) 根据检索到的文档生成答案。
 
 <CodeGroup>
 
@@ -30,7 +30,7 @@ yarn add langsmith langchain @langchain/openai wikipedia
 
 </CodeGroup>
 
-Requires `langsmith>=0.3.13`
+需要 `langsmith>=0.3.13`
 
 <CodeGroup>
 
@@ -43,11 +43,11 @@ oai_client = wrappers.wrap_openai(OpenAI())
 
 @traceable
 def generate_wiki_search(question: str) -> str:
-    """Generate the query to search in wikipedia."""
+    """生成在维基百科中搜索的查询。"""
     instructions = (
-        "Generate a search query to pass into wikipedia to answer the user's question. "
-        "Return only the search query and nothing more. "
-        "This will passed in directly to the wikipedia search engine."
+        "生成一个搜索查询，传递给维基百科以回答用户的问题。"
+        "只返回搜索查询，不要返回其他内容。"
+        "这将直接传递给维基百科搜索引擎。"
     )
     messages = [
         {"role": "system", "content": instructions},
@@ -62,7 +62,7 @@ def generate_wiki_search(question: str) -> str:
 
 @traceable(run_type="retriever")
 def retrieve(query: str) -> list:
-    """Get up to two search wikipedia results."""
+    """获取最多两个维基百科搜索结果。"""
     results = []
     for term in wp.search(query, results = 10):
         try:
@@ -79,8 +79,8 @@ def retrieve(query: str) -> list:
 
 @traceable
 def generate_answer(question: str, context: str) -> str:
-    """Answer the question based on the retrieved information."""
-    instructions = f"Answer the user's question based ONLY on the content below:\n\n{context}"
+    """根据检索到的信息回答问题。"""
+    instructions = f"仅根据以下内容回答用户的问题：\n\n{context}"
     messages = [
         {"role": "system", "content": instructions},
         {"role": "user", "content": question}
@@ -94,7 +94,7 @@ def generate_answer(question: str, context: str) -> str:
 
 @traceable
 def qa_pipeline(question: str) -> str:
-    """The full pipeline."""
+    """完整管道。"""
     query = generate_wiki_search(question)
     context = "\n\n".join([doc["page_content"] for doc in retrieve(query)])
     return generate_answer(question, context)
@@ -115,7 +115,7 @@ const generateWikiSearch = traceable(
       {
         role: "system" as const,
         content:
-          "Generate a search query to pass into Wikipedia to answer the user's question. Return only the search query and nothing more. This will be passed in directly to the Wikipedia search engine.",
+          "生成一个搜索查询，传递给维基百科以回答用户的问题。只返回搜索查询，不要返回其他内容。这将直接传递给维基百科搜索引擎。",
       },
       { role: "user" as const, content: input.question },
     ];
@@ -139,7 +139,7 @@ const retrieve = traceable(
     }> = [];
     for (const result of results) {
       if (finalResults.length >= input.numDocuments) {
-        // Just return the top 2 pages for now
+        // 目前只返回前2个页面
         break;
       }
       const page = await wiki.page(result.title, { autoSuggest: false });
@@ -160,7 +160,7 @@ const generateAnswer = traceable(
     const messages = [
       {
         role: "system" as const,
-        content: `Answer the user's question based only on the content below:\n\n${input.context}`,
+        content: `仅根据以下内容回答用户的问题：\n\n${input.context}`,
       },
       { role: "user" as const, content: input.question },
     ];
@@ -190,13 +190,13 @@ const ragPipeline = traceable(
 
 </CodeGroup>
 
-This pipeline will produce a trace that looks something like: ![evaluation_intermediate_trace.png](/langsmith/images/evaluation-intermediate-trace.png)
+此管道将生成一个类似这样的跟踪：![evaluation_intermediate_trace.png](/langsmith/images/evaluation-intermediate-trace.png)
 
-## 2. Create a dataset and examples to evaluate the pipeline
+## 2. 创建数据集和示例以评估管道
 
-We are building a very simple dataset with a couple of examples to evaluate the pipeline.
+我们正在构建一个非常简单的数据集，包含几个示例来评估管道。
 
-Requires `langsmith>=0.3.13`
+需要 `langsmith>=0.3.13`
 
 <CodeGroup>
 
@@ -241,13 +241,13 @@ await client.createExamples({ datasetId: dataset.id, inputs, outputs });
 
 </CodeGroup>
 
-## 3. Define your custom evaluators
+## 3. 定义您的自定义评估器
 
-As mentioned above, we will define two evaluators: one that evaluates the relevance of the retrieved documents w\.r.t the input query and another that evaluates the hallucination of the generated answer w\.r.t the retrieved documents. We will be using LangChain LLM wrappers, along with [`with_structured_output`](https://reference.langchain.com/python/langchain-core/language_models/chat_models/BaseChatModel/with_structured_output) to define the evaluator for hallucination.
+如上所述，我们将定义两个评估器：一个评估检索到的文档相对于输入查询的相关性，另一个评估生成的答案相对于检索到的文档的幻觉情况。我们将使用LangChain LLM包装器，以及 [`with_structured_output`](https://reference.langchain.com/python/langchain-core/language_models/chat_models/BaseChatModel/with_structured_output) 来定义幻觉评估器。
 
-The key here is that the evaluator function should traverse the `run` / `rootRun` argument to access the intermediate steps of the pipeline. The evaluator can then process the inputs and outputs of the intermediate steps to evaluate according to the desired criteria.
+这里的关键是，评估器函数应遍历 `run` / `rootRun` 参数以访问管道的中间步骤。然后，评估器可以处理中间步骤的输入和输出，根据所需的标准进行评估。
 
-Example uses `langchain` for convenience, this is not required.
+示例为了方便使用了 `langchain`，但这不是必需的。
 
 <CodeGroup>
 
@@ -257,7 +257,7 @@ from langsmith.schemas import Run
 from pydantic import BaseModel, Field
 
 def document_relevance(run: Run) -> bool:
-    """Checks if retriever input exists in the retrieved docs."""
+    """检查检索器输入是否存在于检索到的文档中。"""
     qa_pipeline_run = next(
         r for run in run.child_runs if r.name == "qa_pipeline"
     )
@@ -269,13 +269,13 @@ def document_relevance(run: Run) -> bool:
     )
     return retrieve_run.inputs["query"] in page_contents
 
-# Data model
+# 数据模型
 class GradeHallucinations(BaseModel):
-    """Binary score for hallucination present in generation answer."""
-    is_grounded: bool = Field(..., description="True if the answer is grounded in the facts, False otherwise.")
+    """生成答案中幻觉的二元评分。"""
+    is_grounded: bool = Field(..., description="如果答案基于事实则为True，否则为False。")
 
-# LLM with structured output for grading hallucinations
-# For more see: https://docs.langchain.com/oss/python/langchain/structured-output
+# 使用结构化输出进行幻觉评分的LLM
+# 更多信息请参见：https://docs.langchain.com/oss/python/langchain/structured-output
 grader_llm= init_chat_model("gpt-5.4-mini", temperature=0).with_structured_output(
     GradeHallucinations,
     method="json_schema",
@@ -283,10 +283,10 @@ grader_llm= init_chat_model("gpt-5.4-mini", temperature=0).with_structured_outpu
 )
 
 def no_hallucination(run: Run) -> bool:
-    """Check if the answer is grounded in the documents.
-    Return True if there is no hallucination, False otherwise.
+    """检查答案是否基于文档。
+    如果没有幻觉则返回True，否则返回False。
     """
-    # Get documents and answer
+    # 获取文档和答案
     qa_pipeline_run = next(
         r for r in run.child_runs if r.name == "qa_pipeline"
     )
@@ -297,15 +297,15 @@ def no_hallucination(run: Run) -> bool:
         doc["page_content"] for doc in retrieve_run.outputs["output"]
     )
 
-    # Construct prompt
+    # 构建提示
     instructions = (
-        "You are a grader assessing whether an LLM generation is grounded in / "
-        "supported by a set of retrieved facts. Give a binary score 1 or 0, "
-        "where 1 means that the answer is grounded in / supported by the set of facts."
+        "你是一名评分员，评估LLM生成的内容是否基于/ "
+        "由一组检索到的事实支持。给出二元评分1或0，"
+        "其中1表示答案基于/由这组事实支持。"
     )
     messages = [
         {"role": "system", "content": instructions},
-        {"role": "user", "content": f"Set of facts:\n{retrieved_content}\n\nLLM generation: {run.outputs['answer']}"},
+        {"role": "user", "content": f"事实集合：\n{retrieved_content}\n\nLLM生成内容：{run.outputs['answer']}"},
     ]
     grade = grader_llm.invoke(messages)
     return grade.is_grounded
@@ -328,8 +328,7 @@ function findNestedRun(run: Run, search: (run: Run) => boolean): Run | null {
   return null;
 }
 
-// A very simple evaluator that checks to see if the input of the retrieval step exists
-// in the retrieved docs.
+// 一个非常简单的评估器，检查检索步骤的输入是否存在于检索到的文档中。
 function documentRelevance(rootRun: Run, example: Example): EvaluationResult {
   const retrieveRun = findNestedRun(rootRun, (run) => run.name === "retrieve");
   const docs: Array<{ page_content: string }> | undefined =
@@ -356,13 +355,13 @@ async function hallucination(
     [
       "system",
       [
-        `You are a grader assessing whether an LLM generation is grounded in / supported by a set of retrieved facts. \n`,
-        `Give a binary score 1 or 0, where 1 means that the answer is grounded in / supported by the set of facts.`,
+        `你是一名评分员，评估LLM生成的内容是否基于/由一组检索到的事实支持。\n`,
+        `给出二元评分1或0，其中1表示答案基于/由这组事实支持。`,
       ].join("\n"),
     ],
     [
       "human",
-      "Set of facts: \n\n {documents} \n\n LLM generation: {generation}",
+      "事实集合：\n\n {documents} \n\n LLM生成内容：{generation}",
     ],
   ]);
 
@@ -374,9 +373,9 @@ async function hallucination(
       .object({
         binary_score: z
           .number()
-          .describe("Answer is grounded in the facts, 1 or 0"),
+          .describe("答案基于事实，1或0"),
       })
-      .describe("Binary score for hallucination present in generation answer.")
+      .describe("生成答案中幻觉的二元评分。")
   );
 
   const grader = prompt.pipe(llm);
@@ -390,15 +389,15 @@ async function hallucination(
 
 </CodeGroup>
 
-## 4. Evaluate the pipeline
+## 4. 评估管道
 
-Finally, we'll run `evaluate` with the custom evaluators defined above.
+最后，我们将使用上面定义的自定义评估器运行 `evaluate`。
 
 <CodeGroup>
 
 ```python Python
 def qa_wrapper(inputs: dict) -> dict:
-  """Wrap the qa_pipeline so it can accept the Example.inputs dict as input."""
+  """包装 qa_pipeline，使其可以接受 Example.inputs 字典作为输入。"""
   return {"answer": qa_pipeline(inputs["question"])}
 
 experiment_results = ls_client.evaluate(
@@ -421,19 +420,19 @@ await evaluate((inputs) => ragPipeline({ question: inputs.input }), {
 
 </CodeGroup>
 
-The experiment will contain the results of the evaluation, including the scores and comments from the evaluators: ![evaluation_intermediate_experiment.png](/langsmith/images/evaluation-intermediate-experiment.png)
+实验将包含评估结果，包括评估器的评分和评论：![evaluation_intermediate_experiment.png](/langsmith/images/evaluation-intermediate-experiment.png)
 
-## Related
+## 相关内容
 
-* [Evaluate a `langgraph` graph](/langsmith/evaluate-on-intermediate-steps)
+* [评估 `langgraph` 图](/langsmith/evaluate-on-intermediate-steps)
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [连接这些文档](/use-these-docs) 到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/evaluate-on-intermediate-steps.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/evaluate-on-intermediate-steps.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

@@ -1,20 +1,20 @@
 ---
-title: Streaming
-description: Stream real-time updates from deep agent runs and subagent execution
+title: 流式处理
+description: 从深度代理运行和子代理执行中流式传输实时更新
 ---
 
-Deep Agents build on LangGraph's streaming infrastructure with first-class support for subagent streams. When a deep agent delegates work to subagents, you can stream updates from each subagent independently—tracking progress, LLM tokens, and tool calls in real time.
+Deep Agents 基于 LangGraph 的流式处理基础设施构建，并提供对子代理流的一流支持。当深度代理将工作委托给子代理时，您可以独立地从每个子代理流式传输更新——实时跟踪进度、LLM 令牌和工具调用。
 
-What's possible with deep agent streaming:
+深度代理流式处理能实现什么：
 
-* <Icon icon="diagram-subtask" size={16} /> [**Stream subagent progress**](#subagent-progress)—track each subagent's execution as it runs in parallel.
-* <Icon icon="square-binary" size={16} /> [**Stream LLM tokens**](#llm-tokens)—stream tokens from the main agent and each subagent.
-* <Icon icon="screwdriver-wrench" size={16} /> [**Stream tool calls**](#tool-calls)—see tool calls and results from within subagent execution.
-* <Icon icon="table" size={16} /> [**Stream custom updates**](#custom-updates)—emit user-defined signals from inside subagent nodes.
+* <Icon icon="diagram-subtask" size={16} /> [**流式传输子代理进度**](#subagent-progress)—跟踪每个子代理并行运行时的执行情况。
+* <Icon icon="square-binary" size={16} /> [**流式传输 LLM 令牌**](#llm-tokens)—从主代理和每个子代理流式传输令牌。
+* <Icon icon="screwdriver-wrench" size={16} /> [**流式传输工具调用**](#tool-calls)—查看子代理执行过程中的工具调用和结果。
+* <Icon icon="table" size={16} /> [**流式传输自定义更新**](#custom-updates)—从子代理节点内部发出用户定义的信号。
 
-## Enable subgraph streaming
+## 启用子图流式处理
 
-Deep Agents use LangGraph's subgraph streaming to surface events from subagent execution. To receive subagent events, enable `stream_subgraphs` when streaming.
+Deep Agents 使用 LangGraph 的子图流式处理来呈现来自子代理执行的事件。要接收子代理事件，请在流式处理时启用 `stream_subgraphs`。
 
 ```python
 from deepagents import create_deep_agent
@@ -39,10 +39,10 @@ for chunk in agent.stream(
 ):
     if chunk["type"] == "updates":
         if chunk["ns"]:
-            # Subagent event - namespace identifies the source
+            # 子代理事件 - 命名空间标识来源
             print(f"[subagent: {chunk['ns']}]")
         else:
-            # Main agent event
+            # 主代理事件
             print("[main agent]")
         print(chunk["data"])
 ```
@@ -50,17 +50,17 @@ for chunk in agent.stream(
 
 
 
-## Namespaces
+## 命名空间
 
-When `subgraphs` is enabled, each streaming event includes a **namespace** that identifies which agent produced it. The namespace is a path of node names and task IDs that represents the agent hierarchy.
+当启用 `subgraphs` 时，每个流式处理事件都包含一个**命名空间**，用于标识产生该事件的代理。命名空间是节点名称和任务 ID 的路径，表示代理层次结构。
 
-| Namespace | Source |
+| 命名空间 | 来源 |
 | --------- | ------ |
-| `()` (empty) | Main agent |
-| `("tools:abc123",)` | A subagent spawned by the main agent's `task` tool call `abc123` |
-| `("tools:abc123", "model_request:def456")` | The model request node inside a subagent |
+| `()` (空) | 主代理 |
+| `("tools:abc123",)` | 由主代理的 `task` 工具调用 `abc123` 生成的子代理 |
+| `("tools:abc123", "model_request:def456")` | 子代理内部的模型请求节点 |
 
-Use namespaces to route events to the correct UI component:
+使用命名空间将事件路由到正确的 UI 组件：
 
 ```python
 for chunk in agent.stream(
@@ -70,13 +70,13 @@ for chunk in agent.stream(
     version="v2",
 ):
     if chunk["type"] == "updates":
-        # Check if this event came from a subagent
+        # 检查此事件是否来自子代理
         is_subagent = any(
             segment.startswith("tools:") for segment in chunk["ns"]
         )
 
         if is_subagent:
-            # Extract the tool call ID from the namespace
+            # 从命名空间中提取工具调用 ID
             tool_call_id = next(
                 s.split(":")[1] for s in chunk["ns"] if s.startswith("tools:")
             )
@@ -88,9 +88,9 @@ for chunk in agent.stream(
 
 
 
-## Subagent progress
+## 子代理进度
 
-Use `stream_mode="updates"` to track subagent progress as each step completes. This is useful for showing which subagents are active and what work they've completed.
+使用 `stream_mode="updates"` 在每个步骤完成时跟踪子代理进度。这对于显示哪些子代理处于活动状态以及它们完成了哪些工作非常有用。
 
 ```python
 from deepagents import create_deep_agent
@@ -120,11 +120,11 @@ for chunk in agent.stream(
     version="v2",
 ):
     if chunk["type"] == "updates":
-        # Main agent updates (empty namespace)
+        # 主代理更新（空命名空间）
         if not chunk["ns"]:
             for node_name, data in chunk["data"].items():
                 if node_name == "tools":
-                    # Subagent results returned to main agent
+                    # 返回给主代理的子代理结果
                     for msg in data.get("messages", []):
                         if msg.type == "tool":
                             print(f"\nSubagent complete: {msg.name}")
@@ -132,7 +132,7 @@ for chunk in agent.stream(
                 else:
                     print(f"[main agent] step: {node_name}")
 
-        # Subagent updates (non-empty namespace)
+        # 子代理更新（非空命名空间）
         else:
             for node_name, data in chunk["data"].items():
                 print(f"  [{chunk['ns'][0]}] step: {node_name}")
@@ -152,9 +152,9 @@ Subagent complete: task
 
 
 
-## LLM tokens
+## LLM 令牌
 
-Use `stream_mode="messages"` to stream individual tokens from both the main agent and subagents. Each message event includes metadata that identifies the source agent.
+使用 `stream_mode="messages"` 从主代理和子代理流式传输单个令牌。每个消息事件都包含标识来源代理的元数据。
 
 ```python
 current_source = ""
@@ -168,11 +168,11 @@ for chunk in agent.stream(
     if chunk["type"] == "messages":
         token, metadata = chunk["data"]
 
-        # Check if this event came from a subagent (namespace contains "tools:")
+        # 检查此事件是否来自子代理（命名空间包含 "tools:"）
         is_subagent = any(s.startswith("tools:") for s in chunk["ns"])
 
         if is_subagent:
-            # Token from a subagent
+            # 来自子代理的令牌
             subagent_ns = next(s for s in chunk["ns"] if s.startswith("tools:"))
             if subagent_ns != current_source:
                 print(f"\n\n--- [subagent: {subagent_ns}] ---")
@@ -180,7 +180,7 @@ for chunk in agent.stream(
             if token.content:
                 print(token.content, end="", flush=True)
         else:
-            # Token from the main agent
+            # 来自主代理的令牌
             if "main" != current_source:
                 print("\n\n--- [main agent] ---")
                 current_source = "main"
@@ -193,9 +193,9 @@ print()
 
 
 
-## Tool calls
+## 工具调用
 
-When subagents use tools, you can stream tool call events to display what each subagent is doing. Tool call chunks appear in the `messages` stream mode.
+当子代理使用工具时，您可以流式传输工具调用事件以显示每个子代理正在做什么。工具调用块出现在 `messages` 流模式中。
 
 ```python
 for chunk in agent.stream(
@@ -207,24 +207,24 @@ for chunk in agent.stream(
     if chunk["type"] == "messages":
         token, metadata = chunk["data"]
 
-        # Identify source: "main" or the subagent namespace segment
+        # 识别来源："main" 或子代理命名空间段
         is_subagent = any(s.startswith("tools:") for s in chunk["ns"])
         source = next((s for s in chunk["ns"] if s.startswith("tools:")), "main") if is_subagent else "main"
 
-        # Tool call chunks (streaming tool invocations)
+        # 工具调用块（流式工具调用）
         if token.tool_call_chunks:
             for tc in token.tool_call_chunks:
                 if tc.get("name"):
                     print(f"\n[{source}] Tool call: {tc['name']}")
-                # Args stream in chunks - write them incrementally
+                # 参数以块形式流式传输 - 增量写入
                 if tc.get("args"):
                     print(tc["args"], end="", flush=True)
 
-        # Tool results
+        # 工具结果
         if token.type == "tool":
             print(f"\n[{source}] Tool result [{token.name}]: {str(token.content)[:150]}")
 
-        # Regular AI content (skip tool call messages)
+        # 常规 AI 内容（跳过工具调用消息）
         if token.type == "ai" and token.content and not token.tool_call_chunks:
             print(token.content, end="", flush=True)
 
@@ -234,9 +234,9 @@ print()
 
 
 
-## Custom updates
+## 自定义更新
 
-Use [`get_stream_writer`](https://reference.langchain.com/python/langgraph/config/get_stream_writer) inside your subagent tools to emit custom progress events:
+在子代理工具内使用 [`get_stream_writer`](https://reference.langchain.com/python/langgraph/config/get_stream_writer) 发出自定义进度事件：
 
 
 
@@ -315,16 +315,16 @@ for chunk in agent.stream(
 
 
 
-## Stream multiple modes
+## 流式传输多种模式
 
-Combine multiple stream modes to get a complete picture of agent execution:
+组合多种流模式以获取代理执行的完整视图：
 
 ```python
-# Skip internal middleware steps - only show meaningful node names
+# 跳过内部中间件步骤 - 仅显示有意义的节点名称
 INTERESTING_NODES = {"model_request", "tools"}
 
 last_source = ""
-mid_line = False  # True when we've written tokens without a trailing newline
+mid_line = False  # 当我们写入令牌而没有尾随换行符时为 True
 
 for chunk in agent.stream(
     {"messages": [{"role": "user", "content": "Analyze the impact of remote work on team productivity"}]},
@@ -347,7 +347,7 @@ for chunk in agent.stream(
     elif chunk["type"] == "messages":
         token, metadata = chunk["data"]
         if token.content:
-            # Print a header when the source changes
+            # 当来源更改时打印标题
             if source != last_source:
                 if mid_line:
                     print()
@@ -369,11 +369,11 @@ print()
 
 
 
-## Common patterns
+## 常见模式
 
-### Track subagent lifecycle
+### 跟踪子代理生命周期
 
-Monitor when subagents start, run, and complete:
+监控子代理何时启动、运行和完成：
 
 ```python
 active_subagents = {}
@@ -386,9 +386,9 @@ for chunk in agent.stream(
 ):
     if chunk["type"] == "updates":
         for node_name, data in chunk["data"].items():
-            # ─── Phase 1: Detect subagent starting ────────────────────────
-            # When the main agent's model_request contains task tool calls,
-            # a subagent has been spawned.
+            # ─── 阶段 1：检测子代理启动 ────────────────────────
+            # 当主代理的 model_request 包含 task 工具调用时，
+            # 子代理已被生成。
             if not chunk["ns"] and node_name == "model_request":
                 for msg in data.get("messages", []):
                     for tc in getattr(msg, "tool_calls", []):
@@ -403,14 +403,14 @@ for chunk in agent.stream(
                                 f'({tc["id"]})'
                             )
 
-            # ─── Phase 2: Detect subagent running ─────────────────────────
-            # When we receive events from a tools:UUID namespace, that
-            # subagent is actively executing.
+            # ─── 阶段 2：检测子代理运行 ─────────────────────────
+            # 当我们从 tools:UUID 命名空间接收到事件时，
+            # 该子代理正在主动执行。
             if chunk["ns"] and chunk["ns"][0].startswith("tools:"):
                 pregel_id = chunk["ns"][0].split(":")[1]
-                # Check if any pending subagent needs to be marked running.
-                # Note: the pregel task ID differs from the tool_call_id,
-                # so we mark any pending subagent as running on first subagent event.
+                # 检查是否有待处理的子代理需要标记为运行中。
+                # 注意：pregel 任务 ID 与 tool_call_id 不同，
+                # 因此我们在第一个子代理事件时将任何待处理的子代理标记为运行中。
                 for sub_id, sub in active_subagents.items():
                     if sub["status"] == "pending":
                         sub["status"] = "running"
@@ -420,9 +420,9 @@ for chunk in agent.stream(
                         )
                         break
 
-            # ─── Phase 3: Detect subagent completing ──────────────────────
-            # When the main agent's tools node returns a tool message,
-            # the subagent has completed and returned its result.
+            # ─── 阶段 3：检测子代理完成 ──────────────────────
+            # 当主代理的 tools 节点返回工具消息时，
+            # 子代理已完成并返回了其结果。
             if not chunk["ns"] and node_name == "tools":
                 for msg in data.get("messages", []):
                     if msg.type == "tool":
@@ -435,7 +435,7 @@ for chunk in agent.stream(
                             )
                             print(f"  Result preview: {str(msg.content)[:120]}...")
 
-# Print final state
+# 打印最终状态
 print("\n--- Final subagent states ---")
 for sub_id, sub in active_subagents.items():
     print(f"  {sub['type']}: {sub['status']}")
@@ -444,59 +444,59 @@ for sub_id, sub in active_subagents.items():
 
 
 
-## v2 streaming format
+## v2 流式处理格式
 
 <Note>
-Requires LangGraph >= 1.1.
+需要 LangGraph >= 1.1。
 </Note>
 
-All examples on this page use the v2 streaming format (`version="v2"`), which is the recommended approach. Every chunk is a `StreamPart` dict with `type`, `ns`, and `data` keys — the same shape regardless of stream mode, number of modes, or subgraph settings.
+本页上的所有示例都使用 v2 流式处理格式（`version="v2"`），这是推荐的方法。每个块都是一个 `StreamPart` 字典，包含 `type`、`ns` 和 `data` 键——无论流模式、模式数量或子图设置如何，其结构都相同。
 
-The v2 format eliminates nested tuple unpacking, making it straightforward to handle subgraph streaming in Deep Agents. Compare the two formats:
+v2 格式消除了嵌套元组解包，使得在 Deep Agents 中处理子图流式处理变得简单直接。比较两种格式：
 
 <CodeGroup>
 ```python v2 (recommended)
-# Unified format — no nested tuple unpacking
+# 统一格式 - 无嵌套元组解包
 for chunk in agent.stream(
     {"messages": [{"role": "user", "content": "Research quantum computing"}]},
     stream_mode=["updates", "messages", "custom"],
     subgraphs=True,
     version="v2",
 ):
-    print(chunk["type"])  # "updates", "messages", or "custom"
-    print(chunk["ns"])    # () for main agent, ("tools:<id>",) for subagent
-    print(chunk["data"])  # payload
+    print(chunk["type"])  # "updates"、"messages" 或 "custom"
+    print(chunk["ns"])    # 主代理为 ()，子代理为 ("tools:<id>",)
+    print(chunk["data"])  # 有效负载
 ```
 ```python v1 (legacy)
-# Must handle (namespace, (mode, data)) nested tuples
+# 必须处理 (namespace, (mode, data)) 嵌套元组
 for namespace, chunk in agent.stream(
     {"messages": [{"role": "user", "content": "Research quantum computing"}]},
     stream_mode=["updates", "messages", "custom"],
     subgraphs=True,
 ):
     mode, data = chunk[0], chunk[1]
-    print(mode)       # "updates", "messages", or "custom"
-    print(namespace)  # () for main agent, ("tools:<id>",) for subagent
-    print(data)       # payload
+    print(mode)       # "updates"、"messages" 或 "custom"
+    print(namespace)  # 主代理为 ()，子代理为 ("tools:<id>",)
+    print(data)       # 有效负载
 ```
 </CodeGroup>
 
-See the [LangGraph streaming docs](/oss/python/langgraph/streaming#stream-output-format-v2) for more details on the v2 format, including type narrowing and Pydantic/dataclass coercion.
+有关 v2 格式的更多详细信息，包括类型收窄和 Pydantic/dataclass 强制转换，请参阅 [LangGraph 流式处理文档](/oss/python/langgraph/streaming#stream-output-format-v2)。
 
 
-## Related
+## 相关内容
 
-- [Subagents](/oss/python/deepagents/subagents)—Configure and use subagents with Deep Agents
-- [Frontend streaming](/oss/python/deepagents/streaming/frontend)—Build React UIs with `useStream` for Deep Agents
-- [LangChain streaming overview](/oss/python/langchain/streaming/overview)—General streaming concepts with LangChain agents
+- [子代理](/oss/python/deepagents/subagents)—使用 Deep Agents 配置和使用子代理
+- [前端流式处理](/oss/python/deepagents/streaming/frontend)—使用 `useStream` 为 Deep Agents 构建 React UI
+- [LangChain 流式处理概述](/oss/python/langchain/streaming/overview)—LangChain 代理的通用流式处理概念
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/deepagents/streaming.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/deepagents/streaming.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

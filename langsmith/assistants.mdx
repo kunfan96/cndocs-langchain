@@ -1,79 +1,78 @@
 ---
-title: Assistants
-sidebarTitle: Overview
+title: 助手
+sidebarTitle: 概述
 ---
 
-_Assistants_ are an [Agent Server](/langsmith/agent-server) concept that allow you to manage configurations (e.g., prompts, LLM selection, tools) separately from your graph's core logic. This enables you to create multiple, specialized versions of the same graph architecture with different behavior at runtime. Through configuration variations (rather than structural graph changes), each assistant is optimized for a different [use case](#use-cases).
+_助手_ 是 [代理服务器](/langsmith/agent-server) 的一个概念，允许您将配置（例如，提示词、LLM 选择、工具）与图的核心逻辑分开管理。这使您能够创建同一图架构的多个专用版本，在运行时具有不同的行为。通过配置变化（而非结构性的图更改），每个助手针对不同的[用例](#用例)进行了优化。
 
-For example, imagine a general-purpose writing agent built on a common graph architecture. While the structure remains the same, different writing styles—such as blog posts and tweets—require tailored configurations to optimize performance. To support these variations, you can create multiple assistants (e.g., one for blogs and another for tweets) that share the underlying graph but differ in model selection and system prompt.
+例如，想象一个基于通用图架构构建的通用写作代理。虽然结构保持不变，但不同的写作风格——如博客文章和推文——需要定制的配置来优化性能。为了支持这些变化，您可以创建多个助手（例如，一个用于博客，另一个用于推文），它们共享底层图，但在模型选择和系统提示词上有所不同。
 
-![assistant versions](/langsmith/images/assistants.png)
+![助手版本](/langsmith/images/assistants.png)
 
-The Agent Server API provides several endpoints for creating and managing assistants and their versions. See the [API reference](/langsmith/server-api-ref) for more details.
+代理服务器 API 提供了多个端点来创建和管理助手及其版本。更多详情请参阅 [API 参考](/langsmith/server-api-ref)。
 
 <Info>
-Assistants are a [LangSmith Deployment](/langsmith/deployment) concept. They are not available in the open source LangGraph library.
+助手是 [LangSmith 部署](/langsmith/deployment) 的一个概念。它们在开源 LangGraph 库中不可用。
 </Info>
 
-## Default assistants
+## 默认助手
 
-When you deploy a graph with LangSmith Deployment, [Agent Server](/langsmith/agent-server) automatically creates a **default assistant** tied to that graph's default configuration. You can then create additional assistants for the same graph, each with its own configuration.
+当您使用 LangSmith 部署部署一个图时，[代理服务器](/langsmith/agent-server) 会自动创建一个与该图默认配置绑定的**默认助手**。然后，您可以为同一图创建额外的助手，每个助手都有自己的配置。
 
-If your deployment defines multiple graphs in [`langgraph.json`](/langsmith/application-structure#configuration-file), each graph gets its own default assistant:
+如果您的部署在 [`langgraph.json`](/langsmith/application-structure#configuration-file) 中定义了多个图，每个图都会获得自己的默认助手：
 
 ```json
 {
     "graphs": {
-        "graph_id_1": "path_to_graph_id_1",  // default assistant created for graph_id_1
-        "graph_id_2": "path_to_graph_id_2"   // default assistant created for graph_id_2
+        "graph_id_1": "path_to_graph_id_1",  // 为 graph_id_1 创建的默认助手
+        "graph_id_2": "path_to_graph_id_2"   // 为 graph_id_2 创建的默认助手
     }
 }
 ```
 
-Assistants have several key features:
+助手具有几个关键特性：
 
-- **[Managed via API and UI](/langsmith/configuration-cloud)**: Create, list, update, version, and get assistants using the Agent Server/LangGraph SDKs or the [LangSmith UI](https://smith.langchain.com).
-- **One graph, multiple assistants**: A single deployed graph can support multiple assistants, each with different configurations (e.g., prompts, models, tools).
-- **[Versioned](#versioning) configurations**: Each assistant maintains its own configuration history through versioning. Editing an assistant creates a new version, and you can promote or roll back to any version.
-- **[Configuration](#configuration) updates without graph changes**: Update prompts, model selection, and other settings through assistant configurations, enabling rapid iteration without modifying or redeploying your graph code.
+- **[通过 API 和 UI 管理](/langsmith/configuration-cloud)**：使用代理服务器/LangGraph SDK 或 [LangSmith UI](https://smith.langchain.com) 创建、列出、更新、版本控制和获取助手。
+- **一个图，多个助手**：单个部署的图可以支持多个助手，每个助手具有不同的配置（例如，提示词、模型、工具）。
+- **[版本化](#版本控制)配置**：每个助手通过版本控制维护自己的配置历史。编辑助手会创建一个新版本，您可以提升或回滚到任何版本。
+- **无需更改图即可更新[配置](#配置)**：通过助手配置更新提示词、模型选择和其他设置，无需修改或重新部署图代码即可实现快速迭代。
 
 <Note>
-When invoking an assistant, you can specify either in [`langgraph.json`](/langsmith/agent-server-api/thread-runs/create-background-run#body-assistant-id-one-of-0):
+调用助手时，您可以在 [`langgraph.json`](/langsmith/agent-server-api/thread-runs/create-background-run#body-assistant-id-one-of-0) 中指定：
+- **图 ID**（`langgraph.json` 中的键，例如 `"agent"`）：使用该图的默认助手。
+- **助手 ID**（UUID）：使用特定的助手配置。
 
-- A **graph ID** (the key in `langgraph.json`, e.g., `"agent"`): Uses the default assistant for that graph.
-- An **assistant ID** (UUID): Uses a specific assistant configuration.
-
-This flexibility allows you to quickly test with default settings or precisely control which configuration is used.
+这种灵活性允许您使用默认设置快速测试，或精确控制使用哪个配置。
 </Note>
 
-## Configuration
+## 配置
 
-Assistants build on the LangGraph open source concept of [configuration](/oss/python/langgraph/graph-api#runtime-context).
+助手建立在 LangGraph 开源概念 [配置](/oss/python/langgraph/graph-api#runtime-context) 的基础上。
 
-While configuration is available in the open source LangGraph library, assistants are only present in [LangSmith Deployment](/langsmith/deployments) because they are tightly coupled to your deployed graph. Upon deployment, [Agent Server](/langsmith/agent-server) will automatically create a default assistant for each graph using the graph's default configuration settings.
+虽然配置在开源 LangGraph 库中可用，但助手仅存在于 [LangSmith 部署](/langsmith/deployments) 中，因为它们与您部署的图紧密耦合。部署时，[代理服务器](/langsmith/agent-server) 将使用图的默认配置设置自动为每个图创建一个默认助手。
 
-In practice, an assistant is just an _instance_ of a graph with a specific configuration. Therefore, multiple assistants can reference the same graph but can contain different configurations (e.g. prompts, models, tools). The LangSmith Deployment API provides several endpoints for creating and managing assistants. See the [API reference](/langsmith/server-api-ref) and [this how-to](/langsmith/configuration-cloud) for more details on how to create assistants.
+实际上，助手只是具有特定配置的图的一个_实例_。因此，多个助手可以引用同一个图，但可以包含不同的配置（例如，提示词、模型、工具）。LangSmith 部署 API 提供了多个端点来创建和管理助手。有关如何创建助手的更多详情，请参阅 [API 参考](/langsmith/server-api-ref) 和[此操作指南](/langsmith/configuration-cloud)。
 
-### Use cases
+### 用例
 
-Assistants are ideal when you need to deploy the same graph architecture with different configurations. Common use cases include:
+当您需要以不同的配置部署相同的图架构时，助手是理想的选择。常见用例包括：
 
-- **User-level personalization**
-  - Customize model selection, system prompts, or tool availability per user.
-  - Store user preferences and apply them automatically to each interaction.
-  - Enable users to choose between different AI personalities or expertise levels.
+- **用户级个性化**
+  - 为每个用户自定义模型选择、系统提示词或工具可用性。
+  - 存储用户偏好并自动应用于每次交互。
+  - 允许用户在不同的 AI 个性或专业水平之间进行选择。
 
-- **Customer or organization-specific configurations**
-  - Maintain separate configurations for different customers or organizations.
-  - Customize behavior for each client without deploying separate infrastructure.
-  - Isolate configuration changes to specific customers.
+- **客户或组织特定配置**
+  - 为不同的客户或组织维护单独的配置。
+  - 为每个客户端自定义行为，无需部署单独的基础设施。
+  - 将配置更改隔离到特定客户。
 
 ```mermaid actions={false}
 graph TD
-    A["Graph: agent<br/>(deployed)"]
-    A --> B["Customer A Assistant<br/>━━━━━━━━━━━━━<br/>Model: GPT-4<br/>Tone: Legal<br/>Tools: Custom"]
-    A --> C["Customer B Assistant<br/>━━━━━━━━━━━━━<br/>Model: Claude<br/>Tone: Casual<br/>Tools: Standard"]
-    A --> D["Customer C Assistant<br/>━━━━━━━━━━━━━<br/>Model: GPT-3.5<br/>Tone: Formal<br/>Tools: Limited"]
+    A["图: agent<br/>(已部署)"]
+    A --> B["客户 A 助手<br/>━━━━━━━━━━━━━<br/>模型: GPT-4<br/>语气: 法律<br/>工具: 自定义"]
+    A --> C["客户 B 助手<br/>━━━━━━━━━━━━━<br/>模型: Claude<br/>语气: 随意<br/>工具: 标准"]
+    A --> D["客户 C 助手<br/>━━━━━━━━━━━━━<br/>模型: GPT-3.5<br/>语气: 正式<br/>工具: 有限"]
 
     style A fill:#E5F4FF,stroke:#006DDD,stroke-width:3px,color:#030710
     style B fill:#B3E0F2,stroke:#4A90E2,stroke-width:2px,color:#1E3A5F
@@ -81,27 +80,27 @@ graph TD
     style D fill:#B3E0F2,stroke:#4A90E2,stroke-width:2px,color:#1E3A5F
 ```
 
-- **Environment-specific configurations**
-  - Use different models or settings for development, staging, and production.
-  - Test configuration changes in staging before promoting to production.
-  - Reduce costs in non-production environments with smaller models.
+- **环境特定配置**
+  - 为开发、预生产和生产环境使用不同的模型或设置。
+  - 在预生产环境中测试配置更改，然后再推广到生产环境。
+  - 在非生产环境中使用较小的模型以降低成本。
 
-- **A/B testing and experimentation**
-  - Compare different prompts, models, or parameter settings.
-  - Roll out configuration changes gradually to a subset of users.
-  - Measure performance differences between configuration variants.
+- **A/B 测试和实验**
+  - 比较不同的提示词、模型或参数设置。
+  - 逐步向部分用户推出配置更改。
+  - 衡量配置变体之间的性能差异。
 
-- **Specialized task variants**
-  - Create domain-specific versions of a general-purpose agent.
-  - Optimize configurations for different languages, regions, or industries.
-  - Maintain consistent graph logic while varying the execution details.
+- **专用任务变体**
+  - 创建通用代理的领域特定版本。
+  - 为不同的语言、地区或行业优化配置。
+  - 在保持图逻辑一致的同时改变执行细节。
 
 ```mermaid actions={false}
 graph TD
-    A["Graph: writing-agent<br/>(deployed)"]
-    A --> B["Blog Assistant<br/>━━━━━━━━━━━━━<br/>Model: GPT-4<br/>Tone: Formal<br/>Style: Long-form<br/>Tools: SEO optimization"]
-    A --> C["Tweet Assistant<br/>━━━━━━━━━━━━━<br/>Model: GPT-4-mini<br/>Tone: Casual<br/>Style: 280-char limit<br/>Tools: Hashtag suggestions"]
-    A --> D["Email Assistant<br/>━━━━━━━━━━━━━<br/>Model: GPT-4<br/>Tone: Professional<br/>Style: Medium length<br/>Tools: Templates"]
+    A["图: writing-agent<br/>(已部署)"]
+    A --> B["博客助手<br/>━━━━━━━━━━━━━<br/>模型: GPT-4<br/>语气: 正式<br/>风格: 长篇<br/>工具: SEO 优化"]
+    A --> C["推文助手<br/>━━━━━━━━━━━━━<br/>模型: GPT-4-mini<br/>语气: 随意<br/>风格: 280 字符限制<br/>工具: 话题标签建议"]
+    A --> D["邮件助手<br/>━━━━━━━━━━━━━<br/>模型: GPT-4<br/>语气: 专业<br/>风格: 中等长度<br/>工具: 模板"]
 
     style A fill:#E5F4FF,stroke:#006DDD,stroke-width:3px,color:#030710
     style B fill:#B3E0F2,stroke:#4A90E2,stroke-width:2px,color:#1E3A5F
@@ -109,68 +108,68 @@ graph TD
     style D fill:#B3E0F2,stroke:#4A90E2,stroke-width:2px,color:#1E3A5F
 ```
 
-## How assistants work with deployments
+## 助手如何与部署协同工作
 
-When you deploy a graph with LangSmith Deployment, [Agent Server](/langsmith/agent-server) automatically creates a **default assistant** tied to that graph's default configuration. You can then create additional assistants for the same graph, each with its own configuration.
+当您使用 LangSmith 部署部署一个图时，[代理服务器](/langsmith/agent-server) 会自动创建一个与该图默认配置绑定的**默认助手**。然后，您可以为同一图创建额外的助手，每个助手都有自己的配置。
 
-If your deployment defines multiple graphs in [`langgraph.json`](/langsmith/application-structure#configuration-file), each graph gets its own default assistant:
+如果您的部署在 [`langgraph.json`](/langsmith/application-structure#configuration-file) 中定义了多个图，每个图都会获得自己的默认助手：
 
 ```json
 {
     "graphs": {
-        "graph_id_1": "path_to_graph_id_1",  // default assistant created for graph_id_1
-        "graph_id_2": "path_to_graph_id_2"   // default assistant created for graph_id_2
+        "graph_id_1": "path_to_graph_id_1",  // 为 graph_id_1 创建的默认助手
+        "graph_id_2": "path_to_graph_id_2"   // 为 graph_id_2 创建的默认助手
     }
 }
 ```
 
-That is, there can be multiple default assistants—one for each graph defined in your deployment.
+也就是说，可以有多个默认助手——为部署中定义的每个图一个。
 
-Assistants have several key features:
+助手具有几个关键特性：
 
-- **[Managed via API and UI](/langsmith/configuration-cloud)**: Create, list, update, version, and get assistants using the Agent Server/LangGraph SDKs or the [LangSmith UI](https://smith.langchain.com).
-- **One graph, multiple assistants**: A single deployed graph can support multiple assistants, each with different configurations (e.g., prompts, models, tools).
-- **[Versioned](#versioning) configurations**: Each assistant maintains its own configuration history through versioning. Editing an assistant creates a new version, and you can promote or roll back to any version.
-- **[Configuration](#configuration) updates without graph changes**: Update prompts, model selection, and other settings through assistant configurations, enabling rapid iteration without modifying or redeploying your graph code.
+- **[通过 API 和 UI 管理](/langsmith/configuration-cloud)**：使用代理服务器/LangGraph SDK 或 [LangSmith UI](https://smith.langchain.com) 创建、列出、更新、版本控制和获取助手。
+- **一个图，多个助手**：单个部署的图可以支持多个助手，每个助手具有不同的配置（例如，提示词、模型、工具）。
+- **[版本化](#版本控制)配置**：每个助手通过版本控制维护自己的配置历史。编辑助手会创建一个新版本，您可以提升或回滚到任何版本。
+- **无需更改图即可更新[配置](#配置)**：通过助手配置更新提示词、模型选择和其他设置，无需修改或重新部署图代码即可实现快速迭代。
 
 <Note>
-When invoking an assistant, you can specify either in [`langgraph.json`](/langsmith/application-structure#configuration-file):
-- A **graph ID** (e.g., `"agent"`): Uses the default assistant for that graph
-- An **assistant ID** (UUID): Uses a specific assistant configuration
+调用助手时，您可以在 [`langgraph.json`](/langsmith/application-structure#configuration-file) 中指定：
+- **图 ID**（例如 `"agent"`）：使用该图的默认助手
+- **助手 ID**（UUID）：使用特定的助手配置
 
-This flexibility allows you to quickly test with default settings or precisely control which configuration is used.
+这种灵活性允许您使用默认设置快速测试，或精确控制使用哪个配置。
 </Note>
 
-### Configuration
+### 配置
 
-Assistants build on the LangGraph open source concept of [configuration](/oss/python/langgraph/graph-api#runtime-context).
+助手建立在 LangGraph 开源概念 [配置](/oss/python/langgraph/graph-api#runtime-context) 的基础上。
 
-While configuration is available in the open source LangGraph library, assistants are only present in [LangSmith Deployment](/langsmith/deployment) because they are tightly coupled to your deployed graph. Upon deployment, [Agent Server](/langsmith/agent-server) will automatically create a default assistant for each graph using the graph's default configuration settings.
+虽然配置在开源 LangGraph 库中可用，但助手仅存在于 [LangSmith 部署](/langsmith/deployment) 中，因为它们与您部署的图紧密耦合。部署时，[代理服务器](/langsmith/agent-server) 将使用图的默认配置设置自动为每个图创建一个默认助手。
 
-In practice, an assistant is just an _instance_ of a graph with a specific configuration. Therefore, multiple assistants can reference the same graph but can contain different configurations (e.g. prompts, models, tools). The LangSmith Deployment API provides several endpoints for creating and managing assistants. See the [API reference](/langsmith/server-api-ref) and [this how-to](/langsmith/configuration-cloud) for more details on how to create assistants.
+实际上，助手只是具有特定配置的图的一个_实例_。因此，多个助手可以引用同一个图，但可以包含不同的配置（例如，提示词、模型、工具）。LangSmith 部署 API 提供了多个端点来创建和管理助手。有关如何创建助手的更多详情，请参阅 [API 参考](/langsmith/server-api-ref) 和[此操作指南](/langsmith/configuration-cloud)。
 
-### Versioning
+### 版本控制
 
-Assistants support versioning to track changes over time. Once you've created an assistant, subsequent edits will automatically create new versions.
+助手支持版本控制以跟踪随时间的变化。一旦创建了助手，后续的编辑将自动创建新版本。
 
-- Each update creates a new version of the assistant.
-- You can promote any version to be the active version.
-- Rolling back to a previous version is as simple as setting it as active.
-- All versions remain available for reference and rollback.
+- 每次更新都会创建助手的一个新版本。
+- 您可以将任何版本提升为活动版本。
+- 回滚到以前的版本就像将其设置为活动版本一样简单。
+- 所有版本都保留以供参考和回滚。
 
 <Warning>
-When updating an assistant, you must provide the entire configuration payload. The update endpoint creates new versions from scratch and does not merge with previous versions. Make sure to include all configuration fields you want to retain.
+更新助手时，您必须提供完整的配置负载。更新端点从头开始创建新版本，不会与以前的版本合并。请确保包含您希望保留的所有配置字段。
 </Warning>
 
-For more details on how to manage assistant versions, refer to the [Manage assistants guide](/langsmith/configuration-cloud#create-a-new-version-for-your-assistant).
+有关如何管理助手版本的更多详情，请参阅[管理助手指南](/langsmith/configuration-cloud#create-a-new-version-for-your-assistant)。
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档](/use-these-docs)通过 MCP 连接到 Claude、VSCode 等，以获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/assistants.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/assistants.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

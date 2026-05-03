@@ -1,20 +1,18 @@
 ---
-title: Test
+title: 测试
 ---
 
 
 
-After you've prototyped your LangGraph agent, a natural next step is to add tests. This guide covers some useful patterns you can use when writing unit tests.
+在为你的 LangGraph 代理完成原型设计后，自然的下一步是添加测试。本指南涵盖了一些在编写单元测试时可以使用的有用模式。
 
-Note that this guide is LangGraph-specific and covers scenarios around graphs with custom structures - if you are just getting started, check out [Test](/oss/python/langchain/test/) that uses LangChain's built-in [`create_agent`](https://reference.langchain.com/python/langchain/agents/factory/create_agent) instead.
-
-
+请注意，本指南是针对 LangGraph 的，涵盖了具有自定义结构的图相关场景——如果你是初学者，请查看使用 LangChain 内置的 [`create_agent`](https://reference.langchain.com/python/langchain/agents/factory/create_agent) 的 [测试](/oss/python/langchain/test/) 文档。
 
 
 
-## Prerequisites
+## 前提条件
 
-First, make sure you have [`pytest`](https://docs.pytest.org/) installed:
+首先，确保你已安装 [`pytest`](https://docs.pytest.org/)：
 
 ```bash
 $ pip install -U pytest
@@ -23,11 +21,11 @@ $ pip install -U pytest
 
 
 
-## Getting started
+## 入门
 
-Because many LangGraph agents depend on state, a useful pattern is to create your graph before each test where you use it, then compile it within tests with a new checkpointer instance.
+由于许多 LangGraph 代理依赖于状态，一个有用的模式是在每次使用图的测试之前创建你的图，然后在测试中使用新的检查点实例对其进行编译。
 
-The below example shows how this works with a simple, linear graph that progresses through `node1` and `node2`. Each node updates the single state key `my_key`:
+下面的示例展示了一个简单的线性图如何工作，该图依次经过 `node1` 和 `node2`。每个节点更新单个状态键 `my_key`：
 
 ```python
 import pytest
@@ -62,9 +60,9 @@ def test_basic_agent_execution() -> None:
 
 
 
-## Testing individual nodes and edges
+## 测试单个节点和边
 
-Compiled LangGraph agents expose references to each individual node as `graph.nodes`. You can take advantage of this to test individual nodes within your agent. Note that this will bypass any checkpointers passed when compiling the graph:
+编译后的 LangGraph 代理通过 `graph.nodes` 暴露对每个单独节点的引用。你可以利用这一点来测试代理中的单个节点。请注意，这将绕过编译图时传递的任何检查点：
 
 ```python
 import pytest
@@ -86,11 +84,11 @@ def create_graph() -> StateGraph:
     return graph
 
 def test_individual_node_execution() -> None:
-    # Will be ignored in this example
+    # 在此示例中将被忽略
     checkpointer = MemorySaver()
     graph = create_graph()
     compiled_graph = graph.compile(checkpointer=checkpointer)
-    # Only invoke node 1
+    # 仅调用节点 1
     result = compiled_graph.nodes["node1"].invoke(
         {"my_key": "initial_value"},
     )
@@ -100,19 +98,19 @@ def test_individual_node_execution() -> None:
 
 
 
-## Partial execution
+## 部分执行
 
-For agents made up of larger graphs, you may wish to test partial execution paths within your agent rather than the entire flow end-to-end. In some cases, it may make semantic sense to [restructure these sections as subgraphs](/oss/python/langgraph/use-subgraphs), which you can invoke in isolation as normal.
+对于由更大图组成的代理，你可能希望测试代理内的部分执行路径，而不是端到端的整个流程。在某些情况下，将[这些部分重构为子图](/oss/python/langgraph/use-subgraphs)在语义上可能是合理的，你可以像正常情况一样单独调用它们。
 
-However, if you do not wish to make changes to your agent graph's overall structure, you can use LangGraph's persistence mechanisms to simulate a state where your agent is paused right before the beginning of the desired section, and will pause again at the end of the desired section. The steps are as follows:
+但是，如果你不希望更改代理图的整体结构，可以使用 LangGraph 的持久化机制来模拟代理在所需部分开始之前暂停的状态，并在所需部分结束时再次暂停。步骤如下：
 
-1. Compile your agent with a checkpointer (the in-memory checkpointer [`InMemorySaver`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.memory.InMemorySaver) will suffice for testing).
-2. Call your agent's [`update_state`](/oss/python/langgraph/use-time-travel) method with an [`as_node`](/oss/python/langgraph/use-time-travel#from-a-specific-node) parameter set to the name of the node *before* the one you want to start your test.
-3. Invoke your agent with the same `thread_id` you used to update the state and an `interrupt_after` parameter set to the name of the node you want to stop at.
+1. 使用检查点编译你的代理（内存中的检查点 [`InMemorySaver`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.memory.InMemorySaver) 对于测试来说就足够了）。
+2. 使用 [`as_node`](/oss/python/langgraph/use-time-travel#from-a-specific-node) 参数调用你的代理的 [`update_state`](/oss/python/langgraph/use-time-travel) 方法，该参数设置为*你想要开始测试的节点之前*的节点名称。
+3. 使用你用于更新状态的相同 `thread_id` 调用你的代理，并将 `interrupt_after` 参数设置为你想要停止的节点名称。
 
 
 
-Here's an example that executes only the second and third nodes in a linear graph:
+以下是一个仅在线性图中执行第二个和第三个节点的示例：
 
 ```python
 import pytest
@@ -147,18 +145,17 @@ def test_partial_execution_from_node2_to_node3() -> None:
             "thread_id": "1"
           }
         },
-        # The state passed into node 2 - simulating the state at
-        # the end of node 1
+        # 传递给节点 2 的状态 - 模拟节点 1 结束时的状态
         values={"my_key": "initial_value"},
-        # Update saved state as if it came from node 1
-        # Execution will resume at node 2
+        # 更新保存的状态，就好像它来自节点 1
+        # 执行将从节点 2 恢复
         as_node="node1",
     )
     result = compiled_graph.invoke(
-        # Resume execution by passing None
+        # 通过传递 None 恢复执行
         None,
         config={"configurable": {"thread_id": "1"}},
-        # Stop after node 3 so that node 4 doesn't run
+        # 在节点 3 之后停止，这样节点 4 就不会运行
         interrupt_after="node3",
     )
     assert result["my_key"] == "hello from node3"
@@ -168,9 +165,9 @@ def test_partial_execution_from_node2_to_node3() -> None:
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [连接这些文档](/use-these-docs) 到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/test.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/test.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

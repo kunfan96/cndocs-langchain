@@ -1,25 +1,25 @@
 ---
-title: Deploy other frameworks
-sidebarTitle: Deploy other frameworks (e.g., Strands, CrewAI)
-description: Deploy agents built with Strands, CrewAI, or other frameworks to LangSmith using the LangGraph Functional API.
+title: 部署其他框架
+sidebarTitle: 部署其他框架（例如 Strands、CrewAI）
+description: 使用 LangGraph 函数式 API 将使用 Strands、CrewAI 或其他框架构建的智能体部署到 LangSmith。
 ---
-This guide shows you how to use [Functional API](/oss/python/langgraph/functional-api) to deploy a [Strands Agent](https://strandsagents.com/latest/documentation/docs/) on [LangSmith Deployment](/langsmith/deployment) and set up tracing for [LangSmith Observability](/langsmith/observability). You can follow the same approach with other frameworks like CrewAI, AutoGen, Google ADK.
+本指南展示如何使用[函数式 API](/oss/python/langgraph/functional-api) 在 [LangSmith 部署](/langsmith/deployment) 上部署 [Strands 智能体](https://strandsagents.com/latest/documentation/docs/)，并为 [LangSmith 可观测性](/langsmith/observability) 设置追踪。您可以对其他框架（如 CrewAI、AutoGen、Google ADK）采用相同方法。
 
-Using Functional API and deploying to LangSmith Deployment provides several benefits:
+使用函数式 API 并部署到 LangSmith 部署提供以下优势：
 
-* Production deployment: Deploy your integrated solution to [LangSmith Deployment](/langsmith/deployment) for scalable production use.
-* Enhanced features: With Functional API, you can integrate your existing agents with [persistence](/oss/python/langgraph/persistence), [streaming](/langsmith/streaming), [short and long-term memory](/oss/python/concepts/memory) and more, with minimal changes to your existing code.
-* Multi-agent systems: Build [multi-agent systems](/oss/python/langchain/multi-agent) where individual agents are built with different frameworks.
+* 生产部署：将您的集成解决方案部署到 [LangSmith 部署](/langsmith/deployment)，实现可扩展的生产使用。
+* 增强功能：通过函数式 API，您可以将现有智能体与[持久化](/oss/python/langgraph/persistence)、[流式处理](/langsmith/streaming)、[短期和长期记忆](/oss/python/concepts/memory) 等功能集成，只需对现有代码进行最小更改。
+* 多智能体系统：构建[多智能体系统](/oss/python/langchain/multi-agent)，其中各个智能体使用不同框架构建。
 
-## Prerequisites
+## 前提条件
 
 * Python 3.9+
-* Dependencies: `pip install strands-agents strands-agents-tools langgraph`
-* AWS Credentials in your environment
+* 依赖项：`pip install strands-agents strands-agents-tools langgraph`
+* 环境中的 AWS 凭证
 
-## 1. Define strands agent
+## 1. 定义 strands 智能体
 
-Create a Strands Agent with prebuilt tools.
+使用预构建工具创建 Strands 智能体。
 
 ```python
 from strands import Agent
@@ -32,14 +32,14 @@ agent = Agent(
     )
 ```
 
-## 2. Use Functional API to deploy on LangSmith Deployment
+## 2. 使用函数式 API 部署到 LangSmith 部署
 
-[Functional API](/oss/python/langgraph/functional-api) allows you to integrate and deploy with frameworks other than LangChain. Functional API also provides the additional benefit to leverage other key features—persistence, memory, human-in-the-loop, and streaming—coupled with your existing agent, with minimal changes to your existing code.
+[函数式 API](/oss/python/langgraph/functional-api) 允许您与 LangChain 以外的框架进行集成和部署。函数式 API 还提供了额外优势，可以利用其他关键功能——持久化、记忆、人机交互和流式处理——与您现有的智能体结合，只需对现有代码进行最小更改。
 
-It uses two key building blocks:
+它使用两个关键构建块：
 
-* **[`@entrypoint`](https://reference.langchain.com/python/langgraph/func/entrypoint)**: Marks a function as the starting point of a workflow, encapsulating logic and managing execution flow, including handling long-running tasks and interrupts.
-* **[`@task`](https://reference.langchain.com/python/langgraph/func/task)**: Represents a discrete unit of work, such as an API call or data processing step, that can be executed asynchronously within an entrypoint. Tasks return a future-like object that can be awaited or resolved synchronously.
+* **[`@entrypoint`](https://reference.langchain.com/python/langgraph/func/entrypoint)**：将函数标记为工作流的起点，封装逻辑并管理执行流程，包括处理长时间运行的任务和中断。
+* **[`@task`](https://reference.langchain.com/python/langgraph/func/task)**：表示一个离散的工作单元，例如 API 调用或数据处理步骤，可以在入口点内异步执行。任务返回一个类似 future 的对象，可以被等待或同步解析。
 
 ```python
 from strands.types.content import Message
@@ -49,9 +49,9 @@ import operator
 
 @task
 def invoke_strands(messages: list[Message]):
-    # run the agent with existing messages; can invoke with the final message with messages[-1]
+    # 使用现有消息运行智能体；可以用最后一条消息 messages[-1] 调用
     result = agent(messages)
-    # return the resulting message
+    # 返回结果消息
     return [result.message]
 
 @entrypoint()
@@ -61,12 +61,12 @@ def workflow(messages: list[Message], previous: list[Message]):
     return entrypoint.final(value=response, save=operator.add(messages, response))
 ```
 
-## 3. Set up tracing with OpenTelemetry
+## 3. 使用 OpenTelemetry 设置追踪
 
-In your environment variables, set up the following:
+在您的环境变量中，设置以下内容：
 
 ```python
-# Turn off LangSmith default tracing, as we want to only trace with OpenTelemetry
+# 关闭 LangSmith 默认追踪，因为我们只想使用 OpenTelemetry 进行追踪
 LANGSMITH_TRACING=false
 
 OTEL_EXPORTER_OTLP_ENDPOINT = "https://api.smith.langchain.com/otel/"
@@ -75,14 +75,14 @@ OTEL_EXPORTER_OTLP_HEADERS = "x-api-key=your-langsmith-api-key,Langsmith-Project
 ```
 
 <Note>
-If you're [self-hosting LangSmith](/langsmith/self-hosted), replace the  `OTEL_EXPORTER_OTLP_ENDPOINT` endpoint with your LangSmith API endpoint and append `/api/v1/otel`. For example: `OTEL_EXPORTER_OTLP_ENDPOINT = "https://ai-company.com/api/v1/otel"`
+如果您是[自托管 LangSmith](/langsmith/self-hosted)，请将 `OTEL_EXPORTER_OTLP_ENDPOINT` 端点替换为您的 LangSmith API 端点并附加 `/api/v1/otel`。例如：`OTEL_EXPORTER_OTLP_ENDPOINT = "https://ai-company.com/api/v1/otel"`
 </Note>
 
 <Note>
-Strand's OTel tracing contains synchronous code. In this case, you may need to set `BG_JOB_ISOLATED_LOOPS=true` to execute background runs in an isolated event loop separate from the serving API event loop. This only prevents health-check failures; the synchronous tracing code still degrades throughput and tail latency under load. See [`BG_JOB_ISOLATED_LOOPS`](/langsmith/env-var#bg_job_isolated_loops) for recommended async alternatives.
+Strand 的 OTel 追踪包含同步代码。在这种情况下，您可能需要设置 `BG_JOB_ISOLATED_LOOPS=true`，以便在与服务 API 事件循环分离的隔离事件循环中执行后台运行。这仅防止健康检查失败；同步追踪代码在负载下仍会降低吞吐量和尾部延迟。有关推荐的异步替代方案，请参阅 [`BG_JOB_ISOLATED_LOOPS`](/langsmith/env-var#bg_job_isolated_loops)。
 </Note>
 
-In your main agent, set up the following:
+在您的主智能体中，设置以下内容：
 
 ```python
 from strands.telemetry import StrandsTelemetry
@@ -92,26 +92,26 @@ strands_telemetry.setup_otlp_exporter()
 strands_telemetry.setup_meter()
 ```
 
-## 4. Prepare for deployment
+## 4. 准备部署
 
-From here, to deploy to LangSmith, create a file structure like the following:
+从这里开始，要部署到 LangSmith，请创建如下文件结构：
 
 ```
 my-strands-agent/
-├── agent.py          # Your main agent code
-├── requirements.txt  # Python dependencies
-└── langgraph.json   # LangGraph configuration
+├── agent.py          # 您的主智能体代码
+├── requirements.txt  # Python 依赖项
+└── langgraph.json   # LangGraph 配置
 ```
 
-To deploy your agent, follow the [Deploy to cloud](/langsmith/deploy-to-cloud) guide.
+要部署您的智能体，请遵循[部署到云](/langsmith/deploy-to-cloud)指南。
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/deploy-other-frameworks.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/deploy-other-frameworks.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

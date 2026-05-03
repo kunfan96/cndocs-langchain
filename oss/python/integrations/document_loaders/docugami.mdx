@@ -1,38 +1,38 @@
 ---
-title: "Docugami integration"
-description: "Integrate with the Docugami document loader using LangChain Python."
+title: "Docugami 集成"
+description: "使用 LangChain Python 与 Docugami 文档加载器集成。"
 ---
 
-This notebook covers how to load documents from `Docugami`. It provides the advantages of using this system over alternative data loaders.
+本笔记本介绍如何从 `Docugami` 加载文档。它提供了使用此系统相对于其他数据加载器的优势。
 
-## Prerequisites
+## 先决条件
 
-1. Install necessary python packages.
-2. Grab an access token for your workspace, and make sure it is set as the `DOCUGAMI_API_KEY` environment variable.
-3. Grab some docset and document IDs for your processed documents, as described here: [help.docugami.com/home/docugami-api](https://help.docugami.com/home/docugami-api)
+1. 安装必要的 Python 包。
+2. 获取工作区的访问令牌，并确保将其设置为 `DOCUGAMI_API_KEY` 环境变量。
+3. 获取已处理文档的一些文档集和文档 ID，如这里所述：[help.docugami.com/home/docugami-api](https://help.docugami.com/home/docugami-api)
 
 ```python
-# You need the dgml-utils package to use the DocugamiLoader (run pip install directly without "poetry run" if you are not using poetry)
+# 您需要 dgml-utils 包才能使用 DocugamiLoader（如果您不使用 poetry，请直接运行 pip install，无需 "poetry run"）
 !poetry run pip install docugami-langchain dgml-utils==0.3.0 --upgrade --quiet
 ```
 
-## Quick start
+## 快速开始
 
-1. Create a [Docugami workspace](http://www.docugami.com) (free trials available)
-2. Add your documents (PDF, DOCX or DOC) and allow Docugami to ingest and cluster them into sets of similar documents, e.g. NDAs, Lease Agreements, and Service Agreements. There is no fixed set of document types supported by the system, the clusters created depend on your particular documents, and you can [change the docset assignments](https://help.docugami.com/home/working-with-the-doc-sets-view) later.
-3. Create an access token via the Developer Playground for your workspace. [Detailed instructions](https://help.docugami.com/home/docugami-api)
-4. Explore the [Docugami API](https://api-docs.docugami.com) to get a list of your processed docset IDs, or just the document IDs for a particular docset.
-6. Use the DocugamiLoader as detailed below, to get rich semantic chunks for your documents.
-7. Optionally, build and publish one or more [reports or abstracts](https://help.docugami.com/home/reports). This helps Docugami improve the semantic XML with better tags based on your preferences, which are then added to the DocugamiLoader output as metadata. Use techniques like self-querying retriever to do high accuracy Document QA.
+1. 创建一个 [Docugami 工作区](http://www.docugami.com)（提供免费试用）
+2. 添加您的文档（PDF、DOCX 或 DOC），并允许 Docugami 将其摄取并聚类为相似文档集，例如保密协议、租赁协议和服务协议。系统支持的文档类型没有固定集合，创建的聚类取决于您的特定文档，您可以稍后[更改文档集分配](https://help.docugami.com/home/working-with-the-doc-sets-view)。
+3. 通过开发者游乐场为您的工作区创建访问令牌。[详细说明](https://help.docugami.com/home/docugami-api)
+4. 探索 [Docugami API](https://api-docs.docugami.com) 以获取已处理文档集 ID 的列表，或仅获取特定文档集的文档 ID。
+6. 使用下面详述的 DocugamiLoader，为您的文档获取丰富的语义块。
+7. 可选地，构建并发布一个或多个[报告或摘要](https://help.docugami.com/home/reports)。这有助于 Docugami 根据您的偏好改进语义 XML，使用更好的标签，然后将其作为元数据添加到 DocugamiLoader 输出中。使用自查询检索器等技术进行高精度文档问答。
 
-## Advantages vs other chunking techniques
+## 与其他分块技术相比的优势
 
-Appropriate chunking of your documents is critical for retrieval from documents. Many chunking techniques exist, including simple ones that rely on whitespace and recursive chunk splitting based on character length. Docugami offers a different approach:
+对文档进行适当的分块对于文档检索至关重要。存在许多分块技术，包括依赖空白和基于字符长度的递归分块分割的简单技术。Docugami 提供了一种不同的方法：
 
-1. **Intelligent Chunking:** Docugami breaks down every document into a hierarchical semantic XML tree of chunks of varying sizes, from single words or numerical values to entire sections. These chunks follow the semantic contours of the document, providing a more meaningful representation than arbitrary length or simple whitespace-based chunking.
-2. **Semantic Annotations:** Chunks are annotated with semantic tags that are coherent across the document set, facilitating consistent hierarchical queries across multiple documents, even if they are written and formatted differently. For example, in set of lease agreements, you can easily identify key provisions like the Landlord, Tenant, or Renewal Date, as well as more complex information such as the wording of any sub-lease provision or whether a specific jurisdiction has an exception section within a Termination Clause.
-3. **Structured Representation:** In addition, the XML tree indicates the structural contours of every document, using attributes denoting headings, paragraphs, lists, tables, and other common elements, and does that consistently across all supported document formats, such as scanned PDFs or DOCX files. It appropriately handles long-form document characteristics like page headers/footers or multi-column flows for clean text extraction.
-4. **Additional Metadata:** Chunks are also annotated with additional metadata, if a user has been using Docugami. This additional metadata can be used for high-accuracy Document QA without context window restrictions. See detailed code walk-through below.
+1. **智能分块：** Docugami 将每个文档分解为一个层次化的语义 XML 树，包含不同大小的块，从单个单词或数值到整个章节。这些块遵循文档的语义轮廓，提供比任意长度或基于简单空白的分块更有意义的表示。
+2. **语义注释：** 块使用语义标签进行注释，这些标签在整个文档集中保持一致，即使文档的编写和格式不同，也能促进跨多个文档的一致层次查询。例如，在一组租赁协议中，您可以轻松识别关键条款，如房东、租户或续租日期，以及更复杂的信息，如任何转租条款的措辞，或特定司法管辖区在终止条款中是否有例外部分。
+3. **结构化表示：** 此外，XML 树使用表示标题、段落、列表、表格和其他常见元素的属性来指示每个文档的结构轮廓，并且在所有支持的文档格式（如扫描的 PDF 或 DOCX 文件）中保持一致。它适当处理长文档特征，如页眉/页脚或多栏流，以实现干净的文本提取。
+4. **附加元数据：** 如果用户一直在使用 Docugami，块还会用附加元数据进行注释。此附加元数据可用于高精度文档问答，不受上下文窗口限制。请参阅下面的详细代码演练。
 
 ```python
 import os
@@ -40,9 +40,9 @@ import os
 from docugami_langchain.document_loaders import DocugamiLoader
 ```
 
-## Load documents
+## 加载文档
 
-If the DOCUGAMI_API_KEY environment variable is set, there is no need to pass it in to the loader explicitly otherwise you can pass it in as the `access_token` parameter.
+如果设置了 DOCUGAMI_API_KEY 环境变量，则无需显式将其传递给加载器，否则可以将其作为 `access_token` 参数传递。
 
 ```python
 DOCUGAMI_API_KEY = os.environ.get("DOCUGAMI_API_KEY")
@@ -52,7 +52,7 @@ DOCUGAMI_API_KEY = os.environ.get("DOCUGAMI_API_KEY")
 docset_id = "26xpy3aes7xp"
 document_ids = ["d7jqdzcj50sj", "cgd1eacfkchw"]
 
-# To load all docs in the given docset ID, just don't provide document_ids
+# 要加载给定文档集 ID 中的所有文档，只需不提供 document_ids
 loader = DocugamiLoader(docset_id=docset_id, document_ids=document_ids)
 chunks = loader.load()
 len(chunks)
@@ -62,18 +62,18 @@ len(chunks)
 120
 ```
 
-The `metadata` for each [`Document`](https://reference.langchain.com/python/langchain-core/documents/base/Document) (really, a chunk of an actual PDF, DOC or DOCX) contains some useful additional information:
+每个 [`Document`](https://reference.langchain.com/python/langchain-core/documents/base/Document)（实际上是实际 PDF、DOC 或 DOCX 的一个块）的 `metadata` 包含一些有用的附加信息：
 
-1. **id and source:** ID and Name of the file (PDF, DOC or DOCX) the chunk is sourced from within Docugami.
-2. **xpath:** XPath inside the XML representation of the document, for the chunk. Useful for source citations directly to the actual chunk inside the document XML.
-3. **structure:** Structural attributes of the chunk, e.g. h1, h2, div, table, td, etc. Useful to filter out certain kinds of chunks if needed by the caller.
-4. **tag:** Semantic tag for the chunk, using various generative and extractive techniques. More details here: [github.com/docugami/DFM-benchmarks](https://github.com/docugami/DFM-benchmarks)
+1. **id 和 source：** 块在 Docugami 中来源的文件（PDF、DOC 或 DOCX）的 ID 和名称。
+2. **xpath：** 文档 XML 表示中块的 XPath。对于直接引用文档 XML 中实际块的源引用很有用。
+3. **structure：** 块的结构属性，例如 h1、h2、div、table、td 等。如果调用者需要过滤某些类型的块，这很有用。
+4. **tag：** 块的语义标签，使用各种生成式和提取式技术。更多详情请参阅：[github.com/docugami/DFM-benchmarks](https://github.com/docugami/DFM-benchmarks)
 
-You can control chunking behavior by setting the following properties on the `DocugamiLoader` instance:
+您可以通过在 `DocugamiLoader` 实例上设置以下属性来控制分块行为：
 
-1. You can set min and max chunk size, which the system tries to adhere to with minimal truncation. You can set `loader.min_text_length` and `loader.max_text_length` to control these.
-2. By default, only the text for chunks is returned. However, Docugami's XML knowledge graph has additional rich information including semantic tags for entities inside the chunk. Set `loader.include_xml_tags = True` if you want the additional xml metadata on the returned chunks.
-3. In addition, you can set `loader.parent_hierarchy_levels` if you want Docugami to return parent chunks in the chunks it returns. The child chunks point to the parent chunks via the `loader.parent_id_key` value. This is useful e.g. with the MultiVector Retriever for [small-to-big](https://www.youtube.com/watch?v=ihSiRrOUwmg) retrieval. See detailed example later in this notebook.
+1. 您可以设置最小和最大块大小，系统会尝试以最小的截断来遵守这些大小。您可以设置 `loader.min_text_length` 和 `loader.max_text_length` 来控制这些。
+2. 默认情况下，仅返回块的文本。但是，Docugami 的 XML 知识图谱包含其他丰富信息，包括块内实体的语义标签。如果您希望返回的块包含额外的 XML 元数据，请设置 `loader.include_xml_tags = True`。
+3. 此外，如果您希望 Docugami 在返回的块中返回父块，可以设置 `loader.parent_hierarchy_levels`。子块通过 `loader.parent_id_key` 值指向父块。这对于例如使用多向量检索器进行[小到大](https://www.youtube.com/watch?v=ihSiRrOUwmg)检索很有用。请参阅本笔记本后面的详细示例。
 
 ```python
 loader.min_text_length = 64
@@ -92,25 +92,25 @@ page_content='2.2 <Expenses>Time and expenses will be charged based on actuals u
 page_content='2.3 <RegularWorkingHours>All work will be executed during regular working hours <RegularWorkingHours>Monday</RegularWorkingHours>-<Weekday>Friday </Weekday><RegularWorkingHours><RegularWorkingHours>0800</RegularWorkingHours>-<Number>1900</Number></RegularWorkingHours>. For work outside of these hours on weekdays, Company will charge <Charge>one hundred percent (100%) </Charge>of the regular hourly rate and <Charge>two hundred percent (200%) </Charge>for Saturdays, Sundays and public holidays applicable to Company. </RegularWorkingHours>' metadata={'xpath': '/dg:chunk/docset:MASTERSERVICESAGREEMENT-section/docset:MASTERSERVICESAGREEMENT/dg:chunk[1]/docset:Standard/dg:chunk[3]/dg:chunk[2]/docset:ADailyBasis/dg:chunk[3]/dg:chunk', 'id': 'dac7a3ded61b5c4f3e59771243ea46c1', 'name': 'Master Services Agreement - Daltech.docx', 'source': 'Master Services Agreement - Daltech.docx', 'structure': 'lim p', 'tag': 'chunk RegularWorkingHours', 'Liability': '', 'Workers Compensation Insurance': '$1,000,000', 'Limit': '$1,000,000', 'Commercial General Liability Insurance': '$2,000,000', 'Technology Professional Liability Errors Omissions Policy': '$5,000,000', 'Excess Liability Umbrella Coverage': '$9,000,000', 'Client': 'Daltech, Inc.', 'Services Agreement Date': 'INITIAL STATEMENT  OF WORK (SOW)  The purpose of this SOW is to describe the Software and Services that Company will initially provide to  Daltech, Inc.  the “Client”) under the terms and conditions of the  Services Agreement  entered into between the parties on  June 15, 2021', 'Completion of the Services by Company Date': 'February 15, 2022', 'Charge': 'one hundred percent (100%)', 'Company': 'MagicSoft, Inc.', 'Effective Date': 'February 15, 2021', 'Start Date': '03/15/2021', 'Scheduled Onsite Visits Are Cancelled': 'ten (10) working days', 'Limit on Liability': '', 'Liability Cap': '', 'Business Automobile Liability': 'Business Automobile Liability  covering all vehicles that Company owns, hires or leases with a limit of no less than  $1,000,000  (combined single limit for bodily injury and property damage) for each accident.', 'Contractual Liability Coverage': 'Commercial General Liability insurance including  Contractual Liability Coverage , with coverage for products liability, completed operations, property damage and bodily injury, including  death , with an aggregate limit of no less than  $2,000,000 . This policy shall name Client as an additional insured with respect to the provision of services provided under this Agreement. This policy shall include a waiver of subrogation against Client.', 'Technology Professional Liability Errors Omissions': 'Technology Professional Liability Errors & Omissions policy (which includes Cyber Risk coverage and Computer Security and Privacy Liability coverage) with a limit of no less than  $5,000,000  per occurrence and in the aggregate.'}
 ```
 
-## Basic use: Docugami loader for document QA
+## 基本用法：用于文档问答的 Docugami 加载器
 
-You can use the Docugami Loader like a standard loader for Document QA over multiple docs, albeit with much better chunks that follow the natural contours of the document. There are many great tutorials on how to do this, e.g. [this one](https://www.youtube.com/watch?v=3yPBVii7Ct0). We can just use the same code, but use the `DocugamiLoader` for better chunking, instead of loading text or PDF files directly with basic splitting techniques.
+您可以像使用标准加载器一样使用 Docugami Loader 进行多文档的文档问答，尽管它提供了遵循文档自然轮廓的更好的块。有许多关于如何执行此操作的优秀教程，例如[这个](https://www.youtube.com/watch?v=3yPBVii7Ct0)。我们可以使用相同的代码，但使用 `DocugamiLoader` 以获得更好的分块，而不是直接使用基本分割技术加载文本或 PDF 文件。
 
 ```python
 !poetry run pip install -U langchain-openai tiktoken langchain-chroma hnswlib
 ```
 
 ```python
-# For this example, we already have a processed docset for a set of lease documents
+# 对于此示例，我们已经为一组租赁文档处理了一个文档集
 loader = DocugamiLoader(docset_id="zo954yqy53wp")
 chunks = loader.load()
 
-# strip semantic metadata intentionally, to test how things work without semantic metadata
+# 有意剥离语义元数据，以测试在没有语义元数据的情况下工作情况
 for chunk in chunks:
     stripped_metadata = chunk.metadata.copy()
     for key in chunk.metadata:
         if key not in ["name", "xpath", "id", "structure"]:
-            # remove semantic metadata
+            # 移除语义元数据
             del stripped_metadata[key]
     chunk.metadata = stripped_metadata
 
@@ -121,9 +121,9 @@ print(len(chunks))
 4674
 ```
 
-The documents returned by the loader are already split, so we don't need to use a text splitter. Optionally, we can use the metadata on each document, for example the structure or tag attributes, to do any post-processing we want.
+加载器返回的文档已经分割，因此我们不需要使用文本分割器。或者，我们可以使用每个文档上的元数据，例如结构或标签属性，进行任何我们想要的后处理。
 
-We will just use the output of the `DocugamiLoader` as-is to set up a retrieval QA chain the usual way.
+我们将直接使用 `DocugamiLoader` 的输出，以通常的方式设置检索问答链。
 
 ```python
 from langchain_classic.chains import RetrievalQA
@@ -139,32 +139,32 @@ qa_chain = RetrievalQA.from_chain_type(
 ```
 
 ```python
-# Try out the retriever with an example query
-qa_chain("What can tenants do with signage on their properties?")
+# 使用示例查询尝试检索器
+qa_chain("租户可以在其物业上放置哪些标识？")
 ```
 
 ```text
-{'query': 'What can tenants do with signage on their properties?',
- 'result': ' Tenants can place or attach signage (digital or otherwise) to their property after receiving written permission from the landlord, which permission shall not be unreasonably withheld. The signage must conform to all applicable laws, ordinances, etc. governing the same, and tenants must remove all such signs by the termination of the lease.',
- 'source_documents': [Document(page_content='6.01 Signage. Tenant may place or attach to the Premises signs (digital or otherwise) or other such identification as needed after receiving written permission from the Landlord, which permission shall not be unreasonably withheld. Any damage caused to the Premises by the Tenant’s erecting or removing such signs shall be repaired promptly by the Tenant at the Tenant’s expense. Any signs or other form of identification allowed must conform to all applicable laws, ordinances, etc. governing the same. Tenant also agrees to have any window or glass identification completely removed and cleaned at its expense promptly upon vacating the Premises. ARTICLE VII UTILITIES', metadata={'id': '1c290eea05915ba0f24c4a1ffc05d6f3', 'name': 'Sample Commercial Leases/TruTone Lane 6.pdf', 'structure': 'lim h1', 'xpath': '/dg:chunk/dg:chunk/dg:chunk[2]/dg:chunk[1]/docset:TheApprovedUse/dg:chunk[12]/dg:chunk[1]'}),
-  Document(page_content='6.01 Signage. Tenant may place or attach to the Premises signs (digital or otherwise) or other such identification as needed after receiving written permission from the Landlord, which permission shall not be unreasonably withheld. Any damage caused to the Premises by the Tenant’s erecting or removing such signs shall be repaired promptly by the Tenant at the Tenant’s expense. Any signs or other form of identification allowed must conform to all applicable laws, ordinances, etc. governing the same. Tenant also agrees to have any window or glass identification completely removed and cleaned at its expense promptly upon vacating the Premises. ARTICLE VII UTILITIES', metadata={'id': '1c290eea05915ba0f24c4a1ffc05d6f3', 'name': 'Sample Commercial Leases/TruTone Lane 2.pdf', 'structure': 'lim h1', 'xpath': '/dg:chunk/dg:chunk/dg:chunk[2]/dg:chunk[1]/docset:TheApprovedUse/dg:chunk[12]/dg:chunk[1]'}),
-  Document(page_content='Tenant may place or attach to the Premises signs (digital or otherwise) or other such identification as needed after receiving written permission from the Landlord, which permission shall not be unreasonably withheld. Any damage caused to the Premises by the Tenant’s erecting or removing such signs shall be repaired promptly by the Tenant at the Tenant’s expense. Any signs or other form of identification allowed must conform to all applicable laws, ordinances, etc. governing the same. Tenant also agrees to have any window or glass identification completely removed and cleaned at its expense promptly upon vacating the Premises.', metadata={'id': '58d268162ecc36d8633b7bc364afcb8c', 'name': 'Sample Commercial Leases/TruTone Lane 2.docx', 'structure': 'div', 'xpath': '/docset:OFFICELEASEAGREEMENT-section/docset:OFFICELEASEAGREEMENT/dg:chunk/docset:ARTICLEVISIGNAGE-section/docset:ARTICLEVISIGNAGE/docset:_601Signage'}),
-  Document(page_content='8. SIGNS:\n Tenant shall not install signs upon the Premises without Landlord’s prior written approval, which approval shall not be unreasonably withheld or delayed, and any such signage shall be subject to any applicable governmental laws, ordinances, regulations, and other requirements. Tenant shall remove all such signs by the terminations of this Lease. Such installations and removals shall be made in such a manner as to avoid injury or defacement of the Building and other improvements, and Tenant shall repair any injury or defacement, including without limitation discoloration caused by such installations and/or removal.', metadata={'id': '6b7d88f0c979c65d5db088fc177fa81f', 'name': 'Lease Agreements/Bioplex, Inc.pdf', 'structure': 'lim h1 div', 'xpath': '/dg:chunk/docset:WITNESSETH-section/docset:WITNESSETH/dg:chunk/docset:TheObligation/dg:chunk[8]/dg:chunk'})]}
+{'query': '租户可以在其物业上放置哪些标识？',
+ 'result': ' 租户可以在获得房东书面许可后，在其物业上放置或附加标识（数字或其他形式），该许可不得被无理拒绝。标识必须符合管理该标识的所有适用法律、法规等，租户必须在租约终止时移除所有此类标识。',
+ 'source_documents': [Document(page_content='6.01 标识。租户可以在获得房东书面许可后，在物业上放置或附加标识（数字或其他形式）或其他此类必要的识别物，该许可不得被无理拒绝。租户竖立或移除此类标识对物业造成的任何损坏，应由租户自费及时修复。任何允许的标识或其他形式的识别物必须符合管理该标识的所有适用法律、法规等。租户还同意在搬离物业时自费完全移除并清洁任何窗户或玻璃上的识别物。第七条 公用设施', metadata={'id': '1c290eea05915ba0f24c4a1ffc05d6f3', 'name': 'Sample Commercial Leases/TruTone Lane 6.pdf', 'structure': 'lim h1', 'xpath': '/dg:chunk/dg:chunk/dg:chunk[2]/dg:chunk[1]/docset:TheApprovedUse/dg:chunk[12]/dg:chunk[1]'}),
+  Document(page_content='6.01 标识。租户可以在获得房东书面许可后，在物业上放置或附加标识（数字或其他形式）或其他此类必要的识别物，该许可不得被无理拒绝。租户竖立或移除此类标识对物业造成的任何损坏，应由租户自费及时修复。任何允许的标识或其他形式的识别物必须符合管理该标识的所有适用法律、法规等。租户还同意在搬离物业时自费完全移除并清洁任何窗户或玻璃上的识别物。第七条 公用设施', metadata={'id': '1c290eea05915ba0f24c4a1ffc05d6f3', 'name': 'Sample Commercial Leases/TruTone Lane 2.pdf', 'structure': 'lim h1', 'xpath': '/dg:chunk/dg:chunk/dg:chunk[2]/dg:chunk[1]/docset:TheApprovedUse/dg:chunk[12]/dg:chunk[1]'}),
+  Document(page_content='租户可以在获得房东书面许可后，在物业上放置或附加标识（数字或其他形式）或其他此类必要的识别物，该许可不得被无理拒绝。租户竖立或移除此类标识对物业造成的任何损坏，应由租户自费及时修复。任何允许的标识或其他形式的识别物必须符合管理该标识的所有适用法律、法规等。租户还同意在搬离物业时自费完全移除并清洁任何窗户或玻璃上的识别物。', metadata={'id': '58d268162ecc36d8633b7bc364afcb8c', 'name': 'Sample Commercial Leases/TruTone Lane 2.docx', 'structure': 'div', 'xpath': '/docset:OFFICELEASEAGREEMENT-section/docset:OFFICELEASEAGREEMENT/dg:chunk/docset:ARTICLEVISIGNAGE-section/docset:ARTICLEVISIGNAGE/docset:_601Signage'}),
+  Document(page_content='8. 标识：\n 未经房东事先书面批准，租户不得在物业上安装标识，该批准不得被无理拒绝或延迟，且任何此类标识均应遵守任何适用的政府法律、法规、条例和其他要求。租户应在本租约终止时移除所有此类标识。此类安装和移除应以避免对建筑物和其他改进造成损害或污损的方式进行，租户应修复任何损害或污损，包括但不限于由此类安装和/或移除引起的变色。', metadata={'id': '6b7d88f0c979c65d5db088fc177fa81f', 'name': 'Lease Agreements/Bioplex, Inc.pdf', 'structure': 'lim h1 div', 'xpath': '/dg:chunk/docset:WITNESSETH-section/docset:WITNESSETH/dg:chunk/docset:TheObligation/dg:chunk[8]/dg:chunk'})]}
 ```
 
-## Using docugami knowledge graph for high accuracy document QA
+## 使用 Docugami 知识图谱进行高精度文档问答
 
-One issue with large documents is that the correct answer to your question may depend on chunks that are far apart in the document. Typical chunking techniques, even with overlap, will struggle with providing the LLM sufficient context to answer such questions. With upcoming very large context LLMs, it may be possible to stuff a lot of tokens, perhaps even entire documents, inside the context but this will still hit limits at some point with very long documents, or a lot of documents.
+大型文档的一个问题是，您问题的正确答案可能依赖于文档中相距很远的块。典型的分块技术，即使有重叠，也难以向 LLM 提供足够的上下文来回答此类问题。随着即将推出的超大上下文 LLM，可能可以将大量令牌（甚至可能是整个文档）放入上下文中，但对于非常长的文档或大量文档，这仍然会在某个点达到限制。
 
-For example, if we ask a more complex question that requires the LLM to draw on chunks from different parts of the document, even OpenAI's powerful LLM is unable to answer correctly.
+例如，如果我们问一个更复杂的问题，需要 LLM 利用文档不同部分的块，即使是 OpenAI 强大的 LLM 也无法正确回答。
 
 ```python
-chain_response = qa_chain("What is rentable area for the property owned by DHA Group?")
-chain_response["result"]  # correct answer should be 13,500 sq ft
+chain_response = qa_chain("DHA Group 拥有的物业的可租赁面积是多少？")
+chain_response["result"]  # 正确答案应该是 13,500 平方英尺
 ```
 
 ```text
-" I don't know."
+" 我不知道。"
 ```
 
 ```python
@@ -172,22 +172,22 @@ chain_response["source_documents"]
 ```
 
 ```python
-[Document(page_content='1.6 Rentable Area of the Premises.', metadata={'id': '5b39a1ae84d51682328dca1467be211f', 'name': 'Sample Commercial Leases/Shorebucks LLC_WA.pdf', 'structure': 'lim h1', 'xpath': '/docset:OFFICELEASE-section/docset:OFFICELEASE-section/docset:OFFICELEASE/docset:WITNESSETH-section/docset:WITNESSETH/dg:chunk/dg:chunk/docset:BasicLeaseInformation/docset:BASICLEASEINFORMATIONANDDEFINEDTERMS-section/docset:BASICLEASEINFORMATIONANDDEFINEDTERMS/docset:CatalystGroup/dg:chunk[6]/dg:chunk'}),
- Document(page_content='1.6 Rentable Area of the Premises.', metadata={'id': '5b39a1ae84d51682328dca1467be211f', 'name': 'Sample Commercial Leases/Shorebucks LLC_AZ.pdf', 'structure': 'lim h1', 'xpath': '/docset:OFFICELEASE-section/docset:OFFICELEASE-section/docset:WITNESSETH-section/docset:WITNESSETH/dg:chunk/dg:chunk/docset:BasicLeaseInformation/docset:BASICLEASEINFORMATIONANDDEFINEDTERMS-section/docset:BASICLEASEINFORMATIONANDDEFINEDTERMS/docset:MenloGroup/dg:chunk[6]/dg:chunk'}),
- Document(page_content='1.6 Rentable Area of the Premises.', metadata={'id': '5b39a1ae84d51682328dca1467be211f', 'name': 'Sample Commercial Leases/Shorebucks LLC_FL.pdf', 'structure': 'lim h1', 'xpath': '/docset:OFFICELEASE-section/docset:OFFICELEASE/docset:WITNESSETH-section/docset:WITNESSETH/docset:Florida-section/docset:Florida/docset:Shorebucks/dg:chunk[5]/dg:chunk'}),
- Document(page_content='1.6 Rentable Area of the Premises.', metadata={'id': '5b39a1ae84d51682328dca1467be211f', 'name': 'Sample Commercial Leases/Shorebucks LLC_TX.pdf', 'structure': 'lim h1', 'xpath': '/docset:OFFICELEASE-section/docset:OFFICELEASE/docset:WITNESSETH-section/docset:WITNESSETH/dg:chunk/dg:chunk/docset:BasicLeaseInformation/docset:BASICLEASEINFORMATIONANDDEFINEDTERMS-section/docset:BASICLEASEINFORMATIONANDDEFINEDTERMS/docset:LandmarkLlc/dg:chunk[6]/dg:chunk'})]
+[Document(page_content='1.6 物业的可租赁面积。', metadata={'id': '5b39a1ae84d51682328dca1467be211f', 'name': 'Sample Commercial Leases/Shorebucks LLC_WA.pdf', 'structure': 'lim h1', 'xpath': '/docset:OFFICELEASE-section/docset:OFFICELEASE-section/docset:OFFICELEASE/docset:WITNESSETH-section/docset:WITNESSETH/dg:chunk/dg:chunk/docset:BasicLeaseInformation/docset:BASICLEASEINFORMATIONANDDEFINEDTERMS-section/docset:BASICLEASEINFORMATIONANDDEFINEDTERMS/docset:CatalystGroup/dg:chunk[6]/dg:chunk'}),
+ Document(page_content='1.6 物业的可租赁面积。', metadata={'id': '5b39a1ae84d51682328dca1467be211f', 'name': 'Sample Commercial Leases/Shorebucks LLC_AZ.pdf', 'structure': 'lim h1', 'xpath': '/docset:OFFICELEASE-section/docset:OFFICELEASE-section/docset:WITNESSETH-section/docset:WITNESSETH/dg:chunk/dg:chunk/docset:BasicLeaseInformation/docset:BASICLEASEINFORMATIONANDDEFINEDTERMS-section/docset:BASICLEASEINFORMATIONANDDEFINEDTERMS/docset:MenloGroup/dg:chunk[6]/dg:chunk'}),
+ Document(page_content='1.6 物业的可租赁面积。', metadata={'id': '5b39a1ae84d51682328dca1467be211f', 'name': 'Sample Commercial Leases/Shorebucks LLC_FL.pdf', 'structure': 'lim h1', 'xpath': '/docset:OFFICELEASE-section/docset:OFFICELEASE/docset:WITNESSETH-section/docset:WITNESSETH/docset:Florida-section/docset:Florida/docset:Shorebucks/dg:chunk[5]/dg:chunk'}),
+ Document(page_content='1.6 物业的可租赁面积。', metadata={'id': '5b39a1ae84d51682328dca1467be211f', 'name': 'Sample Commercial Leases/Shorebucks LLC_TX.pdf', 'structure': 'lim h1', 'xpath': '/docset:OFFICELEASE-section/docset:OFFICELEASE/docset:WITNESSETH-section/docset:WITNESSETH/dg:chunk/dg:chunk/docset:BasicLeaseInformation/docset:BASICLEASEINFORMATIONANDDEFINEDTERMS-section/docset:BASICLEASEINFORMATIONANDDEFINEDTERMS/docset:LandmarkLlc/dg:chunk[6]/dg:chunk'})]
 ```
 
-At first glance the answer may seem reasonable, but it is incorrect. If you review the source chunks carefully for this answer, you will see that the chunking of the document did not end up putting the Landlord name and the rentable area in the same context, and produced irrelevant chunks therefore the answer is incorrect (should be **13,500 sq ft**)
+乍一看答案似乎合理，但它是错误的。如果您仔细查看此答案的源块，您会发现文档的分块最终没有将房东姓名和可租赁面积放在同一个上下文中，因此产生了不相关的块，导致答案错误（应该是 **13,500 平方英尺**）。
 
-Docugami can help here. Chunks are annotated with additional metadata created using different techniques if a user has been [using Docugami](https://help.docugami.com/home/reports). More technical approaches will be added later.
+Docugami 可以在这里提供帮助。如果用户一直在[使用 Docugami](https://help.docugami.com/home/reports)，块会使用不同技术创建的附加元数据进行注释。稍后将添加更多技术方法。
 
-Specifically, let's ask Docugami to return XML tags on its output, as well as additional metadata:
+具体来说，让我们要求 Docugami 在其输出上返回 XML 标签以及附加元数据：
 
 ```python
 loader = DocugamiLoader(docset_id="zo954yqy53wp")
 loader.include_xml_tags = (
-    True  # for additional semantics from the Docugami knowledge graph
+    True  # 用于来自 Docugami 知识图谱的附加语义
 )
 chunks = loader.load()
 print(chunks[0].metadata)
@@ -197,7 +197,7 @@ print(chunks[0].metadata)
 {'xpath': '/docset:OFFICELEASE-section/dg:chunk', 'id': '47297e277e556f3ce8b570047304560b', 'name': 'Sample Commercial Leases/Shorebucks LLC_AZ.pdf', 'source': 'Sample Commercial Leases/Shorebucks LLC_AZ.pdf', 'structure': 'h1 h1 p', 'tag': 'chunk Lease', 'Lease Date': 'March  29th , 2019', 'Landlord': 'Menlo Group', 'Tenant': 'Shorebucks LLC', 'Premises Address': '1564  E Broadway Rd ,  Tempe ,  Arizona  85282', 'Term of Lease': '96  full calendar months', 'Square Feet': '16,159'}
 ```
 
-We can use a self-querying retriever to improve our query accuracy, using this additional metadata:
+我们可以使用自查询检索器，利用此附加元数据来提高查询准确性：
 
 ```python
 !poetry run pip install -U lark --quiet
@@ -212,14 +212,14 @@ EXCLUDE_KEYS = ["id", "xpath", "structure"]
 metadata_field_info = [
     AttributeInfo(
         name=key,
-        description=f"The {key} for this chunk",
+        description=f"此块的 {key}",
         type="string",
     )
     for key in chunks[0].metadata
     if key.lower() not in EXCLUDE_KEYS
 ]
 
-document_content_description = "Contents of this chunk"
+document_content_description = "此块的内容"
 llm = OpenAI(temperature=0)
 
 vectordb = Chroma.from_documents(documents=chunks, embedding=embedding)
@@ -235,36 +235,36 @@ qa_chain = RetrievalQA.from_chain_type(
 )
 ```
 
-Let's run the same question again. It returns the correct result since all the chunks have metadata key/value pairs on them carrying key information about the document even if this information is physically very far away from the source chunk used to generate the answer.
+让我们再次运行相同的问题。它返回了正确的结果，因为所有块都带有携带文档关键信息的元数据键值对，即使这些信息在物理上远离用于生成答案的源块。
 
 ```python
 qa_chain(
-    "What is rentable area for the property owned by DHA Group?"
-)  # correct answer should be 13,500 sq ft
+    "DHA Group 拥有的物业的可租赁面积是多少？"
+)  # 正确答案应该是 13,500 平方英尺
 ```
 
 ```text
-> Entering new RetrievalQA chain...
+> 进入新的 RetrievalQA 链...
 
-> Finished chain.
+> 完成链。
 ```
 
 ```text
-{'query': 'What is rentable area for the property owned by DHA Group?',
- 'result': ' The rentable area of the property owned by DHA Group is 13,500 square feet.',
- 'source_documents': [Document(page_content='1.6 Rentable Area of the Premises.', metadata={'Landlord': 'DHA Group', 'Lease Date': 'March  29th , 2019', 'Premises Address': '111  Bauer Dr ,  Oakland ,  New Jersey ,  07436', 'Square Feet': '13,500', 'Tenant': 'Shorebucks LLC', 'Term of Lease': '84  full calendar  months', 'id': '5b39a1ae84d51682328dca1467be211f', 'name': 'Sample Commercial Leases/Shorebucks LLC_NJ.pdf', 'source': 'Sample Commercial Leases/Shorebucks LLC_NJ.pdf', 'structure': 'lim h1', 'tag': 'chunk', 'xpath': '/docset:OFFICELEASE-section/docset:OFFICELEASE-section/docset:OFFICELEASE/docset:WITNESSETH-section/docset:WITNESSETH/dg:chunk/dg:chunk/docset:BasicLeaseInformation/docset:BASICLEASEINFORMATIONANDDEFINEDTERMS-section/docset:BASICLEASEINFORMATIONANDDEFINEDTERMS/docset:DhaGroup/dg:chunk[6]/dg:chunk'}),
-  Document(page_content='<RentableAreaofthePremises><SquareFeet>13,500 </SquareFeet>square feet. This square footage figure includes an add-on factor for Common Areas in the Building and has been agreed upon by the parties as final and correct and is not subject to challenge or dispute by either party. </RentableAreaofthePremises>', metadata={'Landlord': 'DHA Group', 'Lease Date': 'March  29th , 2019', 'Premises Address': '111  Bauer Dr ,  Oakland ,  New Jersey ,  07436', 'Square Feet': '13,500', 'Tenant': 'Shorebucks LLC', 'Term of Lease': '84  full calendar  months', 'id': '4c06903d087f5a83e486ee42cd702d31', 'name': 'Sample Commercial Leases/Shorebucks LLC_NJ.pdf', 'source': 'Sample Commercial Leases/Shorebucks LLC_NJ.pdf', 'structure': 'div', 'tag': 'RentableAreaofthePremises', 'xpath': '/docset:OFFICELEASE-section/docset:OFFICELEASE-section/docset:OFFICELEASE/docset:WITNESSETH-section/docset:WITNESSETH/dg:chunk/dg:chunk/docset:BasicLeaseInformation/docset:BASICLEASEINFORMATIONANDDEFINEDTERMS-section/docset:BASICLEASEINFORMATIONANDDEFINEDTERMS/docset:DhaGroup/dg:chunk[6]/docset:RentableAreaofthePremises-section/docset:RentableAreaofthePremises'}),
-  Document(page_content='<TheTermAnnualMarketRent>shall mean (i) for the initial Lease Year (“Year 1”) <Money>$2,239,748.00 </Money>per year (i.e., the product of the Rentable Area of the Premises multiplied by <Money>$82.00</Money>) (the “Year 1 Market Rent Hurdle”); (ii) for the Lease Year thereafter, <Percent>one hundred three percent (103%) </Percent>of the Year 1 Market Rent Hurdle, and (iii) for each Lease Year thereafter until the termination or expiration of this Lease, the Annual Market Rent Threshold shall be <AnnualMarketRentThreshold>one hundred three percent (103%) </AnnualMarketRentThreshold>of the Annual Market Rent Threshold for the immediately prior Lease Year. </TheTermAnnualMarketRent>', metadata={'Landlord': 'DHA Group', 'Lease Date': 'March  29th , 2019', 'Premises Address': '111  Bauer Dr ,  Oakland ,  New Jersey ,  07436', 'Square Feet': '13,500', 'Tenant': 'Shorebucks LLC', 'Term of Lease': '84  full calendar  months', 'id': '6b90beeadace5d4d12b25706fb48e631', 'name': 'Sample Commercial Leases/Shorebucks LLC_NJ.pdf', 'source': 'Sample Commercial Leases/Shorebucks LLC_NJ.pdf', 'structure': 'div', 'tag': 'TheTermAnnualMarketRent', 'xpath': '/docset:OFFICELEASE-section/docset:OFFICELEASE-section/docset:OFFICELEASE/docset:WITNESSETH-section/docset:WITNESSETH/docset:GrossRentCredit-section/docset:GrossRentCredit/dg:chunk/dg:chunk/dg:chunk/dg:chunk[2]/docset:PercentageRent/dg:chunk[2]/dg:chunk[2]/docset:TenantSRevenue/dg:chunk[2]/docset:TenantSRevenue/dg:chunk[3]/docset:TheTermAnnualMarketRent-section/docset:TheTermAnnualMarketRent'}),
-  Document(page_content='1.11 Percentage Rent.\n (a) <GrossRevenue><Percent>55% </Percent>of Gross Revenue to Landlord until Landlord receives Percentage Rent in an amount equal to the Annual Market Rent Hurdle (as escalated); and </GrossRevenue>', metadata={'Landlord': 'DHA Group', 'Lease Date': 'March  29th , 2019', 'Premises Address': '111  Bauer Dr ,  Oakland ,  New Jersey ,  07436', 'Square Feet': '13,500', 'Tenant': 'Shorebucks LLC', 'Term of Lease': '84  full calendar  months', 'id': 'c8bb9cbedf65a578d9db3f25f519dd3d', 'name': 'Sample Commercial Leases/Shorebucks LLC_NJ.pdf', 'source': 'Sample Commercial Leases/Shorebucks LLC_NJ.pdf', 'structure': 'lim h1 lim p', 'tag': 'chunk GrossRevenue', 'xpath': '/docset:OFFICELEASE-section/docset:OFFICELEASE-section/docset:OFFICELEASE/docset:WITNESSETH-section/docset:WITNESSETH/docset:GrossRentCredit-section/docset:GrossRentCredit/dg:chunk/dg:chunk/dg:chunk/docset:PercentageRent/dg:chunk[1]/dg:chunk[1]'})]}
+{'query': 'DHA Group 拥有的物业的可租赁面积是多少？',
+ 'result': ' DHA Group 拥有的物业的可租赁面积为 13,500 平方英尺。',
+ 'source_documents': [Document(page_content='1.6 物业的可租赁面积。', metadata={'Landlord': 'DHA Group', 'Lease Date': 'March  29th , 2019', 'Premises Address': '111  Bauer Dr ,  Oakland ,  New Jersey ,  07436', 'Square Feet': '13,500', 'Tenant': 'Shorebucks LLC', 'Term of Lease': '84  full calendar  months', 'id': '5b39a1ae84d51682328dca1467be211f', 'name': 'Sample Commercial Leases/Shorebucks LLC_NJ.pdf', 'source': 'Sample Commercial Leases/Shorebucks LLC_NJ.pdf', 'structure': 'lim h1', 'tag': 'chunk', 'xpath': '/docset:OFFICELEASE-section/docset:OFFICELEASE-section/docset:OFFICELEASE/docset:WITNESSETH-section/docset:WITNESSETH/dg:chunk/dg:chunk/docset:BasicLeaseInformation/docset:BASICLEASEINFORMATIONANDDEFINEDTERMS-section/docset:BASICLEASEINFORMATIONANDDEFINEDTERMS/docset:DhaGroup/dg:chunk[6]/dg:chunk'}),
+  Document(page_content='<RentableAreaofthePremises><SquareFeet>13,500 </SquareFeet>平方英尺。此平方英尺数字包括建筑物公共区域的附加系数，并已由双方最终确定且正确，任何一方均不得质疑或争议。 </RentableAreaofthePremises>', metadata={'Landlord': 'DHA Group', 'Lease Date': 'March  29th , 2019', 'Premises Address': '111  Bauer Dr ,  Oakland ,  New Jersey ,  07436', 'Square Feet': '13,500', 'Tenant': 'Shorebucks LLC', 'Term of Lease': '84  full calendar  months', 'id': '4c06903d087f5a83e486ee42cd702d31', 'name': 'Sample Commercial Leases/Shorebucks LLC_NJ.pdf', 'source': 'Sample Commercial Leases/Shorebucks LLC_NJ.pdf', 'structure': 'div', 'tag': 'RentableAreaofthePremises', 'xpath': '/docset:OFFICELEASE-section/docset:OFFICELEASE-section/docset:OFFICELEASE/docset:WITNESSETH-section/docset:WITNESSETH/dg:chunk/dg:chunk/docset:BasicLeaseInformation/docset:BASICLEASEINFORMATIONANDDEFINEDTERMS-section/docset:BASICLEASEINFORMATIONANDDEFINEDTERMS/docset:DhaGroup/dg:chunk[6]/docset:RentableAreaofthePremises-section/docset:RentableAreaofthePremises'}),
+  Document(page_content='<TheTermAnnualMarketRent>应指 (i) 对于初始租赁年（“第 1 年”）<Money>$2,239,748.00 </Money>每年（即，物业可租赁面积乘以 <Money>$82.00</Money> 的乘积）（“第 1 年市场租金门槛”）；(ii) 对于其后的租赁年，为第 1 年市场租金门槛的 <Percent>百分之一百零三 (103%) </Percent>，以及 (iii) 对于其后直至本租约终止或届满的每个租赁年，年度市场租金门槛应为紧接其前租赁年的年度市场租金门槛的 <AnnualMarketRentThreshold>百分之一百零三 (103%) </AnnualMarketRentThreshold>。 </TheTermAnnualMarketRent>', metadata={'Landlord': 'DHA Group', 'Lease Date': 'March  29th , 2019', 'Premises Address': '111  Bauer Dr ,  Oakland ,  New Jersey ,  07436', 'Square Feet': '13,500', 'Tenant': 'Shorebucks LLC', 'Term of Lease': '84  full calendar  months', 'id': '6b90beeadace5d4d12b25706fb48e631', 'name': 'Sample Commercial Leases/Shorebucks LLC_NJ.pdf', 'source': 'Sample Commercial Leases/Shorebucks LLC_NJ.pdf', 'structure': 'div', 'tag': 'TheTermAnnualMarketRent', 'xpath': '/docset:OFFICELEASE-section/docset:OFFICELEASE-section/docset:OFFICELEASE/docset:WITNESSETH-section/docset:WITNESSETH/docset:GrossRentCredit-section/docset:GrossRentCredit/dg:chunk/dg:chunk/dg:chunk/dg:chunk[2]/docset:PercentageRent/dg:chunk[2]/dg:chunk[2]/docset:TenantSRevenue/dg:chunk[2]/docset:TenantSRevenue/dg:chunk[3]/docset:TheTermAnnualMarketRent-section/docset:TheTermAnnualMarketRent'}),
+  Document(page_content='1.11 百分比租金。\n (a) <GrossRevenue><Percent>55% </Percent>的总收入归房东所有，直到房东收到等于年度市场租金门槛（按比例增加）的百分比租金；以及 </GrossRevenue>', metadata={'Landlord': 'DHA Group', 'Lease Date': 'March  29th , 2019', 'Premises Address': '111  Bauer Dr ,  Oakland ,  New Jersey ,  07436', 'Square Feet': '13,500', 'Tenant': 'Shorebucks LLC', 'Term of Lease': '84  full calendar  months', 'id': 'c8bb9cbedf65a578d9db3f25f519dd3d', 'name': 'Sample Commercial Leases/Shorebucks LLC_NJ.pdf', 'source': 'Sample Commercial Leases/Shorebucks LLC_NJ.pdf', 'structure': 'lim h1 lim p', 'tag': 'chunk GrossRevenue', 'xpath': '/docset:OFFICELEASE-section/docset:OFFICELEASE-section/docset:OFFICELEASE/docset:WITNESSETH-section/docset:WITNESSETH/docset:GrossRentCredit-section/docset:GrossRentCredit/dg:chunk/dg:chunk/dg:chunk/docset:PercentageRent/dg:chunk[1]/dg:chunk[1]'})]}
 ```
 
-This time the answer is correct, since the self-querying retriever created a filter on the landlord attribute of the metadata, correctly filtering to document that specifically is about the DHA Group landlord. The resulting source chunks are all relevant to this landlord, and this improves answer accuracy even though the landlord is not directly mentioned in the specific chunk that contains the correct answer.
+这次答案是正确的，因为自查询检索器在元数据的房东属性上创建了一个过滤器，正确地过滤到专门关于 DHA Group 房东的文档。结果源块都与此房东相关，即使房东没有在包含正确答案的特定块中直接提及，这也提高了答案的准确性。
 
-# Advanced topic: Small-to-Big retrieval with document knowledge graph hierarchy
+# 高级主题：使用文档知识图谱层次结构进行小到大检索
 
-Documents are inherently semi-structured and the DocugamiLoader is able to navigate the semantic and structural contours of the document to provide parent chunk references on the chunks it returns. This is useful e.g. with the MultiVector Retriever for [small-to-big](https://www.youtube.com/watch?v=ihSiRrOUwmg) retrieval.
+文档本质上是半结构化的，DocugamiLoader 能够导航文档的语义和结构轮廓，为其返回的块提供父块引用。这对于例如使用多向量检索器进行[小到大](https://www.youtube.com/watch?v=ihSiRrOUwmg)检索很有用。
 
-To get parent chunk references, you can set `loader.parent_hierarchy_levels` to a non-zero value.
+要获取父块引用，您可以将 `loader.parent_hierarchy_levels` 设置为非零值。
 
 ```python
 from typing import Dict, List
@@ -274,52 +274,52 @@ from langchain_core.documents import Document
 
 loader = DocugamiLoader(docset_id="zo954yqy53wp")
 loader.include_xml_tags = (
-    True  # for additional semantics from the Docugami knowledge graph
+    True  # 用于来自 Docugami 知识图谱的附加语义
 )
-loader.parent_hierarchy_levels = 3  # for expanded context
+loader.parent_hierarchy_levels = 3  # 用于扩展上下文
 loader.max_text_length = (
     1024 * 8
-)  # 8K chars are roughly 2K tokens (ref: https://help.openai.com/en/articles/4936856-what-are-tokens-and-how-to-count-them)
+)  # 8K 字符大约是 2K 令牌（参考：https://help.openai.com/en/articles/4936856-what-are-tokens-and-how-to-count-them）
 loader.include_project_metadata_in_doc_metadata = (
-    False  # Not filtering on vector metadata, so remove to lighten the vectors
+    False  # 不在向量元数据上过滤，因此移除以减轻向量负担
 )
 chunks: List[Document] = loader.load()
 
-# build separate maps of parent and child chunks
+# 构建父块和子块的单独映射
 parents_by_id: Dict[str, Document] = {}
 children_by_id: Dict[str, Document] = {}
 for chunk in chunks:
     chunk_id = chunk.metadata.get("id")
     parent_chunk_id = chunk.metadata.get(loader.parent_id_key)
     if not parent_chunk_id:
-        # parent chunk
+        # 父块
         parents_by_id[chunk_id] = chunk
     else:
-        # child chunk
+        # 子块
         children_by_id[chunk_id] = chunk
 ```
 
 ```python
-# Explore some of the parent chunk relationships
+# 探索一些父块关系
 for id, chunk in list(children_by_id.items())[:5]:
     parent_chunk_id = chunk.metadata.get(loader.parent_id_key)
     if parent_chunk_id:
-        # child chunks have the parent chunk id set
-        print(f"PARENT CHUNK {parent_chunk_id}: {parents_by_id[parent_chunk_id]}")
-        print(f"CHUNK {id}: {chunk}")
+        # 子块设置了父块 id
+        print(f"父块 {parent_chunk_id}: {parents_by_id[parent_chunk_id]}")
+        print(f"块 {id}: {chunk}")
 ```
 
 ```text
-PARENT CHUNK 7df09fbfc65bb8377054808aac2d16fd: page_content='OFFICE LEASE\n THIS OFFICE LEASE\n <Lease>(the "Lease") is made and entered into as of <LeaseDate>March 29th, 2019</LeaseDate>, by and between Landlord and Tenant. "Date of this Lease" shall mean the date on which the last one of the Landlord and Tenant has signed this Lease. </Lease>\nW I T N E S S E T H\n <TheTerms> Subject to and on the terms and conditions of this Lease, Landlord leases to Tenant and Tenant hires from Landlord the Premises. </TheTerms>\n1. BASIC LEASE INFORMATION AND DEFINED TERMS.\nThe key business terms of this Lease and the defined terms used in this Lease are as follows:' metadata={'xpath': '/docset:OFFICELEASE-section/dg:chunk', 'id': '7df09fbfc65bb8377054808aac2d16fd', 'name': 'Sample Commercial Leases/Shorebucks LLC_NJ.pdf', 'source': 'Sample Commercial Leases/Shorebucks LLC_NJ.pdf', 'structure': 'h1 h1 p h1 p lim h1 p', 'tag': 'chunk Lease chunk TheTerms'}
-CHUNK 47297e277e556f3ce8b570047304560b: page_content='OFFICE LEASE\n THIS OFFICE LEASE\n <Lease>(the "Lease") is made and entered into as of <LeaseDate>March 29th, 2019</LeaseDate>, by and between Landlord and Tenant. "Date of this Lease" shall mean the date on which the last one of the Landlord and Tenant has signed this Lease. </Lease>' metadata={'xpath': '/docset:OFFICELEASE-section/dg:chunk', 'id': '47297e277e556f3ce8b570047304560b', 'name': 'Sample Commercial Leases/Shorebucks LLC_NJ.pdf', 'source': 'Sample Commercial Leases/Shorebucks LLC_NJ.pdf', 'structure': 'h1 h1 p', 'tag': 'chunk Lease', 'doc_id': '7df09fbfc65bb8377054808aac2d16fd'}
-PARENT CHUNK bb84925da3bed22c30ea1bdc173ff54f: page_content='OFFICE LEASE\n THIS OFFICE LEASE\n <Lease>(the "Lease") is made and entered into as of <LeaseDate>January 8th, 2018</LeaseDate>, by and between Landlord and Tenant. "Date of this Lease" shall mean the date on which the last one of the Landlord and Tenant has signed this Lease. </Lease>\nW I T N E S S E T H\n <TheTerms> Subject to and on the terms and conditions of this Lease, Landlord leases to Tenant and Tenant hires from Landlord the Premises. </TheTerms>\n1. BASIC LEASE INFORMATION AND DEFINED TERMS.\nThe key business terms of this Lease and the defined terms used in this Lease are as follows:\n1.1 Landlord.\n <Landlord>Catalyst Group LLC </Landlord>' metadata={'xpath': '/docset:OFFICELEASE-section/dg:chunk', 'id': 'bb84925da3bed22c30ea1bdc173ff54f', 'name': 'Sample Commercial Leases/Shorebucks LLC_WA.pdf', 'source': 'Sample Commercial Leases/Shorebucks LLC_WA.pdf', 'structure': 'h1 h1 p h1 p lim h1 p lim h1 div', 'tag': 'chunk Lease chunk TheTerms chunk Landlord'}
-CHUNK 2f1746cbd546d1d61a9250c50de7a7fa: page_content='W I T N E S S E T H\n <TheTerms> Subject to and on the terms and conditions of this Lease, Landlord leases to Tenant and Tenant hires from Landlord the Premises. </TheTerms>' metadata={'xpath': '/docset:OFFICELEASE-section/docset:OFFICELEASE-section/docset:OFFICELEASE/docset:WITNESSETH-section/dg:chunk', 'id': '2f1746cbd546d1d61a9250c50de7a7fa', 'name': 'Sample Commercial Leases/Shorebucks LLC_WA.pdf', 'source': 'Sample Commercial Leases/Shorebucks LLC_WA.pdf', 'structure': 'h1 p', 'tag': 'chunk TheTerms', 'doc_id': 'bb84925da3bed22c30ea1bdc173ff54f'}
-PARENT CHUNK 0b0d765b6e504a6ba54fa76b203e62ec: page_content='OFFICE LEASE\n THIS OFFICE LEASE\n <Lease>(the "Lease") is made and entered into as of <LeaseDate>January 8th, 2018</LeaseDate>, by and between Landlord and Tenant. "Date of this Lease" shall mean the date on which the last one of the Landlord and Tenant has signed this Lease. </Lease>\nW I T N E S S E T H\n <TheTerms> Subject to and on the terms and conditions of this Lease, Landlord leases to Tenant and Tenant hires from Landlord the Premises. </TheTerms>\n1. BASIC LEASE INFORMATION AND DEFINED TERMS.\nThe key business terms of this Lease and the defined terms used in this Lease are as follows:\n1.1 Landlord.\n <Landlord>Catalyst Group LLC </Landlord>\n1.2 Tenant.\n <Tenant>Shorebucks LLC </Tenant>' metadata={'xpath': '/docset:OFFICELEASE-section/dg:chunk', 'id': '0b0d765b6e504a6ba54fa76b203e62ec', 'name': 'Sample Commercial Leases/Shorebucks LLC_WA.pdf', 'source': 'Sample Commercial Leases/Shorebucks LLC_WA.pdf', 'structure': 'h1 h1 p h1 p lim h1 p lim h1 div lim h1 div', 'tag': 'chunk Lease chunk TheTerms chunk Landlord chunk Tenant'}
-CHUNK b362dfe776ec5a7a66451a8c7c220b59: page_content='1. BASIC LEASE INFORMATION AND DEFINED TERMS.' metadata={'xpath': '/docset:OFFICELEASE-section/docset:OFFICELEASE-section/docset:OFFICELEASE/docset:WITNESSETH-section/docset:WITNESSETH/dg:chunk/dg:chunk/docset:BasicLeaseInformation/dg:chunk', 'id': 'b362dfe776ec5a7a66451a8c7c220b59', 'name': 'Sample Commercial Leases/Shorebucks LLC_WA.pdf', 'source': 'Sample Commercial Leases/Shorebucks LLC_WA.pdf', 'structure': 'lim h1', 'tag': 'chunk', 'doc_id': '0b0d765b6e504a6ba54fa76b203e62ec'}
-PARENT CHUNK c942010baaf76aa4d4657769492f6edb: page_content='OFFICE LEASE\n THIS OFFICE LEASE\n <Lease>(the "Lease") is made and entered into as of <LeaseDate>January 8th, 2018</LeaseDate>, by and between Landlord and Tenant. "Date of this Lease" shall mean the date on which the last one of the Landlord and Tenant has signed this Lease. </Lease>\nW I T N E S S E T H\n <TheTerms> Subject to and on the terms and conditions of this Lease, Landlord leases to Tenant and Tenant hires from Landlord the Premises. </TheTerms>\n1. BASIC LEASE INFORMATION AND DEFINED TERMS.\nThe key business terms of this Lease and the defined terms used in this Lease are as follows:\n1.1 Landlord.\n <Landlord>Catalyst Group LLC </Landlord>\n1.2 Tenant.\n <Tenant>Shorebucks LLC </Tenant>\n1.3 Building.\n <Building>The building containing the Premises located at <PremisesAddress><PremisesStreetAddress><MainStreet>600 </MainStreet><StreetName>Main Street</StreetName></PremisesStreetAddress>, <City>Bellevue</City>, <State>WA</State>, <Premises>98004</Premises></PremisesAddress>. The Building is located within the Project. </Building>' metadata={'xpath': '/docset:OFFICELEASE-section/dg:chunk', 'id': 'c942010baaf76aa4d4657769492f6edb', 'name': 'Sample Commercial Leases/Shorebucks LLC_WA.pdf', 'source': 'Sample Commercial Leases/Shorebucks LLC_WA.pdf', 'structure': 'h1 h1 p h1 p lim h1 p lim h1 div lim h1 div lim h1 div', 'tag': 'chunk Lease chunk TheTerms chunk Landlord chunk Tenant chunk Building'}
-CHUNK a95971d693b7aa0f6640df1fbd18c2ba: page_content='The key business terms of this Lease and the defined terms used in this Lease are as follows:' metadata={'xpath': '/docset:OFFICELEASE-section/docset:OFFICELEASE-section/docset:OFFICELEASE/docset:WITNESSETH-section/docset:WITNESSETH/dg:chunk/dg:chunk/docset:BasicLeaseInformation/docset:BASICLEASEINFORMATIONANDDEFINEDTERMS-section/docset:BASICLEASEINFORMATIONANDDEFINEDTERMS/dg:chunk', 'id': 'a95971d693b7aa0f6640df1fbd18c2ba', 'name': 'Sample Commercial Leases/Shorebucks LLC_WA.pdf', 'source': 'Sample Commercial Leases/Shorebucks LLC_WA.pdf', 'structure': 'p', 'tag': 'chunk', 'doc_id': 'c942010baaf76aa4d4657769492f6edb'}
-PARENT CHUNK f34b649cde7fc4ae156849a56d690495: page_content='W I T N E S S E T H\n <TheTerms> Subject to and on the terms and conditions of this Lease, Landlord leases to Tenant and Tenant hires from Landlord the Premises. </TheTerms>\n1. BASIC LEASE INFORMATION AND DEFINED TERMS.\n<BASICLEASEINFORMATIONANDDEFINEDTERMS>The key business terms of this Lease and the defined terms used in this Lease are as follows: </BASICLEASEINFORMATIONANDDEFINEDTERMS>\n1.1 Landlord.\n <Landlord><Landlord>Menlo Group</Landlord>, a <USState>Delaware </USState>limited liability company authorized to transact business in <USState>Arizona</USState>. </Landlord>\n1.2 Tenant.\n <Tenant>Shorebucks LLC </Tenant>\n1.3 Building.\n <Building>The building containing the Premises located at <PremisesAddress><PremisesStreetAddress><Premises>1564 </Premises><Premises>E Broadway Rd</Premises></PremisesStreetAddress>, <City>Tempe</City>, <USState>Arizona </USState><Premises>85282</Premises></PremisesAddress>. The Building is located within the Project. </Building>\n1.4 Project.\n <Project>The parcel of land and the buildings and improvements located on such land known as Shorebucks Office <ShorebucksOfficeAddress><ShorebucksOfficeStreetAddress><ShorebucksOffice>6 </ShorebucksOffice><ShorebucksOffice6>located at <Number>1564 </Number>E Broadway Rd</ShorebucksOffice6></ShorebucksOfficeStreetAddress>, <City>Tempe</City>, <USState>Arizona </USState><Number>85282</Number></ShorebucksOfficeAddress>. The Project is legally described in EXHIBIT "A" to this Lease. </Project>' metadata={'xpath': '/dg:chunk/docset:WITNESSETH-section/dg:chunk', 'id': 'f34b649cde7fc4ae156849a56d690495', 'name': 'Sample Commercial Leases/Shorebucks LLC_AZ.docx', 'source': 'Sample Commercial Leases/Shorebucks LLC_AZ.docx', 'structure': 'h1 p lim h1 div lim h1 div lim h1 div lim h1 div lim h1 div', 'tag': 'chunk TheTerms BASICLEASEINFORMATIONANDDEFINEDTERMS chunk Landlord chunk Tenant chunk Building chunk Project'}
-CHUNK 21b4d9517f7ccdc0e3a028ce5043a2a0: page_content='1.1 Landlord.\n <Landlord><Landlord>Menlo Group</Landlord>, a <USState>Delaware </USState>limited liability company authorized to transact business in <USState>Arizona</USState>. </Landlord>' metadata={'xpath': '/dg:chunk/docset:WITNESSETH-section/docset:WITNESSETH/dg:chunk[1]/dg:chunk[1]/dg:chunk/dg:chunk[2]/dg:chunk', 'id': '21b4d9517f7ccdc0e3a028ce5043a2a0', 'name': 'Sample Commercial Leases/Shorebucks LLC_AZ.docx', 'source': 'Sample Commercial Leases/Shorebucks LLC_AZ.docx', 'structure': 'lim h1 div', 'tag': 'chunk Landlord', 'doc_id': 'f34b649cde7fc4ae156849a56d690495'}
+父块 7df09fbfc65bb8377054808aac2d16fd: page_content='办公租赁\n 本办公租赁\n <Lease>（“租约”）由房东和租户于 <LeaseDate>2019 年 3 月 29 日</LeaseDate> 签订并生效。“本租约日期”应指房东和租户中最后一方签署本租约的日期。 </Lease>\nW I T N E S S E T H\n <TheTerms> 根据本租约的条款和条件，房东将物业出租给租户，租户从房东处租用物业。 </TheTerms>\n1. 基本租赁信息和定义术语。\n本租约的关键业务术语和本租约中使用的定义术语如下：' metadata={'xpath': '/docset:OFFICELEASE-section/dg:chunk', 'id': '7df09fbfc65bb8377054808aac2d16fd', 'name': 'Sample Commercial Leases/Shorebucks LLC_NJ.pdf', 'source': 'Sample Commercial Leases/Shorebucks LLC_NJ.pdf', 'structure': 'h1 h1 p h1 p lim h1 p', 'tag': 'chunk Lease chunk TheTerms'}
+块 47297e277e556f3ce8b570047304560b: page_content='办公租赁\n 本办公租赁\n <Lease>（“租约”）由房东和租户于 <LeaseDate>2019 年 3 月 29 日</LeaseDate> 签订并生效。“本租约日期”应指房东和租户中最后一方签署本租约的日期。 </Lease>' metadata={'xpath': '/docset:OFFICELEASE-section/dg:chunk', 'id': '47297e277e556f3ce8b570047304560b', 'name': 'Sample Commercial Leases/Shorebucks LLC_NJ.pdf', 'source': 'Sample Commercial Leases/Shorebucks LLC_NJ.pdf', 'structure': 'h1 h1 p', 'tag': 'chunk Lease', 'doc_id': '7df09fbfc65bb8377054808aac2d16fd'}
+父块 bb84925da3bed22c30ea1bdc173ff54f: page_content='办公租赁\n 本办公租赁\n <Lease>（“租约”）由房东和租户于 <LeaseDate>2018 年 1 月 8 日</LeaseDate> 签订并生效。“本租约日期”应指房东和租户中最后一方签署本租约的日期。 </Lease>\nW I T N E S S E T H\n <TheTerms> 根据本租约的条款和条件，房东将物业出租给租户，租户从房东处租用物业。 </TheTerms>\n1. 基本租赁信息和定义术语。\n本租约的关键业务术语和本租约中使用的定义术语如下：\n1.1 房东。\n <Landlord>Catalyst Group LLC </Landlord>' metadata={'xpath': '/docset:OFFICELEASE-section/dg:chunk', 'id': 'bb84925da3bed22c30ea1bdc173ff54f', 'name': 'Sample Commercial Leases/Shorebucks LLC_WA.pdf', 'source': 'Sample Commercial Leases/Shorebucks LLC_WA.pdf', 'structure': 'h1 h1 p h1 p lim h1 p lim h1 div', 'tag': 'chunk Lease chunk TheTerms chunk Landlord'}
+块 2f1746cbd546d1d61a9250c50de7a7fa: page_content='W I T N E S S E T H\n <TheTerms> 根据本租约的条款和条件，房东将物业出租给租户，租户从房东处租用物业。 </TheTerms>' metadata={'xpath': '/docset:OFFICELEASE-section/docset:OFFICELEASE-section/docset:OFFICELEASE/docset:WITNESSETH-section/dg:chunk', 'id': '2f1746cbd546d1d61a9250c50de7a7fa', 'name': 'Sample Commercial Leases/Shorebucks LLC_WA.pdf', 'source': 'Sample Commercial Leases/Shorebucks LLC_WA.pdf', 'structure': 'h1 p', 'tag': 'chunk TheTerms', 'doc_id': 'bb84925da3bed22c30ea1bdc173ff54f'}
+父块 0b0d765b6e504a6ba54fa76b203e62ec: page_content='办公租赁\n 本办公租赁\n <Lease>（“租约”）由房东和租户于 <LeaseDate>2018 年 1 月 8 日</LeaseDate> 签订并生效。“本租约日期”应指房东和租户中最后一方签署本租约的日期。 </Lease>\nW I T N E S S E T H\n <TheTerms> 根据本租约的条款和条件，房东将物业出租给租户，租户从房东处租用物业。 </TheTerms>\n1. 基本租赁信息和定义术语。\n本租约的关键业务术语和本租约中使用的定义术语如下：\n1.1 房东。\n <Landlord>Catalyst Group LLC </Landlord>\n1.2 租户。\n <Tenant>Shorebucks LLC </Tenant>' metadata={'xpath': '/docset:OFFICELEASE-section/dg:chunk', 'id': '0b0d765b6e504a6ba54fa76b203e62ec', 'name': 'Sample Commercial Leases/Shorebucks LLC_WA.pdf', 'source': 'Sample Commercial Leases/Shorebucks LLC_WA.pdf', 'structure': 'h1 h1 p h1 p lim h1 p lim h1 div lim h1 div', 'tag': 'chunk Lease chunk TheTerms chunk Landlord chunk Tenant'}
+块 b362dfe776ec5a7a66451a8c7c220b59: page_content='1. 基本租赁信息和定义术语。' metadata={'xpath': '/docset:OFFICELEASE-section/docset:OFFICELEASE-section/docset:OFFICELEASE/docset:WITNESSETH-section/docset:WITNESSETH/dg:chunk/dg:chunk/docset:BasicLeaseInformation/dg:chunk', 'id': 'b362dfe776ec5a7a66451a8c7c220b59', 'name': 'Sample Commercial Leases/Shorebucks LLC_WA.pdf', 'source': 'Sample Commercial Leases/Shorebucks LLC_WA.pdf', 'structure': 'lim h1', 'tag': 'chunk', 'doc_id': '0b0d765b6e504a6ba54fa76b203e62ec'}
+父块 c942010baaf76aa4d4657769492f6edb: page_content='办公租赁\n 本办公租赁\n <Lease>（“租约”）由房东和租户于 <LeaseDate>2018 年 1 月 8 日</LeaseDate> 签订并生效。“本租约日期”应指房东和租户中最后一方签署本租约的日期。 </Lease>\nW I T N E S S E T H\n <TheTerms> 根据本租约的条款和条件，房东将物业出租给租户，租户从房东处租用物业。 </TheTerms>\n1. 基本租赁信息和定义术语。\n本租约的关键业务术语和本租约中使用的定义术语如下：\n1.1 房东。\n <Landlord>Catalyst Group LLC </Landlord>\n1.2 租户。\n <Tenant>Shorebucks LLC </Tenant>\n1.3 建筑物。\n <Building>包含位于 <PremisesAddress><PremisesStreetAddress><MainStreet>600 </MainStreet><StreetName>Main Street</StreetName></PremisesStreetAddress>, <City>Bellevue</City>, <State>WA</State>, <Premises>98004</Premises></PremisesAddress> 的物业的建筑物。该建筑物位于项目内。 </Building>' metadata={'xpath': '/docset:OFFICELEASE-section/dg:chunk', 'id': 'c942010baaf76aa4d4657769492f6edb', 'name': 'Sample Commercial Leases/Shorebucks LLC_WA.pdf', 'source': 'Sample Commercial Leases/Shorebucks LLC_WA.pdf', 'structure': 'h1 h1 p h1 p lim h1 p lim h1 div lim h1 div lim h1 div', 'tag': 'chunk Lease chunk TheTerms chunk Landlord chunk Tenant chunk Building'}
+块 a95971d693b7aa0f6640df1fbd18c2ba: page_content='本租约的关键业务术语和本租约中使用的定义术语如下：' metadata={'xpath': '/docset:OFFICELEASE-section/docset:OFFICELEASE-section/docset:OFFICELEASE/docset:WITNESSETH-section/docset:WITNESSETH/dg:chunk/dg:chunk/docset:BasicLeaseInformation/docset:BASICLEASEINFORMATIONANDDEFINEDTERMS-section/docset:BASICLEASEINFORMATIONANDDEFINEDTERMS/dg:chunk', 'id': 'a95971d693b7aa0f6640df1fbd18c2ba', 'name': 'Sample Commercial Leases/Shorebucks LLC_WA.pdf', 'source': 'Sample Commercial Leases/Shorebucks LLC_WA.pdf', 'structure': 'p', 'tag': 'chunk', 'doc_id': 'c942010baaf76aa4d4657769492f6edb'}
+父块 f34b649cde7fc4ae156849a56d690495: page_content='W I T N E S S E T H\n <TheTerms> 根据本租约的条款和条件，房东将物业出租给租户，租户从房东处租用物业。 </TheTerms>\n1. 基本租赁信息和定义术语。\n<BASICLEASEINFORMATIONANDDEFINEDTERMS>本租约的关键业务术语和本租约中使用的定义术语如下： </BASICLEASEINFORMATIONANDDEFINEDTERMS>\n1.1 房东。\n <Landlord><Landlord>Menlo Group</Landlord>, a <USState>Delaware </USState>limited liability company authorized to transact business in <USState>Arizona</USState>. </Landlord>\n1.2 租户。\n <Tenant>Shorebucks LLC </Tenant>\n1.3 建筑物。\n <Building>包含位于 <PremisesAddress><PremisesStreetAddress><Premises>1564 </Premises><Premises>E Broadway Rd</Premises></PremisesStreetAddress>, <City>Tempe</City>, <USState>Arizona </USState><Premises>85282</Premises></PremisesAddress> 的物业的建筑物。该建筑物位于项目内。 </Building>\n1.4 项目。\n <Project>位于 <ShorebucksOfficeAddress><ShorebucksOfficeStreetAddress><ShorebucksOffice>6 </ShorebucksOffice><ShorebucksOffice6>located at <Number>1564 </Number>E Broadway Rd</ShorebucksOffice6></ShorebucksOfficeStreetAddress>, <City>Tempe</City>, <USState>Arizona </USState><Number>85282</Number></ShorebucksOfficeAddress> 的土地以及位于该土地上的建筑物和改进，称为 Shorebucks Office。该项目在本租约的附件“A”中有法律描述。 </Project>' metadata={'xpath': '/dg:chunk/docset:WITNESSETH-section/dg:chunk', 'id': 'f34b649cde7fc4ae156849a56d690495', 'name': 'Sample Commercial Leases/Shorebucks LLC_AZ.docx', 'source': 'Sample Commercial Leases/Shorebucks LLC_AZ.docx', 'structure': 'h1 p lim h1 div lim h1 div lim h1 div lim h1 div lim h1 div', 'tag': 'chunk TheTerms BASICLEASEINFORMATIONANDDEFINEDTERMS chunk Landlord chunk Tenant chunk Building chunk Project'}
+块 21b4d9517f7ccdc0e3a028ce5043a2a0: page_content='1.1 房东。\n <Landlord><Landlord>Menlo Group</Landlord>, a <USState>Delaware </USState>limited liability company authorized to transact business in <USState>Arizona</USState>. </Landlord>' metadata={'xpath': '/dg:chunk/docset:WITNESSETH-section/docset:WITNESSETH/dg:chunk[1]/dg:chunk[1]/dg:chunk/dg:chunk[2]/dg:chunk', 'id': '21b4d9517f7ccdc0e3a028ce5043a2a0', 'name': 'Sample Commercial Leases/Shorebucks LLC_AZ.docx', 'source': 'Sample Commercial Leases/Shorebucks LLC_AZ.docx', 'structure': 'lim h1 div', 'tag': 'chunk Landlord', 'doc_id': 'f34b649cde7fc4ae156849a56d690495'}
 ```
 
 ```python
@@ -328,31 +328,31 @@ from langchain.storage import InMemoryStore
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
 
-# The vectorstore to use to index the child chunks
+# 用于索引子块的向量存储
 vectorstore = Chroma(collection_name="big2small", embedding_function=OpenAIEmbeddings())
 
-# The storage layer for the parent documents
+# 父文档的存储层
 store = InMemoryStore()
 
-# The retriever (empty to start)
+# 检索器（开始时为空）
 retriever = MultiVectorRetriever(
     vectorstore=vectorstore,
     docstore=store,
-    search_type=SearchType.mmr,  # use max marginal relevance search
+    search_type=SearchType.mmr,  # 使用最大边际相关性搜索
     search_kwargs={"k": 2},
 )
 
-# Add child chunks to vector store
+# 将子块添加到向量存储
 retriever.vectorstore.add_documents(list(children_by_id.values()))
 
-# Add parent chunks to docstore
+# 将父块添加到文档存储
 retriever.docstore.mset(parents_by_id.items())
 ```
 
 ```python
-# Query vector store directly, should return chunks
+# 直接查询向量存储，应返回块
 found_chunks = vectorstore.similarity_search(
-    "what signs does Birch Street allow on their property?", k=2
+    "Birch Street 允许在其物业上放置哪些标识？", k=2
 )
 
 for chunk in found_chunks:
@@ -361,17 +361,17 @@ for chunk in found_chunks:
 ```
 
 ```text
-24. SIGNS.
- <SIGNS>No signage shall be placed by Tenant on any portion of the Project. However, Tenant shall be permitted to place a sign bearing its name in a location approved by Landlord near the entrance to the Premises (at Tenant's cost) and will be furnished a single listing of its name in the Building's directory (at Landlord's cost), all in accordance with the criteria adopted <Frequency>from time to time </Frequency>by Landlord for the Project. Any changes or additional listings in the directory shall be furnished (subject to availability of space) for the then Building Standard charge. </SIGNS>
+24. 标识。
+ <SIGNS>租户不得在项目的任何部分放置任何标识。但是，应允许租户在房东批准的位置靠近物业入口处放置一个带有其名称的标识（费用由租户承担），并将在建筑物目录中为其提供一个单独的名称列表（费用由房东承担），所有这些均应符合房东为项目不时采用的标准。目录中的任何更改或额外列表应提供（视空间可用性而定），费用为当时的建筑物标准费用。 </SIGNS>
 43090337ed2409e0da24ee07e2adbe94
-<TheExterior> Tenant agrees that all signs, awnings, protective gates, security devices and other installations visible from the exterior of the Premises shall be subject to Landlord's prior written approval, shall be subject to the prior approval of the <Org>Landmarks </Org><Landmarks>Preservation Commission </Landmarks>of the City of <USState>New <Org>York</Org></USState>, if required, and shall not interfere with or block either of the adjacent stores, provided, however, that Landlord shall not unreasonably withhold consent for signs that Tenant desires to install. Tenant agrees that any permitted signs, awnings, protective gates, security devices, and other installations shall be installed at Tenant’s sole cost and expense professionally prepared and dignified and subject to Landlord's prior written approval, which shall not be unreasonably withheld, delayed or conditioned, and subject to such reasonable rules and restrictions as Landlord <Frequency>from time to time </Frequency>may impose. Tenant shall submit to Landlord drawings of the proposed signs and other installations, showing the size, color, illumination and general appearance thereof, together with a statement of the manner in which the same are to be affixed to the Premises. Tenant shall not commence the installation of the proposed signs and other installations unless and until Landlord shall have approved the same in writing. . Tenant shall not install any neon sign. The aforesaid signs shall be used solely for the purpose of identifying Tenant's business. No changes shall be made in the signs and other installations without first obtaining Landlord's prior written consent thereto, which consent shall not be unreasonably withheld, delayed or conditioned. Tenant shall, at its own cost and expense, obtain and exhibit to Landlord such permits or certificates of approval as Tenant may be required to obtain from any and all City, State and other authorities having jurisdiction covering the erection, installation, maintenance or use of said signs or other installations, and Tenant shall maintain the said signs and other installations together with any appurtenances thereto in good order and condition and to the satisfaction of the Landlord and in accordance with any and all orders, regulations, requirements and rules of any public authorities having jurisdiction thereover. Landlord consents to Tenant’s Initial Signage described in annexed Exhibit D. </TheExterior>
+<TheExterior> 租户同意，所有从物业外部可见的标识、遮阳篷、防护门、安全装置和其他安装均应事先获得房东的书面批准，如果需要，还应事先获得 <Org>Landmarks </Org><Landmarks>Preservation Commission </Landmarks> of the City of <USState>New <Org>York</Org></USState> 的批准，并且不得干扰或阻挡相邻的任何商店，但房东不得无理拒绝同意租户希望安装的标识。租户同意，任何允许的标识、遮阳篷、防护门、安全装置和其他安装应由租户自费专业准备并保持尊严，并事先获得房东的书面批准，该批准不得被无理拒绝、延迟或附加条件，并应遵守房东不时可能施加的合理规则和限制。租户应向房东提交拟议标识和其他安装的图纸，显示其尺寸、颜色、照明和总体外观，以及将其固定到物业上的方式说明。除非房东已书面批准，否则租户不得开始安装拟议的标识和其他安装。租户不得安装任何霓虹灯标识。上述标识仅用于识别租户的业务。未经事先获得房东的书面同意，不得对标识和其他安装进行任何更改，该同意不得被无理拒绝、延迟或附加条件。租户应自费从任何和所有具有管辖权的市、州和其他当局获取并展示租户可能被要求获取的任何许可证或批准证书，以涵盖所述标识或其他安装的竖立、安装、维护或使用，并且租户应保持所述标识和其他安装及其任何附件处于良好状态和条件，并令房东满意，并遵守任何和所有具有管辖权的公共当局的命令、法规、要求和规则。房东同意租户在附件 D 中描述的初始标识。 </TheExterior>
 54ddfc3e47f41af7e747b2bc439ea96b
 ```
 
 ```python
-# Query retriever, should return parents (using MMR since that was set as search_type above)
+# 查询检索器，应返回父块（使用 MMR，因为上面设置为 search_type）
 retrieved_parent_docs = retriever.invoke(
-    "what signs does Birch Street allow on their property?"
+    "Birch Street 允许在其物业上放置哪些标识？"
 )
 for chunk in retrieved_parent_docs:
     print(chunk.page_content)
@@ -379,29 +379,29 @@ for chunk in retrieved_parent_docs:
 ```
 
 ```text
-21. SERVICES AND UTILITIES.
- <SERVICESANDUTILITIES>Landlord shall have no obligation to provide any utilities or services to the Premises other than passenger elevator service to the Premises. Tenant shall be solely responsible for and shall promptly pay all charges for water, electricity, or any other utility used or consumed in the Premises, including all costs associated with separately metering for the Premises. Tenant shall be responsible for repairs and maintenance to exit lighting, emergency lighting, and fire extinguishers for the Premises. Tenant is responsible for interior janitorial, pest control, and waste removal services. Landlord may at any time change the electrical utility provider for the Building. Tenant’s use of electrical, HVAC, or other services furnished by Landlord shall not exceed, either in voltage, rated capacity, use, or overall load, that which Landlord deems to be standard for the Building. In no event shall Landlord be liable for damages resulting from the failure to furnish any service, and any interruption or failure shall in no manner entitle Tenant to any remedies including abatement of Rent. If at any time during the Lease Term the Project has any type of card access system for the Parking Areas or the Building, Tenant shall purchase access cards for all occupants of the Premises from Landlord at a Building Standard charge and shall comply with Building Standard terms relating to access to the Parking Areas and the Building. </SERVICESANDUTILITIES>
-22. SECURITY DEPOSIT.
- <SECURITYDEPOSIT>The Security Deposit shall be held by Landlord as security for Tenant's full and faithful performance of this Lease including the payment of Rent. Tenant grants Landlord a security interest in the Security Deposit. The Security Deposit may be commingled with other funds of Landlord and Landlord shall have no liability for payment of any interest on the Security Deposit. Landlord may apply the Security Deposit to the extent required to cure any default by Tenant. If Landlord so applies the Security Deposit, Tenant shall deliver to Landlord the amount necessary to replenish the Security Deposit to its original sum within <Deliver>five days </Deliver>after notice from Landlord. The Security Deposit shall not be deemed an advance payment of Rent or a measure of damages for any default by Tenant, nor shall it be a defense to any action that Landlord may bring against Tenant. </SECURITYDEPOSIT>
-23. GOVERNMENTAL REGULATIONS.
- <GOVERNMENTALREGULATIONS>Tenant, at Tenant's sole cost and expense, shall promptly comply (and shall cause all subtenants and licensees to comply) with all laws, codes, and ordinances of governmental authorities, including the Americans with Disabilities Act of <AmericanswithDisabilitiesActDate>1990 </AmericanswithDisabilitiesActDate>as amended (the "ADA"), and all recorded covenants and restrictions affecting the Project, pertaining to Tenant, its conduct of business, and its use and occupancy of the Premises, including the performance of any work to the Common Areas required because of Tenant's specific use (as opposed to general office use) of the Premises or Alterations to the Premises made by Tenant. </GOVERNMENTALREGULATIONS>
-24. SIGNS.
- <SIGNS>No signage shall be placed by Tenant on any portion of the Project. However, Tenant shall be permitted to place a sign bearing its name in a location approved by Landlord near the entrance to the Premises (at Tenant's cost) and will be furnished a single listing of its name in the Building's directory (at Landlord's cost), all in accordance with the criteria adopted <Frequency>from time to time </Frequency>by Landlord for the Project. Any changes or additional listings in the directory shall be furnished (subject to availability of space) for the then Building Standard charge. </SIGNS>
-25. BROKER.
- <BROKER>Landlord and Tenant each represent and warrant that they have neither consulted nor negotiated with any broker or finder regarding the Premises, except the Landlord's Broker and Tenant's Broker. Tenant shall indemnify, defend, and hold Landlord harmless from and against any claims for commissions from any real estate broker other than Landlord's Broker and Tenant's Broker with whom Tenant has dealt in connection with this Lease. Landlord shall indemnify, defend, and hold Tenant harmless from and against payment of any leasing commission due Landlord's Broker and Tenant's Broker in connection with this Lease and any claims for commissions from any real estate broker other than Landlord's Broker and Tenant's Broker with whom Landlord has dealt in connection with this Lease. The terms of this article shall survive the expiration or earlier termination of this Lease. </BROKER>
-26. END OF TERM.
- <ENDOFTERM>Tenant shall surrender the Premises to Landlord at the expiration or sooner termination of this Lease or Tenant's right of possession in good order and condition, broom-clean, except for reasonable wear and tear. All Alterations made by Landlord or Tenant to the Premises shall become Landlord's property on the expiration or sooner termination of the Lease Term. On the expiration or sooner termination of the Lease Term, Tenant, at its expense, shall remove from the Premises all of Tenant's personal property, all computer and telecommunications wiring, and all Alterations that Landlord designates by notice to Tenant. Tenant shall also repair any damage to the Premises caused by the removal. Any items of Tenant's property that shall remain in the Premises after the expiration or sooner termination of the Lease Term, may, at the option of Landlord and without notice, be deemed to have been abandoned, and in that case, those items may be retained by Landlord as its property to be disposed of by Landlord, without accountability or notice to Tenant or any other party, in the manner Landlord shall determine, at Tenant's expense. </ENDOFTERM>
-27. ATTORNEYS' FEES.
- <ATTORNEYSFEES>Except as otherwise provided in this Lease, the prevailing party in any litigation or other dispute resolution proceeding, including arbitration, arising out of or in any manner based on or relating to this Lease, including tort actions and actions for injunctive, declaratory, and provisional relief, shall be entitled to recover from the losing party actual attorneys' fees and costs, including fees for litigating the entitlement to or amount of fees or costs owed under this provision, and fees in connection with bankruptcy, appellate, or collection proceedings. No person or entity other than Landlord or Tenant has any right to recover fees under this paragraph. In addition, if Landlord becomes a party to any suit or proceeding affecting the Premises or involving this Lease or Tenant's interest under this Lease, other than a suit between Landlord and Tenant, or if Landlord engages counsel to collect any of the amounts owed under this Lease, or to enforce performance of any of the agreements, conditions, covenants, provisions, or stipulations of this Lease, without commencing litigation, then the costs, expenses, and reasonable attorneys' fees and disbursements incurred by Landlord shall be paid to Landlord by Tenant. </ATTORNEYSFEES>
+21. 服务和公用设施。
+ <SERVICESANDUTILITIES>房东没有义务向物业提供除通往物业的客梯服务以外的任何公用设施或服务。租户应独自负责并及时支付在物业中使用或消耗的所有水、电或任何其他公用事业费用，包括与物业单独计量相关的所有费用。租户应负责物业出口照明、应急照明和灭火器的维修和保养。租户负责内部清洁、害虫防治和废物清除服务。房东可以随时更改建筑物的电力公用事业提供商。租户使用房东提供的电力、暖通空调或其他服务，无论是在电压、额定容量、使用还是总负载方面，均不得超过房东认为是建筑物标准的水平。在任何情况下，房东均不对因未能提供任何服务而造成的损害负责，任何中断或故障均不得使租户有权获得任何补救措施，包括租金减免。如果在租赁期内的任何时候，项目对停车区或建筑物有任何类型的门禁系统，租户应以建筑物标准费用从房东处购买所有物业占用者的门禁卡，并应遵守与进入停车区和建筑物相关的建筑物标准条款。 </SERVICESANDUTILITIES>
+22. 押金。
+ <SECURITYDEPOSIT>押金应由房东持有，作为租户完全忠实履行本租约（包括支付租金）的担保。租户授予房东对押金的担保权益。押金可与房东的其他资金混合存放，房东不承担支付押金任何利息的责任。房东可以将押金用于纠正租户的任何违约行为，但以所需为限。如果房东如此使用押金，租户应在收到房东通知后 <Deliver>五天内</Deliver> 向房东交付补充押金至原始金额所需的金额。押金不得被视为租金的预付款或租户任何违约行为的损害赔偿衡量标准，也不得作为房东可能对租户提起的任何诉讼的抗辩。 </SECURITYDEPOSIT>
+23. 政府法规。
+ <GOVERNMENTALREGULATIONS>租户应自费及时遵守（并应导致所有转租户和被许可人遵守）政府当局的所有法律、法规和条例，包括经修订的 <AmericanswithDisabilitiesActDate>1990 年</AmericanswithDisabilitiesActDate> 美国残疾人法案（“ADA”），以及影响项目的所有已记录的契约和限制，涉及租户、其业务经营以及其对物业的使用和占用，包括因租户对物业的特定使用（相对于一般办公使用）或租户对物业进行的改建而需要对公共区域进行的任何工作。 </GOVERNMENTALREGULATIONS>
+24. 标识。
+ <SIGNS>租户不得在项目的任何部分放置任何标识。但是，应允许租户在房东批准的位置靠近物业入口处放置一个带有其名称的标识（费用由租户承担），并将在建筑物目录中为其提供一个单独的名称列表（费用由房东承担），所有这些均应符合房东为项目不时采用的标准。目录中的任何更改或额外列表应提供（视空间可用性而定），费用为当时的建筑物标准费用。 </SIGNS>
+25. 经纪人。
+ <BROKER>房东和租户各自声明并保证，除房东的经纪人和租户的经纪人外，他们既未咨询也未与任何经纪人或寻租人就物业进行过谈判。租户应赔偿、辩护并使房东免受除房东的经纪人和租户的经纪人之外的任何房地产经纪人就本租约向租户提出的任何佣金索赔。房东应赔偿、辩护并使租户免受因本租约向房东的经纪人和租户的经纪人支付的任何租赁佣金，以及除房东的经纪人和租户的经纪人之外的任何房地产经纪人就本租约向房东提出的任何佣金索赔。本条的条款在本租约到期或提前终止后继续有效。 </BROKER>
+26. 租期结束。
+ <ENDOFTERM>租户应在本租约到期或提前终止或租户的占有权提前终止时，将物业以良好状态和条件、扫帚清洁（合理磨损除外）交还给房东。房东或租户对物业进行的所有改建，在租赁期到期或提前终止时，应成为房东的财产。在租赁期到期或提前终止时，租户应自费从物业中移除所有租户的个人财产、所有计算机和电信线路以及房东通过通知指定租户移除的所有改建。租户还应修复因移除造成的任何物业损坏。租户财产中在租赁期到期或提前终止后仍留在物业中的任何物品，房东可选择不通知即视为已被遗弃，在这种情况下，这些物品可由房东作为其财产保留，由房东处置，无需向租户或任何其他方负责或通知，方式由房东决定，费用由租户承担。 </ENDOFTERM>
+27. 律师费。
+ <ATTORNEYSFEES>除本租约另有规定外，在因本租约引起或以任何方式基于或涉及本租约的任何诉讼或其他争议解决程序（包括仲裁）中，包括侵权诉讼和禁令、宣告性和临时救济诉讼，胜诉方有权从败诉方收回实际律师费和成本，包括就本条款下的费用或成本权利或金额进行诉讼的费用，以及与破产、上诉或收款程序相关的费用。除房东或租户外，任何个人或实体均无权根据本段收回费用。此外，如果房东成为影响物业或涉及本租约或租户在本租约下权益的任何诉讼或程序的一方（房东和租户之间的诉讼除外），或者如果房东聘请律师收取本租约项下到期的任何款项，或强制执行本租约的任何协议、条件、契约、条款或规定，而无需启动诉讼，则房东产生的成本、费用和合理的律师费及开支应由租户支付给房东。 </ATTORNEYSFEES>
 43090337ed2409e0da24ee07e2adbe94
-<TenantsSoleCost> Tenant, at Tenant's sole cost and expense, shall be responsible for the removal and disposal of all of garbage, waste, and refuse from the Premises on a <Frequency>daily </Frequency>basis. Tenant shall cause all garbage, waste and refuse to be stored within the Premises until <Stored>thirty (30) minutes </Stored>before closing, except that Tenant shall be permitted, to the extent permitted by law, to place garbage outside the Premises after the time specified in the immediately preceding sentence for pick up prior to <PickUp>6:00 A.M. </PickUp>next following. Garbage shall be placed at the edge of the sidewalk in front of the Premises at the location furthest from he main entrance to the Building or such other location in front of the Building as may be specified by Landlord. </TenantsSoleCost>
-<ItsSoleCost> Tenant, at its sole cost and expense, agrees to use all reasonable diligence in accordance with the best prevailing methods for the prevention and extermination of vermin, rats, and mice, mold, fungus, allergens, <Bacterium>bacteria </Bacterium>and all other similar conditions in the Premises. Tenant, at Tenant's expense, shall cause the Premises to be exterminated <Exterminated>from time to time </Exterminated>to the reasonable satisfaction of Landlord and shall employ licensed exterminating companies. Landlord shall not be responsible for any cleaning, waste removal, janitorial, or similar services for the Premises, and Tenant sha ll not be entitled to seek any abatement, setoff or credit from the Landlord in the event any conditions described in this Article are found to exist in the Premises. </ItsSoleCost>
-42B. Sidewalk Use and Maintenance
-<TheSidewalk> Tenant shall, at its sole cost and expense, keep the sidewalk in front of the Premises 18 inches into the street from the curb clean free of garbage, waste, refuse, excess water, snow, and ice and Tenant shall pay, as additional rent, any fine, cost, or expense caused by Tenant's failure to do so. In the event Tenant operates a sidewalk café, Tenant shall, at its sole cost and expense, maintain, repair, and replace as necessary, the sidewalk in front of the Premises and the metal trapdoor leading to the basement of the Premises, if any. Tenant shall post warning signs and cones on all sides of any side door when in use and attach a safety bar across any such door at all times when open. </TheSidewalk>
-<Display> In no event shall Tenant use, or permit to be used, the space adjacent to or any other space outside of the Premises, for display, sale or any other similar undertaking; except [1] in the event of a legal and licensed “street fair” type program or [<Number>2</Number>] if the local zoning, Community Board [if applicable] and other municipal laws, rules and regulations, allow for sidewalk café use and, if such I s the case, said operation shall be in strict accordance with all of the aforesaid requirements and conditions. . In no event shall Tenant use, or permit to be used, any advertising medium and/or loud speaker and/or sound amplifier and/or radio or television broadcast which may be heard outside of the Premises or which does not comply with the reasonable rules and regulations of Landlord which then will be in effect. </Display>
-42C. Store Front Maintenance
- <TheBulkheadAndSecurityGate> Tenant agrees to wash the storefront, including the bulkhead and security gate, from the top to the ground, monthly or more often as Landlord reasonably requests and make all repairs and replacements as and when deemed necessary by Landlord, to all windows and plate and other glass in or about the Premises and the security gate, if any. In case of any default by Tenant in maintaining the storefront as herein provided, Landlord may do so at its own expense and bill the cost thereof to Tenant as additional rent. </TheBulkheadAndSecurityGate>
-42D. Music, Noise, and Vibration
+<TenantsSoleCost> 租户应自费负责每天从物业中清除和处理所有垃圾、废物和垃圾。租户应导致所有垃圾、废物和垃圾在物业内储存，直到关门前 <Stored>三十 (30) 分钟</Stored>，但租户应被允许（在法律允许的范围内）在上述句子规定的时间之后将垃圾放置在物业外，以便在次日 <PickUp>上午 6:00</PickUp> 之前被收走。垃圾应放置在物业前人行道边缘，距离建筑物主入口最远的位置，或房东可能指定的建筑物前的其他位置。 </TenantsSoleCost>
+<ItsSoleCost> 租户同意自费尽一切合理努力，根据当前最佳方法预防和消灭物业内的害虫、老鼠和小鼠、霉菌、真菌、过敏原、<Bacterium>细菌</Bacterium> 和所有其他类似情况。租户应自费导致物业不时被消灭 <Exterminated>不时</Exterminated>，以达到房东的合理满意，并应聘请有执照的灭虫公司。房东不负责物业的任何清洁、废物清除、清洁或类似服务，租户无权在发现物业中存在本条所述的任何情况时向房东寻求任何减免、抵消或信用。 </ItsSoleCost>
+42B. 人行道使用和维护
+<TheSidewalk> 租户应自费保持物业前的人行道（从路缘石向街道延伸 18 英寸）清洁，无垃圾、废物、垃圾、多余的水、雪和冰，租户应支付因未这样做而引起的任何罚款、成本或费用作为附加租金。如果租户经营人行道咖啡馆，租户应自费维护、修理和必要时更换物业前的人行道以及通往物业地下室的金属活板门（如有）。租户应在使用时在所有侧面的侧门上张贴警告标志和锥形筒，并在任何此类门打开时始终在其上安装安全杆。 </TheSidewalk>
+<Display> 在任何情况下，租户均不得使用或允许使用毗邻物业或物业外的任何其他空间进行展示、销售或任何其他类似活动；除非 [1] 是合法且有执照的“街头集市”类型活动，或 [<Number>2</Number>] 如果当地分区、社区委员会（如适用）和其他市政法律、规则和法规允许人行道咖啡馆使用，并且如果情况如此，则该运营应严格遵守上述所有要求和条件。在任何情况下，租户均不得使用或允许使用任何广告媒介和/或扬声器和/或声音放大器和/或可以在物业外听到或不符合房东当时生效的合理规则和法规的无线电或电视广播。 </Display>
+42C. 店面维护
+ <TheBulkheadAndSecurityGate> 租户同意每月或根据房东的合理要求更频繁地清洗店面，包括护墙板和安全门，从顶部到底部，并在房东认为必要时对物业内或周围的窗户、玻璃板和其他玻璃以及安全门（如有）进行所有维修和更换。如果租户未能按本规定维护店面，房东可自费进行并将费用作为附加租金向租户收取。 </TheBulkheadAndSecurityGate>
+42D. 音乐、噪音和振动
 4474c92ae7ccec9184ed2fef9f072734
 ```
 
@@ -409,9 +409,9 @@ for chunk in retrieved_parent_docs:
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [连接这些文档](/use-these-docs) 到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/document_loaders/docugami.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/document_loaders/docugami.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

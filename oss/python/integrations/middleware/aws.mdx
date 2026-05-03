@@ -1,35 +1,35 @@
 ---
-title: "AWS middleware integration"
-description: "Integrate with AWS middleware using LangChain Python."
+title: "AWS 中间件集成"
+description: "使用 LangChain Python 与 AWS 中间件集成。"
 ---
 
-Middleware specifically designed for models hosted on AWS Bedrock. Learn more about [middleware](/oss/python/langchain/middleware/overview).
+专为托管在 AWS Bedrock 上的模型设计的中间件。了解更多关于[中间件](/oss/python/langchain/middleware/overview)的信息。
 
-| Middleware | Description |
+| 中间件 | 描述 |
 |------------|-------------|
-| [Prompt caching](#prompt-caching) | Reduce costs by caching repetitive prompt prefixes |
+| [提示缓存](#提示缓存) | 通过缓存重复的提示前缀来降低成本 |
 
-## Prompt caching
+## 提示缓存
 
-Reduce inference latency and input token costs by caching frequently reused prompt prefixes on Amazon Bedrock. This middleware automatically places cache checkpoints after the system prompt, tool definitions, and the most recent message so that the model can skip recomputation of previously seen content on subsequent requests.
+通过在 Amazon Bedrock 上缓存频繁重用的提示前缀，减少推理延迟和输入 token 成本。此中间件会自动在系统提示、工具定义和最近的消息之后放置缓存检查点，以便模型在后续请求中可以跳过对先前已见内容的重新计算。
 
-Prompt caching is useful for the following:
+提示缓存适用于以下场景：
 
-- Multi-turn conversations with long, consistent system prompts
-- Agents with many tool definitions that remain constant across invocations
-- Document-based Q&A where users ask multiple questions over the same uploaded context
-- Batch processing workloads with repeated static content
+- 具有长且一致的系统提示的多轮对话
+- 具有许多在调用间保持不变的工具定义的代理
+- 用户基于相同上传上下文提出多个问题的基于文档的问答
+- 具有重复静态内容的批处理工作负载
 
-Supported models:
+支持的模型：
 
 - **Anthropic Claude**
 - **Amazon Nova**
 
 <Info>
-    Learn more about [AWS Bedrock prompt caching](https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-caching.html) strategies and limitations. Cached content must exceed 1,024 tokens for a cache checkpoint to take effect, sometimes more depending on model. See [supported models, regions, and limits](https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-caching.html#prompt-caching-models).
+    了解更多关于 [AWS Bedrock 提示缓存](https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-caching.html)策略和限制的信息。缓存内容必须超过 1,024 个 token 才能使缓存检查点生效，有时根据模型可能需要更多。请参阅[支持的模型、区域和限制](https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-caching.html#prompt-caching-models)。
 </Info>
 
-**API reference:** [`BedrockPromptCachingMiddleware`](https://reference.langchain.com/python/langchain-aws/middleware/prompt_caching/BedrockPromptCachingMiddleware)
+**API 参考：** [`BedrockPromptCachingMiddleware`](https://reference.langchain.com/python/langchain-aws/middleware/prompt_caching/BedrockPromptCachingMiddleware)
 
 ```python ChatBedrockConverse
 from langchain_aws import ChatBedrockConverse
@@ -55,37 +55,37 @@ agent = create_agent(
 )
 ```
 
-<Accordion title="Configuration options">
+<Accordion title="配置选项">
 
 <ParamField body="type" type="string" default="ephemeral">
-    Cache type. For `ChatBedrock`, only `'ephemeral'` is currently supported. For `ChatBedrockConverse`, this value is ignored as the Converse API always uses `"default"` cache type.
+    缓存类型。对于 `ChatBedrock`，目前仅支持 `'ephemeral'`。对于 `ChatBedrockConverse`，此值会被忽略，因为 Converse API 始终使用 `"default"` 缓存类型。
 </ParamField>
 
 <ParamField body="ttl" type="string" default="5m">
-    Time to live for cached content. Valid values: `'5m'` or `'1h'`. Note that Amazon Nova models only support `'5m'`.
+    缓存内容的生存时间。有效值：`'5m'` 或 `'1h'`。请注意，Amazon Nova 模型仅支持 `'5m'`。
 </ParamField>
 
 <ParamField body="min_messages_to_cache" type="number" default="0">
-    Minimum number of messages before caching starts.
+    开始缓存前的最小消息数。
 </ParamField>
 
 <ParamField body="unsupported_model_behavior" type="string" default="warn">
-    Behavior when using unsupported models. Options: `'ignore'`, `'warn'`, or `'raise'`.
+    使用不支持的模型时的行为。选项：`'ignore'`、`'warn'` 或 `'raise'`。
 </ParamField>
 
 </Accordion>
 
-<Accordion title="Full example">
+<Accordion title="完整示例">
 
-The middleware caches content up to and including the latest message in each request. On subsequent requests within the TTL window (5 minutes or 1 hour), previously seen content is retrieved from cache rather than reprocessed, reducing costs and latency.
+该中间件会缓存每个请求中直到最新消息的内容。在 TTL 窗口（5 分钟或 1 小时）内的后续请求中，先前已见的内容会从缓存中检索，而不是重新处理，从而降低成本和延迟。
 
-**How it works:**
-1. First request: System prompt, tools, and the user message are sent to the API and cached
-2. Second request: The cached content is retrieved from cache. Only the new message needs to be processed
-3. This pattern continues for each turn, with each request reusing the cached conversation history
+**工作原理：**
+1. 第一次请求：系统提示、工具和用户消息被发送到 API 并被缓存
+2. 第二次请求：缓存的内容从缓存中检索。只有新消息需要被处理
+3. 此模式在每一轮对话中继续，每个请求都重用缓存的对话历史
 
 <Note>
-    Prompt caching reduces API costs by caching tokens, but does **not** provide conversation memory. To persist conversation history across invocations, use a [checkpointer](https://langchain-ai.github.io/langgraph/concepts/persistence/#checkpointer-libraries) like `MemorySaver`.
+    提示缓存通过缓存 token 来降低 API 成本，但**不**提供对话记忆。要在调用间持久化对话历史记录，请使用 [checkpointer](https://langchain-ai.github.io/langgraph/concepts/persistence/#checkpointer-libraries)（如 `MemorySaver`）。
 </Note>
 
 ```python
@@ -100,11 +100,11 @@ from langgraph.checkpoint.memory import MemorySaver
 
 @tool
 def get_weather(city: str) -> str:
-    """Get the current weather for a city."""
+    """获取城市的当前天气。"""
     return f"The weather in {city} is sunny and 72F."
 
 
-# System prompt must exceed 1,024 tokens for caching to take effect
+# 系统提示必须超过 1,024 个 token 才能使缓存生效
 LONG_PROMPT = (
     "You are a helpful weather assistant with deep expertise in meteorology, "
     "climate science, and atmospheric phenomena. When answering questions about "
@@ -117,13 +117,13 @@ agent = create_agent(
     system_prompt=LONG_PROMPT,
     tools=[get_weather],
     middleware=[BedrockPromptCachingMiddleware(ttl="5m")], # [!code highlight]
-    checkpointer=MemorySaver(),  # Persists conversation history
+    checkpointer=MemorySaver(),  # 持久化对话历史
 )
 
-# Use a thread_id to maintain conversation state
+# 使用 thread_id 来维护对话状态
 config: RunnableConfig = {"configurable": {"thread_id": "user-123"}}
 
-# First invocation: Creates cache with system prompt, tools, and user message
+# 第一次调用：使用系统提示、工具和用户消息创建缓存
 response = agent.invoke(
     {"messages": [HumanMessage("What is the weather in Miami?")]}, config=config
 )
@@ -131,7 +131,7 @@ response = agent.invoke(
 last_msg = response["messages"][-1]
 print(last_msg.content)
 
-# Check cache token usage
+# 检查缓存 token 使用情况
 um = last_msg.usage_metadata
 if um:
     details = um.get("input_token_details", {})
@@ -139,7 +139,7 @@ if um:
     cache_write = details.get("cache_creation", 0) or 0
     print(f"Cache read: {cache_read}, Cache write: {cache_write}")
 
-# Second invocation: Reuses cached system prompt, tools, and previous messages
+# 第二次调用：重用缓存的系统提示、工具和之前的消息
 response = agent.invoke(
     {"messages": [HumanMessage("How about Seattle?")]}, config=config
 )
@@ -148,24 +148,24 @@ print(response["messages"][-1].content)
 
 </Accordion>
 
-### Model-specific behavior
+### 特定于模型的行为
 
-The middleware handles differences between APIs and model families automatically:
+该中间件会自动处理 API 和模型系列之间的差异：
 
-| Feature | ChatBedrockConverse (Anthropic) | ChatBedrockConverse (Nova) | ChatBedrock (Anthropic) |
+| 功能 | ChatBedrockConverse (Anthropic) | ChatBedrockConverse (Nova) | ChatBedrock (Anthropic) |
 |---------|:-------------------------------:|:--------------------------:|:-----------------------:|
-| System prompt caching | ✅ | ✅ | ✅ |
-| Tool definition caching | ✅ | ❌ | ✅ |
-| Message caching | ✅ | ✅ (excludes tool result messages) | ✅ |
-| Extended TTL (`1h`) | ✅ | ❌ | ✅ |
+| 系统提示缓存 | ✅ | ✅ | ✅ |
+| 工具定义缓存 | ✅ | ❌ | ✅ |
+| 消息缓存 | ✅ | ✅（不包括工具结果消息） | ✅ |
+| 扩展 TTL (`1h`) | ✅ | ❌ | ✅ |
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档](/use-these-docs)通过 MCP 连接到 Claude、VSCode 等，以获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/middleware/aws.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/middleware/aws.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

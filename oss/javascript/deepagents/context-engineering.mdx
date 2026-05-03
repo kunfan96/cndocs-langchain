@@ -1,55 +1,53 @@
 ---
-title: Context engineering in Deep Agents
-sidebarTitle: Context engineering
-description: Control what context your deep agent has access to and how it is managed across long-running tasks
+title: 深度代理中的上下文工程
+sidebarTitle: 上下文工程
+description: 控制您的深度代理可以访问哪些上下文，以及如何在长时间运行的任务中管理这些上下文
 ---
 
-Context engineering is providing the right information and tools in the right format so your deep agent can accomplish tasks reliably.
+上下文工程是指以正确的格式提供正确的信息和工具，使您的深度代理能够可靠地完成任务。
 
-Deep agents have access to several kinds of context.
-Some sources are provided to the agent at startup; others become available during runtime, such as user input.
-Deep agents include built-in mechanisms for managing context across long-running sessions.
+深度代理可以访问多种类型的上下文。
+有些来源在启动时提供给代理；其他来源在运行时变得可用，例如用户输入。
+深度代理包含用于在长时间运行的会话中管理上下文的内置机制。
 
-This page provides an overview of the different kinds of context your deep agent has access to and manages.
+本页概述了您的深度代理可以访问和管理的不同类型的上下文。
 
 <Tip>
-New to context engineering? See the [conceptual overview](/oss/javascript/concepts/context) for the different types of context and when to use them.
+刚接触上下文工程？请参阅[概念概述](/oss/javascript/concepts/context)，了解不同类型的上下文及其使用时机。
 </Tip>
 
-## Types of context
+## 上下文类型
 
-| Context Type | What You Control | Scope |
+| 上下文类型 | 您控制的内容 | 范围 |
 |--------------|------------------|-------|
-| **[Input context](#input-context)** | What goes into the agent's prompt at startup (system prompt, memory, skills) | Static, applied each run |
-| **[Runtime context](#runtime-context)** | Static configuration passed at invoke time (user metadata, API keys, connections) | Per run, propagates to subagents |
-| **[Context compression](#context-compression)** | Built-in offloading and summarization to keep context within window limits | Automatic, when limits approached |
-| **[Context isolation](#context-isolation-with-subagents)** | Use subagents to quarantine heavy work, returning only results to the main agent | Per subagent, when delegated |
-| **[Long-term memory](#long-term-memory)** | Persistent storage across threads using the virtual filesystem | Persistent across conversations |
+| **[输入上下文](#输入上下文)** | 启动时代理提示词中包含的内容（系统提示词、记忆、技能） | 静态，每次运行时应用 |
+| **[运行时上下文](#运行时上下文)** | 调用时传递的静态配置（用户元数据、API 密钥、连接） | 每次运行，传播到子代理 |
+| **[上下文压缩](#上下文压缩)** | 内置的卸载和摘要功能，以保持上下文在窗口限制内 | 自动，当接近限制时 |
+| **[上下文隔离](#通过子代理进行上下文隔离)** | 使用子代理隔离繁重的工作，仅将结果返回给主代理 | 每个子代理，当委派任务时 |
+| **[长期记忆](#长期记忆)** | 使用虚拟文件系统跨线程持久存储 | 跨对话持久化 |
 
-## Input context
+## 输入上下文
 
-Input context is information provided to your deep agent at startup that becomes part of its system prompt. The final prompt consists of several sources:
+输入上下文是在启动时提供给您的深度代理的信息，它成为其系统提示词的一部分。最终的提示词由几个来源组成：
 
 <CardGroup cols={2}>
-  <Card title="System prompt" icon="message-2" href="#system-prompt">
-    Custom instructions you provide plus built-in agent guidance.
+  <Card title="系统提示词" icon="message-2" href="#系统提示词">
+    您提供的自定义指令加上内置的代理指导。
   </Card>
-  <Card title="Memory" icon="database" href="#memory">
-    Persistent `AGENTS.md` files always loaded when configured.
+  <Card title="记忆" icon="database" href="#记忆">
+    配置后始终加载的持久化 `AGENTS.md` 文件。
   </Card>
-  <Card title="Skills" icon="tool" href="#skills">
-    On-demand capabilities loaded when relevant (progressive disclosure).
+  <Card title="技能" icon="tool" href="#技能">
+    相关时按需加载的功能（渐进式披露）。
   </Card>
-  <Card title="Tool prompts" icon="list" href="#tool-prompts">
-    Instructions for using built-in tools or custom tools.
+  <Card title="工具提示词" icon="list" href="#工具提示词">
+    使用内置工具或自定义工具的说明。
   </Card>
 </CardGroup>
 
-### System prompt
+### 系统提示词
 
-Your custom system prompt is prepended to the built-in system prompt, which includes guidance for planning, filesystem tools, and subagents. Use it to define the agent's role, behavior, and knowledge:
-
-
+您的自定义系统提示词会前置到内置系统提示词之前，后者包含用于规划、文件系统工具和子代理的指导。使用它来定义代理的角色、行为和知识：
 
 ```typescript
 import { createDeepAgent } from "deepagents";
@@ -61,27 +59,21 @@ const agent = await createDeepAgent({
 });
 ```
 
+`systemPrompt` 参数是静态的，这意味着它不会随每次调用而改变。
+对于某些用例，您可能需要动态提示词：例如，告诉模型“您拥有管理员权限”与“您拥有只读权限”，或者从[长期记忆](#长期记忆)中注入用户偏好，如“用户偏好简洁回复”。
+如果您的提示词依赖于上下文或 `runtime.store`，请使用 `dynamicSystemPromptMiddleware` 来构建上下文感知的指令。
+您的中间件可以读取 `request.runtime.context` 和 `request.runtime.store`。
+有关添加[自定义中间件](/oss/javascript/langchain/middleware)的详细信息，请参阅[自定义](/oss/javascript/deepagents/customization#middleware)，有关示例，请参阅 [LangChain 上下文工程](/oss/javascript/langchain/context-engineering#system-prompt)指南。
 
-
-
-The `systemPrompt` parameter is static which means it does not change per invocation.
-For some use cases you may want a dynamic prompt: for example, to tell the model "You have admin access" vs "You have read-only access," or to inject user preferences like "User prefers concise responses" from [long-term memory](#long-term-memory).
-If your prompt depends on context or `runtime.store`, use `dynamicSystemPromptMiddleware` to build context-aware instructions.
-Your middleware can read `request.runtime.context` and `request.runtime.store`.
-See [Customization](/oss/javascript/deepagents/customization#middleware) for adding [custom middleware](/oss/javascript/langchain/middleware) and the [LangChain context engineering](/oss/javascript/langchain/context-engineering#system-prompt) guide for examples.
-
-You do **not** need middleware when tools alone use context or `runtime.store`; tools receive the `runtime` object (including `runtime.context` and `runtime.store`) directly. Add middleware only when the system prompt itself must vary per request.
-
+当仅工具使用上下文或 `runtime.store` 时，您**不需要**中间件；工具直接接收 `runtime` 对象（包括 `runtime.context` 和 `runtime.store`）。仅当系统提示词本身必须随请求变化时才添加中间件。
 
 <Tip>
-    To adjust the assembled system prompt for a specific provider or model, use a [harness profile](/oss/javascript/deepagents/profiles#harness-profiles): `base_system_prompt` replaces the base prompt outright, and `system_prompt_suffix` appends to it.
+    要为特定提供商或模型调整组装后的系统提示词，请使用[测试配置文件](/oss/javascript/deepagents/profiles#harness-profiles)：`base_system_prompt` 完全替换基础提示词，`system_prompt_suffix` 则追加到其后。
 </Tip>
 
-### Memory
+### 记忆
 
-Memory files ([`AGENTS.md`](https://agents.md/)) provide persistent context that is **always loaded** into the system prompt. Use memory for project conventions, user preferences, and critical guidelines that should apply to every conversation:
-
-
+记忆文件（[`AGENTS.md`](https://agents.md/)）提供**始终加载**到系统提示词中的持久化上下文。将记忆用于项目约定、用户偏好和应适用于每次对话的关键准则：
 
 ```typescript
 const agent = await createDeepAgent({
@@ -90,14 +82,11 @@ const agent = await createDeepAgent({
 });
 ```
 
+与技能不同，记忆总是被注入——没有渐进式披露。保持记忆最小化以避免上下文过载；使用[技能](/oss/javascript/deepagents/skills)来处理详细的工作流程和特定领域的内容。有关配置详情，请参阅[记忆](/oss/javascript/deepagents/customization#memory)。
 
-Unlike skills, memory is always injected—there is no progressive disclosure. Keep memory minimal to avoid context overload; use [skills](/oss/javascript/deepagents/skills) for detailed workflows and domain-specific content. See [Memory](/oss/javascript/deepagents/customization#memory) for configuration details.
+### 技能
 
-### Skills
-
-Skills provide **on-demand** capabilities. The agent reads frontmatter from each `SKILL.md` at startup, then loads full skill content only when it determines the skill is relevant. This reduces token usage while still providing specialized workflows:
-
-
+技能提供**按需**功能。代理在启动时读取每个 `SKILL.md` 的 frontmatter，然后仅在确定技能相关时才加载完整的技能内容。这减少了令牌使用量，同时仍然提供专门的工作流程：
 
 ```typescript
 const agent = await createDeepAgent({
@@ -106,25 +95,22 @@ const agent = await createDeepAgent({
 });
 ```
 
+保持每个技能专注于单一工作流程或领域；广泛或重叠的技能会稀释相关性，并在加载时使上下文膨胀。在技能内部，保持主要内容简洁，并将详细的参考资料移至单独的文件中，并在技能文件中引用。将始终相关的约定放在[记忆](#memory)中。有关创作和配置，请参阅[技能](/oss/javascript/deepagents/skills)。
 
-Keep each skill focused on a single workflow or domain; broad or overlapping skills dilute relevance and bloat context when loaded. Within a skill, keep the main content concise and move detailed reference material to separate files that are referenced in the skill file. Put always-relevant conventions in [memory](#memory). See [Skills](/oss/javascript/deepagents/skills) for authoring and configuration.
+### 工具提示词
 
-### Tool prompts
+[工具](/oss/javascript/langchain/tools)提示词是指导模型如何使用工具的说明。所有工具都暴露模型在其提示词中看到的元数据——通常是一个模式和一个描述。您通过 `tools` 参数传递的工具会将该工具元数据（模式和描述）呈现给模型。深度代理的内置工具打包在中间件中，通常也会更新系统提示词，为这些工具提供更多指导。
 
-[Tool](/oss/javascript/langchain/tools) prompts are instructions that shape how the model uses tools. All tools expose metadata the model sees in its prompt—typically a schema and a description. Tools you pass via the `tools` parameter surface that tool metadata (schema and descriptions) to the model. A deep agent's built-in tools are packaged in middleware and typically also update the system prompt with more guidance for those tools.
+**内置工具** – 添加测试功能（规划、文件系统、子代理）的中间件会自动将特定于工具的说明追加到系统提示词中，创建解释如何有效使用这些工具的工具提示词：
+- 规划提示词 – 用于 `write_todos` 以维护结构化任务列表的说明
+- 文件系统提示词 – `ls`、`read_file`、`write_file`、`edit_file`、`glob`、`grep`（以及使用沙箱后端时的 `execute`）的文档
+- 子代理提示词 – 使用 `task` 工具委派工作的指导
+- 人在回路提示词 – 在指定工具调用处暂停的用法（当设置了 `interrupt_on` 时）
+- 本地上下文提示词 – 当前目录和项目信息（仅限 CLI）
 
-**Built-in tools** – Middleware that adds harness capabilities (planning, filesystem, subagents) automatically appends tool-specific instructions to the system prompt, creating tool prompts that explain how to use those tools effectively:
-- Planning prompt – Instructions for `write_todos` to maintain a structured task list
-- Filesystem prompt – Documentation for `ls`, `read_file`, `write_file`, `edit_file`, `glob`, `grep` (and `execute` when using a sandbox backend)
-- Subagent prompt – Guidance for delegating work with the `task` tool
-- Human-in-the-loop prompt – Usage for pausing at specified tool calls (when `interrupt_on` is set)
-- Local context prompt – Current directory and project info (CLI only)
+**您提供的工具** – 通过 `tools` 参数传递的工具，其描述（来自工具模式）会发送给模型。您还可以添加[自定义中间件](/oss/javascript/langchain/middleware)，该中间件添加工具并追加其自己的系统提示词说明。
 
-**Tools you provide** – Tools passed via the `tools` parameter get their descriptions (from the tool schema) sent to the model. You can also add [custom middleware](/oss/javascript/langchain/middleware) that adds tools and appends its own system prompt instructions.
-
-For tools you provide, make sure to provide a clear name, description, and argument descriptions. These guide the model's reasoning about when and how to use the tool. Include *when* to use the tool in the description and describe what each argument does.
-
-
+对于您提供的工具，请确保提供清晰的名称、描述和参数描述。这些指导模型关于何时以及如何使用该工具的推理。在描述中包含*何时*使用该工具，并描述每个参数的作用。
 
 ```typescript
 const searchOrders = tool(
@@ -144,36 +130,33 @@ order status. Always filter by the provided status.`,
 );
 ```
 
-
 <Tip>
-    To override a built-in or user-supplied tool's description for a specific provider or model, use a [harness profile](/oss/javascript/deepagents/profiles#harness-profiles)'s `tool_description_overrides` keyed by tool name. `excluded_tools` removes a tool from the visible tool set entirely.
+    要为特定提供商或模型覆盖内置或用户提供的工具的描述，请使用[测试配置文件](/oss/javascript/deepagents/profiles#harness-profiles)的 `tool_description_overrides`，按工具名称键控。`excluded_tools` 会将工具完全从可见工具集中移除。
 </Tip>
 
-See [Harness](/oss/javascript/deepagents/harness) for built-in capabilities and [Customization](/oss/javascript/deepagents/customization#tools) for passing tools directly.
+有关内置功能，请参阅[测试](/oss/javascript/deepagents/harness)，有关直接传递工具，请参阅[自定义](/oss/javascript/deepagents/customization#tools)。
 
-### Complete system prompt
+### 完整的系统提示词
 
-The deep agent's system message—the assembled system prompt the model receives at the start of a run—consists of the following parts:
+深度代理的系统消息——模型在运行开始时接收的组装系统提示词——由以下部分组成：
 
-1. Custom `system_prompt` (if provided)
-1. [Base agent prompt](https://github.com/langchain-ai/deepagents/blob/e18e9dcd0e6edc72c0a4a5b76ae752c4bc539752/libs/deepagents/deepagents/graph.py#L37)
-1. To-do list prompt: Instructions for how to plan with to do lists
-1. Memory prompt: `AGENTS.md` + memory usage guidelines (only when `memory` provided)
-1. Skills prompt: Skills locations + list of skills with frontmatter information + usage (only when skills provided)
-1. Virtual filesystem prompt (filesystem + execute tool docs if applicable)
-1. Subagent prompt: Task tool usage
-1. User-provided middleware prompts (if custom middleware is provided)
-1. Human-in-the-loop prompt (when `interrupt_on` is set)
+1. 自定义 `system_prompt`（如果提供）
+1. [基础代理提示词](https://github.com/langchain-ai/deepagents/blob/e18e9dcd0e6edc72c0a4a5b76ae752c4bc539752/libs/deepagents/deepagents/graph.py#L37)
+1. 待办事项列表提示词：如何使用待办事项列表进行规划的说明
+1. 记忆提示词：`AGENTS.md` + 记忆使用指南（仅在提供 `memory` 时）
+1. 技能提示词：技能位置 + 带有 frontmatter 信息的技能列表 + 用法（仅在提供技能时）
+1. 虚拟文件系统提示词（文件系统 + 执行工具文档，如果适用）
+1. 子代理提示词：任务工具用法
+1. 用户提供的中间件提示词（如果提供自定义中间件）
+1. 人在回路提示词（当设置了 `interrupt_on` 时）
 
-## Runtime context
+## 运行时上下文
 
-Runtime context is per-run configuration you pass when you invoke the agent. It is not automatically included in the model prompt; the model only sees it if a tool, middleware, or other logic reads it and adds it to messages or the system prompt. Use runtime context for user metadata (IDs, preferences, roles), API keys, database connections, feature flags, or other values your tools and harness need.
+运行时上下文是您在调用代理时传递的每次运行配置。它不会自动包含在模型提示词中；模型只有在工具、中间件或其他逻辑读取它并将其添加到消息或系统提示词中时才会看到它。将运行时上下文用于用户元数据（ID、偏好、角色）、API 密钥、数据库连接、功能标志或您的工具和测试所需的其他值。
 
+使用 `contextSchema` 定义该数据的形状，通常是一个 Zod 对象模式（例如 `z.object({ ... })`）。在传递给 `invoke` / `ainvoke` 的选项对象的 **`context`** 字段中传递运行时值。有关完整详情，请参阅[运行时](/oss/javascript/langchain/runtime)和 [LangGraph 运行时上下文](/oss/javascript/langgraph/graph-api#runtime-context)。
 
-
-Define the shape of that data with `contextSchema`, typically a Zod object schema (for example `z.object({ ... })`). Pass runtime values in the **`context`** field of the options object you pass to `invoke` / `ainvoke`. See [Runtime](/oss/javascript/langchain/runtime) and [LangGraph runtime context](/oss/javascript/langgraph/graph-api#runtime-context) for full detail.
-
-Inside tools, read `runtime.context` from the `ToolRuntime` instance supplied as the tool handler's `runtime` argument:
+在工具内部，从作为工具处理程序的 `runtime` 参数提供的 `ToolRuntime` 实例中读取 `runtime.context`：
 
 ```typescript
 import { createDeepAgent } from "deepagents";
@@ -210,68 +193,64 @@ const result = await agent.invoke(
 );
 ```
 
+运行时上下文**传播到所有子代理**。当子代理运行时，它接收与父代理相同的运行时上下文。有关每个子代理的上下文（命名空间键），请参阅[子代理](/oss/javascript/deepagents/subagents#context-management)。
 
-Runtime context **propagates to all subagents**. When a subagent runs, it receives the same runtime context as the parent. See [Subagents](/oss/javascript/deepagents/subagents#context-management) for per-subagent context (namespaced keys).
+## 上下文压缩
 
-## Context compression
-
-Long-running tasks produce large tool outputs and long conversation history.
-Context compression reduces the size of information in an agent's working memory while preserving details relevant to the task.
-The following techniques are the built-in mechanisms to ensure the context passed to LLMs stays within its context window limit:
+长时间运行的任务会产生大量的工具输出和冗长的对话历史。
+上下文压缩减少了代理工作记忆中的信息大小，同时保留与任务相关的细节。
+以下技术是确保传递给 LLM 的上下文保持在其上下文窗口限制内的内置机制：
 
 <CardGroup cols={2}>
-  <Card title="Offloading" icon="file-export" href="#offloading">
-    Large tool inputs and results are stored in the filesystem and replaced with references.
+  <Card title="卸载" icon="file-export" href="#卸载">
+    大型工具输入和结果存储在文件系统中，并用引用替换。
   </Card>
-  <Card title="Summarization" icon="article" href="#summarization">
-    Old messages are compressed into an LLM-generated summary when limits are approached.
+  <Card title="摘要" icon="article" href="#摘要">
+    当接近限制时，旧消息被压缩为 LLM 生成的摘要。
   </Card>
 </CardGroup>
 
-### Offloading
+### 卸载
 
-Deep Agents use the [built-in filesystem tools](/oss/javascript/deepagents/harness#virtual-filesystem-access) to automatically offload content and to search and retrieve that offloaded content as needed.
-Content offloading happens when tool call inputs or results exceed a token threshold (default 20,000):
+深度代理使用[内置文件系统工具](/oss/javascript/deepagents/harness#virtual-filesystem-access)自动卸载内容，并根据需要搜索和检索该卸载的内容。
+当工具调用输入或结果超过令牌阈值（默认 20,000）时，会发生内容卸载：
 
-1. **Tool call inputs exceed 20,000 tokens**: File write and edit operations leave behind tool calls containing the complete file content in the agent's conversation history.
-    Since this content is already persisted to the filesystem, it's often redundant.
-    As the session context crosses 85% of the model's available window, deep agents truncate older tool calls, replacing them with a pointer to the file on disk and reducing the size of the active context.
+1. **工具调用输入超过 20,000 个令牌**：文件写入和编辑操作会在代理的对话历史中留下包含完整文件内容的工具调用。
+    由于此内容已持久化到文件系统，因此通常是冗余的。
+    当会话上下文超过模型可用窗口的 85% 时，深度代理会截断较旧的工具调用，用指向磁盘上文件的指针替换它们，从而减少活动上下文的大小。
 
-    ![An example of offloading showing a large input which is saved to disk and the truncated version is used for the tool call](/oss/images/deepagents/offloading-inputs.png)
+    ![卸载示例，显示一个大输入被保存到磁盘，截断版本用于工具调用](/oss/images/deepagents/offloading-inputs.png)
 
-2. **Tool call results exceed 20,000 tokens**: When this occurs, the deep agent offloads the response to the configured backend and substitutes it with a file path reference and a preview of the first 10 lines. Agents can then re-read or search the content as needed.
+2. **工具调用结果超过 20,000 个令牌**：当发生这种情况时，深度代理会将响应卸载到配置的后端，并用文件路径引用和前 10 行的预览替换它。然后代理可以根据需要重新读取或搜索内容。
 
-    ![An example of offloading showing a large tool response that is replaced with a message about the location of the offloaded results and the first 10 lines of the result](/oss/images/deepagents/offloading-results.png)
+    ![卸载示例，显示一个大的工具响应被替换为关于卸载结果位置的消息以及结果的前 10 行](/oss/images/deepagents/offloading-results.png)
 
-### Summarization
+### 摘要
 
 <Note>
-The current summarization behavior (in-model summarization via `wrapModelCall`, accurate token counting, and automatic `ContextOverflowError` fallback) requires `deepagents>=1.6.0`.
+当前的摘要行为（通过 `wrapModelCall` 进行模型内摘要、准确的令牌计数和自动 `ContextOverflowError` 回退）需要 `deepagents>=1.6.0`。
 </Note>
 
+当上下文大小超过模型的上下文窗口限制（例如 `max_input_tokens` 的 85%），并且没有更多上下文有资格卸载时，深度代理会总结消息历史记录。
 
-When the context size crosses the model's context window limit (for example 85% of `max_input_tokens`), and there is no more context eligible for offloading, the deep agent summarizes the message history.
+此过程有两个组成部分：
 
-This process has two components:
+- **上下文内摘要**：LLM 生成对话的结构化摘要，包括会话意图、创建的工件和下一步操作——这将替换代理工作记忆中的完整对话历史。
+- **文件系统保留**：完整的原始对话消息作为规范记录写入文件系统。
 
-- **In-context summary**: An LLM generates a structured summary of the conversation including session intent, artifacts created, and next steps—which replaces the full conversation history in the agent's working memory.
-- **Filesystem preservation**: The complete, original conversation messages are written to the filesystem as a canonical record.
+这种双重方法确保代理通过摘要保持对其目标和进度的感知，同时保留需要时恢复特定细节的能力（通过文件系统搜索）。
 
-This dual approach ensures the agent maintains awareness of its goals and progress (via the summary) while preserving the ability to recover specific details when needed (via filesystem search).
+![摘要示例，显示代理的对话历史，其中几个步骤被压缩](/oss/images/deepagents/summarization.png)
 
-![An example of summarization showing an agent's conversation history, where several steps get compacted](/oss/images/deepagents/summarization.png)
-
-**Configuration:**
-- Triggers at 85% of the model's `max_input_tokens` from its [model profile](/oss/javascript/langchain/models#model-profiles)
-- Keeps 10% of tokens as recent context
-- Falls back to 170,000-token trigger / 6 messages kept if model profile is unavailable
-- If any model call raises a standard [ContextOverflowError](https://reference.langchain.com/javascript/langchain-core/errors/ContextOverflowError), the deep agent immediately falls back to summarization and retry with summary + recent preserved messages
-- Older messages are summarized by the model
-
-
+**配置：**
+- 在模型的 `max_input_tokens` 达到其[模型配置文件](/oss/javascript/langchain/models#model-profiles)的 85% 时触发
+- 保留 10% 的令牌作为最近的上下文
+- 如果模型配置文件不可用，则回退到 170,000 个令牌触发 / 保留 6 条消息
+- 如果任何模型调用引发标准 [ContextOverflowError](https://reference.langchain.com/javascript/langchain-core/errors/ContextOverflowError)，深度代理会立即回退到摘要，并使用摘要 + 最近保留的消息重试
+- 较旧的消息由模型总结
 
 <Tip>
-[Streaming tokens](/oss/javascript/deepagents/streaming#llm-tokens) from the agent will generally include tokens generated by the summarization step. You can filter out these tokens using their associated metadata:
+来自代理的[流式令牌](/oss/javascript/deepagents/streaming#llm-tokens)通常包括摘要步骤生成的令牌。您可以使用其关联的元数据过滤这些令牌：
 ```typescript
 for await (const [namespace, chunk] of await agent.stream(
   { messages: [...] },
@@ -287,17 +266,13 @@ for await (const [namespace, chunk] of await agent.stream(
 ```
 </Tip>
 
-
-
-js
 <Note>
-The summarization tool middleware requires `deepagents>=1.6.0`.
+摘要工具中间件需要 `deepagents>=1.6.0`。
 </Note>
-:::
 
-Deep agents include an optional [tool](/oss/javascript/langchain/tools) for summarization, enabling agents to trigger summarization at opportune times—such as between tasks—instead of at fixed token intervals.
+深度代理包含一个可选的[工具](/oss/javascript/langchain/tools)用于摘要，使代理能够在适当时机（例如任务之间）触发摘要，而不是在固定的令牌间隔触发。
 
-You can enable this tool by appending it to the middleware list:
+您可以通过将其追加到中间件列表来启用此工具：
 
 ```python
 from deepagents import create_deep_agent
@@ -317,30 +292,26 @@ agent = create_deep_agent(
 )
 ```
 
-Enabling this feature does not disable the default summarization action at 85% of the model's context limit.
+启用此功能不会禁用在模型上下文限制达到 85% 时的默认摘要操作。
 
-See the [`SummarizationToolMiddleware`](https://reference.langchain.com/javascript/deepagents/middleware/createSummarizationMiddleware) API reference for details.
+有关详情，请参阅 [`SummarizationToolMiddleware`](https://reference.langchain.com/javascript/deepagents/middleware/createSummarizationMiddleware) API 参考。
 
-:::
+## 通过子代理进行上下文隔离
 
-## Context isolation with subagents
+子代理解决了**上下文膨胀问题**。当主代理使用具有大输出的工具（网络搜索、文件读取、数据库查询）时，上下文窗口会很快填满。子代理隔离这项工作——主代理只接收最终结果，而不是产生它的数十个工具调用。您还可以为每个子代理单独配置（例如，模型、工具、系统提示词和技能）。
 
-Subagents solve the **context bloat problem**. When the main agent uses tools with large outputs (web search, file reads, database queries), the context window fills quickly. Subagents isolate this work—the main agent receives only the final result, not the dozens of tool calls that produced it. You can also configure each subagent separately from the main agent (for example, model, tools, system prompt, and skills).
+**工作原理：**
 
-**How it works:**
+- 主代理有一个 `task` 工具来委派工作
+- 子代理在自己的全新上下文中运行
+- 子代理自主执行直到完成
+- 子代理向主代理返回单个最终报告
+- 主代理的上下文保持干净
 
-- Main agent has a `task` tool to delegate work
-- Subagent runs with its own fresh context
-- Subagent executes autonomously until completion
-- Subagent returns a single final report to the main agent
-- Main agent's context stays clean
+**最佳实践：**
 
-**Best practices:**
-
-1. **Delegate complex tasks**: Use subagents for multi-step work that would clutter the main agent's context.
-2. **Keep subagent responses concise**: Instruct subagents to return summaries, not raw data:
-
-
+1. **委派复杂任务**：使用子代理处理会扰乱主代理上下文的多步骤工作。
+2. **保持子代理响应简洁**：指示子代理返回摘要，而不是原始数据：
 
     ```typescript
     const researchSubagent = {
@@ -353,21 +324,18 @@ Subagents solve the **context bloat problem**. When the main agent uses tools wi
     };
     ```
 
+3. **对大数据使用文件系统**：子代理可以将结果写入文件；主代理读取其所需的内容。
 
-3. **Use the filesystem for large data**: Subagents can write results to files; the main agent reads what it needs.
+有关配置，请参阅[子代理](/oss/javascript/deepagents/subagents)，有关运行时上下文传播和每个子代理的命名空间，请参阅[上下文管理](/oss/javascript/deepagents/subagents#context-management)。
 
-See [Subagents](/oss/javascript/deepagents/subagents) for configuration and [context management](/oss/javascript/deepagents/subagents#context-management) for runtime context propagation and per-subagent namespacing.
+## 长期记忆
 
-## Long-term memory
+使用默认文件系统时，您的深度代理将其工作记忆文件存储在代理状态中，该状态仅在单个线程内持久化。
+长期记忆使您的深度代理能够跨不同线程和对话持久化信息。
+深度代理可以使用长期记忆来存储用户偏好、积累的知识、研究进度或任何应超出单个会话持久化的信息。
 
-When using the default filesystem, your deep agent stores its working memory files in agent state, which only persists within a single thread.
-Long-term memory enables your deep agent to persist information across different threads and conversations.
-Deep agents can use long-term memory for storing user preferences, accumulated knowledge, research progress, or any information that should persist beyond a single session.
-
-To use long-term memory, you must use a `CompositeBackend` that routes specific paths (typically `/memories/`) to a LangGraph Store, which provides durable cross-thread persistence.
-The `CompositeBackend` is a hybrid storage system where some files persist indefinitely while others remain scoped to a single thread.
-
-
+要使用长期记忆，您必须使用 `CompositeBackend`，它将特定路径（通常是 `/memories/`）路由到 LangGraph Store，该存储提供持久的跨线程持久化。
+`CompositeBackend` 是一个混合存储系统，其中一些文件无限期持久化，而其他文件则限定在单个线程范围内。
 
 ```typescript
 import { createDeepAgent, CompositeBackend, StateBackend, StoreBackend } from "deepagents";
@@ -384,40 +352,39 @@ const agent = await createDeepAgent({
 });
 ```
 
+您不需要预先填充 `/memories/` 文件。
+您提供后端配置、存储和系统提示词说明，告诉代理*保存什么*以及*保存在哪里*。
+例如，您可以提示代理将偏好存储在 `/memories/preferences.txt` 中。
+路径开始时为空，当用户分享值得记住的信息时，代理会按需使用其文件系统工具（`write_file`、`edit_file`）创建文件。
 
-You do not need to pre-populate `/memories/` with files.
-You provide the backend config, store, and system prompt instructions that tell the agent *what* to save and *where*.
-For example, you may prompt the agent to store preferences in `/memories/preferences.txt`.
-The path starts empty and the agent creates files on demand using its filesystem tools (`write_file`, `edit_file`) when users share information worth remembering.
+要在 LangSmith 上部署时预置记忆，请使用 [Store API](/langsmith/custom-store)。
+有关设置和用例，请参阅[长期记忆](/oss/javascript/deepagents/memory)。
 
-To pre-seed memories, use the [Store API](/langsmith/custom-store) when deploying on LangSmith.
-See [Long-term memory](/oss/javascript/deepagents/memory) for setup and use cases.
+## 最佳实践
 
-## Best practices
+1. **从正确的输入上下文开始** – 保持记忆最小化以包含始终相关的约定；使用专注于任务特定功能的技能。
+2. **利用子代理处理繁重工作** – 将多步骤、输出量大的任务委派出去，以保持主代理的上下文干净。
+3. **在配置中调整子代理输出** – 如果您在调试时注意到子代理生成了长输出，可以向子代理的 `system_prompt` 添加指导，以创建摘要和综合发现。
+4. **使用文件系统** – 将大输出持久化到文件中（例如子代理写入或[自动卸载](#卸载)），以保持活动上下文较小；模型可以在需要细节时使用 `read_file` 和 `grep` 拉取片段。
+5. **记录长期记忆结构** – 告诉代理 `/memories/` 中有什么以及如何使用它。
+6. **为工具传递运行时上下文** – 使用 `context` 传递用户元数据、API 密钥和其他工具所需的静态配置。
 
-1. **Start with the right input context** – Keep memory minimal for always-relevant conventions; use focused skills for task-specific capabilities.
-2. **Leverage subagents for heavy work** – Delegate multi-step, output-heavy tasks to keep the main agent's context clean.
-3. **Adjust subagent outputs in configuration** – If you notice when debugging that subagents generate long output, you can add guidance to the subagent's `system_prompt` to create summaries and synthesized findings.
-4. **Use the filesystem** – Persist large outputs to files (for example subagent writes or [automatic offloading](#offloading)) so the active context stays small; the model can pull in fragments with `read_file` and `grep` when it needs details.
-5. **Document long-term memory structure** – Tell the agent what lives in `/memories/` and how to use it.
-6. **Pass runtime context for tools** – Use `context` for user metadata, API keys, and other static configuration that tools need.
+## 相关资源
 
-## Related resources
-
-- [Harness](/oss/javascript/deepagents/harness) – Context management overview, offloading, summarization
-- [Subagents](/oss/javascript/deepagents/subagents) – Context isolation, runtime context propagation
-- [Long-term memory](/oss/javascript/deepagents/memory) – Cross-thread persistence
-- [Skills](/oss/javascript/deepagents/skills) – Progressive disclosure and skill authoring
-- [Backends](/oss/javascript/deepagents/backends) – Filesystem backends and CompositeBackend
-- [Context conceptual overview](/oss/javascript/concepts/context) – Context types and lifecycle
+- [测试](/oss/javascript/deepagents/harness) – 上下文管理概述、卸载、摘要
+- [子代理](/oss/javascript/deepagents/subagents) – 上下文隔离、运行时上下文传播
+- [长期记忆](/oss/javascript/deepagents/memory) – 跨线程持久化
+- [技能](/oss/javascript/deepagents/skills) – 渐进式披露和技能创作
+- [后端](/oss/javascript/deepagents/backends) – 文件系统后端和 CompositeBackend
+- [上下文概念概述](/oss/javascript/concepts/context) – 上下文类型和生命周期
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/deepagents/context-engineering.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/deepagents/context-engineering.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

@@ -1,11 +1,11 @@
 ---
-title: "Cohere reranker integration"
-description: "Integrate with the Cohere reranker retriever using LangChain Python."
+title: "Cohere 重排序器集成"
+description: "使用 LangChain Python 集成 Cohere 重排序器检索器。"
 ---
 
->[Cohere](https://cohere.ai/about) is a Canadian startup that provides natural language processing models that help companies improve human-machine interactions.
+>[Cohere](https://cohere.ai/about) 是一家加拿大初创公司，提供自然语言处理模型，帮助企业改善人机交互。
 
-This notebook shows how to use [Cohere's rerank endpoint](https://docs.cohere.com/docs/reranking) in a retriever.
+本笔记本展示了如何在检索器中使用 [Cohere 的重排序端点](https://docs.cohere.com/docs/reranking)。
 
 ```python
 pip install -qU  cohere
@@ -14,39 +14,39 @@ pip install -qU  cohere
 ```python
 pip install -qU  faiss
 
-# OR  (depending on Python version)
+# 或者（取决于 Python 版本）
 
 pip install -qU  faiss-cpu
 ```
 
 ```python
-# get a new token: https://dashboard.cohere.ai/
+# 获取新令牌：https://dashboard.cohere.ai/
 
 import getpass
 import os
 
 if "COHERE_API_KEY" not in os.environ:
-    os.environ["COHERE_API_KEY"] = getpass.getpass("Cohere API Key:")
+    os.environ["COHERE_API_KEY"] = getpass.getpass("Cohere API 密钥：")
 
 if "LANGSMITH_API_KEY" not in os.environ:
-    os.environ["LANGSMITH_API_KEY"] = getpass.getpass("Langsmith API Key:")
+    os.environ["LANGSMITH_API_KEY"] = getpass.getpass("Langsmith API 密钥：")
 ```
 
 ```python
-# Helper function for printing docs
+# 用于打印文档的辅助函数
 
 
 def pretty_print_docs(docs):
     print(
         f"\n{'-' * 100}\n".join(
-            [f"Document {i + 1}:\n\n" + d.page_content for i, d in enumerate(docs)]
+            [f"文档 {i + 1}：\n\n" + d.page_content for i, d in enumerate(docs)]
         )
     )
 ```
 
-## Set up the base vector store retriever
+## 设置基础向量存储检索器
 
-Let's start by initializing a simple vector store retriever and storing the 2023 State of the Union speech (in chunks). We can set up the retriever to retrieve a high number (20) of docs.
+让我们从初始化一个简单的向量存储检索器开始，并存储 2023 年国情咨文演讲（分块存储）。我们可以设置检索器以检索大量（20 个）文档。
 
 ```python
 from langchain_community.document_loaders import TextLoader
@@ -61,219 +61,217 @@ retriever = FAISS.from_documents(
     texts, CohereEmbeddings(model="embed-english-v3.0")
 ).as_retriever(search_kwargs={"k": 20})
 
-query = "What did the president say about Ketanji Brown Jackson"
+query = "总统对凯坦吉·布朗·杰克逊说了什么"
 docs = retriever.invoke(query)
 pretty_print_docs(docs)
 ```
 
 ```text
-Document 1:
+文档 1：
 
-One of the most serious constitutional responsibilities a President has is nominating someone to serve on the United States Supreme Court.
+总统最严肃的宪法职责之一是提名某人在美国最高法院任职。
 
-And I did that 4 days ago, when I nominated Circuit Court of Appeals Judge Ketanji Brown Jackson. One of our nation’s top legal minds, who will continue Justice Breyer’s legacy of excellence.
+我四天前就这样做了，我提名了巡回上诉法院法官凯坦吉·布朗·杰克逊。她是我国顶尖的法律人才之一，将继续布雷耶大法官卓越的遗产。
 ----------------------------------------------------------------------------------------------------
-Document 2:
+文档 2：
 
-We cannot let this happen.
+我们不能让这种情况发生。
 
-Tonight. I call on the Senate to: Pass the Freedom to Vote Act. Pass the John Lewis Voting Rights Act. And while you’re at it, pass the Disclose Act so Americans can know who is funding our elections.
+今晚。我呼吁参议院：通过《自由投票法案》。通过《约翰·刘易斯投票权法案》。同时，通过《披露法案》，以便美国人知道谁在资助我们的选举。
 
-Tonight, I’d like to honor someone who has dedicated his life to serve this country: Justice Stephen Breyer—an Army veteran, Constitutional scholar, and retiring Justice of the United States Supreme Court. Justice Breyer, thank you for your service.
+今晚，我想向一位毕生致力于服务这个国家的人致敬：斯蒂芬·布雷耶大法官——一位陆军退伍军人、宪法学者，以及即将退休的美国最高法院大法官。布雷耶大法官，感谢您的服务。
 ----------------------------------------------------------------------------------------------------
-Document 3:
+文档 3：
 
-As I said last year, especially to our younger transgender Americans, I will always have your back as your President, so you can be yourself and reach your God-given potential.
+正如我去年所说，特别是对我们年轻的跨性别美国人，作为你们的总统，我将永远支持你们，这样你们就可以做自己，并发挥上帝赋予的潜力。
 
-While it often appears that we never agree, that isn’t true. I signed 80 bipartisan bills into law last year. From preventing government shutdowns to protecting Asian-Americans from still-too-common hate crimes to reforming military justice.
+虽然我们似乎从未达成一致，但事实并非如此。去年我签署了 80 项两党法案成为法律。从防止政府关门到保护亚裔美国人免受仍然过于常见的仇恨犯罪，再到改革军事司法。
 ----------------------------------------------------------------------------------------------------
-Document 4:
+文档 4：
 
-I spoke with their families and told them that we are forever in debt for their sacrifice, and we will carry on their mission to restore the trust and safety every community deserves.
+我与他们的家人交谈，并告诉他们，我们永远感激他们的牺牲，我们将继续他们的使命，恢复每个社区应有的信任和安全。
 
-I’ve worked on these issues a long time.
+我长期致力于这些问题。
 
-I know what works: Investing in crime prevention and community police officers who’ll walk the beat, who’ll know the neighborhood, and who can restore trust and safety.
+我知道什么有效：投资于犯罪预防和社区警察，他们将巡逻街道，了解社区，并能恢复信任和安全。
 
-So let’s not abandon our streets. Or choose between safety and equal justice.
+所以，让我们不要放弃我们的街道。或者在安全和平等正义之间做出选择。
 ----------------------------------------------------------------------------------------------------
-Document 5:
+文档 5：
 
-He met the Ukrainian people.
+他遇到了乌克兰人民。
 
-From President Zelenskyy to every Ukrainian, their fearlessness, their courage, their determination, inspires the world.
+从泽连斯基总统到每一个乌克兰人，他们的无畏、他们的勇气、他们的决心，激励着世界。
 
-Groups of citizens blocking tanks with their bodies. Everyone from students to retirees teachers turned soldiers defending their homeland.
+一群群公民用身体阻挡坦克。从学生到退休人员，从教师到士兵，每个人都保卫着自己的家园。
 
-In this struggle as President Zelenskyy said in his speech to the European Parliament “Light will win over darkness.” The Ukrainian Ambassador to the United States is here tonight.
+在这场斗争中，正如泽连斯基总统在对欧洲议会的演讲中所说：“光明将战胜黑暗。”乌克兰驻美国大使今晚也在这里。
 ----------------------------------------------------------------------------------------------------
-Document 6:
+文档 6：
 
-So let’s not abandon our streets. Or choose between safety and equal justice.
+所以，让我们不要放弃我们的街道。或者在安全和平等正义之间做出选择。
 
-Let’s come together to protect our communities, restore trust, and hold law enforcement accountable.
+让我们团结起来保护我们的社区，恢复信任，并让执法部门承担责任。
 
-That’s why the Justice Department required body cameras, banned chokeholds, and restricted no-knock warrants for its officers.
+这就是为什么司法部要求佩戴执法记录仪，禁止锁喉，并限制其警官使用无敲门搜查令。
 ----------------------------------------------------------------------------------------------------
-Document 7:
+文档 7：
 
-But that trickle-down theory led to weaker economic growth, lower wages, bigger deficits, and the widest gap between those at the top and everyone else in nearly a century.
+但那种涓滴理论导致了更弱的经济增长、更低的工资、更大的赤字，以及近一个世纪以来顶层人士与其他所有人之间最大的差距。
 
-Vice President Harris and I ran for office with a new economic vision for America.
+哈里斯副总统和我竞选时提出了美国的新经济愿景。
 
-Invest in America. Educate Americans. Grow the workforce. Build the economy from the bottom up
-and the middle out, not from the top down.
+投资美国。教育美国人。壮大劳动力。从底层和中层向上建设经济，而不是从上往下。
 ----------------------------------------------------------------------------------------------------
-Document 8:
+文档 8：
 
-A former top litigator in private practice. A former federal public defender. And from a family of public school educators and police officers. A consensus builder. Since she’s been nominated, she’s received a broad range of support—from the Fraternal Order of Police to former judges appointed by Democrats and Republicans.
+一位前私人执业顶级诉讼律师。一位前联邦公设辩护人。并且来自一个公立学校教育工作者和警察的家庭。一位共识建立者。自从她被提名以来，她获得了广泛的支持——从警察兄弟会到民主党和共和党任命的前法官。
 
-And if we are to advance liberty and justice, we need to secure the Border and fix the immigration system.
+如果我们想要推进自由和正义，我们需要确保边境安全并修复移民体系。
 ----------------------------------------------------------------------------------------------------
-Document 9:
+文档 9：
 
-The widow of Sergeant First Class Heath Robinson.
+希斯·罗宾逊中士的遗孀。
 
-He was born a soldier. Army National Guard. Combat medic in Kosovo and Iraq.
+他生来就是一名士兵。陆军国民警卫队。在科索沃和伊拉克担任战地医疗兵。
 
-Stationed near Baghdad, just yards from burn pits the size of football fields.
+驻扎在巴格达附近，距离足球场大小的焚烧坑仅几码远。
 
-Heath’s widow Danielle is here with us tonight. They loved going to Ohio State football games. He loved building Legos with their daughter.
+希斯的遗孀丹妮尔今晚和我们在一起。他们喜欢去俄亥俄州立大学看橄榄球比赛。他喜欢和女儿一起搭乐高。
 
-But cancer from prolonged exposure to burn pits ravaged Heath’s lungs and body.
+但长期暴露于焚烧坑导致的癌症摧毁了希斯的肺部和身体。
 
-Danielle says Heath was a fighter to the very end.
+丹妮尔说希斯一直战斗到最后一刻。
 ----------------------------------------------------------------------------------------------------
-Document 10:
+文档 10：
 
-As I’ve told Xi Jinping, it is never a good bet to bet against the American people.
+正如我告诉习近平的那样，押注反对美国人民从来都不是一个好赌注。
 
-We’ll create good jobs for millions of Americans, modernizing roads, airports, ports, and waterways all across America.
+我们将为数百万美国人创造好工作，现代化全美各地的道路、机场、港口和水道。
 
-And we’ll do it all to withstand the devastating effects of the climate crisis and promote environmental justice.
+我们将这样做，以抵御气候危机的毁灭性影响并促进环境正义。
 ----------------------------------------------------------------------------------------------------
-Document 11:
+文档 11：
 
-As Ohio Senator Sherrod Brown says, “It’s time to bury the label “Rust Belt.”
+正如俄亥俄州参议员谢罗德·布朗所说，“是时候埋葬‘锈带’这个标签了。”
 
-It’s time.
+是时候了。
 
-But with all the bright spots in our economy, record job growth and higher wages, too many families are struggling to keep up with the bills.
+但是，尽管我们的经济中有许多亮点，创纪录的就业增长和更高的工资，太多家庭仍在努力跟上账单。
 
-Inflation is robbing them of the gains they might otherwise feel.
+通货膨胀正在剥夺他们可能原本会感受到的收益。
 
-I get it. That’s why my top priority is getting prices under control.
+我理解。这就是为什么我的首要任务是控制价格。
 ----------------------------------------------------------------------------------------------------
-Document 12:
+文档 12：
 
-This was a bipartisan effort, and I want to thank the members of both parties who worked to make it happen.
+这是一项两党共同努力，我要感谢两党为实现这一目标而努力的成员。
 
-We’re done talking about infrastructure weeks.
+我们不再谈论基础设施周。
 
-We’re going to have an infrastructure decade.
+我们将迎来一个基础设施十年。
 
-It is going to transform America and put us on a path to win the economic competition of the 21st Century that we face with the rest of the world—particularly with China.
+它将改变美国，并使我们走上赢得与世界其他国家——特别是与中国——的 21 世纪经济竞争的道路。
 
-As I’ve told Xi Jinping, it is never a good bet to bet against the American people.
+正如我告诉习近平的那样，押注反对美国人民从来都不是一个好赌注。
 ----------------------------------------------------------------------------------------------------
-Document 13:
+文档 13：
 
-He will never extinguish their love of freedom. He will never weaken the resolve of the free world.
+他永远不会熄灭他们对自由的热爱。他永远不会削弱自由世界的决心。
 
-We meet tonight in an America that has lived through two of the hardest years this nation has ever faced.
+今晚我们相聚在一个经历了这个国家有史以来最艰难的两年的美国。
 
-The pandemic has been punishing.
+疫情一直在肆虐。
 
-And so many families are living paycheck to paycheck, struggling to keep up with the rising cost of food, gas, housing, and so much more.
+太多家庭靠薪水度日，挣扎着应对食品、汽油、住房等不断上涨的成本。
 
-I understand.
+我理解。
 ----------------------------------------------------------------------------------------------------
-Document 14:
+文档 14：
 
-I understand.
+我理解。
 
-I remember when my Dad had to leave our home in Scranton, Pennsylvania to find work. I grew up in a family where if the price of food went up, you felt it.
+我记得我父亲不得不离开我们在宾夕法尼亚州斯克兰顿的家去找工作。我在一个家庭中长大，如果食品价格上涨，你就能感受到。
 
-That’s why one of the first things I did as President was fight to pass the American Rescue Plan.
+这就是为什么我作为总统做的第一件事就是努力通过《美国救援计划》。
 
-Because people were hurting. We needed to act, and we did.
+因为人们很痛苦。我们需要采取行动，我们做到了。
 
-Few pieces of legislation have done more in a critical moment in our history to lift us out of crisis.
+在我们历史上的关键时刻，很少有立法能像这样帮助我们走出危机。
 ----------------------------------------------------------------------------------------------------
-Document 15:
+文档 15：
 
-My administration is providing assistance with job training and housing, and now helping lower-income veterans get VA care debt-free.
+我的政府正在提供就业培训和住房援助，现在正在帮助低收入退伍军人获得免费的退伍军人事务部护理。
 
-Our troops in Iraq and Afghanistan faced many dangers.
+我们在伊拉克和阿富汗的军队面临许多危险。
 
-One was stationed at bases and breathing in toxic smoke from “burn pits” that incinerated wastes of war—medical and hazard material, jet fuel, and more.
+其中一个是驻扎在基地，吸入来自“焚烧坑”的有毒烟雾，这些焚烧坑焚烧战争废物——医疗和危险材料、航空燃料等。
 
-When they came home, many of the world’s fittest and best trained warriors were never the same.
+当他们回家时，世界上许多最健康、训练最精良的战士再也没有恢复原状。
 
-Headaches. Numbness. Dizziness.
+头痛。麻木。头晕。
 ----------------------------------------------------------------------------------------------------
-Document 16:
+文档 16：
 
-Danielle says Heath was a fighter to the very end.
+丹妮尔说希斯一直战斗到最后一刻。
 
-He didn’t know how to stop fighting, and neither did she.
+他不知道如何停止战斗，她也不知道。
 
-Through her pain she found purpose to demand we do better.
+通过她的痛苦，她找到了目标，要求我们做得更好。
 
-Tonight, Danielle—we are.
+今晚，丹妮尔——我们正在这样做。
 
-The VA is pioneering new ways of linking toxic exposures to diseases, already helping more veterans get benefits.
+退伍军人事务部正在开创将有毒暴露与疾病联系起来的新方法，已经帮助更多退伍军人获得福利。
 
-And tonight, I’m announcing we’re expanding eligibility to veterans suffering from nine respiratory cancers.
+今晚，我宣布我们将扩大资格，覆盖患有九种呼吸系统癌症的退伍军人。
 ----------------------------------------------------------------------------------------------------
-Document 17:
+文档 17：
 
-Cancer is the #2 cause of death in America–second only to heart disease.
+癌症是美国第二大死因——仅次于心脏病。
 
-Last month, I announced our plan to supercharge
-the Cancer Moonshot that President Obama asked me to lead six years ago.
+上个月，我宣布了我们的计划，以大力推进六年前奥巴马总统要求我领导的“癌症登月计划”。
 
-Our goal is to cut the cancer death rate by at least 50% over the next 25 years, turn more cancers from death sentences into treatable diseases.
+我们的目标是在未来 25 年内将癌症死亡率至少降低 50%，将更多癌症从死亡判决转变为可治疗的疾病。
 
-More support for patients and families.
+为患者和家庭提供更多支持。
 
-To get there, I call on Congress to fund ARPA-H, the Advanced Research Projects Agency for Health.
+为此，我呼吁国会资助 ARPA-H，即高级健康研究计划局。
 ----------------------------------------------------------------------------------------------------
-Document 18:
+文档 18：
 
-My plan to fight inflation will lower your costs and lower the deficit.
+我对抗通胀的计划将降低您的成本并减少赤字。
 
-17 Nobel laureates in economics say my plan will ease long-term inflationary pressures. Top business leaders and most Americans support my plan. And here’s the plan:
+17 位诺贝尔经济学奖得主表示，我的计划将缓解长期通胀压力。顶级商业领袖和大多数美国人支持我的计划。计划如下：
 
-First – cut the cost of prescription drugs. Just look at insulin. One in ten Americans has diabetes. In Virginia, I met a 13-year-old boy named Joshua Davis.
+首先——降低处方药成本。看看胰岛素。每十个美国人中就有一个患有糖尿病。在弗吉尼亚州，我遇到了一个名叫约书亚·戴维斯的 13 岁男孩。
 ----------------------------------------------------------------------------------------------------
-Document 19:
+文档 19：
 
-Let’s pass the Paycheck Fairness Act and paid leave.
+让我们通过《薪酬公平法案》和带薪休假。
 
-Raise the minimum wage to $15 an hour and extend the Child Tax Credit, so no one has to raise a family in poverty.
+将最低工资提高到每小时 15 美元，并延长儿童税收抵免，这样就没有人必须在贫困中抚养家庭。
 
-Let’s increase Pell Grants and increase our historic support of HBCUs, and invest in what Jill—our First Lady who teaches full-time—calls America’s best-kept secret: community colleges.
+让我们增加佩尔助学金，增加我们对历史性支持的 HBCUs（传统黑人大学）的支持，并投资于吉尔——我们的第一夫人，她全职教学——所说的美国最保守的秘密：社区大学。
 
-And let’s pass the PRO Act when a majority of workers want to form a union—they shouldn’t be stopped.
+当大多数工人想要组建工会时，让我们通过《PRO 法案》——他们不应该被阻止。
 ----------------------------------------------------------------------------------------------------
-Document 20:
+文档 20：
 
-Madam Speaker, Madam Vice President, our First Lady and Second Gentleman. Members of Congress and the Cabinet. Justices of the Supreme Court. My fellow Americans.
+议长女士，副总统女士，我们的第一夫人和第二先生。国会议员和内阁成员。最高法院大法官们。我的美国同胞们。
 
-Last year COVID-19 kept us apart. This year we are finally together again.
+去年 COVID-19 让我们分离。今年我们终于再次相聚。
 
-Tonight, we meet as Democrats Republicans and Independents. But most importantly as Americans.
+今晚，我们作为民主党人、共和党人和独立人士相聚。但最重要的是作为美国人。
 
-With a duty to one another to the American people to the Constitution.
+彼此之间、对美国人民、对宪法负有责任。
 
-And with an unwavering resolve that freedom will always triumph over tyranny.
+并且有着坚定不移的决心，自由将永远战胜暴政。
 ```
 
-## Doing reranking with CohereRerank
+## 使用 CohereRerank 进行重排序
 
-Now let's wrap our base retriever with a `ContextualCompressionRetriever`. We'll add an `CohereRerank`, uses the Cohere rerank endpoint to rerank the returned results.
-Do note that it is mandatory to specify the model name in CohereRerank!
+现在让我们用 `ContextualCompressionRetriever` 包装我们的基础检索器。我们将添加一个 `CohereRerank`，它使用 Cohere 重排序端点对返回的结果进行重排序。
+请注意，在 CohereRerank 中指定模型名称是强制性的！
 
 ```python
 from langsmith import Client
@@ -289,13 +287,12 @@ compression_retriever = ContextualCompressionRetriever(
 )
 
 compressed_docs = compression_retriever.invoke(
-    "What did the president say about Ketanji Jackson Brown"
+    "总统对凯坦吉·杰克逊·布朗说了什么"
 )
 pretty_print_docs(compressed_docs)
 ```
 
-You can of course use this retriever within a QA pipeline
-
+您当然可以在 QA 管道中使用此检索器。
 
 ```python
 client = Client()
@@ -317,20 +314,20 @@ qa_chain = (
 ```
 
 ```python
-qa_chain.invoke("What did the president say about Ketanji Jackson Brown?")
+qa_chain.invoke("总统对凯坦吉·杰克逊·布朗说了什么？")
 ```
 
 ```text
- " The president speaks highly of Ketanji Brown Jackson, stating that she is one of the nation's top legal minds, and will continue the legacy of excellence of Justice Breyer. The president also mentions that he worked with her family and that she comes from a family of public school educators and police officers. Since her nomination, she has received support from various groups, including the Fraternal Order of Police and judges from both major political parties. \n\nWould you like me to extract another sentence from the provided text? "
+ " 总统高度评价凯坦吉·布朗·杰克逊，称她是国家顶尖的法律人才之一，并将继续布雷耶大法官卓越的遗产。总统还提到他与她的家人合作过，她来自一个公立学校教育工作者和警察的家庭。自从她被提名以来，她获得了包括警察兄弟会和来自两大主要政党的法官在内的各种团体的支持。 \n\n您想让我从提供的文本中提取另一句话吗？ "
 ```
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/retrievers/cohere-reranker.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/retrievers/cohere-reranker.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

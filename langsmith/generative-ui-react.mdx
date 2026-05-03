@@ -1,25 +1,25 @@
 ---
-title: How to implement generative user interfaces with LangGraph
-sidebarTitle: Implement generative user interfaces with LangGraph
+title: 如何使用 LangGraph 实现生成式用户界面
+sidebarTitle: 使用 LangGraph 实现生成式用户界面
 ---
 <Info>
-**Prerequisites**
+**前置条件**
 * [LangSmith](/langsmith/home)
 * [Agent Server](/langsmith/agent-server)
 * [`useStream()` React Hook](/oss/python/langchain/streaming/frontend)
 </Info>
 
-Generative user interfaces (Generative UI) allows agents to go beyond text and generate rich user interfaces. This enables creating more interactive and context-aware applications where the UI adapts based on the conversation flow and AI responses.
+生成式用户界面（Generative UI）允许智能体超越文本，生成丰富的用户界面。这使得创建更具交互性和上下文感知能力的应用程序成为可能，其中用户界面能够根据对话流程和 AI 响应进行适配。
 
-![Agent Chat showing a prompt about booking/lodging and a generated set of hotel listing cards (images, titles, prices, locations) rendered inline as UI components.](/langsmith/images/generative-ui-sample.jpg)
+![Agent Chat 展示了一个关于预订/住宿的提示，以及一组内联渲染为 UI 组件的酒店列表卡片（图片、标题、价格、位置）。](/langsmith/images/generative-ui-sample.jpg)
 
-LangSmith supports colocating your React components with your graph code. This allows you to focus on building specific UI components for your graph while easily plugging into existing chat interfaces such as [Agent Chat](https://agentchat.vercel.app) and loading the code only when actually needed.
+LangSmith 支持将您的 React 组件与图代码放在一起。这使您可以专注于为图构建特定的 UI 组件，同时轻松插入现有的聊天界面（如 [Agent Chat](https://agentchat.vercel.app)），并且仅在实际需要时加载代码。
 
-## Tutorial
+## 教程
 
-### 1. Define and configure UI components
+### 1. 定义和配置 UI 组件
 
-First, create your first UI component. For each component you need to provide an unique identifier that will be used to reference the component in your graph code.
+首先，创建您的第一个 UI 组件。对于每个组件，您需要提供一个唯一的标识符，该标识符将用于在图代码中引用该组件。
 
 ```tsx title="src/agent/ui.tsx"
 const WeatherComponent = (props: { city: string }) => {
@@ -31,7 +31,7 @@ export default {
 };
 ```
 
-Next, define your UI components in your `langgraph.json` configuration:
+接下来，在您的 `langgraph.json` 配置中定义 UI 组件：
 
 ```json
 {
@@ -45,11 +45,11 @@ Next, define your UI components in your `langgraph.json` configuration:
 }
 ```
 
-The `ui` section points to the UI components that will be used by graphs. By default, we recommend using the same key as the graph name, but you can split out the components however you like, see [Customise the namespace of UI components](#customise-the-namespace-of-ui-components) for more details.
+`ui` 部分指向图将使用的 UI 组件。默认情况下，我们建议使用与图名称相同的键，但您可以根据自己的喜好拆分组件，有关更多详细信息，请参阅[自定义 UI 组件的命名空间](#自定义-ui-组件的命名空间)。
 
-LangSmith will automatically bundle your UI components code and styles and serve them as external assets that can be loaded by the `LoadExternalComponent` component. Some dependencies such as `react` and `react-dom` will be automatically excluded from the bundle.
+LangSmith 将自动打包您的 UI 组件代码和样式，并将它们作为外部资源提供，这些资源可以由 `LoadExternalComponent` 组件加载。某些依赖项（如 `react` 和 `react-dom`）将自动从打包中排除。
 
-CSS and Tailwind 4.x is also supported out of the box, so you can freely use Tailwind classes as well as `shadcn/ui` in your UI components.
+开箱即用支持 CSS 和 Tailwind 4.x，因此您可以在 UI 组件中自由使用 Tailwind 类以及 `shadcn/ui`。
 
 <Tabs>
     <Tab title="src/agent/ui.tsx">
@@ -72,7 +72,7 @@ CSS and Tailwind 4.x is also supported out of the box, so you can freely use Tai
     </Tab>
 </Tabs>
 
-### 2. Send the UI components in your graph
+### 2. 在图中发送 UI 组件
 
 <Tabs>
     <Tab title="Python">
@@ -109,7 +109,7 @@ CSS and Tailwind 4.x is also supported out of the box, so you can freely use Tai
             content=f"Here's the weather for {weather['city']}",
         )
 
-        # Emit UI elements associated with the message
+        # 发送与消息关联的 UI 元素
         push_ui_message("weather", weather, message=message)
         return {"messages": [message]}
 
@@ -121,7 +121,7 @@ CSS and Tailwind 4.x is also supported out of the box, so you can freely use Tai
     ```
     </Tab>
     <Tab title="JS">
-    Use the `typedUi` utility to emit UI elements from your agent nodes:
+    使用 `typedUi` 工具从智能体节点发送 UI 元素：
 
     ```typescript title="src/agent/index.ts"
     import {
@@ -149,9 +149,9 @@ CSS and Tailwind 4.x is also supported out of the box, so you can freely use Tai
 
     export const graph = new StateGraph(AgentState)
       .addNode("weather", async (state, config) => {
-        // Provide the type of the component map to ensure
-        // type safety of `ui.push()` calls as well as
-        // pushing the messages to the `ui` and sending a custom event as well.
+        // 提供组件映射的类型，以确保
+        // `ui.push()` 调用的类型安全，以及
+        // 将消息推送到 `ui` 并发送自定义事件。
         const ui = typedUi<typeof ComponentMap>(config);
 
         const weather = await new ChatOpenAI({ model: "gpt-5.4-mini" })
@@ -165,7 +165,7 @@ CSS and Tailwind 4.x is also supported out of the box, so you can freely use Tai
           content: `Here's the weather for ${weather.city}`,
         };
 
-        // Emit UI elements associated with the AI message
+        // 发送与 AI 消息关联的 UI 元素
         ui.push({ name: "weather", props: weather }, { message: response });
 
         return { messages: [response] };
@@ -176,9 +176,9 @@ CSS and Tailwind 4.x is also supported out of the box, so you can freely use Tai
     </Tab>
 </Tabs>
 
-### 3. Handle UI elements in your React application
+### 3. 在 React 应用程序中处理 UI 元素
 
-On the client side, you can use `useStream()` and `LoadExternalComponent` to display the UI elements.
+在客户端，您可以使用 `useStream()` 和 `LoadExternalComponent` 来显示 UI 元素。
 
 ```tsx title="src/app/page.tsx"
 "use client";
@@ -209,13 +209,13 @@ export default function Page() {
 }
 ```
 
-Behind the scenes, `LoadExternalComponent` will fetch the JS and CSS for the UI components from LangSmith and render them in a shadow DOM, thus ensuring style isolation from the rest of your application.
+在底层，`LoadExternalComponent` 将从 LangSmith 获取 UI 组件的 JS 和 CSS，并在 shadow DOM 中渲染它们，从而确保与应用程序其余部分的样式隔离。
 
-## How-to guides
+## 操作指南
 
-### Provide custom components on the client side
+### 在客户端提供自定义组件
 
-If you already have the components loaded in your client application, you can provide a map of such components to be rendered directly without fetching the UI code from LangSmith.
+如果您已经在客户端应用程序中加载了组件，您可以提供一个这样的组件映射，以便直接渲染，而无需从 LangSmith 获取 UI 代码。
 
 ```tsx
 const clientComponents = {
@@ -229,9 +229,9 @@ const clientComponents = {
 />;
 ```
 
-### Show loading UI when components are loading
+### 在组件加载时显示加载 UI
 
-You can provide a fallback UI to be rendered when the components are loading.
+您可以提供一个回退 UI，在组件加载时渲染。
 
 ```tsx
 <LoadExternalComponent
@@ -241,9 +241,9 @@ You can provide a fallback UI to be rendered when the components are loading.
 />
 ```
 
-### Customise the namespace of UI components.
+### 自定义 UI 组件的命名空间
 
-By default `LoadExternalComponent` will use the `assistantId` from `useStream()` hook to fetch the code for UI components. You can customise this by providing a `namespace` prop to the `LoadExternalComponent` component.
+默认情况下，`LoadExternalComponent` 将使用 `useStream()` hook 中的 `assistantId` 来获取 UI 组件的代码。您可以通过向 `LoadExternalComponent` 组件提供 `namespace` 属性来自定义此行为。
 
 <Tabs>
     <Tab title="src/app/page.tsx">
@@ -266,9 +266,9 @@ By default `LoadExternalComponent` will use the `assistantId` from `useStream()`
     </Tab>
 </Tabs>
 
-### Access and interact with the thread state from the UI component
+### 从 UI 组件访问和交互线程状态
 
-You can access the thread state inside the UI component by using the `useStreamContext` hook.
+您可以使用 `useStreamContext` hook 在 UI 组件内部访问线程状态。
 
 ```tsx
 import { useStreamContext } from "@langchain/langgraph-sdk/react-ui";
@@ -296,15 +296,15 @@ const WeatherComponent = (props: { city: string }) => {
 };
 ```
 
-### Pass additional context to the client components
+### 向客户端组件传递额外上下文
 
-You can pass additional context to the client components by providing a `meta` prop to the `LoadExternalComponent` component.
+您可以通过向 `LoadExternalComponent` 组件提供 `meta` 属性来向客户端组件传递额外上下文。
 
 ```tsx
 <LoadExternalComponent stream={thread} message={ui} meta={{ userId: "123" }} />
 ```
 
-Then, you can access the `meta` prop in the UI component by using the `useStreamContext` hook.
+然后，您可以使用 `useStreamContext` hook 在 UI 组件中访问 `meta` 属性。
 
 ```tsx
 import { useStreamContext } from "@langchain/langgraph-sdk/react-ui";
@@ -323,9 +323,9 @@ const WeatherComponent = (props: { city: string }) => {
 };
 ```
 
-### Streaming UI messages from the server
+### 从服务器流式传输 UI 消息
 
-You can stream UI messages before the node execution is finished by using the `onCustomEvent` callback of the `useStream()` hook. This is especially useful when updating the UI component as the LLM is generating the response.
+您可以在节点执行完成之前，通过使用 `useStream()` hook 的 `onCustomEvent` 回调来流式传输 UI 消息。当 LLM 生成响应时更新 UI 组件，这尤其有用。
 
 ```tsx
 import { uiMessageReducer } from "@langchain/langgraph-sdk/react-ui";
@@ -342,7 +342,7 @@ const { thread, submit } = useStream({
 });
 ```
 
-Then you can push updates to the UI component by calling `ui.push()` / `push_ui_message()` with the same ID as the UI message you wish to update.
+然后，您可以通过调用 `ui.push()` / `push_ui_message()` 并使用与您希望更新的 UI 消息相同的 ID 来推送更新到 UI 组件。
 
 <Tabs>
     <Tab title="Python">
@@ -362,7 +362,7 @@ Then you can push updates to the UI component by calling `ui.push()` / `push_ui_
 
 
     class CreateTextDocument(TypedDict):
-        """Prepare a document heading for the user."""
+        """为用户准备一个文档标题。"""
 
         title: str
 
@@ -383,8 +383,8 @@ Then you can push updates to the UI component by calling `ui.push()` / `push_ui_
             ui_message = push_ui_message("writer", tool_call, message=message)
             ui_message_id = ui_message["id"]
 
-            # We're already streaming the LLM response to the client through UI messages
-            # so we don't need to stream it again to the `messages` stream mode.
+            # 我们已经通过 UI 消息将 LLM 响应流式传输到客户端
+            # 因此不需要再次将其流式传输到 `messages` 流模式。
             content_stream = model.with_config({"tags": ["nostream"]}).astream(
                 f"Create a document with the title: {tool_call['title']}"
             )
@@ -398,7 +398,7 @@ Then you can push updates to the UI component by calling `ui.push()` / `push_ui_
                     {"content": content.text()},
                     id=ui_message_id,
                     message=message,
-                    # Use `merge=True` to merge props with the existing UI message
+                    # 使用 `merge=True` 将属性与现有 UI 消息合并
                     merge=True,
                 )
 
@@ -459,8 +459,8 @@ Then you can push updates to the UI component by calling `ui.push()` / `push_ui_
         );
 
         const contentStream = await model
-          // We're already streaming the LLM response to the client through UI messages
-          // so we don't need to stream it again to the `messages` stream mode.
+          // 我们已经通过 UI 消息将 LLM 响应流式传输到客户端
+          // 因此不需要再次将其流式传输到 `messages` 流模式。
           .withConfig({ tags: ["nostream"] })
           .stream(`Create a short poem with the topic: ${message.text}`);
 
@@ -470,7 +470,7 @@ Then you can push updates to the UI component by calling `ui.push()` / `push_ui_
 
           ui.push(
             { id, name, props: { content: content?.text } },
-            // Use `merge: true` to merge props with the existing UI message
+            // 使用 `merge: true` 将属性与现有 UI 消息合并
             { message, merge: true }
           );
         }
@@ -498,44 +498,44 @@ Then you can push updates to the UI component by calling `ui.push()` / `push_ui_
     </Tab>
 </Tabs>
 
-### Remove UI messages from state
+### 从状态中移除 UI 消息
 
-Similar to how messages can be removed from the state by appending a RemoveMessage you can remove an UI message from the state by calling `remove_ui_message` / `ui.delete` with the ID of the UI message.
+类似于可以通过附加 RemoveMessage 从状态中移除消息，您可以通过调用 `remove_ui_message` / `ui.delete` 并使用 UI 消息的 ID 来从状态中移除 UI 消息。
 
 <Tabs>
     <Tab title="Python">
     ```python
     from langgraph.graph.ui import push_ui_message, delete_ui_message
 
-    # push message
+    # 推送消息
     message = push_ui_message("weather", {"city": "London"})
 
-    # remove said message
+    # 移除该消息
     delete_ui_message(message["id"])
     ```
     </Tab>
     <Tab title="JS">
     ```tsx
-    // push message
+    // 推送消息
     const message = ui.push({ name: "weather", props: { city: "London" } });
 
-    // remove said message
+    // 移除该消息
     ui.delete(message.id);
     ```
     </Tab>
 </Tabs>
 
-## Learn more
+## 了解更多
 
-* [JS/TS SDK Reference](https://langchain-ai.github.io/langgraphjs/reference/modules/sdk.html)
+* [JS/TS SDK 参考](https://langchain-ai.github.io/langgraphjs/reference/modules/sdk.html)
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/generative-ui-react.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/generative-ui-react.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

@@ -1,151 +1,150 @@
 ---
-title: Application-specific evaluation approaches
-sidebarTitle: Evaluation approaches
+title: 特定应用的评估方法
+sidebarTitle: 评估方法
 ---
 
+下面，我们将讨论几种流行类型的LLM应用的评估。
 
-Below, we will discuss evaluation of a few popular types of LLM applications.
+## 智能体
 
-## Agents
+[LLM驱动的自主智能体](https://lilianweng.github.io/posts/2023-06-23-agent/)结合了三个组件：(1) 工具调用，(2) 记忆，和 (3) 规划。智能体[使用工具调用](https://docs.langchain.com/oss/python/langchain/tools)，结合规划（例如，通常通过提示）和记忆（例如，通常是短期消息历史）来生成响应。[工具调用](https://docs.langchain.com/oss/python/langchain/tools)允许模型通过生成两样东西来响应给定的提示：(1) 要调用的工具，和 (2) 所需的输入参数。
 
-[LLM-powered autonomous agents](https://lilianweng.github.io/posts/2023-06-23-agent/) combine three components (1) Tool calling, (2) Memory, and (3) Planning. Agents [use tool calling](https://docs.langchain.com/oss/python/langchain/tools) with planning (e.g., often via prompting) and memory (e.g., often short-term message history) to generate responses. [Tool calling](https://docs.langchain.com/oss/python/langchain/tools) allows a model to respond to a given prompt by generating two things: (1) a tool to invoke and (2) the input arguments required.
+![工具使用](/langsmith/images/tool-use.png)
 
-![Tool use](/langsmith/images/tool-use.png)
+下面是一个在 [LangGraph](https://langchain-ai.github.io/langgraph/tutorials/introduction/) 中的工具调用智能体。`assistant node` 是一个LLM，它根据输入决定是否调用工具。`tool condition` 检查 `assistant node` 是否选择了工具，如果是，则路由到 `tool node`。`tool node` 执行工具并将输出作为工具消息返回给 `assistant node`。只要 `assistant node` 选择工具，这个循环就会持续。如果没有选择工具，则智能体直接返回LLM响应。
 
-Below is a tool-calling agent in [LangGraph](https://langchain-ai.github.io/langgraph/tutorials/introduction/). The `assistant node` is an LLM that determines whether to invoke a tool based upon the input. The `tool condition` sees if a tool was selected by the `assistant node` and, if so, routes to the `tool node`. The `tool node` executes the tool and returns the output as a tool message to the `assistant node`. This loop continues until as long as the `assistant node` selects a tool. If no tool is selected, then the agent directly returns the LLM response.
+![智能体](/langsmith/images/langgraph-agent.png)
 
-![Agent](/langsmith/images/langgraph-agent.png)
+这设定了三种用户通常感兴趣的通用智能体评估类型：
 
-This sets up three general types of agent evaluations that users are often interested in:
+* `最终响应`：评估智能体的最终响应。
+* `单步`：独立评估智能体的任何步骤（例如，它是否选择了合适的工具）。
+* `轨迹`：评估智能体是否采取了预期的路径（例如，工具调用的路径）来得出最终答案。
 
-* `Final Response`: Evaluate the agent's final response.
-* `Single step`: Evaluate any agent step in isolation (e.g., whether it selects the appropriate tool).
-* `Trajectory`: Evaluate whether the agent took the expected path (e.g., of tool calls) to arrive at the final answer.
+![智能体评估](/langsmith/images/agent-eval.png)
 
-![Agent-eval](/langsmith/images/agent-eval.png)
+下面我们将介绍这些评估是什么，每种评估所需的组件（输入、输出、评估器），以及何时应考虑使用它们。请注意，您可能希望进行多种（如果不是全部！）类型的评估——它们并非互斥！
 
-Below we will cover what these are, the components (inputs, outputs, evaluators) needed for each one, and when you should consider this. Note that you likely will want to do multiple (if not all!) of these types of evaluations - they are not mutually exclusive!
+### 评估智能体的最终响应
 
-### Evaluating an agent's final response
+评估智能体的一种方法是评估其在任务上的整体表现。这基本上涉及将智能体视为一个黑盒，简单地评估它是否完成了工作。
 
-One way to evaluate an agent is to assess its overall performance on a task. This basically involves treating the agent as a black box and simply evaluating whether or not it gets the job done.
+输入应该是用户输入和（可选的）工具列表。在某些情况下，工具是作为智能体的一部分硬编码的，不需要传入。在其他情况下，智能体更通用，意味着它没有固定的工具集，需要在运行时传入工具。
 
-The inputs should be the user input and (optionally) a list of tools. In some cases, tool are hardcoded as part of the agent and they don't need to be passed in. In other cases, the agent is more generic, meaning it does not have a fixed set of tools and tools need to be passed in at run time.
+输出应该是智能体的最终响应。
 
-The output should be the agent's final response.
+评估器根据您要求智能体执行的任务而变化。许多智能体执行相对复杂的步骤集，并输出最终的文本响应。与RAG类似，LLM评判评估器在这些情况下通常很有效，因为它们可以直接从文本响应评估智能体是否完成了工作。
 
-The evaluator varies depending on the task you are asking the agent to do. Many agents perform a relatively complex set of steps and the output a final text response. Similar to RAG, LLM-as-judge evaluators are often effective for evaluation in these cases because they can assess whether the agent got a job done directly from the text response.
+然而，这种评估有几个缺点。首先，它通常需要一段时间才能运行。其次，您没有评估智能体内部发生的任何事情，因此当故障发生时可能难以调试。第三，有时可能难以定义适当的评估指标。
 
-However, there are several downsides to this type of evaluation. First, it usually takes a while to run. Second, you are not evaluating anything that happens inside the agent, so it can be hard to debug when failures occur. Third, it can sometimes be hard to define appropriate evaluation metrics.
+### 评估智能体的单个步骤
 
-### Evaluating a single step of an agent
+智能体通常执行多个操作。虽然端到端评估它们很有用，但评估这些单独的操作也很有用。这通常涉及评估智能体的单个步骤——它决定做什么的LLM调用。
 
-Agents generally perform multiple actions. While it is useful to evaluate them end-to-end, it can also be useful to evaluate these individual actions. This generally involves evaluating a single step of the agent - the LLM call where it decides what to do.
+输入应该是单个步骤的输入。根据您测试的内容，这可能只是原始用户输入（例如，提示和/或一组工具），也可以包括先前完成的步骤。
 
-The inputs should be the input to a single step. Depending on what you are testing, this could just be the raw user input (e.g., a prompt and / or a set of tools) or it can also include previously completed steps.
+输出只是该步骤的输出，通常是LLM响应。LLM响应通常包含工具调用，指示智能体下一步应采取什么操作。
 
-The outputs are just the output of that step, which is usually the LLM response. The LLM response often contains tool calls, indicating what action the agent should take next.
+此评估器通常是二元分数，用于判断是否选择了正确的工具调用，以及一些启发式方法来判断工具的输入是否正确。参考工具可以简单地指定为字符串。
 
-The evaluator for this is usually some binary score for whether the correct tool call was selected, as well as some heuristic for whether the input to the tool was correct. The reference tool can be simply specified as a string.
+这种评估有几个好处。它允许您评估单个操作，从而帮助您定位应用程序可能失败的地方。它们运行也相对较快（因为只涉及单个LLM调用），并且评估通常使用简单的启发式方法来评估所选工具相对于参考工具的情况。一个缺点是它们没有捕获完整的智能体——只有一个特定的步骤。另一个缺点是数据集创建可能具有挑战性，特别是如果您想在智能体输入中包含过去的历史记录。为智能体轨迹早期的步骤生成数据集相当容易（例如，这可能只包括输入提示），但为轨迹后期的步骤生成数据集可能很困难（例如，包括先前的众多智能体操作和响应）。
 
-There are several benefits to this type of evaluation. It allows you to evaluate individual actions, which lets you hone in where your application may be failing. They are also relatively fast to run (because they only involve a single LLM call) and evaluation often uses simple heuristic evaluation of the selected tool relative to the reference tool. One downside is that they don't capture the full agent - only one particular step. Another downside is that dataset creation can be challenging, particular if you want to include past history in the agent input. It is pretty easy to generate a dataset for steps early on in an agent's trajectory (e.g., this may only include the input prompt), but it can be difficult to generate a dataset for steps later on in the trajectory (e.g., including numerous prior agent actions and responses).
+### 评估智能体的轨迹
 
-### Evaluating an agent's trajectory
+评估智能体的轨迹涉及评估智能体采取的所有步骤。
 
-Evaluating an agent's trajectory involves evaluating all the steps an agent took.
+输入再次是整个智能体的输入（用户输入，以及可选的工具列表）。
 
-The inputs are again the inputs to the overall agent (the user input, and optionally a list of tools).
+输出是工具调用列表，可以表述为“精确”轨迹（例如，预期的工具调用序列）或仅仅是预期的工具调用集合（任何顺序）。
 
-The outputs are a list of tool calls, which can be formulated as an "exact" trajectory (e.g., an expected sequence of tool calls) or simply a set of tool calls that are expected (in any order).
+这里的评估器是针对所采取步骤的某种函数。评估“精确”轨迹可以使用单个二元分数来确认序列中每个工具名称的精确匹配。这很简单，但有一些缺陷。有时可能存在多个正确的路径。这种评估也无法区分轨迹偏离单个步骤与完全错误的情况。
 
-The evaluator here is some function over the steps taken. Assessing the "exact" trajectory can use a single binary score that confirms an exact match for each tool name in the sequence. This is simple, but has some flaws. Sometimes there can be multiple correct paths. This evaluation also does not capture the difference between a trajectory being off by a single step versus being completely wrong.
+为了解决这些缺陷，评估指标可以关注所采取的“不正确”步骤的数量，这能更好地考虑接近的轨迹与显著偏离的轨迹。评估指标也可以关注是否以任何顺序调用了所有预期的工具。
 
-To address these flaws, evaluation metrics can focused on the number of "incorrect" steps taken, which better accounts for trajectories that are close versus ones that deviate significantly. Evaluation metrics can also focus on whether all of the expected tools are called in any order.
+然而，这些方法都没有评估工具的输入；它们只关注所选的工具。为了解决这个问题，另一种评估技术是将完整的智能体轨迹（连同参考轨迹）作为一组消息（例如，所有LLM响应和工具调用）传递给LLM评判。这可以评估智能体的完整行为，但这是最难编写的参考（幸运的是，使用像LangGraph这样的框架可以帮助解决这个问题！）。另一个缺点是评估指标可能有点难以制定。
 
-However, none of these approaches evaluate the input to the tools; they only focus on the tools selected. In order to account for this, another evaluation technique is to pass the full agent's trajectory (along with a reference trajectory) as a set of messages (e.g., all LLM responses and tool calls) an LLM-as-judge. This can evaluate the complete behavior of the agent, but it is the most challenging reference to compile (luckily, using a framework like LangGraph can help with this!). Another downside is that evaluation metrics can be somewhat tricky to come up with.
+## 检索增强生成（RAG）
 
-## Retrieval augmented generation (RAG)
-
-Retrieval Augmented Generation (RAG) is a powerful technique that involves retrieving relevant documents based on a user's input and passing them to a language model for processing. RAG enables AI applications to generate more informed and context-aware responses by leveraging external knowledge.
+检索增强生成（RAG）是一种强大的技术，涉及根据用户输入检索相关文档，并将其传递给语言模型进行处理。RAG通过利用外部知识，使AI应用程序能够生成更具信息性和上下文感知的响应。
 
 <Info>
-For a comprehensive review of RAG concepts, see our [`RAG From Scratch` series](https://github.com/langchain-ai/rag-from-scratch).
+有关RAG概念的全面回顾，请参阅我们的 [`RAG From Scratch` 系列](https://github.com/langchain-ai/rag-from-scratch)。
 </Info>
 
-### Dataset
+### 数据集
 
-When evaluating RAG applications, a key consideration is whether you have (or can easily obtain) reference answers for each input question. Reference answers serve as ground truth for assessing the correctness of the generated responses. However, even in the absence of reference answers, various evaluations can still be performed using reference-free RAG evaluation prompts (examples provided below).
+评估RAG应用程序时，一个关键考虑因素是您是否拥有（或可以轻松获取）每个输入问题的参考答案。参考答案作为评估生成响应正确性的基准事实。然而，即使在没有参考答案的情况下，仍然可以使用无参考RAG评估提示（下面提供了示例）进行各种评估。
 
-### Evaluator
+### 评估器
 
-`LLM-as-judge` is a commonly used evaluator for RAG because it's an effective way to evaluate factual accuracy or consistency between texts.
+`LLM评判`是RAG常用的评估器，因为它是评估文本间事实准确性或一致性的有效方法。
 
 ![rag-types.png](/langsmith/images/rag-types.png)
 
-When evaluating RAG applications, you can have evaluators that require reference outputs and those that don't:
+评估RAG应用程序时，您可以使用需要参考输出的评估器和不需要参考输出的评估器：
 
-1. **Require reference output**: Compare the RAG chain's generated answer or retrievals against a reference answer (or retrievals) to assess its correctness.
-2. **Don't require reference output**: Perform self-consistency checks using prompts that don't require a reference answer (represented by orange, green, and red in the above figure).
+1. **需要参考输出**：将RAG链生成的答案或检索结果与参考答案（或检索结果）进行比较，以评估其正确性。
+2. **不需要参考输出**：使用不需要参考答案的提示进行自一致性检查（上图中由橙色、绿色和红色表示）。
 
-### Applying RAG evaluation
+### 应用RAG评估
 
-When applying RAG evaluation, consider the following approaches:
+应用RAG评估时，请考虑以下方法：
 
-1. `Offline evaluation`: Use offline evaluation for any prompts that rely on a reference answer. This is most commonly used for RAG answer correctness evaluation, where the reference is a ground truth (correct) answer.
+1. `离线评估`：对任何依赖参考答案的提示使用离线评估。这最常用于RAG答案正确性评估，其中参考是基准事实（正确）答案。
 
-2. `Online evaluation`: Employ online evaluation for any reference-free prompts. This allows you to assess the RAG application's performance in real-time scenarios.
+2. `在线评估`：对任何无参考提示使用在线评估。这允许您在实时场景中评估RAG应用程序的性能。
 
-3. `Pairwise evaluation`: Utilize pairwise evaluation to compare answers produced by different RAG chains. This evaluation focuses on user-specified criteria (e.g., answer format or style) rather than correctness, which can be evaluated using self-consistency or a ground truth reference.
+3. `成对评估`：利用成对评估来比较不同RAG链产生的答案。此评估侧重于用户指定的标准（例如，答案格式或风格），而不是正确性，正确性可以使用自一致性或基准事实参考进行评估。
 
-### RAG evaluation summary
+### RAG评估摘要
 
-| Evaluator           | Detail                                            | Needs reference output | LLM-as-judge?                                                                         | Pairwise relevant |
+| 评估器           | 详情                                            | 需要参考输出 | LLM评判？                                                                         | 成对相关 |
 | ------------------- | ------------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------- | ----------------- |
-| Document relevance  | Are documents relevant to the question?           | No                     | Yes - [prompt](https://smith.langchain.com/hub/langchain-ai/rag-document-relevance)   | No                |
-| Answer faithfulness | Is the answer grounded in the documents?          | No                     | Yes - [prompt](https://smith.langchain.com/hub/langchain-ai/rag-answer-hallucination) | No                |
-| Answer helpfulness  | Does the answer help address the question?        | No                     | Yes - [prompt](https://smith.langchain.com/hub/langchain-ai/rag-answer-helpfulness)   | No                |
-| Answer correctness  | Is the answer consistent with a reference answer? | Yes                    | Yes - [prompt](https://smith.langchain.com/hub/langchain-ai/rag-answer-vs-reference)  | No                |
-| Pairwise comparison | How do multiple answer versions compare?          | No                     | Yes - [prompt](https://smith.langchain.com/hub/langchain-ai/pairwise-evaluation-rag)  | Yes               |
+| 文档相关性  | 文档是否与问题相关？           | 否                     | 是 - [提示](https://smith.langchain.com/hub/langchain-ai/rag-document-relevance)   | 否                |
+| 答案忠实度 | 答案是否基于文档？          | 否                     | 是 - [提示](https://smith.langchain.com/hub/langchain-ai/rag-answer-hallucination) | 否                |
+| 答案有用性  | 答案是否有助于解决问题？        | 否                     | 是 - [提示](https://smith.langchain.com/hub/langchain-ai/rag-answer-helpfulness)   | 否                |
+| 答案正确性  | 答案是否与参考答案一致？ | 是                    | 是 - [提示](https://smith.langchain.com/hub/langchain-ai/rag-answer-vs-reference)  | 否                |
+| 成对比较 | 多个答案版本如何比较？          | 否                     | 是 - [提示](https://smith.langchain.com/hub/langchain-ai/pairwise-evaluation-rag)  | 是               |
 
-## Summarization
+## 摘要生成
 
-Summarization is one specific type of free-form writing. The evaluation aim is typically to examine the writing (summary) relative to a set of criteria.
+摘要生成是自由形式写作的一种特定类型。评估目标通常是根据一组标准来检查写作（摘要）。
 
-`Developer curated examples` of texts to summarize are commonly used for evaluation (see a [summarization dataset example](https://smith.langchain.com/public/659b07af-1cab-4e18-b21a-91a69a4c3990/d)). However, `user logs` from a production (summarization) app can be used for online evaluation with any of the `Reference-free` evaluation prompts below.
+通常使用`开发者策划的示例`文本进行摘要评估（参见[摘要数据集示例](https://smith.langchain.com/public/659b07af-1cab-4e18-b21a-91a69a4c3990/d)）。然而，来自生产（摘要）应用程序的`用户日志`可以用于在线评估，使用下面任何一种`无参考`评估提示。
 
-`LLM-as-judge` is typically used for evaluation of summarization (as well as other types of writing) using `Reference-free` prompts that follow provided criteria to grade a summary. It is less common to provide a particular `Reference` summary, because summarization is a creative task and there are many possible correct answers.
+`LLM评判`通常用于使用`无参考`提示评估摘要（以及其他类型的写作），这些提示遵循提供的标准对摘要进行评分。提供特定的`参考`摘要不太常见，因为摘要是一项创造性任务，有许多可能的正确答案。
 
-`Online` or `Offline` evaluation are feasible because of the `Reference-free` prompt used. `Pairwise` evaluation is also a powerful way to perform comparisons between different summarization chains (e.g., different summarization prompts or LLMs):
+由于使用了`无参考`提示，`在线`或`离线`评估是可行的。`成对`评估也是比较不同摘要链（例如，不同的摘要提示或LLM）的强大方式：
 
-| Use Case         | Detail                                                                     | Needs reference output | LLM-as-judge?                                                                                | Pairwise relevant |
+| 用例         | 详情                                                                     | 需要参考输出 | LLM评判？                                                                                | 成对相关 |
 | ---------------- | -------------------------------------------------------------------------- | ---------------------- | -------------------------------------------------------------------------------------------- | ----------------- |
-| Factual accuracy | Is the summary accurate relative to the source documents?                  | No                     | Yes - [prompt](https://smith.langchain.com/hub/langchain-ai/summary-accurancy-evaluator)     | Yes               |
-| Faithfulness     | Is the summary grounded in the source documents (e.g., no hallucinations)? | No                     | Yes - [prompt](https://smith.langchain.com/hub/langchain-ai/summary-hallucination-evaluator) | Yes               |
-| Helpfulness      | Is summary helpful relative to user need?                                  | No                     | Yes - [prompt](https://smith.langchain.com/hub/langchain-ai/summary-helpfulness-evaluator)   | Yes               |
+| 事实准确性 | 摘要相对于源文档是否准确？                  | 否                     | 是 - [提示](https://smith.langchain.com/hub/langchain-ai/summary-accurancy-evaluator)     | 是               |
+| 忠实度     | 摘要是否基于源文档（例如，没有幻觉）？ | 否                     | 是 - [提示](https://smith.langchain.com/hub/langchain-ai/summary-hallucination-evaluator) | 是               |
+| 有用性      | 摘要相对于用户需求是否有帮助？                                  | 否                     | 是 - [提示](https://smith.langchain.com/hub/langchain-ai/summary-helpfulness-evaluator)   | 是               |
 
-## Classification and tagging
+## 分类和标签
 
-Classification and tagging apply a label to a given input (e.g., for toxicity detection, sentiment analysis, etc). Classification/tagging evaluation typically employs the following components, which we will review in detail below:
+分类和标签将标签应用于给定的输入（例如，用于毒性检测、情感分析等）。分类/标签评估通常采用以下组件，我们将在下面详细回顾：
 
-A central consideration for classification/tagging evaluation is whether you have a dataset with `reference` labels or not. If not, users frequently want to define an evaluator that uses criteria to apply label (e.g., toxicity, etc) to an input (e.g., text, user-question, etc). However, if ground truth class labels are provided, then the evaluation objective is focused on scoring a classification/tagging chain relative to the ground truth class label (e.g., using metrics such as precision, recall, etc).
+分类/标签评估的一个核心考虑因素是您是否拥有带有`参考`标签的数据集。如果没有，用户通常希望定义一个评估器，使用标准将标签（例如，毒性等）应用于输入（例如，文本、用户问题等）。但是，如果提供了基准事实类别标签，则评估目标侧重于根据基准事实类别标签对分类/标签链进行评分（例如，使用精确度、召回率等指标）。
 
-If ground truth reference labels are provided, then it's common to simply define a [custom heuristic evaluator](/langsmith/code-evaluator-ui) to compare ground truth labels to the chain output. However, it is increasingly common given the emergence of LLMs simply use `LLM-as-judge` to perform the classification/tagging of an input based upon specified criteria (without a ground truth reference).
+如果提供了基准事实参考标签，那么通常只需定义一个[自定义启发式评估器](/langsmith/code-evaluator-ui)来比较基准事实标签与链输出。然而，随着LLM的出现，现在更常见的是简单地使用`LLM评判`根据指定的标准（没有基准事实参考）对输入进行分类/标签。
 
-`Online` or `Offline` evaluation is feasible when using `LLM-as-judge` with the `Reference-free` prompt used. In particular, this is well suited to `Online` evaluation when a user wants to tag / classify application input (e.g., for toxicity, etc).
+当使用`LLM评判`和`无参考`提示时，`在线`或`离线`评估是可行的。特别是，当用户想要标记/分类应用程序输入（例如，用于毒性等）时，这非常适合`在线`评估。
 
-| Use Case  | Detail              | Needs reference output | LLM-as-judge? | Pairwise relevant |
+| 用例  | 详情              | 需要参考输出 | LLM评判？ | 成对相关 |
 | --------- | ------------------- | ---------------------- | ------------- | ----------------- |
-| Accuracy  | Standard definition | Yes                    | No            | No                |
-| Precision | Standard definition | Yes                    | No            | No                |
-| Recall    | Standard definition | Yes                    | No            | No                |
+| 准确性  | 标准定义 | 是                    | 否            | 否                |
+| 精确度 | 标准定义 | 是                    | 否            | 否                |
+| 召回率    | 标准定义 | 是                    | 否            | 否                |
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [连接这些文档](/use-these-docs)到Claude、VSCode等，通过MCP获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/evaluation-approaches.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在GitHub上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/evaluation-approaches.mdx)或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

@@ -1,35 +1,35 @@
 ---
-title: How to evaluate with OpenTelemetry
-sidebarTitle: With OpenTelemetry
+title: 如何使用 OpenTelemetry 进行评估
+sidebarTitle: 使用 OpenTelemetry
 ---
 
-This guide shows you how to run an evaluation using OpenTelemetry tracing with LangSmith.
+本指南向您展示如何使用 OpenTelemetry 追踪与 LangSmith 一起运行评估。
 
 <Info>
-[Evaluations](/langsmith/evaluation-concepts#evaluation-lifecycle) | [Datasets](/langsmith/evaluation-concepts#datasets) | [Trace with OpenTelemetry](/langsmith/trace-with-opentelemetry)
+[评估](/langsmith/evaluation-concepts#evaluation-lifecycle) | [数据集](/langsmith/evaluation-concepts#datasets) | [使用 OpenTelemetry 追踪](/langsmith/trace-with-opentelemetry)
 </Info>
 
-If you're already using OpenTelemetry for tracing your LLM application, you can run evaluations by routing traces to an experiment session. This approach is useful when you want to evaluate applications that are instrumented with OpenTelemetry but don't use the LangSmith SDK's [`evaluate()`](https://reference.langchain.com/python/langsmith/client/Client/evaluate) function.
+如果您已经在使用 OpenTelemetry 追踪您的 LLM 应用程序，您可以通过将追踪路由到实验会话来运行评估。当您想要评估已使用 OpenTelemetry 进行检测但未使用 LangSmith SDK 的 [`evaluate()`](https://reference.langchain.com/python/langsmith/client/Client/evaluate) 函数的应用程序时，此方法非常有用。
 
-## Overview
+## 概述
 
-When evaluating with OpenTelemetry, you need to:
+使用 OpenTelemetry 进行评估时，您需要：
 
-1. Create an experiment session in LangSmith.
-2. Configure OpenTelemetry to send traces to LangSmith.
-3. Add specific span attributes to link traces to the experiment and dataset examples.
-4. Run your application for each example in the dataset.
+1. 在 LangSmith 中创建一个实验会话。
+2. 配置 OpenTelemetry 将追踪发送到 LangSmith。
+3. 添加特定的 span 属性以将追踪链接到实验和数据集示例。
+4. 为数据集中的每个示例运行您的应用程序。
 
-## Prerequisites
+## 前提条件
 
-This guide assumes you have:
+本指南假设您已具备：
 
-* An application instrumented with OpenTelemetry that sends traces to LangSmith.
-* A dataset created in LangSmith with examples to evaluate. You can create a dataset via the [LangSmith UI](/langsmith/evaluation-concepts#datasets) or via the [SDK](/langsmith/manage-datasets-programmatically).
+* 一个已使用 OpenTelemetry 进行检测并向 LangSmith 发送追踪的应用程序。
+* 一个在 LangSmith 中创建的、包含待评估示例的数据集。您可以通过 [LangSmith UI](/langsmith/evaluation-concepts#datasets) 或通过 [SDK](/langsmith/manage-datasets-programmatically) 创建数据集。
 
-This tutorial uses Strands agents as example implementations, but the approach works with any OpenTelemetry-instrumentation.
+本教程使用 Strands 代理作为示例实现，但该方法适用于任何 OpenTelemetry 检测。
 
-Install dependencies:
+安装依赖项：
 
 <CodeGroup>
 
@@ -43,46 +43,46 @@ npm install langsmith @strands-agents/sdk @opentelemetry/api @opentelemetry/sdk-
 
 </CodeGroup>
 
-Set the following environment variables:
+设置以下环境变量：
 
 ```bash
-# Tracing configuration
+# 追踪配置
 LANGSMITH_ENDPOINT="https://api.smith.langchain.com"
 LANGSMITH_API_KEY="<your-langsmith-api-key>"
 OTEL_EXPORTER_OTLP_ENDPOINT = "https://api.smith.langchain.com/otel/"
 
-# AWS Credentials
+# AWS 凭证
 AWS_ACCESS_KEY_ID="<your-aws-access-key-id>"
 AWS_SECRET_ACCESS_KEY="<your-aws-secret-access-key>"
 AWS_REGION_NAME="<your-aws-region>"
 ```
 
 <Note>
-If you're [self-hosting LangSmith](/langsmith/self-hosted), replace `OTEL_EXPORTER_OTLP_ENDPOINT` with your self-hosted URL and append `/api/v1/otel`. For example: `OTEL_EXPORTER_OTLP_ENDPOINT = "https://ai-company.com/api/v1/otel"`.
+如果您正在[自托管 LangSmith](/langsmith/self-hosted)，请将 `OTEL_EXPORTER_OTLP_ENDPOINT` 替换为您的自托管 URL 并附加 `/api/v1/otel`。例如：`OTEL_EXPORTER_OTLP_ENDPOINT = "https://ai-company.com/api/v1/otel"`。
 
-Replace `LANGSMITH_ENDPOINT` with your LangSmith API endpoint. For example: `LANGSMITH_ENDPOINT = "https://ai-company.com/api/v1"`.
+将 `LANGSMITH_ENDPOINT` 替换为您的 LangSmith API 端点。例如：`LANGSMITH_ENDPOINT = "https://ai-company.com/api/v1"`。
 </Note>
 
 
-## Step 1. Create an experiment session
+## 步骤 1. 创建实验会话
 
-This guide assumes that a dataset has been created in LangSmith with examples to evaluate. You can create a dataset via the [LangSmith UI](/langsmith/evaluation-concepts#datasets) or via the [SDK](/langsmith/manage-datasets-programmatically).
+本指南假设已在 LangSmith 中创建了一个包含待评估示例的数据集。您可以通过 [LangSmith UI](/langsmith/evaluation-concepts#datasets) 或通过 [SDK](/langsmith/manage-datasets-programmatically) 创建数据集。
 
-An experiment session groups all evaluation traces together. Create one using the LangSmith client:
+实验会话将所有评估追踪分组在一起。使用 LangSmith 客户端创建一个：
 
 <CodeGroup>
 
 ```python Python
 from langsmith import Client
 
-# Initialize LangSmith client
+# 初始化 LangSmith 客户端
 client = Client()
 
 experiment_name = "strands-agent-experiment"
-# Assumes a dataset has been created. You can find the dataset ID in the LangSmith UI or via the SDK.
+# 假设已创建数据集。您可以在 LangSmith UI 或通过 SDK 中找到数据集 ID。
 dataset_id = "<your-dataset-id>"
 
-# Create an experiment session linked to the dataset
+# 创建链接到数据集的实验会话
 project = client.create_project(
     project_name=experiment_name,
     reference_dataset_id=dataset_id
@@ -94,7 +94,7 @@ experiment_id = str(project.id)
 ```typescript TypeScript
 import { Client } from "langsmith";
 
-// Initialize LangSmith client
+// 初始化 LangSmith 客户端
 const client = new Client({
   apiKey: process.env.LANGSMITH_API_KEY,
 });
@@ -102,7 +102,7 @@ const client = new Client({
 const experimentName = "strands-agent-experiment";
 const datasetId = "your-dataset-id";
 
-// Create an experiment session linked to the dataset
+// 创建链接到数据集的实验会话
 const project = await client.createProject({
   projectName: experimentName,
   referenceDatasetId: datasetId,
@@ -113,18 +113,18 @@ const experimentId = project.id;
 
 </CodeGroup>
 
-Additionally, you can create evaluators in the LangSmith UI and bind them to your dataset. For evaluators defined in the UI and bound to your dataset, they will automatically run on experiment traces.
+此外，您可以在 LangSmith UI 中创建评估器并将其绑定到您的数据集。对于在 UI 中定义并绑定到数据集的评估器，它们将自动在实验追踪上运行。
 
-To learn more about evaluators, see [Evaluators](/langsmith/evaluation-concepts#evaluators).
+要了解有关评估器的更多信息，请参阅[评估器](/langsmith/evaluation-concepts#evaluators)。
 
 
 
-## Step 2. Define an application and configure OpenTelemetry
+## 步骤 2. 定义应用程序并配置 OpenTelemetry
 
-First, you need an application that uses OpenTelemetry for tracing. This example uses a Strands agent, but you can use any OpenTelemetry-instrumented application. Set up OpenTelemetry to route traces to your experiment session by including the experiment ID in the OTEL headers. The general idea in this step is to have an agent or application that has been instrumented with OpenTelemetry.
+首先，您需要一个使用 OpenTelemetry 进行追踪的应用程序。此示例使用 Strands 代理，但您可以使用任何已检测 OpenTelemetry 的应用程序。通过在 OTEL 头中包含实验 ID，设置 OpenTelemetry 将追踪路由到您的实验会话。此步骤的一般思路是拥有一个已使用 OpenTelemetry 进行检测的代理或应用程序。
 
 <Note>
-TypeScript examples are not provided for this step as the `Strands TypeScript SDK` does not currently support `OpenTelemetry` observability (as of February 2026).
+此步骤未提供 TypeScript 示例，因为 `Strands TypeScript SDK` 目前（截至 2026 年 2 月）不支持 `OpenTelemetry` 可观测性。
 </Note>
 
 <CodeGroup>
@@ -135,15 +135,15 @@ from strands import Agent
 from strands_tools import file_read, file_write, python_repl, shell, journal
 from strands.telemetry import StrandsTelemetry
 
-# Set OTEL headers with experiment ID as the project
+# 设置 OTEL 头，将实验 ID 作为项目
 api_key = os.getenv('LANGSMITH_API_KEY')
 os.environ['OTEL_EXPORTER_OTLP_HEADERS'] = f"x-api-key={api_key},Langsmith-Project={experiment_id}"
 
-# Initialize telemetry
+# 初始化遥测
 strands_telemetry = StrandsTelemetry()
 strands_telemetry.setup_otlp_exporter()
 
-# Create an agent (Strands automatically creates OTel spans)
+# 创建代理（Strands 自动创建 OTel span）
 agent = Agent(
     tools=[file_read, file_write, python_repl, shell, journal],
     system_prompt="You are an Expert Software Developer.",
@@ -153,25 +153,25 @@ agent = Agent(
 
 </CodeGroup>
 
-For details on setting up OpenTelemetry tracing with LangSmith, see [Trace with OpenTelemetry](/langsmith/trace-with-opentelemetry).
+有关使用 LangSmith 设置 OpenTelemetry 追踪的详细信息，请参阅[使用 OpenTelemetry 追踪](/langsmith/trace-with-opentelemetry)。
 
 
 
-## Step 3. Set up key span attributes
+## 步骤 3. 设置关键 span 属性
 
-Add the required span attributes to each application run. These attributes link each trace to the experiment and the specific dataset example.
+为每次应用程序运行添加所需的 span 属性。这些属性将每个追踪链接到实验和特定的数据集示例。
 
-The following attributes are relevant for experiment evaluation:
+以下属性与实验评估相关：
 
-| Attribute | Purpose |
+| 属性 | 用途 |
 |-----------|---------|
-| `langsmith.trace.session_id` | Routes the trace to your experiment session |
-| `langsmith.reference_example_id` | Links the trace to a specific dataset example |
-| `langsmith.span.kind` | Sets the span type (e.g., "llm", "chain", "tool") |
-| `inputs` | Records the input to your application |
-| `outputs` | Records the output from your application |
+| `langsmith.trace.session_id` | 将追踪路由到您的实验会话 |
+| `langsmith.reference_example_id` | 将追踪链接到特定的数据集示例 |
+| `langsmith.span.kind` | 设置 span 类型（例如 "llm"、"chain"、"tool"） |
+| `inputs` | 记录应用程序的输入 |
+| `outputs` | 记录应用程序的输出 |
 
-For a complete list of supported OpenTelemetry attributes, see [Trace with OpenTelemetry](/langsmith/trace-with-opentelemetry#supported-opentelemetry-attribute-and-event-mapping).
+有关支持的 OpenTelemetry 属性的完整列表，请参阅[使用 OpenTelemetry 追踪](/langsmith/trace-with-opentelemetry#supported-opentelemetry-attribute-and-event-mapping)。
 
 <CodeGroup>
 
@@ -181,21 +181,21 @@ from opentelemetry import trace
 def evaluate_with_opentelemetry(agent, example_id: str, example_input: str, experiment_id: str):
     tracer = trace.get_tracer(__name__)
 
-    # Wrapper span to add experiment metadata
+    # 包装 span 以添加实验元数据
     with tracer.start_as_current_span("experiment_evaluation") as span:
-        # Route trace to the experiment
+        # 将追踪路由到实验
         span.set_attribute("langsmith.trace.session_id", experiment_id)
 
-        # Link trace to the specific dataset example
+        # 将追踪链接到特定的数据集示例
         span.set_attribute("langsmith.reference_example_id", example_id)
 
-        # Record input
+        # 记录输入
         span.set_attribute("inputs", example_input)
 
-        # Run the application
+        # 运行应用程序
         response = agent(example_input)
 
-        # Record output
+        # 记录输出
         output_text = getattr(response, "output", str(response))
         span.set_attribute("outputs", output_text)
 
@@ -217,18 +217,18 @@ async function evaluateWithAgent(
     "experiment_evaluation",
     async (span: Span) => {
       try {
-        // Route trace to the experiment
+        // 将追踪路由到实验
         span.setAttribute("langsmith.trace.session_id", experimentId);
 
-        // Link trace to the specific dataset example
+        // 将追踪链接到特定的数据集示例
         span.setAttribute("langsmith.reference_example_id", exampleId);
 
-        // Record input
+        // 记录输入
         span.setAttribute("inputs", exampleInput);
 
-        // Run the application
+        // 运行应用程序
         const result = await agent.invoke(exampleInput);
-        // Record output
+        // 记录输出
         const response = String(result);
         span.setAttribute("outputs", response);
 
@@ -244,19 +244,19 @@ async function evaluateWithAgent(
 </CodeGroup>
 
 
-## Step 4. Run evaluation by iterating through dataset examples
+## 步骤 4. 通过遍历数据集示例运行评估
 
-Each experiment run creates traces in LangSmith that are linked to your dataset examples.
+每次实验运行都会在 LangSmith 中创建链接到您数据集示例的追踪。
 
 <CodeGroup>
 
 ```python Python
-# Iterate through dataset examples
+# 遍历数据集示例
 for example in client.list_examples(dataset_name=dataset_name):
 
-    # Extract input from the example inputs dictionary
-    # Adjust the key based on your dataset structure
-    # (e.g., "input", "question", etc.)
+    # 从示例输入字典中提取输入
+    # 根据您的数据集结构调整键
+    # （例如 "input"、"question" 等）
     example_input = example.inputs.get("input")
 
     evaluate_with_opentelemetry(
@@ -268,11 +268,11 @@ for example in client.list_examples(dataset_name=dataset_name):
 ```
 
 ```typescript TypeScript
-// Iterate through dataset examples
+// 遍历数据集示例
 for await (const example of client.listExamples({ datasetName })) {
-  // Extract input from the example inputs dictionary
-  // Adjust the key based on your dataset structure
-  // (e.g., "input", "question", etc.)
+  // 从示例输入字典中提取输入
+  // 根据您的数据集结构调整键
+  // （例如 "input"、"question" 等）
   const exampleInput = example.inputs.input;
 
   await evaluateWithAgent(
@@ -286,21 +286,21 @@ for await (const example of client.listExamples({ datasetName })) {
 
 </CodeGroup>
 
-After running the evaluation, you can [analyze the experiment](/langsmith/analyze-an-experiment) in the LangSmith UI to see:
+运行评估后，您可以在 LangSmith UI 中[分析实验](/langsmith/analyze-an-experiment)以查看：
 
-* Individual trace details for each example
-* Evaluator scores and feedback
-* Comparisons between different experiment runs
+* 每个示例的单独追踪详情
+* 评估器分数和反馈
+* 不同实验运行之间的比较
 
-Navigate to your experiment in the [LangSmith UI](https://smith.langchain.com) to analyze the results.
+导航到 [LangSmith UI](https://smith.langchain.com) 中的实验以分析结果。
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/evaluate-with-opentelemetry.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/evaluate-with-opentelemetry.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

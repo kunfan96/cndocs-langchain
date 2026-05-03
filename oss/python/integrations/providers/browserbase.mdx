@@ -1,69 +1,69 @@
 ---
-title: "Browserbase integrations"
-description: "Integrate with Browserbase using LangChain Python."
+title: "Browserbase 集成"
+description: "使用 LangChain Python 与 Browserbase 集成。"
 ---
 
-[Browserbase](https://browserbase.com) is a developer platform to reliably run, manage, and monitor headless browsers.
+[Browserbase](https://browserbase.com) 是一个开发者平台，用于可靠地运行、管理和监控无头浏览器。
 
-Power your AI data retrievals with:
-- [Serverless Infrastructure](https://docs.browserbase.com/under-the-hood) providing reliable browsers to extract data from complex UIs
-- [Stealth Mode](https://docs.browserbase.com/features/stealth-mode) with included fingerprinting tactics and automatic captcha solving
-- [Session Debugger](https://docs.browserbase.com/features/sessions) to inspect your Browser Session with networks timeline and logs
-- [Live Debug](https://docs.browserbase.com/guides/session-debug-connection/browser-remote-control) to quickly debug your automation
+通过以下方式为您的 AI 数据检索提供支持：
+- [无服务器基础设施](https://docs.browserbase.com/under-the-hood)，提供可靠的浏览器以从复杂 UI 中提取数据
+- [隐身模式](https://docs.browserbase.com/features/stealth-mode)，包含指纹识别策略和自动验证码解决
+- [会话调试器](https://docs.browserbase.com/features/sessions)，用于检查您的浏览器会话，包含网络时间线和日志
+- [实时调试](https://docs.browserbase.com/guides/session-debug-connection/browser-remote-control)，用于快速调试您的自动化流程
 
-## Installation and setup
+## 安装与设置
 
-- Get an API key and Project ID from [browserbase.com](https://browserbase.com) and set it in environment variables (`BROWSERBASE_API_KEY`, `BROWSERBASE_PROJECT_ID`).
-- Install the [Browserbase SDK](https://github.com/browserbase/python-sdk):
+- 从 [browserbase.com](https://browserbase.com) 获取 API 密钥和项目 ID，并将其设置在环境变量中（`BROWSERBASE_API_KEY`、`BROWSERBASE_PROJECT_ID`）。
+- 安装 [Browserbase SDK](https://github.com/browserbase/python-sdk)：
 
 ```bash
 pip install browserbase
 ```
 
-## Document loader
+## 文档加载器
 
-See a [usage example](/oss/python/integrations/document_loaders/browserbase).
+查看[使用示例](/oss/python/integrations/document_loaders/browserbase)。
 
 ```python
 from langchain_community.document_loaders import BrowserbaseLoader
 ```
 
-## Deep Agents integration
+## Deep Agents 集成
 
-[Deep Agents](/oss/python/deepagents/overview) work well with Browserbase by exposing browser capabilities as Python tools rather than routing through the CLI. The integration pattern gives the main planner cheap, stateless tools for search and page retrieval, while delegating expensive rendered and interactive browser work to a dedicated `browser-specialist` subagent.
+[Deep Agents](/oss/python/deepagents/overview) 与 Browserbase 配合良好，它将浏览器功能作为 Python 工具暴露出来，而不是通过 CLI 路由。这种集成模式为主规划器提供了廉价、无状态的搜索和页面检索工具，同时将昂贵的渲染和交互式浏览器工作委托给专用的 `browser-specialist` 子代理。
 
-### Install
+### 安装
 
 ```bash
 pip install deepagents browserbase stagehand langchain-openai python-dotenv
 ```
 
-### Architecture
+### 架构
 
-The recommended pattern uses four tools:
+推荐的模式使用四个工具：
 
-| Tool | Description | When to use |
-|------|-------------|-------------|
-| `browserbase_search` | Web search via Browserbase Search API | Discovery — always try this first |
-| `browserbase_fetch` | Headless page retrieval via Browserbase Fetch API | Static pages, quick reads, no JS needed |
-| `browserbase_rendered_extract` | Full browser session via Stagehand | JS-heavy or rendered pages (read-only) |
-| `browserbase_interactive_task` | Stagehand agent for multi-step browser tasks | Clicks, form fills, login flows |
+| 工具 | 描述 | 何时使用 |
+|------|------|----------|
+| `browserbase_search` | 通过 Browserbase Search API 进行网络搜索 | 发现阶段——始终首先尝试此工具 |
+| `browserbase_fetch` | 通过 Browserbase Fetch API 进行无头页面检索 | 静态页面、快速阅读、无需 JS |
+| `browserbase_rendered_extract` | 通过 Stagehand 进行完整浏览器会话 | JS 密集型或已渲染页面（只读） |
+| `browserbase_interactive_task` | 用于多步骤浏览器任务的 Stagehand 代理 | 点击、表单填写、登录流程 |
 
-The cheap tools (`search`, `fetch`) live on the main planner. The expensive browser tools live on the `browser-specialist` subagent, isolating noisy session output from the main thread.
+廉价工具（`search`、`fetch`）位于主规划器上。昂贵的浏览器工具位于 `browser-specialist` 子代理上，将嘈杂的会话输出与主线程隔离。
 
-### Environment variables
+### 环境变量
 
 ```bash
 export BROWSERBASE_API_KEY="bb_..."
 
-# Optional: model overrides
+# 可选：模型覆盖
 export DEEPAGENT_MODEL="gpt-5.4"
 export DEEPAGENT_BASE_URL="https://<your-openai-compatible-gateway>"
 export STAGEHAND_MODEL="google/gemini-3-flash-preview"
 export STAGEHAND_AGENT_MODEL="anthropic/claude-sonnet-4-6"
 ```
 
-### Define the tools
+### 定义工具
 
 ```python
 import asyncio
@@ -75,7 +75,7 @@ from stagehand import AsyncStagehand
 
 @tool
 def browserbase_search(query: str, num_results: int = 5) -> str:
-    """Search the web with Browserbase. Use this first for discovery before opening pages."""
+    """使用 Browserbase 搜索网络。在打开页面之前，首先使用此工具进行发现。"""
     bb = Browserbase(api_key=os.environ["BROWSERBASE_API_KEY"])
     response = bb.search.web(query=query, num_results=max(1, min(num_results, 10)))
     results = [
@@ -87,7 +87,7 @@ def browserbase_search(query: str, num_results: int = 5) -> str:
 
 @tool
 def browserbase_fetch(url: str, use_proxy: bool = False, max_chars: int = 12000) -> str:
-    """Fetch page content without a browser session. Best for static pages and quick reads."""
+    """无需浏览器会话即可获取页面内容。最适合静态页面和快速阅读。"""
     bb = Browserbase(api_key=os.environ["BROWSERBASE_API_KEY"])
     response = bb.fetch_api.create(url=url, proxies=use_proxy)
     content = str(getattr(response, "content", ""))
@@ -100,13 +100,13 @@ def browserbase_fetch(url: str, use_proxy: bool = False, max_chars: int = 12000)
 
 @tool
 def browserbase_rendered_extract(start_url: str, instruction: str) -> str:
-    """Open a full Browserbase browser session and extract rendered content with Stagehand."""
+    """打开一个完整的 Browserbase 浏览器会话，并使用 Stagehand 提取已渲染的内容。"""
     return asyncio.run(_rendered_extract(start_url, instruction))
 
 
 @tool
 def browserbase_interactive_task(start_url: str, task: str) -> str:
-    """Open a Browserbase-hosted Stagehand session and execute a multi-step browser task."""
+    """打开一个 Browserbase 托管的 Stagehand 会话，并执行多步骤浏览器任务。"""
     return asyncio.run(_interactive_task(start_url, task))
 
 
@@ -132,7 +132,7 @@ async def _interactive_task(start_url: str, task: str) -> str:
         result = await client.sessions.execute(
             id=session_id,
             execute_options={"instruction": task, "max_steps": 20},
-            agent_config={"model": model, "instructions": "Execute the browser task precisely and stop when done."},
+            agent_config={"model": model, "instructions": "精确执行浏览器任务，完成后停止。"},
             timeout=300.0,
         )
         return str(result)
@@ -140,7 +140,7 @@ async def _interactive_task(start_url: str, task: str) -> str:
         await client.sessions.end(id=session_id)
 ```
 
-### Build the agent
+### 构建代理
 
 ```python
 import uuid
@@ -150,12 +150,12 @@ from langchain_openai import ChatOpenAI
 
 BROWSER_SUBAGENT = {
     "name": "browser-specialist",
-    "description": "Handles JS-heavy browsing, rendered extraction, and interactive browser tasks through Browserbase.",
+    "description": "通过 Browserbase 处理 JS 密集型浏览、已渲染内容提取和交互式浏览器任务。",
     "system_prompt": (
-        "You are a Browserbase browsing specialist. "
-        "Use browserbase_rendered_extract for read-only work on rendered pages. "
-        "Use browserbase_interactive_task only for stateful actions such as clicking, typing, or submitting forms. "
-        "Return concise summaries with the relevant page URL and whether the task succeeded."
+        "你是一个 Browserbase 浏览专家。"
+        "使用 browserbase_rendered_extract 对已渲染页面进行只读工作。"
+        "仅在需要有状态操作（如点击、输入或提交表单）时使用 browserbase_interactive_task。"
+        "返回包含相关页面 URL 和任务是否成功的简洁摘要。"
     ),
     "tools": [browserbase_rendered_extract, browserbase_interactive_task],
 }
@@ -165,12 +165,12 @@ agent = create_deep_agent(
     tools=[browserbase_search, browserbase_fetch],
     subagents=[BROWSER_SUBAGENT],
     system_prompt=(
-        "You are a research-oriented Deep Agent with Browserbase tools. "
-        "Start with browserbase_search for discovery. "
-        "Prefer browserbase_fetch for quick reads of static pages. "
-        "Delegate JS-heavy or interactive work to the browser-specialist subagent."
+        "你是一个使用 Browserbase 工具的研究型 Deep Agent。"
+        "首先使用 browserbase_search 进行发现。"
+        "优先使用 browserbase_fetch 快速阅读静态页面。"
+        "将 JS 密集型或交互式工作委托给 browser-specialist 子代理。"
     ),
-    # Gate interactive browser actions behind human approval
+    # 将交互式浏览器操作置于人工批准之后
     interrupt_on={
         "browserbase_interactive_task": {
             "allowed_decisions": ["approve", "edit", "reject"]
@@ -180,26 +180,26 @@ agent = create_deep_agent(
 )
 ```
 
-### Run with human-in-the-loop approval
+### 使用人在回路中批准运行
 
-`interrupt_on` pauses execution before any `browserbase_interactive_task` call so you can review the proposed action before the agent commits it.
+`interrupt_on` 会在任何 `browserbase_interactive_task` 调用之前暂停执行，以便您可以在代理提交操作之前审查提议的操作。
 
 ```python
 from langgraph.types import Command
 
 config = {"configurable": {"thread_id": str(uuid.uuid4())}}
 result = agent.invoke(
-    {"messages": [{"role": "user", "content": "Research the Browserbase Fetch API and explain when to escalate to a full browser session."}]},
+    {"messages": [{"role": "user", "content": "研究 Browserbase Fetch API 并解释何时应升级到完整浏览器会话。"}]},
     config=config,
     version="v2",
 )
 
-# Resume after each interrupt (approve / edit / reject)
+# 在每次中断后恢复（批准 / 编辑 / 拒绝）
 while result.interrupts:
     interrupt_value = result.interrupts[0].value
     for action in interrupt_value["action_requests"]:
-        print(f"Pending: {action['name']}\nArgs: {action['args']}")
-    decision = input("Decision [approve/edit/reject]: ").strip().lower()
+        print(f"待处理: {action['name']}\n参数: {action['args']}")
+    decision = input("决定 [approve/edit/reject]: ").strip().lower()
     result = agent.invoke(
         Command(resume={"decisions": [{"type": decision}]}),
         config=config,
@@ -207,32 +207,32 @@ while result.interrupts:
     )
 ```
 
-### Decision tree: which tool to use
+### 决策树：使用哪个工具
 
 ```
-User query
-  └─ Is a specific URL already known?
-       ├─ No  → browserbase_search (discover URLs first)
-       └─ Yes ↓
-            Is the page JavaScript-rendered?
-              ├─ No  → browserbase_fetch (fast, stateless)
-              └─ Yes ↓
-                   Does the task require interaction (click / login / form)?
-                     ├─ No  → browserbase_rendered_extract (read-only full browser)
-                     └─ Yes → browserbase_interactive_task (Stagehand agent, triggers interrupt_on)
+用户查询
+  └─ 是否已知特定 URL？
+       ├─ 否 → browserbase_search（首先发现 URL）
+       └─ 是 ↓
+            页面是否由 JavaScript 渲染？
+              ├─ 否 → browserbase_fetch（快速、无状态）
+              └─ 是 ↓
+                   任务是否需要交互（点击 / 登录 / 表单）？
+                     ├─ 否 → browserbase_rendered_extract（只读完整浏览器）
+                     └─ 是 → browserbase_interactive_task（Stagehand 代理，触发 interrupt_on）
 ```
 
-### Full example
+### 完整示例
 
-See the complete runnable example in the [deepagents repository](https://github.com/browserbase/integrations/tree/main/examples/integrations/langchain/deepagents-browserbase).
+请参阅 [deepagents 仓库](https://github.com/browserbase/integrations/tree/main/examples/integrations/langchain/deepagents-browserbase) 中的完整可运行示例。
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP 获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/providers/browserbase.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/providers/browserbase.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>

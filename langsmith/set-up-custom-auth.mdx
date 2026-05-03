@@ -1,27 +1,27 @@
 ---
-title: Set up custom authentication
-sidebarTitle: Set up custom authentication
+title: 设置自定义身份验证
+sidebarTitle: 设置自定义身份验证
 ---
-In this tutorial, we will build a chatbot that only lets specific users access it. We'll start with the LangGraph template and add token-based security step by step. By the end, you'll have a working chatbot that checks for valid tokens before allowing access.
+在本教程中，我们将构建一个仅允许特定用户访问的聊天机器人。我们将从 LangGraph 模板开始，逐步添加基于令牌的安全机制。最终，你将获得一个能够检查有效令牌后再允许访问的聊天机器人。
 
-This is part 1 of our authentication series:
+这是我们身份验证系列的第 1 部分：
 
-1. Set up custom authentication (you are here) - Control who can access your bot
-2. [Make conversations private](/langsmith/resource-auth) - Let users have private conversations
-3. [Connect an authentication provider](/langsmith/add-auth-server) - Add real user accounts and validate using OAuth2 for production
+1. 设置自定义身份验证（你正在阅读） - 控制谁可以访问你的机器人
+2. [使对话私有化](/langsmith/resource-auth) - 让用户拥有私密对话
+3. [连接身份验证提供者](/langsmith/add-auth-server) - 添加真实用户账户并使用 OAuth2 进行生产环境验证
 
-This guide assumes basic familiarity with the following concepts:
+本指南假设你对以下概念有基本了解：
 
-* [**Authentication & Access Control**](/langsmith/auth)
+* [**身份验证与访问控制**](/langsmith/auth)
 * [**LangSmith**](/langsmith/home)
 
 <Note>
-Custom auth is only available for LangSmith SaaS deployments or Enterprise Self-Hosted deployments.
+自定义身份验证仅适用于 LangSmith SaaS 部署或企业自托管部署。
 </Note>
 
-## 1. Create your app
+## 1. 创建你的应用
 
-Create a new chatbot using the LangGraph starter template:
+使用 LangGraph 入门模板创建一个新的聊天机器人：
 
 <CodeGroup>
 ```bash pip
@@ -37,7 +37,7 @@ cd custom-auth
 ```
 </CodeGroup>
 
-The template gives us a placeholder LangGraph app. Try it out by installing the local dependencies and running the development server:
+该模板为我们提供了一个占位符 LangGraph 应用。通过安装本地依赖项并运行开发服务器来试用它：
 
 <CodeGroup>
 ```bash pip
@@ -55,71 +55,71 @@ npx @langchain/langgraph-cli dev
 ```
 </CodeGroup>
 
-The server will start and open [Studio](/langsmith/studio) in your browser:
+服务器将启动并在你的浏览器中打开 [Studio](/langsmith/studio)：
 
 ```
 > - 🚀 API: http://127.0.0.1:2024
 > - 🎨 Studio UI: https://smith.langchain.com/studio/?baseUrl=http://127.0.0.1:2024
 > - 📚 API Docs: http://127.0.0.1:2024/docs
 >
-> This in-memory server is designed for development and testing.
-> For production use, please use LangSmith.
+> 此内存服务器专为开发和测试设计。
+> 生产环境使用，请使用 LangSmith。
 ```
 
-If you were to self-host this on the public internet, anyone could access it.
+如果你将其托管在公共互联网上，任何人都可以访问它。
 
-![No authentication: the dev server is publicly reachable, anyone can access the bot if exposed to the internet.](/langsmith/images/no-auth.png)
+![无身份验证：开发服务器可公开访问，如果暴露在互联网上，任何人都可以访问机器人。](/langsmith/images/no-auth.png)
 
-## 2. Add authentication
+## 2. 添加身份验证
 
-Now that you have a base LangGraph app, add authentication to it.
+现在你有了一个基础的 LangGraph 应用，接下来为其添加身份验证。
 
 <Note>
-In this tutorial, you will start with a hard-coded token for example purposes. You will get to a "production-ready" authentication scheme in the third tutorial.
+在本教程中，你将从一个硬编码的令牌开始作为示例。你将在第三个教程中获得一个“生产就绪”的身份验证方案。
 </Note>
 
-The [Auth](https://reference.langchain.com/python/langgraph-sdk/auth/Auth) object lets you register an authentication function that the LangSmith deployment will run on every request. This function receives each request and decides whether to accept or reject.
+[Auth](https://reference.langchain.com/python/langgraph-sdk/auth/Auth) 对象允许你注册一个身份验证函数，LangSmith 部署将在每个请求上运行该函数。此函数接收每个请求并决定接受或拒绝。
 
-Create a new file `src/security/auth.py`. This is where your code will live to check if users are allowed to access your bot:
+创建一个新文件 `src/security/auth.py`。你的代码将放在这里，用于检查用户是否被允许访问你的机器人：
 
 ```python {highlight={10,15-16}} title="src/security/auth.py"
 from langgraph_sdk import Auth
 
-# This is our toy user database. Do not do this in production
+# 这是我们的玩具用户数据库。生产环境中请勿这样做
 VALID_TOKENS = {
     "user1-token": {"id": "user1", "name": "Alice"},
     "user2-token": {"id": "user2", "name": "Bob"},
 }
 
-# The "Auth" object is a container that LangGraph will use to mark our authentication function
+# "Auth" 对象是一个容器，LangGraph 将用它来标记我们的身份验证函数
 auth = Auth()
 
 
-# The `authenticate` decorator tells LangGraph to call this function as middleware
-# for every request. This will determine whether the request is allowed or not
+# `authenticate` 装饰器告诉 LangGraph 将此函数作为中间件调用
+# 用于每个请求。这将决定请求是否被允许
 @auth.authenticate
 async def get_current_user(authorization: str | None) -> Auth.types.MinimalUserDict:
-    """Check if the user's token is valid."""
+    """检查用户的令牌是否有效。"""
     assert authorization
     scheme, token = authorization.split()
     assert scheme.lower() == "bearer"
-    # Check if token is valid
+    # 检查令牌是否有效
     if token not in VALID_TOKENS:
         raise Auth.exceptions.HTTPException(status_code=401, detail="Invalid token")
 
-    # Return user info if valid
+    # 如果有效，返回用户信息
     user_data = VALID_TOKENS[token]
     return {
         "identity": user_data["id"],
     }
 ```
 
-Notice that your [Auth.authenticate](https://reference.langchain.com/python/langgraph-sdk/auth/Auth/authenticate) handler does two important things:
+请注意，你的 [Auth.authenticate](https://reference.langchain.com/python/langgraph-sdk/auth/Auth/authenticate) 处理程序做了两件重要的事情：
 
-1. Checks if a valid token is provided in the request's [Authorization header](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Authorization)
-2. Returns the user's [MinimalUserDict](https://reference.langchain.com/python/langgraph-sdk/auth/types/MinimalUserDict)
+1. 检查请求的 [Authorization 头](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Authorization)中是否提供了有效令牌
+2. 返回用户的 [MinimalUserDict](https://reference.langchain.com/python/langgraph-sdk/auth/types/MinimalUserDict)
 
-Now tell LangGraph to use authentication by adding the following to the [langgraph.json](https://reference.langchain.com/python/cloud/reference/cli/#configuration-file) configuration:
+现在，通过在 [langgraph.json](https://reference.langchain.com/python/cloud/reference/cli/#configuration-file) 配置中添加以下内容来告诉 LangGraph 使用身份验证：
 
 ```json {highlight={7-9}} title="langgraph.json"
 {
@@ -134,15 +134,15 @@ Now tell LangGraph to use authentication by adding the following to the [langgra
 }
 ```
 
-## 3. Test your bot
+## 3. 测试你的机器人
 
-Start the server again to test everything out:
+再次启动服务器以测试所有功能：
 
 ```bash
 langgraph dev --no-browser
 ```
 
-If you didn't add the `--no-browser`, the Studio UI will open in the browser. By default, we also permit access from Studio, even when using custom auth. This makes it easier to develop and test your bot in Studio. You can remove this alternative authentication option by setting `disable_studio_auth: true` in your auth configuration:
+如果你没有添加 `--no-browser`，Studio UI 将在浏览器中打开。默认情况下，即使使用自定义身份验证，我们也允许从 Studio 访问。这使得在 Studio 中开发和测试你的机器人更容易。你可以通过在身份验证配置中设置 `disable_studio_auth: true` 来移除此替代身份验证选项：
 
 ```json
 {
@@ -153,65 +153,65 @@ If you didn't add the `--no-browser`, the Studio UI will open in the browser. By
 }
 ```
 
-## 4. Chat with your bot
+## 4. 与你的机器人聊天
 
-You should now only be able to access the bot if you provide a valid token in the request header. Users will still, however, be able to access each other's resources until you add [resource authorization handlers](/langsmith/auth#resource-specific-handlers) in the next section of the tutorial.
+现在，你应该只能在请求头中提供有效令牌才能访问机器人。然而，在你添加[资源授权处理程序](/langsmith/auth#resource-specific-handlers)之前，用户仍然可以访问彼此的资源。
 
-![Auth gate passes requests with a valid token, but no per-resource filters are applied yet—so users share visibility until authorization handlers are added in the next step.](/langsmith/images/authentication.png)
+![身份验证网关允许带有有效令牌的请求通过，但尚未应用任何资源级过滤器——因此在下一步添加授权处理程序之前，用户共享可见性。](/langsmith/images/authentication.png)
 
-Run the following code in a file or notebook:
+在文件或笔记本中运行以下代码：
 
 ```python
 from langgraph_sdk import get_client
 
-# Try without a token (should fail)
+# 尝试不带令牌访问（应该失败）
 client = get_client(url="http://localhost:2024")
 try:
     thread = await client.threads.create()
-    print("❌ Should have failed without token!")
+    print("❌ 不带令牌访问应该失败！")
 except Exception as e:
-    print("✅ Correctly blocked access:", e)
+    print("✅ 正确阻止了访问：", e)
 
-# Try with a valid token
+# 尝试使用有效令牌访问
 client = get_client(
     url="http://localhost:2024", headers={"Authorization": "Bearer user1-token"}
 )
 
-# Create a thread and chat
+# 创建一个线程并聊天
 thread = await client.threads.create()
-print(f"✅ Created thread as Alice: {thread['thread_id']}")
+print(f"✅ 以 Alice 身份创建了线程：{thread['thread_id']}")
 
 response = await client.runs.create(
     thread_id=thread["thread_id"],
     assistant_id="agent",
     input={"messages": [{"role": "user", "content": "Hello!"}]},
 )
-print("✅ Bot responded:")
+print("✅ 机器人响应：")
 print(response)
 ```
 
-You should see that:
+你应该会看到：
 
-1. Without a valid token, we can't access the bot
-2. With a valid token, we can create threads and chat
+1. 没有有效令牌，我们无法访问机器人
+2. 有了有效令牌，我们可以创建线程并聊天
 
-Congratulations! You've built a chatbot that only lets "authenticated" users access it. While this system doesn't (yet) implement a production-ready security scheme, we've learned the basic mechanics of how to control access to our bot. In the next tutorial, we'll learn how to give each user their own private conversations.
+恭喜！你已经构建了一个只允许“已验证”用户访问的聊天机器人。虽然这个系统（尚未）实现生产就绪的安全方案，但我们已经学习了控制机器人访问的基本机制。在下一个教程中，我们将学习如何为每个用户提供他们自己的私密对话。
 
-## Next steps
+## 后续步骤
 
-Now that you can control who accesses your bot, you might want to:
+现在你可以控制谁访问你的机器人，你可能想要：
 
-1. Continue the tutorial by going to [Make conversations private](/langsmith/resource-auth) to learn about resource authorization.
-2. Read more about [authentication concepts](/langsmith/auth).
-3. Check out the API reference for [Auth](https://reference.langchain.com/python/langgraph-sdk/auth/Auth), [Auth.authenticate](https://reference.langchain.com/python/langgraph-sdk/auth/Auth/authenticate), and [MinimalUserDict](https://reference.langchain.com/python/langgraph-sdk/auth/types/MinimalUserDict) for more authentication details.
+1. 通过前往[使对话私有化](/langsmith/resource-auth)继续教程，了解资源授权。
+2. 阅读更多关于[身份验证概念](/langsmith/auth)的内容。
+3. 查看 [Auth](https://reference.langchain.com/python/langgraph-sdk/auth/Auth)、[Auth.authenticate](https://reference.langchain.com/python/langgraph-sdk/auth/Auth/authenticate) 和 [MinimalUserDict](https://reference.langchain.com/python/langgraph-sdk/auth/types/MinimalUserDict) 的 API 参考，获取更多身份验证细节。
 
 ---
 
 <div className="source-links">
 <Callout icon="terminal-2">
-    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+    [通过 MCP 将这些文档](/use-these-docs)连接到 Claude、VSCode 等，以获取实时答案。
 </Callout>
 <Callout icon="edit">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/set-up-custom-auth.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/langsmith/set-up-custom-auth.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
 </Callout>
 </div>
