@@ -1,20 +1,22 @@
 ---
-title: 流式传输
-description: 从深度代理运行和子代理执行中流式传输实时更新
+title: Streaming
+description: Stream real-time updates from deep agent runs and subagent execution
 ---
 
-深度代理基于 LangGraph 的流式传输基础设施构建，并为子代理流提供一流支持。当深度代理将工作委托给子代理时，您可以独立地从每个子代理流式传输更新——实时跟踪进度、LLM 令牌和工具调用。
+Deep Agents build on LangGraph's streaming infrastructure with first-class support for subagent streams. When a deep agent delegates work to subagents, you can stream updates from each subagent independently—tracking progress, LLM tokens, and tool calls in real time.
 
-深度代理流式传输的功能：
+What's possible with deep agent streaming:
 
-* <Icon icon="diagram-subtask" size={16} /> [**流式传输子代理进度**](#subagent-progress)—跟踪每个子代理在并行运行时的执行情况。
-* <Icon icon="square-binary" size={16} /> [**流式传输 LLM 令牌**](#llm-tokens)—从主代理和每个子代理流式传输令牌。
-* <Icon icon="screwdriver-wrench" size={16} /> [**流式传输工具调用**](#tool-calls)—查看子代理执行中的工具调用和结果。
-* <Icon icon="table" size={16} /> [**流式传输自定义更新**](#custom-updates)—从子代理节点内部发出用户定义的信号。
+* <Icon icon="diagram-subtask" size={16} /> [**Stream subagent progress**](#subagent-progress)—track each subagent's execution as it runs in parallel.
+* <Icon icon="square-binary" size={16} /> [**Stream LLM tokens**](#llm-tokens)—stream tokens from the main agent and each subagent.
+* <Icon icon="screwdriver-wrench" size={16} /> [**Stream tool calls**](#tool-calls)—see tool calls and results from within subagent execution.
+* <Icon icon="table" size={16} /> [**Stream custom updates**](#custom-updates)—emit user-defined signals from inside subagent nodes.
 
-## 启用子图流式传输
+## Enable subgraph streaming
 
-深度代理使用 LangGraph 的子图流式传输来显示来自子代理执行的事件。要接收子代理事件，请在流式传输时启用 `stream_subgraphs`。
+Deep Agents use LangGraph's subgraph streaming to surface events from subagent execution. To receive subagent events, enable `stream_subgraphs` when streaming.
+
+
 
 ```typescript
 import { createDeepAgent } from "deepagents";
@@ -38,40 +40,43 @@ for await (const [namespace, chunk] of await agent.stream(
   }
 )) {
   if (namespace.length > 0) {
-    // 子代理事件 - 命名空间标识来源
+    // Subagent event - namespace identifies the source
     console.log(`[subagent: ${namespace.join("|")}]`);
   } else {
-    // 主代理事件
+    // Main agent event
     console.log("[main agent]");
   }
   console.log(chunk);
 }
 ```
 
-## 命名空间
 
-当启用 `subgraphs` 时，每个流式传输事件都包含一个**命名空间**，用于标识生成该事件的代理。命名空间是表示代理层次结构的节点名称和任务 ID 的路径。
+## Namespaces
 
-| 命名空间 | 来源 |
+When `subgraphs` is enabled, each streaming event includes a **namespace** that identifies which agent produced it. The namespace is a path of node names and task IDs that represents the agent hierarchy.
+
+| Namespace | Source |
 | --------- | ------ |
-| `()` (空) | 主代理 |
-| `("tools:abc123",)` | 由主代理的 `task` 工具调用 `abc123` 生成的子代理 |
-| `("tools:abc123", "model_request:def456")` | 子代理内部的模型请求节点 |
+| `()` (empty) | Main agent |
+| `("tools:abc123",)` | A subagent spawned by the main agent's `task` tool call `abc123` |
+| `("tools:abc123", "model_request:def456")` | The model request node inside a subagent |
 
-使用命名空间将事件路由到正确的 UI 组件：
+Use namespaces to route events to the correct UI component:
+
+
 
 ```typescript
 for await (const [namespace, chunk] of await agent.stream(
   { messages: [{ role: "user", content: "Plan my vacation" }] },
   { streamMode: "updates", subgraphs: true }
 )) {
-  // 检查此事件是否来自子代理
+  // Check if this event came from a subagent
   const isSubagent = namespace.some(
     (segment: string) => segment.startsWith("tools:")
   );
 
   if (isSubagent) {
-    // 从命名空间中提取工具调用 ID
+    // Extract the tool call ID from the namespace
     const toolCallId = namespace
       .find((s: string) => s.startsWith("tools:"))
       ?.split(":")[1];
@@ -82,9 +87,12 @@ for await (const [namespace, chunk] of await agent.stream(
 }
 ```
 
-## 子代理进度
 
-使用 `stream_mode="updates"` 跟踪子代理在每个步骤完成时的进度。这对于显示哪些子代理处于活动状态以及它们完成了哪些工作非常有用。
+## Subagent progress
+
+Use `stream_mode="updates"` to track subagent progress as each step completes. This is useful for showing which subagents are active and what work they've completed.
+
+
 
 ```typescript
 import { createDeepAgent } from "deepagents";
@@ -112,11 +120,11 @@ for await (const [namespace, chunk] of await agent.stream(
   },
   { streamMode: "updates", subgraphs: true },
 )) {
-  // 主代理更新（空命名空间）
+  // Main agent updates (empty namespace)
   if (namespace.length === 0) {
     for (const [nodeName, data] of Object.entries(chunk)) {
       if (nodeName === "tools") {
-        // 子代理结果返回给主代理
+        // Subagent results returned to main agent
         for (const msg of (data as any).messages ?? []) {
           if (msg.type === "tool") {
             console.log(`\nSubagent complete: ${msg.name}`);
@@ -128,7 +136,7 @@ for await (const [namespace, chunk] of await agent.stream(
       }
     }
   }
-  // 子代理更新（非空命名空间）
+  // Subagent updates (non-empty namespace)
   else {
     for (const [nodeName] of Object.entries(chunk)) {
       console.log(`  [${namespace[0]}] step: ${nodeName}`);
@@ -152,9 +160,12 @@ Result: # Comprehensive Report on AI Safety...
 Main agent step: model_request
 ```
 
-## LLM 令牌
 
-使用 `stream_mode="messages"` 从主代理和子代理流式传输单个令牌。每个消息事件都包含标识来源代理的元数据。
+## LLM tokens
+
+Use `stream_mode="messages"` to stream individual tokens from both the main agent and subagents. Each message event includes metadata that identifies the source agent.
+
+
 
 ```typescript
 let currentSource = "";
@@ -172,11 +183,11 @@ for await (const [namespace, chunk] of await agent.stream(
 )) {
   const [message] = chunk;
 
-  // 检查此事件是否来自子代理（命名空间包含 "tools:"）
+  // Check if this event came from a subagent (namespace contains "tools:")
   const isSubagent = namespace.some((s: string) => s.startsWith("tools:"));
 
   if (isSubagent) {
-    // 来自子代理的令牌
+    // Token from a subagent
     const subagentNs = namespace.find((s: string) => s.startsWith("tools:"))!;
     if (subagentNs !== currentSource) {
       process.stdout.write(`\n\n--- [subagent: ${subagentNs}] ---\n`);
@@ -186,7 +197,7 @@ for await (const [namespace, chunk] of await agent.stream(
       process.stdout.write(message.text);
     }
   } else {
-    // 来自主代理的令牌
+    // Token from the main agent
     if ("main" !== currentSource) {
       process.stdout.write(`\n\n--- [main agent] ---\n`);
       currentSource = "main";
@@ -200,9 +211,12 @@ for await (const [namespace, chunk] of await agent.stream(
 process.stdout.write("\n");
 ```
 
-## 工具调用
 
-当子代理使用工具时，您可以流式传输工具调用事件以显示每个子代理正在执行的操作。工具调用块出现在 `messages` 流模式中。
+## Tool calls
+
+When subagents use tools, you can stream tool call events to display what each subagent is doing. Tool call chunks appear in the `messages` stream mode.
+
+
 
 ```typescript
 import { AIMessageChunk, ToolMessage } from "langchain";
@@ -220,33 +234,33 @@ for await (const [namespace, chunk] of await agent.stream(
 )) {
   const [message] = chunk;
 
-  // 识别来源："main" 或子代理命名空间段
+  // Identify source: "main" or the subagent namespace segment
   const isSubagent = namespace.some((s: string) => s.startsWith("tools:"));
   const source = isSubagent
     ? namespace.find((s: string) => s.startsWith("tools:"))!
     : "main";
 
-  // 工具调用块（流式工具调用）
+  // Tool call chunks (streaming tool invocations)
   if (AIMessageChunk.isInstance(message) && message.tool_call_chunks?.length) {
     for (const tc of message.tool_call_chunks) {
       if (tc.name) {
         console.log(`\n[${source}] Tool call: ${tc.name}`);
       }
-      // 参数以块形式流式传输 - 增量写入
+      // Args stream in chunks - write them incrementally
       if (tc.args) {
         process.stdout.write(tc.args);
       }
     }
   }
 
-  // 工具结果
+  // Tool results
   if (ToolMessage.isInstance(message)) {
     console.log(
       `\n[${source}] Tool result [${message.name}]: ${message.text?.slice(0, 150)}`,
     );
   }
 
-  // 常规 AI 内容（跳过工具调用消息）
+  // Regular AI content (skip tool call messages)
   if (
     AIMessageChunk.isInstance(message) &&
     message.text &&
@@ -259,9 +273,15 @@ for await (const [namespace, chunk] of await agent.stream(
 process.stdout.write("\n");
 ```
 
-## 自定义更新
 
-在子代理工具内部使用 `config.writer` 发出自定义进度事件：
+## Custom updates
+
+
+
+Use `config.writer` inside your subagent tools to emit custom progress events:
+
+
+
 
 ```typescript
 import { createDeepAgent } from "deepagents";
@@ -269,8 +289,8 @@ import { tool, type ToolRuntime } from "langchain";
 import { z } from "zod";
 
 /**
- * 一个通过 config.writer 发出自定义进度事件的工具。
- * 写入器将数据发送到 "custom" 流模式。
+ * A tool that emits custom progress events via config.writer.
+ * The writer sends data to the "custom" stream mode.
  */
 const analyzeData = tool(
   async ({ topic }: { topic: string }, config: ToolRuntime) => {
@@ -342,12 +362,15 @@ for await (const [namespace, chunk] of await agent.stream(
 [tools:call_abc123] { status: 'complete', progress: 100 }
 ```
 
-## 流式传输多种模式
 
-组合多种流式传输模式以获取代理执行的完整视图：
+## Stream multiple modes
+
+Combine multiple stream modes to get a complete picture of agent execution:
+
+
 
 ```typescript
-// 跳过内部中间件步骤 - 仅显示有意义的节点名称
+// Skip internal middleware steps - only show meaningful node names
 const INTERESTING_NODES = new Set(["model_request", "tools"]);
 
 let lastSource = "";
@@ -379,7 +402,7 @@ for await (const [namespace, mode, data] of await agent.stream(
   } else if (mode === "messages") {
     const [message] = data;
     if (message.text) {
-      // 当来源更改时打印标题
+      // Print a header when the source changes
       if (source !== lastSource) {
         if (midLine) {
           process.stdout.write("\n");
@@ -403,11 +426,14 @@ for await (const [namespace, mode, data] of await agent.stream(
 process.stdout.write("\n");
 ```
 
-## 常见模式
 
-### 跟踪子代理生命周期
+## Common patterns
 
-监控子代理何时启动、运行和完成：
+### Track subagent lifecycle
+
+Monitor when subagents start, run, and complete:
+
+
 
 ```typescript
 for await (const [namespace, chunk] of await agent.stream(
@@ -419,9 +445,9 @@ for await (const [namespace, chunk] of await agent.stream(
   { streamMode: "updates", subgraphs: true },
 )) {
   for (const [nodeName, data] of Object.entries(chunk)) {
-    // ─── 阶段 1：检测子代理启动 ────────────────────────
-    // 当主代理的 model_request 包含 task 工具调用时，
-    // 表示已生成子代理。
+    // ─── Phase 1: Detect subagent starting ────────────────────────
+    // When the main agent's model_request contains task tool calls,
+    // a subagent has been spawned.
     if (namespace.length === 0 && nodeName === "model_request") {
       for (const msg of (data as any).messages ?? []) {
         for (const tc of msg.tool_calls ?? []) {
@@ -439,14 +465,14 @@ for await (const [namespace, chunk] of await agent.stream(
       }
     }
 
-    // ─── 阶段 2：检测子代理运行 ─────────────────────────
-    // 当我们从 tools:UUID 命名空间接收事件时，该
-    // 子代理正在主动执行。
+    // ─── Phase 2: Detect subagent running ─────────────────────────
+    // When we receive events from a tools:UUID namespace, that
+    // subagent is actively executing.
     if (namespace.length > 0 && namespace[0].startsWith("tools:")) {
       const pregelId = namespace[0].split(":")[1];
-      // 检查是否有任何待处理的子代理需要标记为运行。
-      // 注意：pregel 任务 ID 与 tool_call_id 不同，
-      // 因此我们在第一个子代理事件时将任何待处理的子代理标记为运行。
+      // Check if any pending subagent needs to be marked running.
+      // Note: the pregel task ID differs from the tool_call_id,
+      // so we mark any pending subagent as running on first subagent event.
       for (const [id, sub] of activeSubagents) {
         if (sub.status === "pending") {
           sub.status = "running";
@@ -458,9 +484,9 @@ for await (const [namespace, chunk] of await agent.stream(
       }
     }
 
-    // ─── 阶段 3：检测子代理完成 ──────────────────────
-    // 当主代理的 tools 节点返回工具消息时，
-    // 表示子代理已完成并返回其结果。
+    // ─── Phase 3: Detect subagent completing ──────────────────────
+    // When the main agent's tools node returns a tool message,
+    // the subagent has completed and returned its result.
     if (namespace.length === 0 && nodeName === "tools") {
       for (const msg of (data as any).messages ?? []) {
         if (msg.type === "tool") {
@@ -480,26 +506,29 @@ for await (const [namespace, chunk] of await agent.stream(
   }
 }
 
-// 打印最终状态
+// Print final state
 console.log("\n--- Final subagent states ---");
 for (const [id, sub] of activeSubagents) {
   console.log(`  ${sub.type}: ${sub.status}`);
 }
 ```
 
-## 相关
 
-- [子代理](/oss/javascript/deepagents/subagents)—使用深度代理配置和使用子代理
-- [前端流式传输](/oss/javascript/deepagents/streaming/frontend)—使用 `useStream` 为深度代理构建 React UI
-- [LangChain 流式传输概述](/oss/javascript/langchain/streaming/overview)—LangChain 代理的通用流式传输概念
+
+
+## Related
+
+- [Subagents](/oss/javascript/deepagents/subagents)—Configure and use subagents with Deep Agents
+- [Frontend streaming](/oss/javascript/deepagents/streaming/frontend)—Build React UIs with `useStream` for Deep Agents
+- [LangChain streaming overview](/oss/javascript/langchain/streaming/overview)—General streaming concepts with LangChain agents
 
 ---
 
 <div className="source-links">
-<Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/deepagents/streaming.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
-</Callout>
 <Callout icon="terminal-2">
-    [通过 MCP 将这些文档连接到 Claude、VSCode 等](/use-these-docs) 以获取实时答案。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+</Callout>
+<Callout icon="edit">
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/deepagents/streaming.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 </div>

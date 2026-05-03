@@ -1,24 +1,24 @@
 ---
-title: "Infinity 集成"
-description: "使用 LangChain Python 与 Infinity 嵌入模型进行集成。"
+title: "Infinity integration"
+description: "Integrate with the Infinity embedding model using LangChain Python."
 ---
 
-`Infinity` 允许使用采用 MIT 许可证的嵌入服务器来创建 [`Embeddings`](https://reference.langchain.com/python/langchain-core/embeddings/embeddings/Embeddings)。
+`Infinity` allows to create [`Embeddings`](https://reference.langchain.com/python/langchain-core/embeddings/embeddings/Embeddings) using a MIT-licensed Embedding Server.
 
-本笔记本将介绍如何在 [Infinity GitHub 项目](https://github.com/michaelfeil/infinity) 中使用 LangChain 配合 Embeddings。
+This notebook goes over how to use LangChain with Embeddings with the [Infinity GitHub Project](https://github.com/michaelfeil/infinity).
 
-## 导入
+## Imports
 
 ```python
 from langchain_community.embeddings import InfinityEmbeddings, InfinityEmbeddingsLocal
 ```
 
-# 选项 1：从 Python 使用 infinity
+# Option 1: Use infinity from Python
 
-#### 可选：安装 infinity
+#### Optional: install infinity
 
-要安装 infinity，请使用以下命令。更多详细信息请查看 [GitHub 上的文档](https://github.com/michaelfeil/infinity)。
-安装 torch 和 onnx 依赖项。
+To install infinity use the following command. For further details check out the [Docs on GitHub](https://github.com/michaelfeil/infinity).
+Install the torch and onnx dependencies.
 
 ```bash
 pip install infinity_emb[torch,optimum]
@@ -37,69 +37,69 @@ query = "Where is Paris?"
 ```python
 embeddings = InfinityEmbeddingsLocal(
     model="sentence-transformers/all-MiniLM-L6-v2",
-    # 版本
+    # revision
     revision=None,
-    # 建议保持为 32
+    # best to keep at 32
     batch_size=32,
-    # 通过 torch 用于 AMD/Nvidia GPU
+    # for AMD/Nvidia GPUs via torch
     device="cuda",
-    # 在执行前预热模型
+    # warm up model before execution
 )
 
 
 async def embed():
-    # TODO：此函数仅用于展示您的调用可以异步运行。
+    # TODO: This function is just to showcase that your call can run async.
 
-    # 重要：在 `async with` 语句内使用引擎以启动/停止批处理引擎。
+    # important: use engine inside of `async with` statement to start/stop the batching engine.
     async with embeddings:
-        # 避免频繁关闭和启动引擎。
-        # 最好让它持续运行。
-        # 您可以调用 `await embeddings.__aenter__()` 和 `__aexit__()`
-        # 如果您能更精细地控制手动启动/停止执行的时机
+        # avoid closing and starting the engine often.
+        # rather keep it running.
+        # you may call `await embeddings.__aenter__()` and `__aexit__()
+        # if you are sure when to manually start/stop execution` in a more granular way
 
         documents_embedded = await embeddings.aembed_documents(documents)
         query_result = await embeddings.aembed_query(query)
-        print("成功创建 embeddings")
+        print("embeddings created successful")
     return documents_embedded, query_result
 ```
 
 ```text
-/home/michael/langchain/libs/langchain/.venv/lib/python3.10/site-packages/tqdm/auto.py:21: TqdmWarning: 未找到 IProgress。请更新 jupyter 和 ipywidgets。请参阅 https://ipywidgets.readthedocs.io/en/stable/user_install.html
+/home/michael/langchain/libs/langchain/.venv/lib/python3.10/site-packages/tqdm/auto.py:21: TqdmWarning: IProgress not found. Please update jupyter and ipywidgets. See https://ipywidgets.readthedocs.io/en/stable/user_install.html
   from .autonotebook import tqdm as notebook_tqdm
-BetterTransformer 实现不支持训练期间的填充，因为融合的内核不支持注意力掩码。请注意，在训练期间传递填充后的批次数据可能会导致意外输出。有关更多详细信息，请参阅 https://huggingface.co/docs/optimum/bettertransformer/overview。
-/home/michael/langchain/libs/langchain/.venv/lib/python3.10/site-packages/optimum/bettertransformer/models/encoder_models.py:301: UserWarning: 嵌套张量的 PyTorch API 处于原型阶段，将在不久的将来发生变化。（在内部触发于 ../aten/src/ATen/NestedTensorImpl.cpp:177。）
+The BetterTransformer implementation does not support padding during training, as the fused kernels do not support attention masks. Beware that passing padded batched data during training may result in unexpected outputs. Please refer to https://huggingface.co/docs/optimum/bettertransformer/overview for more details.
+/home/michael/langchain/libs/langchain/.venv/lib/python3.10/site-packages/optimum/bettertransformer/models/encoder_models.py:301: UserWarning: The PyTorch API of nested tensors is in prototype stage and will change in the near future. (Triggered internally at ../aten/src/ATen/NestedTensorImpl.cpp:177.)
   hidden_states = torch._nested_tensor_from_mask(hidden_states, ~attention_mask)
 ```
 
 ```python
-# 按您喜欢的方式运行异步代码
-# 如果您在 Jupyter Notebook 中，可以使用以下内容
+# run the async code however you would like
+# if you are in a jupyter notebook, you can use the following
 documents_embedded, query_result = await embed()
 ```
 
 ```python
-# （演示）计算相似度
+# (demo) compute similarity
 import numpy as np
 
 scores = np.array(documents_embedded) @ np.array(query_result).T
 dict(zip(documents, scores))
 ```
 
-# 选项 2：运行服务器并通过 API 连接
+# Option 2: Run the server, and connect via the API
 
-#### 可选：确保启动 infinity 实例
+#### Optional: Make sure to start the infinity instance
 
-要安装 infinity，请使用以下命令。更多详细信息请查看 [GitHub 上的文档](https://github.com/michaelfeil/infinity)。
+To install infinity use the following command. For further details check out the [Docs on GitHub](https://github.com/michaelfeil/infinity).
 
 ```bash
 pip install infinity_emb[all]
 ```
 
-# 安装 infinity 包
+# Install the infinity package
 
 pip install -qU  infinity_emb[all]
 
-启动服务器——最好在单独的终端中执行，而不是在 Jupyter Notebook 内部执行
+Start up the server - best to be done from a separate terminal, not inside Jupyter Notebook
 
 ```bash
 model=sentence-transformers/all-MiniLM-L6-v2
@@ -107,7 +107,7 @@ port=7797
 infinity_emb --port $port --model-name-or-path $model
 ```
 
-或者您也可以直接使用 Docker：
+or alternativley just use docker:
 
 ```bash
 model=sentence-transformers/all-MiniLM-L6-v2
@@ -115,7 +115,7 @@ port=7797
 docker run -it --gpus all -p $port:$port michaelf34/infinity:latest --model-name-or-path $model --port $port
 ```
 
-## 使用您的 infinity 实例嵌入文档
+## Embed your documents using your infinity instance
 
 ```python
 documents = [
@@ -130,27 +130,27 @@ query = "Where is Paris?"
 ```python
 #
 infinity_api_url = "http://localhost:7797/v1"
-# 模型目前未经过验证。
+# model is currently not validated.
 embeddings = InfinityEmbeddings(
     model="sentence-transformers/all-MiniLM-L6-v2", infinity_api_url=infinity_api_url
 )
 try:
     documents_embedded = embeddings.embed_documents(documents)
     query_result = embeddings.embed_query(query)
-    print("成功创建 embeddings")
+    print("embeddings created successful")
 except Exception as ex:
     print(
-        "请确保 infinity 实例正在运行。通过点击以下链接进行验证："
-        f"{infinity_api_url.replace('v1', 'docs')} 异常信息：{ex}。 "
+        "Make sure the infinity instance is running. Verify by clicking on "
+        f"{infinity_api_url.replace('v1', 'docs')} Exception: {ex}. "
     )
 ```
 
 ```text
-请确保 infinity 实例正在运行。通过点击 http://localhost:7797/docs 进行验证。异常信息：HTTPConnectionPool(host='localhost', port=7797): 超出最大重试次数，URL: /v1/embeddings（由 NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f91c35dbd30>: 无法建立新连接：[Errno 111] 连接被拒绝') 引起）。
+Make sure the infinity instance is running. Verify by clicking on http://localhost:7797/docs Exception: HTTPConnectionPool(host='localhost', port=7797): Max retries exceeded with url: /v1/embeddings (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f91c35dbd30>: Failed to establish a new connection: [Errno 111] Connection refused')).
 ```
 
 ```python
-# （演示）计算相似度
+# (demo) compute similarity
 import numpy as np
 
 scores = np.array(documents_embedded) @ np.array(query_result).T
@@ -167,10 +167,10 @@ dict(zip(documents, scores))
 ---
 
 <div className="source-links">
-<Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/embeddings/infinity.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
-</Callout>
 <Callout icon="terminal-2">
-    [将这些文档连接到](/use-these-docs) Claude、VSCode 等，以便通过 MCP 获取实时答案。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+</Callout>
+<Callout icon="edit">
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/embeddings/infinity.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 </div>

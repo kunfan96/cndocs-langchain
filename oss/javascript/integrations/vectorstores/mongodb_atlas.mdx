@@ -1,138 +1,219 @@
 ---
-title: "MongoDB Atlas 集成"
-description: "使用 LangChain JavaScript 与 MongoDB Atlas 向量存储进行集成。"
+title: "MongoDB Atlas integration"
+description: "Integrate with the MongoDB Atlas vector store using LangChain JavaScript."
 ---
 
 <Tip>
-**兼容性**：仅在 Node.js 上可用。
+**Compatibility**: Only available on Node.js.
 
-您仍然可以通过将 `runtime` 变量设置为 `nodejs` 来创建使用 MongoDB 的 Next.js API 路由，如下所示：
+You can still create API routes that use MongoDB with Next.js by setting the `runtime` variable to `nodejs` like so:
 
 `export const runtime = "nodejs";`
 
-有关更多信息，请参阅 [Next.js 文档中的 Edge 运行时](https://nextjs.org/docs/app/building-your-application/rendering/edge-and-nodejs-runtimes)。
+For more information, see [Edge runtimes in the Next.js documentation](https://nextjs.org/docs/app/building-your-application/rendering/edge-and-nodejs-runtimes).
 </Tip>
 
-本指南提供了开始使用 MongoDB Atlas [向量存储](/oss/javascript/integrations/vectorstores) 的快速概述。有关所有 `MongoDBAtlasVectorSearch` 功能和配置的详细文档，请前往 [API 参考](https://reference.langchain.com/javascript/langchain-mongodb/MongoDBAtlasVectorSearch)。
+This guide provides a quick overview for getting started with MongoDB Atlas [vector stores](/oss/javascript/integrations/vectorstores). For detailed documentation of all `MongoDBAtlasVectorSearch` features and configurations head to the [API reference](https://reference.langchain.com/javascript/langchain-mongodb/MongoDBAtlasVectorSearch).
 
-## 概述
+## Overview
 
-### 集成详情
+### Integration details
 
-| 类 | 包 | [Python 支持](https://python.langchain.com/docs/integrations/vectorstores/mongodb_atlas/) |  版本 |
+| Class | Package | [PY support](https://python.langchain.com/docs/integrations/vectorstores/mongodb_atlas/) |  Version |
 | :--- | :--- | :---: | :---: |
 | [`MongoDBAtlasVectorSearch`](https://reference.langchain.com/javascript/langchain-mongodb/MongoDBAtlasVectorSearch) | [`@langchain/mongodb`](https://www.npmjs.com/package/@langchain/mongodb) | ✅ | ![NPM - Version](https://img.shields.io/npm/v/@langchain/mongodb?style=flat-square&label=%20&) |
 
-## 设置
+## Setup
 
-要使用 MongoDB Atlas 向量存储，您需要配置一个 MongoDB Atlas 集群并安装 `@langchain/mongodb` 集成包。
+To use MongoDB Atlas vector stores, you'll need to configure a MongoDB Atlas cluster and install the `@langchain/mongodb` integration package.
 
-### 初始集群配置
+### Initial Cluster Configuration
 
-要创建 MongoDB Atlas 集群，请导航到 [MongoDB Atlas 网站](https://www.mongodb.com/products/platform/atlas-database) 并创建一个帐户（如果您还没有）。
+To create a MongoDB Atlas cluster, navigate to the [MongoDB Atlas website](https://www.mongodb.com/products/platform/atlas-database) and create an account if you don't already have one.
 
-在提示时创建并命名一个集群，然后在 `Database` 下找到它。选择 `Browse Collections` 并创建一个空白集合或从提供的示例数据中创建一个。
+Create and name a cluster when prompted, then find it under `Database`. Select `Browse Collections` and create either a blank collection or one from the provided sample data.
 
-**注意：** 创建的集群必须是 MongoDB 7.0 或更高版本。
+**Note:** The cluster must be MongoDB 7.0 or higher for manual embedding mode. Automated embedding mode requires [MongoDB 8.2 or higher](https://www.mongodb.com/docs/atlas/atlas-vector-search/crud-embeddings/create-embeddings-automatic/?interface=driver&language=nodejs).
 
-### 创建索引
+### Creating a Vector Search Index
 
-配置集群后，您需要在要搜索的集合字段上创建一个索引。
+After configuring your cluster, create a vector search index on your collection. You can do this either on [Atlas](https://www.mongodb.com/docs/atlas/atlas-vector-search/tutorials/vector-search-quick-start/), [Compass](https://www.mongodb.com/docs/compass/indexes/create-vector-search-index/), or [MongoDB Shell](https://www.mongodb.com/docs/atlas/atlas-vector-search/tutorials/vector-search-quick-start/?deployment-type=atlas&embedding=byo&interface=mongosh). The index definition depends on which embedding mode you use.
 
-切换到 `Atlas Search` 选项卡并单击 `Create Search Index`。从那里，确保选择 `Atlas Vector Search - JSON Editor`，然后选择适当的数据库和集合，并将以下内容粘贴到文本框中：
+**Manual embedding** (MongoDB 7.0+): you embed documents client-side and store the vectors in a field. Use the following definition, adjusting `numDimensions` to match your embeddings model.
 
 ```json
 {
-  "fields": [
-    {
-      "numDimensions": 1536,
-      "path": "embedding",
-      "similarity": "euclidean",
-      "type": "vector"
-    }
-  ]
+  "name": "index_name",
+  "type": "vectorSeach",
+  "definition": {
+    "fields": [
+      {
+        "numDimensions": 1536,
+        "path": "embedding",
+        "similarity": "euclidean",
+        "type": "vector"
+      }
+    ]
+  }
 }
 ```
 
-请注意，维度属性应与您使用的嵌入的维度相匹配。例如，Cohere 嵌入有 1024 个维度，而默认的 OpenAI 嵌入有 1536 个维度：
+**Automated embedding** (MongoDB 8.2+): MongoDB generates embeddings server-side using [Voyage AI models](https://www.mongodb.com/products/platform/ai-search-and-retrieval/models). Use the `autoEmbed` field type and specify the model:
 
-注意：默认情况下，向量存储期望索引名称为 `default`，索引的集合字段名称为 `embedding`，原始文本字段名称为 `text`。您应该使用与索引名称集合模式匹配的字段名称初始化向量存储，如下所示。
-
-最后，继续构建索引。
-
-### 嵌入
-
-本指南还将使用 [OpenAI 嵌入](/oss/javascript/integrations/embeddings/openai)，这需要您安装 `@langchain/openai` 集成包。如果您愿意，也可以使用 [其他支持的嵌入模型](/oss/javascript/integrations/embeddings)。
-
-### 安装
-
-安装以下包：
-
-<CodeGroup>
-```bash npm
-npm install @langchain/mongodb mongodb @langchain/openai @langchain/core
+```json
+{
+  "name": "index_name",
+  "type": "vectorSeach",
+  "definition": {
+    "fields": [
+      {
+        "type": "autoEmbed",
+        "modality": "text",
+        "path": "textContent",
+        "model": "voyage-4"
+      }
+    ]
+  }
+}
 ```
-```bash yarn
-yarn add @langchain/mongodb mongodb @langchain/openai @langchain/core
-```
-```bash pnpm
-pnpm add @langchain/mongodb mongodb @langchain/openai @langchain/core
-```
-</CodeGroup>
 
-### 凭据
+By default, the vector store reads from a text field named `text` and (in manual mode) writes vectors to a field named `embedding`. Set `textKey` and `embeddingKey` to match your index.
 
-完成上述操作后，从 Mongo 仪表板的 `Connect` 按钮设置 `MONGODB_ATLAS_URI` 环境变量。您还需要您的数据库名称和集合名称：
+```typescript
+const vectorStore = new MongoDBAtlasVectorSearch(
+  embeddings,                  // omit in auto embedding mode
+  {
+    collection,
+    indexName: "index_name",
+    textKey: "textContent",    // document field where raw text is stored
+    embeddingKey: "embedding", // matches "path" (omit in auto embedding mode)
+  }
+);
+```
+
+Proceed to build the index.
+
+### Embeddings
+
+In **manual embedding mode**, you provide an embeddings model and embed documents client-side. This guide uses [OpenAI embeddings](/oss/javascript/integrations/embeddings/openai) as an example. You can also use [other supported embeddings models](/oss/javascript/integrations/embeddings).
+
+In **automated embedding mode**, MongoDB Atlas handles embedding generation server-side. No client-side embeddings package is required.
+
+### Installation
+
+<Tabs>
+  <Tab title="Manual embedding">
+    Install the core package plus an embeddings provider:
+
+    <CodeGroup>
+    ```bash npm
+    npm install @langchain/mongodb mongodb @langchain/core @langchain/openai
+    ```
+    ```bash yarn
+    yarn add @langchain/mongodb mongodb @langchain/core @langchain/openai
+    ```
+    ```bash pnpm
+    pnpm add @langchain/mongodb mongodb @langchain/core @langchain/openai
+    ```
+    </CodeGroup>
+  </Tab>
+  <Tab title="Automated embedding">
+    Only the core package and MongoDB driver are required:
+
+    <CodeGroup>
+    ```bash npm
+    npm install @langchain/mongodb mongodb @langchain/core
+    ```
+    ```bash yarn
+    yarn add @langchain/mongodb mongodb @langchain/core
+    ```
+    ```bash pnpm
+    pnpm add @langchain/mongodb mongodb @langchain/core
+    ```
+    </CodeGroup>
+  </Tab>
+</Tabs>
+
+### Credentials
+
+Once you've done the above, set the `MONGODB_ATLAS_URI` environment variable from the `Connect` button in Mongo's dashboard. You'll also need your DB name and collection name:
 
 ```typescript
 process.env.MONGODB_ATLAS_URI = "your-atlas-URL";
-process.env.MONGODB_ATLAS_COLLECTION_NAME = "your-atlas-db-name";
+process.env.MONGODB_ATLAS_COLLECTION_NAME = "your-atlas-collection-name";
 process.env.MONGODB_ATLAS_DB_NAME = "your-atlas-db-name";
 ```
 
-如果您在此指南中使用 OpenAI 嵌入，您还需要设置您的 OpenAI 密钥：
+If you are using manual embedding mode with OpenAI, set your OpenAI key as well:
 
 ```typescript
 process.env.OPENAI_API_KEY = "YOUR_API_KEY";
 ```
 
-如果您想获得模型调用的自动跟踪，还可以通过取消注释以下内容来设置您的 [LangSmith](/langsmith/home) API 密钥：
+In automated embedding mode, no additional API key is required — MongoDB Atlas handles embedding generation using the model configured in your index.
+
+If you want to get automated tracing of your model calls you can also set your [LangSmith](/langsmith/home) API key by uncommenting below:
 
 ```typescript
 // process.env.LANGSMITH_TRACING="true"
 // process.env.LANGSMITH_API_KEY="your-api-key"
 ```
 
-## 实例化
+## Instantiation
 
-一旦您如上所述设置了集群，就可以按如下方式初始化您的向量存储：
+Once you've set up your cluster and index, initialize your vector store. The constructor accepts two forms depending on whether you use manual or automated embedding.
 
-```typescript
-import { MongoDBAtlasVectorSearch } from "@langchain/mongodb";
-import { OpenAIEmbeddings } from "@langchain/openai";
-import { MongoClient } from "mongodb";
+<Tabs>
+  <Tab title="Manual embedding">
+    Pass an embeddings instance as the first argument:
 
-const client = new MongoClient(process.env.MONGODB_ATLAS_URI || "");
-const collection = client.db(process.env.MONGODB_ATLAS_DB_NAME)
-  .collection(process.env.MONGODB_ATLAS_COLLECTION_NAME);
+    ```typescript
+    import { MongoDBAtlasVectorSearch } from "@langchain/mongodb";
+    import { OpenAIEmbeddings } from "@langchain/openai";
+    import { MongoClient } from "mongodb";
 
-const embeddings = new OpenAIEmbeddings({
-  model: "text-embedding-3-small",
-});
+    const client = new MongoClient(process.env.MONGODB_ATLAS_URI!);
+    const collection = client
+      .db(process.env.MONGODB_ATLAS_DB_NAME)
+      .collection(process.env.MONGODB_ATLAS_COLLECTION_NAME);
 
-const vectorStore = new MongoDBAtlasVectorSearch(embeddings, {
-  collection: collection,
-  indexName: "vector_index", // Atlas 搜索索引的名称。默认为 "default"
-  textKey: "text", // 包含原始内容的集合字段名称。默认为 "text"
-  embeddingKey: "embedding", // 包含嵌入文本的集合字段名称。默认为 "embedding"
-});
-```
+    const embeddings = new OpenAIEmbeddings({
+      model: "text-embedding-3-small",
+    });
 
-## 管理向量存储
+    const vectorStore = new MongoDBAtlasVectorSearch(embeddings, {
+      collection,
+      indexName: "vector_index", // Defaults to "default"
+      textKey: "text",           // Defaults to "text"
+      embeddingKey: "embedding", // Defaults to "embedding"
+    });
+    ```
+  </Tab>
+  <Tab title="Automated embedding">
+    Pass only the configuration object (no embeddings argument is needed).
 
-### 向向量存储添加项目
+    ```typescript
+    import { MongoDBAtlasVectorSearch } from "@langchain/mongodb";
+    import { MongoClient } from "mongodb";
 
-您现在可以向向量存储添加文档：
+    const client = new MongoClient(process.env.MONGODB_ATLAS_URI!);
+    const collection = client
+      .db(process.env.MONGODB_ATLAS_DB_NAME)
+      .collection(process.env.MONGODB_ATLAS_COLLECTION_NAME);
+
+    const vectorStore = new MongoDBAtlasVectorSearch({
+      collection,
+      indexName: "default", // Must match the index name in your Atlas cluster
+    });
+    ```
+  </Tab>
+</Tabs>
+
+## Manage vector store
+
+### Add items to vector store
+
+You can now add documents to your vector store:
 
 ```typescript
 import type { Document } from "@langchain/core/documents";
@@ -162,27 +243,25 @@ const documents = [document1, document2, document3, document4];
 await vectorStore.addDocuments(documents, { ids: ["1", "2", "3", "4"] });
 ```
 
-```python
-[ '1', '2', '3', '4' ]
-```
+<Note>
+After adding documents, there is a delay before they become queryable. In automated embedding mode this delay is longer because MongoDB must generate embeddings server-side after insertion. Wait until the Atlas search index reports that documents are indexed before querying.
+</Note>
 
-**注意：** 添加文档后，需要稍等片刻才能进行查询。
+Adding a document with the same `id` as an existing document will update the existing one.
 
-添加具有与现有文档相同 `id` 的文档将更新现有文档。
-
-### 从向量存储删除项目
+### Delete items from vector store
 
 ```typescript
 await vectorStore.delete({ ids: ["4"] });
 ```
 
-## 查询向量存储
+## Query vector store
 
-一旦您的向量存储创建完毕并添加了相关文档，您很可能希望在链或代理运行期间对其进行查询。
+Once your vector store has been created and the relevant documents have been added you will most likely wish to query it during the running of your chain or agent.
 
-### 直接查询
+### Query directly
 
-执行简单的相似性搜索可以按如下方式进行：
+Performing a simple similarity search can be done as follows:
 
 ```typescript
 const similaritySearchResults = await vectorStore.similaritySearch("biology", 2);
@@ -197,9 +276,9 @@ for (const doc of similaritySearchResults) {
 * Mitochondria are made out of lipids [{"_id":"3","source":"https://example.com"}]
 ```
 
-### 筛选
+### Filtering
 
-MongoDB Atlas 支持对其他字段进行预筛选结果。它们要求您通过更新最初创建的索引来定义计划筛选的元数据字段。以下是一个示例：
+MongoDB Atlas supports pre-filtering of results on other fields. They require you to define which metadata fields you plan to filter on by updating the index you created initially. Here's an example:
 
 ```json
 {
@@ -218,11 +297,11 @@ MongoDB Atlas 支持对其他字段进行预筛选结果。它们要求您通过
 }
 ```
 
-上面，`fields` 中的第一项是向量索引，第二项是您要筛选的元数据属性。属性的名称是 `path` 键的值。因此，上述索引允许我们在名为 `source` 的元数据字段上进行搜索。
+Above, the first item in `fields` is the vector index, and the second item is the metadata property you want to filter on. The name of the property is the value of the `path` key. Therefore the above index allows us to search on a metadata field named `source`.
 
-然后，在您的代码中，您可以使用 [MQL 查询运算符](https://www.mongodb.com/docs/manual/reference/mql/query-predicates/#alphabetical-list-of-operators) 进行筛选。
+Then, in your code you can use [MQL Query Operators](https://www.mongodb.com/docs/manual/reference/mql/query-predicates/#alphabetical-list-of-operators) for filtering.
 
-下面的示例说明了这一点：
+The below example illustrates this:
 
 ```typescript
 const filter = {
@@ -245,9 +324,9 @@ for (const doc of filteredResults) {
 * Mitochondria are made out of lipids [{"_id":"3","source":"https://example.com"}]
 ```
 
-### 返回分数
+### Returning scores
 
-如果您想执行相似性搜索并接收相应的分数，可以运行：
+If you want to execute a similarity search and receive the corresponding scores you can run:
 
 ```typescript
 const similaritySearchWithScoreResults = await vectorStore.similaritySearchWithScore("biology", 2, filter)
@@ -262,13 +341,13 @@ for (const [doc, score] of similaritySearchWithScoreResults) {
 * [SIM=0.370] Mitochondria are made out of lipids [{"_id":"3","source":"https://example.com"}]
 ```
 
-### 通过转换为检索器进行查询
+### Query by turning into retriever
 
-您还可以将向量存储转换为 [检索器](/oss/javascript/langchain/retrieval)，以便在链中更轻松地使用。
+You can also transform the vector store into a [retriever](/oss/javascript/langchain/retrieval) for easier usage in your chains.
 
 ```typescript
 const retriever = vectorStore.asRetriever({
-  // 可选筛选器
+  // Optional filter
   filter: filter,
   k: 2,
 });
@@ -290,17 +369,17 @@ await retriever.invoke("biology");
 ]
 ```
 
-### 用于检索增强生成的用法
+### Usage for retrieval-augmented generation
 
-有关如何将此向量存储用于检索增强生成 (RAG) 的指南，请参阅以下部分：
+For guides on how to use this vector store for retrieval-augmented generation (RAG), see the following sections:
 
-- [使用 LangChain 构建 RAG 应用](/oss/javascript/langchain/rag)。
-- [代理式 RAG](/oss/javascript/langgraph/agentic-rag)
-- [检索文档](/oss/javascript/langchain/retrieval)
+- [Build a RAG app with LangChain](/oss/javascript/langchain/rag).
+- [Agentic RAG](/oss/javascript/langgraph/agentic-rag)
+- [Retrieval docs](/oss/javascript/langchain/retrieval)
 
-## 关闭连接
+## Closing connections
 
-确保在完成后关闭客户端实例，以避免资源消耗过多：
+Make sure you close the client instance when you are finished to avoid excessive resource consumption:
 
 ```typescript
 await client.close();
@@ -308,17 +387,17 @@ await client.close();
 
 ---
 
-## API 参考
+## API reference
 
-有关所有 `MongoDBAtlasVectorSearch` 功能和配置的详细文档，请前往 [API 参考](https://reference.langchain.com/javascript/langchain-mongodb/MongoDBAtlasVectorSearch)。
+For detailed documentation of all `MongoDBAtlasVectorSearch` features and configurations head to the [API reference](https://reference.langchain.com/javascript/langchain-mongodb/MongoDBAtlasVectorSearch).
 
 ---
 
 <div className="source-links">
-<Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/javascript/integrations/vectorstores/mongodb_atlas.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
-</Callout>
 <Callout icon="terminal-2">
-    [通过 MCP 将这些文档连接到 Claude、VSCode 等](/use-these-docs) 以获取实时答案。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+</Callout>
+<Callout icon="edit">
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/javascript/integrations/vectorstores/mongodb_atlas.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 </div>

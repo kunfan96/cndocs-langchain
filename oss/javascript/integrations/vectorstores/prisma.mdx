@@ -1,24 +1,24 @@
 ---
-title: "Prisma 集成"
-description: "使用 LangChain JavaScript 与 Prisma 向量存储进行集成。"
+title: "Prisma integration"
+description: "Integrate with the Prisma vector store using LangChain JavaScript."
 ---
 
-为了通过向量搜索增强 PostgreSQL 数据库中的现有模型，LangChain 支持结合使用 [Prisma](https://www.prisma.io/)、PostgreSQL 和 [`pgvector`](https://github.com/pgvector/pgvector) PostgreSQL 扩展。
+For augmenting existing models in PostgreSQL database with vector search, LangChain supports using [Prisma](https://www.prisma.io/) together with PostgreSQL and [`pgvector`](https://github.com/pgvector/pgvector) Postgres extension.
 
-## 设置
+## Setup
 
-### 使用 Supabase 设置数据库实例
+### Setup database instance with Supabase
 
-请参考 [Prisma 和 Supabase 集成指南](https://supabase.com/docs/guides/integrations/prisma) 来使用 Supabase 和 Prisma 设置新的数据库实例。
+Refer to the [Prisma and Supabase integration guide](https://supabase.com/docs/guides/integrations/prisma) to setup a new database instance with Supabase and Prisma.
 
-### 安装 prisma
+### Install prisma
 
 ```bash npm
 npm install prisma
 ```
-### 使用 `docker-compose` 设置 `pgvector` 自托管实例
+### Setup `pgvector` self hosted instance with `docker-compose`
 
-`pgvector` 提供了一个预构建的 Docker 镜像，可用于快速设置自托管的 Postgres 实例。
+`pgvector` provides a prebuilt Docker image that can be used to quickly setup a self-hosted Postgres instance.
 
 ```yaml
 services:
@@ -36,9 +36,9 @@ services:
 volumes:
   db:
 ```
-### 创建新模式
+### Create a new schema
 
-假设您尚未创建模式，请创建一个包含 `vector` 字段的新模型，其类型为 `Unsupported("vector")`：
+Assuming you haven't created a schema yet, create a new model with a `vector` field of type `Unsupported("vector")`:
 
 ```prisma
 model Document {
@@ -47,25 +47,25 @@ model Document {
   vector  Unsupported("vector")?
 }
 ```
-之后，使用 `--create-only` 创建一个新的迁移，以避免直接运行迁移。
+Afterwards, create a new migration with `--create-only` to avoid running the migration directly.
 
 ```bash npm
 npx prisma migrate dev --create-only
 ```
-将以下行添加到新创建的迁移中，以启用 `pgvector` 扩展（如果尚未启用）：
+Add the following line to the newly created migration to enable `pgvector` extension if it hasn't been enabled yet:
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS vector;
 ```
-之后运行迁移：
+Run the migration afterwards:
 
 ```bash npm
 npx prisma migrate dev
 ```
-## 用法
+## Usage
 
 <Tip>
-请参阅 [此部分了解安装 LangChain 包的一般说明](/oss/javascript/langchain/install)。
+See [this section for general instructions on installing LangChain packages](/oss/javascript/langchain/install).
 </Tip>
 
 ```bash npm
@@ -73,9 +73,9 @@ npm install @langchain/openai @langchain/community @langchain/core
 ```
 
 <Warning>
-**表名和列名（在 `tableName`、`vectorColumnName`、`columns` 和 `filter` 等字段中）直接传递给 SQL 查询，未经参数化处理。**
+**Table names and column names (in fields such as `tableName`, `vectorColumnName`, `columns` and `filter`) are passed into SQL queries directly without parametrisation.**
 
-这些字段必须事先进行清理，以避免 SQL 注入。
+These fields must be sanitized beforehand to avoid SQL injection.
 </Warning>
 
 ```typescript
@@ -86,7 +86,7 @@ import { PrismaClient, Prisma, Document } from "@prisma/client";
 export const run = async () => {
   const db = new PrismaClient();
 
-  // 使用 `withModel` 方法获取 `metadata` 字段的正确类型提示：
+  // Use the `withModel` method to get proper type hints for `metadata` field:
   const vectorStore = PrismaVectorStore.withModel<Document>(db).create(
     new OpenAIEmbeddings(),
     {
@@ -110,7 +110,7 @@ export const run = async () => {
   const resultOne = await vectorStore.similaritySearch("Hello world", 1);
   console.log(resultOne);
 
-  // 创建一个带有默认过滤器的实例
+  // create an instance with default filter
   const vectorStore2 = PrismaVectorStore.withModel<Document>(db).create(
     new OpenAIEmbeddings(),
     {
@@ -135,32 +135,32 @@ export const run = async () => {
     )
   );
 
-  // 使用默认过滤器，即 {"content": "default"}
+  // Use the default filter a.k.a {"content": "default"}
   const resultTwo = await vectorStore.similaritySearch("Hello world", 1);
   console.log(resultTwo);
 };
 ```
 
-以下 SQL 运算符可用作过滤器：`equals`、`in`、`isNull`、`isNotNull`、`like`、`lt`、`lte`、`gt`、`gte`、`not`。
+The following SQL operators are available as filters: `equals`, `in`, `isNull`, `isNotNull`, `like`, `lt`, `lte`, `gt`, `gte`, `not`.
 
-以上示例使用以下模式：
+The samples above uses the following schema:
 
 <SchemaPrisma />
 
-如果不需要，可以移除 `namespace`。
+You can remove `namespace` if you don't need it.
 
-## 相关内容
+## Related
 
-- 向量存储 [概念指南](/oss/javascript/integrations/vectorstores)
-- 向量存储 [操作指南](/oss/javascript/integrations/vectorstores)
+- Vector store [conceptual guide](/oss/javascript/integrations/vectorstores)
+- Vector store [how-to guides](/oss/javascript/integrations/vectorstores)
 
 ---
 
 <div className="source-links">
-<Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/javascript/integrations/vectorstores/prisma.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
-</Callout>
 <Callout icon="terminal-2">
-    [通过 MCP 将这些文档连接到 Claude、VSCode 等，以获取实时答案](/use-these-docs)。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+</Callout>
+<Callout icon="edit">
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/javascript/integrations/vectorstores/prisma.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 </div>

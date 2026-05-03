@@ -1,15 +1,17 @@
 ---
-title: 内存
+title: Memory
 ---
 
-AI 应用需要[内存](/oss/python/concepts/memory)来在多次交互中共享上下文。在 LangGraph 中，您可以添加两种类型的内存：
 
-* [添加短期内存](#add-short-term-memory)作为代理[状态](/oss/python/langgraph/graph-api#state)的一部分，以启用多轮对话。
-* [添加长期内存](#add-long-term-memory)以跨会话存储用户特定或应用程序级别的数据。
 
-## 添加短期内存
+AI applications need [memory](/oss/python/concepts/memory) to share context across multiple interactions. In LangGraph, you can add two types of memory:
 
-**短期**内存（线程级[持久化](/oss/python/langgraph/persistence)）使代理能够跟踪多轮对话。要添加短期内存：
+* [Add short-term memory](#add-short-term-memory) as a part of your agent's [state](/oss/python/langgraph/graph-api#state) to enable multi-turn conversations.
+* [Add long-term memory](#add-long-term-memory) to store user-specific or application-level data across sessions.
+
+## Add short-term memory
+
+**Short-term** memory (thread-level [persistence](/oss/python/langgraph/persistence)) enables agents to track multi-turn conversations. To add short-term memory:
 
 ```python
 from langgraph.checkpoint.memory import InMemorySaver  # [!code highlight]
@@ -26,9 +28,12 @@ graph.invoke(
 )
 ```
 
-### 在生产环境中使用
 
-在生产环境中，使用由数据库支持的检查点器：
+
+
+### Use in production
+
+In production, use a checkpointer backed by a database:
 
 ```python
 from langgraph.checkpoint.postgres import PostgresSaver
@@ -39,17 +44,20 @@ with PostgresSaver.from_conn_string(DB_URI) as checkpointer:  # [!code highlight
     graph = builder.compile(checkpointer=checkpointer)  # [!code highlight]
 ```
 
-<Accordion title="示例：使用 Postgres 检查点器">
+
+
+
+<Accordion title="Example: using Postgres checkpointer">
   ```
   pip install -U "psycopg[binary,pool]" langgraph langgraph-checkpoint-postgres
   ```
 
     <Tip>
-    首次使用 Postgres 检查点器时，需要调用 `checkpointer.setup()`
+    You need to call `checkpointer.setup()` the first time you're using Postgres checkpointer
     </Tip>
 
     <Tabs>
-        <Tab title="同步">
+        <Tab title="Sync">
       ```python
       from langchain.chat_models import init_chat_model
       from langgraph.graph import StateGraph, MessagesState, START
@@ -92,7 +100,7 @@ with PostgresSaver.from_conn_string(DB_URI) as checkpointer:  # [!code highlight
               chunk["messages"][-1].pretty_print()
 ```
         </Tab>
-        <Tab title="异步">
+        <Tab title="Async">
       ```python
       from langchain.chat_models import init_chat_model
       from langgraph.graph import StateGraph, MessagesState, START
@@ -141,18 +149,18 @@ with PostgresSaver.from_conn_string(DB_URI) as checkpointer:  # [!code highlight
 
 </Accordion>
 
-<Accordion title="示例：使用 MongoDB 检查点器">
+<Accordion title="Example: using MongoDB checkpointer">
   ```
   pip install -U pymongo langgraph langgraph-checkpoint-mongodb
   ```
 
-    <Note>
-    **设置**
-    要使用 [MongoDB 检查点器](https://pypi.org/project/langgraph-checkpoint-mongodb/)，您需要一个 MongoDB 集群。如果您还没有集群，请按照[此指南](https://www.mongodb.com/docs/guides/atlas/cluster/)创建一个。
-    </Note>
+    <Tip>
+    **Setup**
+    To use the [MongoDB checkpointer](https://pypi.org/project/langgraph-checkpoint-mongodb/), you will need a MongoDB cluster. Follow [this guide](https://www.mongodb.com/docs/guides/atlas/cluster/) to create a cluster if you don't already have one.
+    </Tip>
 
     <Tabs>
-        <Tab title="同步">
+        <Tab title="Sync">
       ```python
       from langchain.chat_models import init_chat_model
       from langgraph.graph import StateGraph, MessagesState, START
@@ -160,8 +168,8 @@ with PostgresSaver.from_conn_string(DB_URI) as checkpointer:  # [!code highlight
 
       model = init_chat_model(model="claude-haiku-4-5-20251001")
 
-      DB_URI = "localhost:27017"
-      with MongoDBSaver.from_conn_string(DB_URI) as checkpointer:  # [!code highlight]
+      MONGODB_URI = "localhost:27017"
+      with MongoDBSaver.from_conn_string(MONGODB_URI) as checkpointer:  # [!code highlight]
 
           def call_model(state: MessagesState):
               response = model.invoke(state["messages"])
@@ -194,7 +202,7 @@ with PostgresSaver.from_conn_string(DB_URI) as checkpointer:  # [!code highlight
               chunk["messages"][-1].pretty_print()
 ```
         </Tab>
-        <Tab title="异步">
+        <Tab title="Async">
       ```python
       from langchain.chat_models import init_chat_model
       from langgraph.graph import StateGraph, MessagesState, START
@@ -202,8 +210,8 @@ with PostgresSaver.from_conn_string(DB_URI) as checkpointer:  # [!code highlight
 
       model = init_chat_model(model="claude-haiku-4-5-20251001")
 
-      DB_URI = "localhost:27017"
-      async with AsyncMongoDBSaver.from_conn_string(DB_URI) as checkpointer:  # [!code highlight]
+      MONGODB_URI = "localhost:27017"
+      async with AsyncMongoDBSaver.from_conn_string(MONGODB_URI) as checkpointer:  # [!code highlight]
 
           async def call_model(state: MessagesState):
               response = await model.ainvoke(state["messages"])
@@ -237,19 +245,22 @@ with PostgresSaver.from_conn_string(DB_URI) as checkpointer:  # [!code highlight
 ```
         </Tab>
     </Tabs>
+
+
+
 </Accordion>
 
-<Accordion title="示例：使用 Redis 检查点器">
+<Accordion title="Example: using Redis checkpointer">
   ```
   pip install -U langgraph langgraph-checkpoint-redis
   ```
 
     <Tip>
-    首次使用 Redis 检查点器时，需要调用 `checkpointer.setup()`。
+    You need to call `checkpointer.setup()` the first time you're using Redis checkpointer.
     </Tip>
 
     <Tabs>
-        <Tab title="同步">
+        <Tab title="Sync">
       ```python
       from langchain.chat_models import init_chat_model
       from langgraph.graph import StateGraph, MessagesState, START
@@ -290,9 +301,9 @@ with PostgresSaver.from_conn_string(DB_URI) as checkpointer:  # [!code highlight
               stream_mode="values"
           ):
               chunk["messages"][-1].pretty_print()
-```
+      ```
         </Tab>
-        <Tab title="异步">
+        <Tab title="Async">
       ```python
       from langchain.chat_models import init_chat_model
       from langgraph.graph import StateGraph, MessagesState, START
@@ -338,9 +349,10 @@ with PostgresSaver.from_conn_string(DB_URI) as checkpointer:  # [!code highlight
     </Tabs>
 </Accordion>
 
-### 在子图中使用
 
-如果您的图包含[子图](/oss/python/langgraph/use-subgraphs)，您只需在编译父图时提供检查点器。LangGraph 会自动将检查点器传播到子图。
+### Use in subgraphs
+
+If your graph contains [subgraphs](/oss/python/langgraph/use-subgraphs), you only need to provide the checkpointer when compiling the parent graph. LangGraph will automatically propagate the checkpointer to the child subgraphs.
 
 ```python
 from langgraph.graph import START, StateGraph
@@ -350,7 +362,7 @@ from typing import TypedDict
 class State(TypedDict):
     foo: str
 
-# 子图
+# Subgraph
 
 def subgraph_node_1(state: State):
     return {"foo": state["foo"] + "bar"}
@@ -360,7 +372,7 @@ subgraph_builder.add_node(subgraph_node_1)
 subgraph_builder.add_edge(START, "subgraph_node_1")
 subgraph = subgraph_builder.compile()  # [!code highlight]
 
-# 父图
+# Parent graph
 
 builder = StateGraph(State)
 builder.add_node("node_1", subgraph)  # [!code highlight]
@@ -370,16 +382,22 @@ checkpointer = InMemorySaver()
 graph = builder.compile(checkpointer=checkpointer)  # [!code highlight]
 ```
 
-您可以配置子图特定的检查点行为。有关持久化级别（包括中断支持和有状态延续）的详细信息，请参阅[子图持久化](/oss/python/langgraph/use-subgraphs#subgraph-persistence)。
+
+
+
+You can configure subgraph-specific checkpointing behavior. See [subgraph persistence](/oss/python/langgraph/use-subgraphs#subgraph-persistence) for details on persistence levels including interrupt support and stateful continuations.
 
 ```python
 subgraph_builder = StateGraph(...)
 subgraph = subgraph_builder.compile(checkpointer=True)  # [!code highlight]
 ```
 
-## 添加长期内存
 
-使用长期内存来跨对话存储用户特定或应用程序特定的数据。
+
+
+## Add long-term memory
+
+Use long-term memory to store user-specific or application-specific data across conversations.
 
 ```python
 from langgraph.store.memory import InMemoryStore  # [!code highlight]
@@ -391,9 +409,12 @@ builder = StateGraph(...)
 graph = builder.compile(store=store)  # [!code highlight]
 ```
 
-### 在节点内访问存储
 
-一旦您使用存储编译了图，LangGraph 会自动将存储注入到您的节点函数中。推荐通过 `Runtime` 对象访问存储。
+
+
+### Access the store inside nodes
+
+Once you compile a graph with a store, LangGraph automatically injects the store into your node functions. The recommended way to access the store is through the `Runtime` object.
 
 ```python
 from dataclasses import dataclass
@@ -409,15 +430,15 @@ async def call_model(state: MessagesState, runtime: Runtime[Context]):  # [!code
     user_id = runtime.context.user_id  # [!code highlight]
     namespace = (user_id, "memories")
 
-    # 搜索相关记忆
+    # Search for relevant memories
     memories = await runtime.store.asearch(  # [!code highlight]
         namespace, query=state["messages"][-1].content, limit=3
     )
     info = "\n".join([d.value["data"] for d in memories])
 
-    # ... 在模型调用中使用记忆
+    # ... Use memories in model call
 
-    # 存储新记忆
+    # Store a new memory
     await runtime.store.aput(  # [!code highlight]
         namespace, str(uuid.uuid4()), {"data": "User prefers dark mode"}
     )
@@ -427,7 +448,7 @@ builder.add_node(call_model)
 builder.add_edge(START, "call_model")
 graph = builder.compile(store=store)
 
-# 在调用时传递上下文
+# Pass context at invocation time
 graph.invoke(
     {"messages": [{"role": "user", "content": "hi"}]},
     {"configurable": {"thread_id": "1"}},
@@ -435,9 +456,13 @@ graph.invoke(
 )
 ```
 
-### 在生产环境中使用
 
-在生产环境中，使用由数据库支持的存储：
+
+
+
+### Use in production
+
+In production, use a store backed by a database:
 
 ```python
 from langgraph.store.postgres import PostgresStore
@@ -448,17 +473,20 @@ with PostgresStore.from_conn_string(DB_URI) as store:  # [!code highlight]
     graph = builder.compile(store=store)  # [!code highlight]
 ```
 
-<Accordion title="示例：使用 Postgres 存储">
+
+
+
+<Accordion title="Example: using Postgres store">
   ```
   pip install -U "psycopg[binary,pool]" langgraph langgraph-checkpoint-postgres
   ```
 
     <Tip>
-    首次使用 Postgres 存储时，需要调用 `store.setup()`
+    You need to call `store.setup()` the first time you're using Postgres store
     </Tip>
 
     <Tabs>
-        <Tab title="异步">
+        <Tab title="Async">
       ```python
       from dataclasses import dataclass
       from langchain.chat_models import init_chat_model
@@ -484,7 +512,7 @@ with PostgresStore.from_conn_string(DB_URI) as store:  # [!code highlight]
           info = "\n".join([d.value["data"] for d in memories])
           system_msg = f"You are a helpful assistant talking to the user. User info: {info}"
 
-          # 如果用户要求模型记住，则存储新记忆
+          # Store new memories if the user asks the model to remember
           last_message = state["messages"][-1]
           if "remember" in last_message.content.lower():
               memory = "User name is Bob"
@@ -532,7 +560,7 @@ with PostgresStore.from_conn_string(DB_URI) as store:  # [!code highlight]
               chunk["messages"][-1].pretty_print()
 ```
         </Tab>
-        <Tab title="同步">
+        <Tab title="Sync">
       ```python
       from dataclasses import dataclass
       from langchain.chat_models import init_chat_model
@@ -558,7 +586,7 @@ with PostgresStore.from_conn_string(DB_URI) as store:  # [!code highlight]
           info = "\n".join([d.value["data"] for d in memories])
           system_msg = f"You are a helpful assistant talking to the user. User info: {info}"
 
-          # 如果用户要求模型记住，则存储新记忆
+          # Store new memories if the user asks the model to remember
           last_message = state["messages"][-1]
           if "remember" in last_message.content.lower():
               memory = "User name is Bob"
@@ -612,18 +640,22 @@ with PostgresStore.from_conn_string(DB_URI) as store:  # [!code highlight]
 
 </Accordion>
 
-<Accordion title="示例：使用 Redis 存储">
+<Accordion title="Example: using MongoDB store">
+
+</Accordion>
+
+<Accordion title="Example: using Redis store">
 
   ```
   pip install -U langgraph langgraph-checkpoint-redis
   ```
 
     <Tip>
-    首次使用 [Redis 存储](https://pypi.org/project/langgraph-checkpoint-redis/)时，需要调用 `store.setup()`。
+    You need to call `store.setup()` the first time you're using [Redis store](https://pypi.org/project/langgraph-checkpoint-redis/).
     </Tip>
 
     <Tabs>
-        <Tab title="异步">
+        <Tab title="Async">
       ```python
       from dataclasses import dataclass
       from langchain.chat_models import init_chat_model
@@ -649,7 +681,7 @@ with PostgresStore.from_conn_string(DB_URI) as store:  # [!code highlight]
           info = "\n".join([d.value["data"] for d in memories])
           system_msg = f"You are a helpful assistant talking to the user. User info: {info}"
 
-          # 如果用户要求模型记住，则存储新记忆
+          # Store new memories if the user asks the model to remember
           last_message = state["messages"][-1]
           if "remember" in last_message.content.lower():
               memory = "User name is Bob"
@@ -697,7 +729,7 @@ with PostgresStore.from_conn_string(DB_URI) as store:  # [!code highlight]
               chunk["messages"][-1].pretty_print()
 ```
         </Tab>
-        <Tab title="同步">
+        <Tab title="Sync">
       ```python
       from dataclasses import dataclass
       from langchain.chat_models import init_chat_model
@@ -723,7 +755,7 @@ with PostgresStore.from_conn_string(DB_URI) as store:  # [!code highlight]
           info = "\n".join([d.value["data"] for d in memories])
           system_msg = f"You are a helpful assistant talking to the user. User info: {info}"
 
-          # 如果用户要求模型记住，则存储新记忆
+          # Store new memories if the user asks the model to remember
           last_message = state["messages"][-1]
           if "remember" in last_message.content.lower():
               memory = "User name is Bob"
@@ -774,15 +806,16 @@ with PostgresStore.from_conn_string(DB_URI) as store:  # [!code highlight]
     </Tabs>
 </Accordion>
 
-### 使用语义搜索
 
-在图的内存存储中启用语义搜索，让图代理能够通过语义相似性搜索存储中的项目。
+### Use semantic search
+
+Enable semantic search in your graph's memory store to let graph agents search for items in the store by semantic similarity.
 
 ```python
 from langchain.embeddings import init_embeddings
 from langgraph.store.memory import InMemoryStore
 
-# 创建启用语义搜索的存储
+# Create store with semantic search enabled
 embeddings = init_embeddings("openai:text-embedding-3-small")
 store = InMemoryStore(
     index={
@@ -799,7 +832,12 @@ items = store.search(
 )
 ```
 
-<Accordion title="使用语义搜索的长期记忆">
+
+
+
+
+
+<Accordion title="Long-term memory with semantic search">
     ```python
 
     from langchain.embeddings import init_embeddings
@@ -808,9 +846,9 @@ items = store.search(
     from langgraph.graph import START, MessagesState, StateGraph
     from langgraph.runtime import Runtime  # [!code highlight]
 
-    model = init_chat_model("gpt-4.1-mini")
+    model = init_chat_model("gpt-5.4-mini")
 
-    # 创建启用语义搜索的存储
+    # Create store with semantic search enabled
     embeddings = init_embeddings("openai:text-embedding-3-small")
     store = InMemoryStore(
         index={
@@ -823,7 +861,7 @@ items = store.search(
     store.put(("user_123", "memories"), "2", {"text": "I am a plumber"})
 
     async def chat(state: MessagesState, runtime: Runtime):  # [!code highlight]
-        # 基于用户的最后一条消息进行搜索
+        # Search based on user's last message
         items = await runtime.store.asearch(  # [!code highlight]
             ("user_123", "memories"), query=state["messages"][-1].content, limit=2
         )
@@ -854,23 +892,25 @@ items = store.search(
 
 </Accordion>
 
-## 管理短期内存
+## Manage short-term memory
 
-启用[短期内存](#add-short-term-memory)后，长对话可能会超过 LLM 的上下文窗口。常见的解决方案是：
+With [short-term memory](#add-short-term-memory) enabled, long conversations can exceed the LLM's context window. Common solutions are:
 
-* [修剪消息](#trim-messages)：移除前 N 条或后 N 条消息（在调用 LLM 之前）
-* [删除消息](#delete-messages)：从 LangGraph 状态中永久删除消息
-* [总结消息](#summarize-messages)：总结历史中的早期消息并用摘要替换它们
-* [管理检查点](#manage-checkpoints)：存储和检索消息历史记录
-* 自定义策略（例如，消息过滤等）
+* [Trim messages](#trim-messages): Remove first or last N messages (before calling LLM)
+* [Delete messages](#delete-messages) from LangGraph state permanently
+* [Summarize messages](#summarize-messages): Summarize earlier messages in the history and replace them with a summary
+* [Manage checkpoints](#manage-checkpoints) to store and retrieve message history
+* Custom strategies (e.g., message filtering, etc.)
 
-这使代理能够跟踪对话，而不会超过 LLM 的上下文窗口。
+This allows the agent to keep track of the conversation without exceeding the LLM's context window.
 
-### 修剪消息
+### Trim messages
 
-大多数 LLM 都有最大支持的上下文窗口（以令牌为单位）。决定何时截断消息的一种方法是计算消息历史记录中的令牌数，并在接近该限制时进行截断。如果您使用 LangChain，可以使用修剪消息实用程序，并指定要从列表中保留的令牌数量，以及用于处理边界的 `strategy`（例如，保留最后 `max_tokens`）。
+Most LLMs have a maximum supported context window (denominated in tokens). One way to decide when to truncate messages is to count the tokens in the message history and truncate whenever it approaches that limit. If you're using LangChain, you can use the trim messages utility and specify the number of tokens to keep from the list, as well as the `strategy` (e.g., keep the last `max_tokens`) to use for handling the boundary.
 
-要修剪消息历史记录，请使用 [`trim_messages`](https://reference.langchain.com/python/langchain-core/messages/utils/trim_messages) 函数：
+
+
+To trim message history, use the [`trim_messages`](https://reference.langchain.com/python/langchain-core/messages/utils/trim_messages) function:
 
 ```python
 from langchain_core.messages.utils import (  # [!code highlight]
@@ -895,7 +935,10 @@ builder.add_node(call_model)
 ...
 ```
 
-<Accordion title="完整示例：修剪消息">
+
+
+
+<Accordion title="Full example: trim messages">
   ```python
   from langchain_core.messages.utils import (
       trim_messages,  # [!code highlight]
@@ -944,13 +987,13 @@ builder.add_node(call_model)
 
 </Accordion>
 
-### 删除消息
+### Delete messages
 
-您可以从图状态中删除消息以管理消息历史记录。当您想要删除特定消息或清除整个消息历史记录时，这很有用。
+You can delete messages from the graph state to manage the message history. This is useful when you want to remove specific messages or clear the entire message history.
 
-要从图状态中删除消息，您可以使用 `RemoveMessage`。要使 `RemoveMessage` 生效，您需要使用带有 [`add_messages`](https://reference.langchain.com/python/langgraph/graph/message/add_messages) [归约器](/oss/python/langgraph/graph-api#reducers) 的状态键，例如 [`MessagesState`](/oss/python/langgraph/graph-api#messagesstate)。
+To delete messages from the graph state, you can use the `RemoveMessage`. For `RemoveMessage` to work, you need to use a state key with [`add_messages`](https://reference.langchain.com/python/langgraph/graph/message/add_messages) [reducer](/oss/python/langgraph/graph-api#reducers), like [`MessagesState`](/oss/python/langgraph/graph-api#messagesstate).
 
-要删除特定消息：
+To remove specific messages:
 
 ```python
 from langchain.messages import RemoveMessage  # [!code highlight]
@@ -958,11 +1001,11 @@ from langchain.messages import RemoveMessage  # [!code highlight]
 def delete_messages(state):
     messages = state["messages"]
     if len(messages) > 2:
-        # 移除最早的两条消息
+        # remove the earliest two messages
         return {"messages": [RemoveMessage(id=m.id) for m in messages[:2]]}  # [!code highlight]
 ```
 
-要删除**所有**消息：
+To remove **all** messages:
 
 ```python
 from langgraph.graph.message import REMOVE_ALL_MESSAGES  # [!code highlight]
@@ -971,21 +1014,24 @@ def delete_messages(state):
     return {"messages": [RemoveMessage(id=REMOVE_ALL_MESSAGES)]}  # [!code highlight]
 ```
 
-<Warning>
-删除消息时，**请确保**生成的消息历史记录是有效的。检查您使用的 LLM 提供程序的限制。例如：
 
-* 一些提供程序期望消息历史记录以 `user` 消息开头
-* 大多数提供程序要求带有工具调用的 `assistant` 消息后面跟着相应的 `tool` 结果消息。
+
+
+<Warning>
+When deleting messages, **make sure** that the resulting message history is valid. Check the limitations of the LLM provider you're using. For example:
+
+* Some providers expect message history to start with a `user` message
+* Most providers require `assistant` messages with tool calls to be followed by corresponding `tool` result messages.
 </Warning>
 
-<Accordion title="完整示例：删除消息">
+<Accordion title="Full example: delete messages">
   ```python
   from langchain.messages import RemoveMessage  # [!code highlight]
 
   def delete_messages(state):
       messages = state["messages"]
       if len(messages) > 2:
-          # 移除最早的两条消息
+          # remove the earliest two messages
           return {"messages": [RemoveMessage(id=m.id) for m in messages[:2]]}  # [!code highlight]
 
   def call_model(state: MessagesState):
@@ -1026,13 +1072,14 @@ def delete_messages(state):
 
 </Accordion>
 
-### 总结消息
+### Summarize messages
 
-如上所示，修剪或删除消息的问题在于，您可能会在清理消息队列时丢失信息。因此，一些应用程序受益于使用聊天模型总结消息历史记录的更复杂方法。
+The problem with trimming or removing messages, as shown above, is that you may lose information from culling of the message queue. Because of this, some applications benefit from a more sophisticated approach of summarizing the message history using a chat model.
 
-![摘要](/oss/images/summary.png)
+![Summary](/oss/images/summary.png)
 
-提示和编排逻辑可用于总结消息历史记录。例如，在 LangGraph 中，您可以扩展 [`MessagesState`](/oss/python/langgraph/graph-api#working-with-messages-in-graph-state) 以包含 `summary` 键：
+
+Prompting and orchestration logic can be used to summarize the message history. For example, in LangGraph you can extend the [`MessagesState`](/oss/python/langgraph/graph-api#working-with-messages-in-graph-state) to include a `summary` key:
 
 ```python
 from langgraph.graph import MessagesState
@@ -1040,18 +1087,18 @@ class State(MessagesState):
     summary: str
 ```
 
-然后，您可以使用任何现有摘要作为下一个摘要的上下文来生成聊天历史记录的摘要。这个 `summarize_conversation` 节点可以在 `messages` 状态键中积累了一定数量的消息后调用。
+Then, you can generate a summary of the chat history, using any existing summary as context for the next summary. This `summarize_conversation` node can be called after some number of messages have accumulated in the `messages` state key.
 
 ```python
 def summarize_conversation(state: State):
 
-    # 首先，我们获取任何现有摘要
+    # First, we get any existing summary
     summary = state.get("summary", "")
 
-    # 创建我们的总结提示
+    # Create our summarization prompt
     if summary:
 
-        # 摘要已存在
+        # A summary already exists
         summary_message = (
             f"This is a summary of the conversation to date: {summary}\n\n"
             "Extend the summary by taking into account the new messages above:"
@@ -1060,16 +1107,19 @@ def summarize_conversation(state: State):
     else:
         summary_message = "Create a summary of the conversation above:"
 
-    # 将提示添加到我们的历史记录中
+    # Add prompt to our history
     messages = state["messages"] + [HumanMessage(content=summary_message)]
     response = model.invoke(messages)
 
-    # 删除除最近 2 条消息外的所有消息
+    # Delete all but the 2 most recent messages
     delete_messages = [RemoveMessage(id=m.id) for m in state["messages"][:-2]]
     return {"summary": response.content, "messages": delete_messages}
 ```
 
-<Accordion title="完整示例：总结消息">
+
+
+
+<Accordion title="Full example: summarize messages">
   ```python
   from typing import Any, TypedDict
 
@@ -1110,7 +1160,7 @@ def summarize_conversation(state: State):
   builder.add_edge("summarize", "call_model")
   graph = builder.compile(checkpointer=checkpointer)
 
-  # 调用图
+  # Invoke the graph
   config = {"configurable": {"thread_id": "1"}}
   graph.invoke({"messages": "hi, my name is bob"}, config)
   graph.invoke({"messages": "write a short poem about cats"}, config)
@@ -1121,15 +1171,15 @@ def summarize_conversation(state: State):
   print("\nSummary:", final_response["context"]["running_summary"].summary)
 ```
 
-  1. 我们将在 `context` 字段中跟踪我们的运行摘要
+  1. We will keep track of our running summary in the `context` field
 
-  （由 `SummarizationNode` 期望）。
+  (expected by the `SummarizationNode`).
 
-  1. 定义仅用于过滤
+  1. Define private state that will be used only for filtering
 
-  `call_model` 节点输入的私有状态。
+  the inputs to `call_model` node.
 
-  1. 我们在这里传递一个私有输入状态，以隔离由总结节点返回的消息
+  1. We're passing a private input state here to isolate the messages returned by the summarization node
 
   ```
   ================================== Ai Message ==================================
@@ -1143,21 +1193,21 @@ def summarize_conversation(state: State):
 
 </Accordion>
 
-### 管理检查点
+### Manage checkpoints
 
-您可以查看和删除检查点器存储的信息。
+You can view and delete the information stored by the checkpointer.
 
 <a id="checkpoint"></a>
-#### 查看线程状态
+#### View thread state
 
 <Tabs>
-    <Tab title="图/函数式 API">
+    <Tab title="Graph/Functional API">
     ```python
     config = {
         "configurable": {
             "thread_id": "1",  # [!code highlight]
-            # 可选地提供特定检查点的 ID，
-            # 否则将显示最新的检查点
+            # optionally provide an ID for a specific checkpoint,
+            # otherwise the latest checkpoint is shown
             # "checkpoint_id": "1f029ca3-1f5b-6704-8004-820c16b69a5a"  # [!code highlight]
 
         }
@@ -1183,13 +1233,13 @@ def summarize_conversation(state: State):
     )
     ```
     </Tab>
-    <Tab title="检查点器 API">
+    <Tab title="Checkpointer API">
     ```python
     config = {
         "configurable": {
             "thread_id": "1",  # [!code highlight]
-            # 可选地提供特定检查点的 ID，
-            # 否则将显示最新的检查点
+            # optionally provide an ID for a specific checkpoint,
+            # otherwise the latest checkpoint is shown
             # "checkpoint_id": "1f029ca3-1f5b-6704-8004-820c16b69a5a"  # [!code highlight]
 
         }
@@ -1221,11 +1271,14 @@ def summarize_conversation(state: State):
     </Tab>
 </Tabs>
 
+
+
+
 <a id="checkpoints"></a>
-#### 查看线程的历史记录
+#### View the history of the thread
 
 <Tabs>
-    <Tab title="图/函数式 API">
+    <Tab title="Graph/Functional API">
     ```python
     config = {
         "configurable": {
@@ -1300,7 +1353,7 @@ def summarize_conversation(state: State):
     ]
     ```
     </Tab>
-    <Tab title="检查点器 API">
+    <Tab title="Checkpointer API">
     ```python
     config = {
         "configurable": {
@@ -1401,28 +1454,34 @@ def summarize_conversation(state: State):
     </Tab>
 </Tabs>
 
-#### 删除线程的所有检查点
+
+
+
+#### Delete all checkpoints for a thread
 
 ```python
 thread_id = "1"
 checkpointer.delete_thread(thread_id)
 ```
 
-## 数据库管理
 
-如果您使用任何基于数据库的持久化实现（例如 Postgres 或 Redis）来存储短期和/或长期内存，则需要在数据库中运行迁移以设置所需的模式，然后才能使用它。
 
-按照惯例，大多数特定于数据库的库在检查点器或存储实例上定义了一个 `setup()` 方法，该方法运行所需的迁移。但是，您应该检查您特定的 [`BaseCheckpointSaver`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.base.BaseCheckpointSaver) 或 [`BaseStore`](https://reference.langchain.com/python/langchain-core/stores/BaseStore) 实现，以确认确切的方法名称和用法。
 
-我们建议将迁移作为专用的部署步骤运行，或者您可以确保它们在服务器启动时运行。
+## Database management
+
+If you are using any database-backed persistence implementation (such as Postgres or Redis) to store short and/or long-term memory, you will need to run migrations to set up the required schema before you can use it with your database.
+
+By convention, most database-specific libraries define a `setup()` method on the checkpointer or store instance that runs the required migrations. However, you should check with your specific implementation of [`BaseCheckpointSaver`](https://reference.langchain.com/python/langgraph/checkpoints/#langgraph.checkpoint.base.BaseCheckpointSaver) or [`BaseStore`](https://reference.langchain.com/python/langchain-core/stores/BaseStore) to confirm the exact method name and usage.
+
+We recommend running migrations as a dedicated deployment step, or you can ensure they're run as part of server startup.
 
 ---
 
 <div className="source-links">
-<Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/add-memory.mdx) 或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
-</Callout>
 <Callout icon="terminal-2">
-    [通过 MCP 将这些文档连接](/use-these-docs)到 Claude、VSCode 等，以获取实时答案。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+</Callout>
+<Callout icon="edit">
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/add-memory.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 </div>

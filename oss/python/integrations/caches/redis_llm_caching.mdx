@@ -1,39 +1,39 @@
 ---
-title: "LangChain 集成的 Redis 缓存"
-description: "使用 LangChain Python 集成 Redis 缓存以用于 LangChain 缓存。"
+title: "Redis cache for LangChain integration"
+description: "Integrate with the Redis cache for LangChain cache using LangChain Python."
 ---
 
-本 Notebook 演示如何使用 langchain-redis 包中的 `RedisCache` 和 `RedisSemanticCache` 类来实现 LLM 响应的缓存。
+This notebook demonstrates how to use the `RedisCache` and `RedisSemanticCache` classes from the langchain-redis package to implement caching for LLM responses.
 
-## 设置
+## Setup
 
-首先，让我们安装所需的依赖项并确保有一个 Redis 实例正在运行。
+First, let's install the required dependencies and ensure we have a Redis instance running.
 
 ```python
 pip install -U langchain-core langchain-redis langchain-openai redis
 ```
 
-确保你有一个 Redis 服务器正在运行。你可以使用 Docker 启动它：
+Ensure you have a Redis server running. You can start one using Docker with:
 
 ```
 docker run -d -p 6379:6379 redis:latest
 ```
 
-或者根据操作系统的说明在本地安装并运行 Redis。
+Or install and run Redis locally according to your operating system's instructions.
 
 ```python
 import os
 
-# 如果设置了环境变量则使用，否则默认为 localhost
+# Use the environment variable if set, otherwise default to localhost
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 print(f"Connecting to Redis at: {REDIS_URL}")
 ```
 
 ```text
-连接到 Redis 地址：redis://redis:6379
+Connecting to Redis at: redis://redis:6379
 ```
 
-## 导入所需库
+## Importing required libraries
 
 ```python
 import time
@@ -51,19 +51,19 @@ import openai
 import redis
 ```
 
-### 设置 OpenAI API 密钥
+### Set OpenAI API key
 
 ```python
 from getpass import getpass
 
-# 检查 OPENAI_API_KEY 是否已在环境中设置
+# Check if OPENAI_API_KEY is already set in the environment
 openai_api_key = os.getenv("OPENAI_API_KEY")
 
 if not openai_api_key:
     print("OpenAI API key not found in environment variables.")
     openai_api_key = getpass("Please enter your OpenAI API key: ")
 
-    # 为当前会话设置 API 密钥
+    # Set the API key for the current session
     os.environ["OPENAI_API_KEY"] = openai_api_key
     print("OpenAI API key has been set for this session.")
 else:
@@ -71,29 +71,29 @@ else:
 ```
 
 ```text
-未在环境变量中找到 OpenAI API 密钥。
+OpenAI API key not found in environment variables.
 ```
 ```text
-请输入你的 OpenAI API 密钥：········
+Please enter your OpenAI API key:  ········
 ```
 ```text
-OpenAI API 密钥已为此会话设置。
+OpenAI API key has been set for this session.
 ```
 
-## 使用 RedisCache
+## Using RedisCache
 
 ```python
-# 初始化 RedisCache
+# Initialize RedisCache
 redis_cache = RedisCache(redis_url=REDIS_URL)
 
-# 设置 LangChain 使用的缓存
+# Set the cache for LangChain to use
 set_llm_cache(redis_cache)
 
-# 初始化语言模型
+# Initialize the language model
 llm = OpenAI(temperature=0)
 
 
-# 测量执行时间的函数
+# Function to measure execution time
 def timed_completion(prompt):
     start_time = time.time()
     result = llm.invoke(prompt)
@@ -101,53 +101,53 @@ def timed_completion(prompt):
     return result, end_time - start_time
 
 
-# 第一次调用（未缓存）
+# First call (not cached)
 prompt = "Explain the concept of caching in three sentences."
 result1, time1 = timed_completion(prompt)
 print(f"First call (not cached):\nResult: {result1}\nTime: {time1:.2f} seconds\n")
 
-# 第二次调用（应已缓存）
+# Second call (should be cached)
 result2, time2 = timed_completion(prompt)
 print(f"Second call (cached):\nResult: {result2}\nTime: {time2:.2f} seconds\n")
 
 print(f"Speed improvement: {time1 / time2:.2f}x faster")
 
-# 清除缓存
+# Clear the cache
 redis_cache.clear()
 print("Cache cleared")
 ```
 
 ```text
-第一次调用（未缓存）：
-结果：
+First call (not cached):
+Result:
 
 Caching is the process of storing frequently accessed data in a temporary storage location for faster retrieval. This helps to reduce the time and resources needed to access the data from its original source. Caching is commonly used in computer systems, web browsers, and databases to improve performance and efficiency.
-时间：1.16 秒
+Time: 1.16 seconds
 
-第二次调用（已缓存）：
-结果：
+Second call (cached):
+Result:
 
 Caching is the process of storing frequently accessed data in a temporary storage location for faster retrieval. This helps to reduce the time and resources needed to access the data from its original source. Caching is commonly used in computer systems, web browsers, and databases to improve performance and efficiency.
-时间：0.05 秒
+Time: 0.05 seconds
 
-速度提升：25.40 倍快
-缓存已清除
+Speed improvement: 25.40x faster
+Cache cleared
 ```
 
-## 使用 RedisSemanticCache
+## Using RedisSemanticCache
 
 ```python
-# 初始化 RedisSemanticCache
+# Initialize RedisSemanticCache
 embeddings = OpenAIEmbeddings()
 semantic_cache = RedisSemanticCache(
     redis_url=REDIS_URL, embeddings=embeddings, distance_threshold=0.2
 )
 
-# 设置 LangChain 使用的缓存
+# Set the cache for LangChain to use
 set_llm_cache(semantic_cache)
 
 
-# 测试语义缓存的函数
+# Function to test semantic cache
 def test_semantic_cache(prompt):
     start_time = time.time()
     result = llm.invoke(prompt)
@@ -155,14 +155,14 @@ def test_semantic_cache(prompt):
     return result, end_time - start_time
 
 
-# 原始查询
+# Original query
 original_prompt = "What is the capital of France?"
 result1, time1 = test_semantic_cache(original_prompt)
 print(
     f"Original query:\nPrompt: {original_prompt}\nResult: {result1}\nTime: {time1:.2f} seconds\n"
 )
 
-# 语义相似查询
+# Semantically similar query
 similar_prompt = "Can you tell me the capital city of France?"
 result2, time2 = test_semantic_cache(similar_prompt)
 print(
@@ -171,50 +171,50 @@ print(
 
 print(f"Speed improvement: {time1 / time2:.2f}x faster")
 
-# 清除语义缓存
+# Clear the semantic cache
 semantic_cache.clear()
 print("Semantic cache cleared")
 ```
 
 ```text
-原始查询：
-提示：What is the capital of France?
-结果：
+Original query:
+Prompt: What is the capital of France?
+Result:
 
 The capital of France is Paris.
-时间：1.52 秒
+Time: 1.52 seconds
 
-相似查询：
-提示：Can you tell me the capital city of France?
-结果：
+Similar query:
+Prompt: Can you tell me the capital city of France?
+Result:
 
 The capital of France is Paris.
-时间：0.29 秒
+Time: 0.29 seconds
 
-速度提升：5.22 倍快
-语义缓存已清除
+Speed improvement: 5.22x faster
+Semantic cache cleared
 ```
 
-## 高级用法
+## Advanced usage
 
-### 自定义 TTL（生存时间）
+### Custom TTL (Time-To-Live)
 
 ```python
-# 使用自定义 TTL 初始化 RedisCache
-ttl_cache = RedisCache(redis_url=REDIS_URL, ttl=5)  # 60 秒 TTL
+# Initialize RedisCache with custom TTL
+ttl_cache = RedisCache(redis_url=REDIS_URL, ttl=5)  # 60 seconds TTL
 
-# 更新缓存条目
+# Update a cache entry
 ttl_cache.update("test_prompt", "test_llm", [Generation(text="Cached response")])
 
-# 检索缓存条目
+# Retrieve the cached entry
 cached_result = ttl_cache.lookup("test_prompt", "test_llm")
 print(f"Cached result: {cached_result[0].text if cached_result else 'Not found'}")
 
-# 等待 TTL 过期
+# Wait for TTL to expire
 print("Waiting for TTL to expire...")
 time.sleep(6)
 
-# 尝试检索已过期的条目
+# Try to retrieve the expired entry
 expired_result = ttl_cache.lookup("test_prompt", "test_llm")
 print(
     f"Result after TTL: {expired_result[0].text if expired_result else 'Not found (expired)'}"
@@ -222,59 +222,59 @@ print(
 ```
 
 ```text
-缓存结果：Cached response
-正在等待 TTL 过期...
-TTL 后的结果：未找到（已过期）
+Cached result: Cached response
+Waiting for TTL to expire...
+Result after TTL: Not found (expired)
 ```
 
-### 自定义 RedisSemanticCache
+### Customizing RedisSemanticCache
 
 ```python
-# 使用自定义设置初始化 RedisSemanticCache
+# Initialize RedisSemanticCache with custom settings
 custom_semantic_cache = RedisSemanticCache(
     redis_url=REDIS_URL,
     embeddings=embeddings,
-    distance_threshold=0.1,  # 更严格的相似度阈值
-    ttl=3600,  # 1 小时 TTL
-    name="custom_cache",  # 自定义缓存名称
+    distance_threshold=0.1,  # Stricter similarity threshold
+    ttl=3600,  # 1 hour TTL
+    name="custom_cache",  # Custom cache name
 )
 
-# 测试自定义语义缓存
+# Test the custom semantic cache
 set_llm_cache(custom_semantic_cache)
 
 test_prompt = "What's the largest planet in our solar system?"
 result, _ = test_semantic_cache(test_prompt)
 print(f"Original result: {result}")
 
-# 尝试一个稍有不同的查询
+# Try a slightly different query
 similar_test_prompt = "Which planet is the biggest in the solar system?"
 similar_result, _ = test_semantic_cache(similar_test_prompt)
 print(f"Similar query result: {similar_result}")
 
-# 清理
+# Clean up
 custom_semantic_cache.clear()
 ```
 
 ```text
-原始结果：
+Original result:
 
 The largest planet in our solar system is Jupiter.
-相似查询结果：
+Similar query result:
 
 The largest planet in our solar system is Jupiter.
 ```
 
-## 结论
+## Conclusion
 
-本 Notebook 演示了 langchain-redis 包中 `RedisCache` 和 `RedisSemanticCache` 的用法。这些缓存机制可以通过减少冗余 API 调用并利用语义相似性进行智能缓存，显著提高基于 LLM 的应用程序的性能。基于 Redis 的实现为分布式系统中的缓存提供了快速、可扩展且灵活的解决方案。
+This notebook demonstrated the usage of `RedisCache` and `RedisSemanticCache` from the langchain-redis package. These caching mechanisms can significantly improve the performance of LLM-based applications by reducing redundant API calls and leveraging semantic similarity for intelligent caching. The Redis-based implementation provides a fast, scalable, and flexible solution for caching in distributed systems.
 
 ---
 
 <div className="source-links">
-<Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/caches/redis_llm_caching.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
-</Callout>
 <Callout icon="terminal-2">
-    [连接这些文档](/use-these-docs) 到 Claude、VSCode 等，通过 MCP 获取实时答案。
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+</Callout>
+<Callout icon="edit">
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/caches/redis_llm_caching.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 </div>
