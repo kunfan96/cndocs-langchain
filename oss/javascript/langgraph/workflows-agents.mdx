@@ -17,7 +17,8 @@ LangGraph 在构建代理和工作流时提供了多项优势，包括[持久化
 要构建工作流或代理，您可以使用[任何支持结构化输出和工具调用的聊天模型](/oss/javascript/integrations/chat)。以下示例使用 Anthropic：
 
 1. 安装依赖项
-<CodeGroup>
+   <CodeGroup>
+
 ```bash npm
 npm install @langchain/langgraph @langchain/core
 ```
@@ -33,6 +34,7 @@ yarn add @langchain/langgraph @langchain/core
 ```bash bun
 bun add @langchain/langgraph @langchain/core
 ```
+
 </CodeGroup>
 
 2. 初始化 LLM：
@@ -42,7 +44,7 @@ import { ChatAnthropic } from "@langchain/anthropic";
 
 const llm = new ChatAnthropic({
   model: "claude-sonnet-4-6",
-  apiKey: "<your_anthropic_key>"
+  apiKey: "<your_anthropic_key>",
 });
 ```
 
@@ -53,25 +55,20 @@ const llm = new ChatAnthropic({
 ![LLM 增强](/oss/images/augmented_llm.png)
 
 ```typescript
-
 import * as z from "zod";
 import { tool } from "langchain";
 
 // 结构化输出的模式
 const SearchQuery = z.object({
   search_query: z.string().describe("为网络搜索优化的查询。"),
-  justification: z
-    .string()
-    .describe("为什么此查询与用户的请求相关。"),
+  justification: z.string().describe("为什么此查询与用户的请求相关。"),
 });
 
 // 使用结构化输出模式增强 LLM
 const structuredLlm = llm.withStructuredOutput(SearchQuery);
 
 // 调用增强后的 LLM
-const output = await structuredLlm.invoke(
-  "钙 CT 评分与高胆固醇有何关系？"
-);
+const output = await structuredLlm.invoke("钙 CT 评分与高胆固醇有何关系？");
 
 // 定义一个工具
 const multiply = tool(
@@ -85,7 +82,7 @@ const multiply = tool(
       a: z.number(),
       b: z.number(),
     }),
-  }
+  },
 );
 
 // 使用工具增强 LLM
@@ -114,58 +111,58 @@ import { z } from "zod/v4";
 
 // 图状态
 const State = new StateSchema({
-  topic: z.string(),
-  joke: z.string(),
-  improvedJoke: z.string(),
-  finalJoke: z.string(),
+topic: z.string(),
+joke: z.string(),
+improvedJoke: z.string(),
+finalJoke: z.string(),
 });
 
 // 定义节点函数
 
 // 第一次 LLM 调用生成初始笑话
 const generateJoke: GraphNode<typeof State> = async (state) => {
-  const msg = await llm.invoke(`写一个关于 ${state.topic} 的简短笑话`);
-  return { joke: msg.content };
+const msg = await llm.invoke(`写一个关于 ${state.topic} 的简短笑话`);
+return { joke: msg.content };
 };
 
 // 门控函数，检查笑话是否有笑点
 const checkPunchline: ConditionalEdgeRouter<typeof State, "improveJoke"> = (state) => {
-  // 简单检查 - 笑话是否包含 "?" 或 "!"
-  if (state.joke?.includes("?") || state.joke?.includes("!")) {
-    return "Pass";
-  }
-  return "Fail";
+// 简单检查 - 笑话是否包含 "?" 或 "!"
+if (state.joke?.includes("?") || state.joke?.includes("!")) {
+return "Pass";
+}
+return "Fail";
 };
 
 // 第二次 LLM 调用改进笑话
 const improveJoke: GraphNode<typeof State> = async (state) => {
-  const msg = await llm.invoke(
-    `通过添加文字游戏使这个笑话更有趣：${state.joke}`
-  );
-  return { improvedJoke: msg.content };
+const msg = await llm.invoke(
+`通过添加文字游戏使这个笑话更有趣：${state.joke}`
+);
+return { improvedJoke: msg.content };
 };
 
 // 第三次 LLM 调用进行最终润色
 const polishJoke: GraphNode<typeof State> = async (state) => {
-  const msg = await llm.invoke(
-    `为这个笑话添加一个出人意料的转折：${state.improvedJoke}`
-  );
-  return { finalJoke: msg.content };
+const msg = await llm.invoke(
+`为这个笑话添加一个出人意料的转折：${state.improvedJoke}`
+);
+return { finalJoke: msg.content };
 };
 
 // 构建工作流
 const chain = new StateGraph(State)
-  .addNode("generateJoke", generateJoke)
-  .addNode("improveJoke", improveJoke)
-  .addNode("polishJoke", polishJoke)
-  .addEdge("__start__", "generateJoke")
-  .addConditionalEdges("generateJoke", checkPunchline, {
-    Pass: "improveJoke",
-    Fail: "__end__"
-  })
-  .addEdge("improveJoke", "polishJoke")
-  .addEdge("polishJoke", "__end__")
-  .compile();
+.addNode("generateJoke", generateJoke)
+.addNode("improveJoke", improveJoke)
+.addNode("polishJoke", polishJoke)
+.addEdge("**start**", "generateJoke")
+.addConditionalEdges("generateJoke", checkPunchline, {
+Pass: "improveJoke",
+Fail: "**end**"
+})
+.addEdge("improveJoke", "polishJoke")
+.addEdge("polishJoke", "**end**")
+.compile();
 
 // 调用
 const state = await chain.invoke({ topic: "猫" });
@@ -173,16 +170,17 @@ console.log("初始笑话：");
 console.log(state.joke);
 console.log("\n--- --- ---\n");
 if (state.improvedJoke !== undefined) {
-  console.log("改进后的笑话：");
-  console.log(state.improvedJoke);
-  console.log("\n--- --- ---\n");
+console.log("改进后的笑话：");
+console.log(state.improvedJoke);
+console.log("\n--- --- ---\n");
 
-  console.log("最终笑话：");
-  console.log(state.finalJoke);
+console.log("最终笑话：");
+console.log(state.finalJoke);
 } else {
-  console.log("笑话未通过质量门控 - 未检测到笑点！");
+console.log("笑话未通过质量门控 - 未检测到笑点！");
 }
-```
+
+````
 ```typescript Functional API
 import { task, entrypoint } from "@langchain/langgraph";
 
@@ -239,7 +237,8 @@ const stream = await workflow.stream("猫", {
 for await (const step of stream) {
   console.log(step);
 }
-```
+````
+
 </CodeGroup>
 
 ## 并行化
@@ -263,60 +262,61 @@ import * as z from "zod";
 
 // 图状态
 const State = new StateSchema({
-  topic: z.string(),
-  joke: z.string(),
-  story: z.string(),
-  poem: z.string(),
-  combinedOutput: z.string(),
+topic: z.string(),
+joke: z.string(),
+story: z.string(),
+poem: z.string(),
+combinedOutput: z.string(),
 });
 
 // 节点
 // 第一次 LLM 调用生成初始笑话
 const callLlm1: GraphNode<typeof State> = async (state) => {
-  const msg = await llm.invoke(`写一个关于 ${state.topic} 的笑话`);
-  return { joke: msg.content };
+const msg = await llm.invoke(`写一个关于 ${state.topic} 的笑话`);
+return { joke: msg.content };
 };
 
 // 第二次 LLM 调用生成故事
 const callLlm2: GraphNode<typeof State> = async (state) => {
-  const msg = await llm.invoke(`写一个关于 ${state.topic} 的故事`);
-  return { story: msg.content };
+const msg = await llm.invoke(`写一个关于 ${state.topic} 的故事`);
+return { story: msg.content };
 };
 
 // 第三次 LLM 调用生成诗歌
 const callLlm3: GraphNode<typeof State> = async (state) => {
-  const msg = await llm.invoke(`写一首关于 ${state.topic} 的诗`);
-  return { poem: msg.content };
+const msg = await llm.invoke(`写一首关于 ${state.topic} 的诗`);
+return { poem: msg.content };
 };
 
 // 将笑话、故事和诗歌合并为单个输出
 const aggregator: GraphNode<typeof State> = async (state) => {
-  const combined = `这是一个关于 ${state.topic} 的故事、笑话和诗歌！\n\n` +
-    `故事：\n${state.story}\n\n` +
-    `笑话：\n${state.joke}\n\n` +
-    `诗歌：\n${state.poem}`;
-  return { combinedOutput: combined };
+const combined = `这是一个关于 ${state.topic} 的故事、笑话和诗歌！\n\n` +
+`故事：\n${state.story}\n\n` +
+`笑话：\n${state.joke}\n\n` +
+`诗歌：\n${state.poem}`;
+return { combinedOutput: combined };
 };
 
 // 构建工作流
 const parallelWorkflow = new StateGraph(State)
-  .addNode("callLlm1", callLlm1)
-  .addNode("callLlm2", callLlm2)
-  .addNode("callLlm3", callLlm3)
-  .addNode("aggregator", aggregator)
-  .addEdge("__start__", "callLlm1")
-  .addEdge("__start__", "callLlm2")
-  .addEdge("__start__", "callLlm3")
-  .addEdge("callLlm1", "aggregator")
-  .addEdge("callLlm2", "aggregator")
-  .addEdge("callLlm3", "aggregator")
-  .addEdge("aggregator", "__end__")
-  .compile();
+.addNode("callLlm1", callLlm1)
+.addNode("callLlm2", callLlm2)
+.addNode("callLlm3", callLlm3)
+.addNode("aggregator", aggregator)
+.addEdge("**start**", "callLlm1")
+.addEdge("**start**", "callLlm2")
+.addEdge("**start**", "callLlm3")
+.addEdge("callLlm1", "aggregator")
+.addEdge("callLlm2", "aggregator")
+.addEdge("callLlm3", "aggregator")
+.addEdge("aggregator", "**end**")
+.compile();
 
 // 调用
 const result = await parallelWorkflow.invoke({ topic: "猫" });
 console.log(result.combinedOutput);
-```
+
+````
 ```typescript Functional API
 import { task, entrypoint } from "@langchain/langgraph";
 
@@ -376,7 +376,8 @@ const stream = await workflow.stream("猫", {
 for await (const step of stream) {
   console.log(step);
 }
-```
+````
+
 </CodeGroup>
 
 ## 路由
@@ -392,9 +393,9 @@ import * as z from "zod";
 
 // 用作路由逻辑的结构化输出模式
 const routeSchema = z.object({
-  step: z.enum(["poem", "story", "joke"]).describe(
-    "路由过程中的下一步"
-  ),
+step: z.enum(["poem", "story", "joke"]).describe(
+"路由过程中的下一步"
+),
 });
 
 // 使用结构化输出模式增强 LLM
@@ -402,99 +403,100 @@ const router = llm.withStructuredOutput(routeSchema);
 
 // 图状态
 const State = new StateSchema({
-  input: z.string(),
-  decision: z.string(),
-  output: z.string(),
+input: z.string(),
+decision: z.string(),
+output: z.string(),
 });
 
 // 节点
 // 写一个故事
 const llmCall1: GraphNode<typeof State> = async (state) => {
-  const result = await llm.invoke([{
-    role: "system",
-    content: "你是一位专业的故事讲述者。",
-  }, {
-    role: "user",
-    content: state.input
-  }]);
-  return { output: result.content };
+const result = await llm.invoke([{
+role: "system",
+content: "你是一位专业的故事讲述者。",
+}, {
+role: "user",
+content: state.input
+}]);
+return { output: result.content };
 };
 
 // 写一个笑话
 const llmCall2: GraphNode<typeof State> = async (state) => {
-  const result = await llm.invoke([{
-    role: "system",
-    content: "你是一位专业的喜剧演员。",
-  }, {
-    role: "user",
-    content: state.input
-  }]);
-  return { output: result.content };
+const result = await llm.invoke([{
+role: "system",
+content: "你是一位专业的喜剧演员。",
+}, {
+role: "user",
+content: state.input
+}]);
+return { output: result.content };
 };
 
 // 写一首诗
 const llmCall3: GraphNode<typeof State> = async (state) => {
-  const result = await llm.invoke([{
-    role: "system",
-    content: "你是一位专业的诗人。",
-  }, {
-    role: "user",
-    content: state.input
-  }]);
-  return { output: result.content };
+const result = await llm.invoke([{
+role: "system",
+content: "你是一位专业的诗人。",
+}, {
+role: "user",
+content: state.input
+}]);
+return { output: result.content };
 };
 
 const llmCallRouter: GraphNode<typeof State> = async (state) => {
-  // 将输入路由到适当的节点
-  const decision = await router.invoke([
-    {
-      role: "system",
-      content: "根据用户的请求将输入路由到故事、笑话或诗歌。"
-    },
-    {
-      role: "user",
-      content: state.input
-    },
-  ]);
+// 将输入路由到适当的节点
+const decision = await router.invoke([
+{
+role: "system",
+content: "根据用户的请求将输入路由到故事、笑话或诗歌。"
+},
+{
+role: "user",
+content: state.input
+},
+]);
 
-  return { decision: decision.step };
+return { decision: decision.step };
 };
 
 // 条件边函数，路由到适当的节点
 const routeDecision: ConditionalEdgeRouter<typeof State, "llmCall1" | "llmCall2" | "llmCall3"> = (state) => {
-  // 返回您接下来要访问的节点名称
-  if (state.decision === "story") {
-    return "llmCall1";
-  } else if (state.decision === "joke") {
-    return "llmCall2";
-  } else {
-    return "llmCall3";
-  }
+// 返回您接下来要访问的节点名称
+if (state.decision === "story") {
+return "llmCall1";
+} else if (state.decision === "joke") {
+return "llmCall2";
+} else {
+return "llmCall3";
+}
 };
 
 // 构建工作流
 const routerWorkflow = new StateGraph(State)
-  .addNode("llmCall1", llmCall1)
-  .addNode("llmCall2", llmCall2)
-  .addNode("llmCall3", llmCall3)
-  .addNode("llmCallRouter", llmCallRouter)
-  .addEdge("__start__", "llmCallRouter")
-  .addConditionalEdges(
-    "llmCallRouter",
-    routeDecision,
-    ["llmCall1", "llmCall2", "llmCall3"],
-  )
-  .addEdge("llmCall1", "__end__")
-  .addEdge("llmCall2", "__end__")
-  .addEdge("llmCall3", "__end__")
-  .compile();
+.addNode("llmCall1", llmCall1)
+.addNode("llmCall2", llmCall2)
+.addNode("llmCall3", llmCall3)
+.addNode("llmCallRouter", llmCallRouter)
+.addEdge("**start**", "llmCallRouter")
+.addConditionalEdges(
+"llmCallRouter",
+routeDecision,
+["llmCall1", "llmCall2", "llmCall3"],
+)
+.addEdge("llmCall1", "**end**")
+.addEdge("llmCall2", "**end**")
+.addEdge("llmCall3", "**end**")
+.compile();
 
 // 调用
 const state = await routerWorkflow.invoke({
-  input: "给我写一个关于猫的笑话"
+input: "给我写一个关于猫的笑话"
 });
 console.log(state.output);
-```
+
+````
 ```typescript Functional API
 import * as z from "zod";
 import { task, entrypoint } from "@langchain/langgraph";
@@ -589,7 +591,8 @@ const stream = await workflow.stream("给我写一个关于猫的笑话", {
 for await (const step of stream) {
   console.log(step);
 }
-```
+````
+
 </CodeGroup>
 
 ## 编排器-工作者
@@ -608,16 +611,17 @@ for await (const step of stream) {
 ```typescript Graph API
 
 type SectionSchema = {
-    name: string;
-    description: string;
+name: string;
+description: string;
 }
 type SectionsSchema = {
-    sections: SectionSchema[];
+sections: SectionSchema[];
 }
 
 // 使用结构化输出模式增强 LLM
 const planner = llm.withStructuredOutput(sectionsSchema);
-```
+
+````
 ```typescript Functional API
 import * as z from "zod";
 import { task, entrypoint } from "@langchain/langgraph";
@@ -689,7 +693,8 @@ const stream = await workflow.stream("创建一份关于 LLM 扩展定律的报�
 for await (const step of stream) {
   console.log(step);
 }
-```
+````
+
 </CodeGroup>
 
 ### 在 LangGraph 中创建工作者
@@ -697,7 +702,13 @@ for await (const step of stream) {
 编排器-工作者工作流很常见，LangGraph 对其提供了内置支持。`Send` API 允许您动态创建工作者节点并向其发送特定输入。每个工作者都有自己的状态，所有工作者的输出都写入一个共享状态键，该键可由编排器图访问。这使编排器可以访问所有工作者的输出，并允许将其合成为最终输出。下面的示例遍历一个部分列表，并使用 `Send` API 将每个部分发送给一个工作者。
 
 ```typescript
-import { StateGraph, StateSchema, ReducedValue, GraphNode, Send } from "@langchain/langgraph";
+import {
+  StateGraph,
+  StateSchema,
+  ReducedValue,
+  GraphNode,
+  Send,
+} from "@langchain/langgraph";
 import * as z from "zod";
 
 // 图状态
@@ -706,7 +717,7 @@ const State = new StateSchema({
   sections: z.array(z.custom<SectionsSchema>()),
   completedSections: new ReducedValue(
     z.array(z.string()).default(() => []),
-    { reducer: (a, b) => a.concat(b) }
+    { reducer: (a, b) => a.concat(b) },
   ),
   finalReport: z.string(),
 });
@@ -716,7 +727,7 @@ const WorkerState = new StateSchema({
   section: z.custom<SectionsSchema>(),
   completedSections: new ReducedValue(
     z.array(z.string()).default(() => []),
-    { reducer: (a, b) => a.concat(b) }
+    { reducer: (a, b) => a.concat(b) },
   ),
 });
 
@@ -736,7 +747,8 @@ const llmCall: GraphNode<typeof WorkerState> = async (state) => {
   const section = await llm.invoke([
     {
       role: "system",
-      content: "按照提供的名称和描述撰写报告部分。每个部分不包含前言。使用 markdown 格式。",
+      content:
+        "按照提供的名称和描述撰写报告部分。每个部分不包含前言。使用 markdown 格式。",
     },
     {
       role: "user",
@@ -759,11 +771,11 @@ const synthesizer: GraphNode<typeof State> = async (state) => {
 };
 
 // 条件边函数，创建 llm_call 工作者，每个工作者撰写报告的一个部分
-const assignWorkers: ConditionalEdgeRouter<typeof State, "llmCall"> = (state) => {
+const assignWorkers: ConditionalEdgeRouter<typeof State, "llmCall"> = (
+  state,
+) => {
   // 通过 Send() API 并行启动部分撰写
-  return state.sections.map((section) =>
-    new Send("llmCall", { section })
-  );
+  return state.sections.map((section) => new Send("llmCall", { section }));
 };
 
 // 构建工作流
@@ -772,25 +784,21 @@ const orchestratorWorker = new StateGraph(State)
   .addNode("llmCall", llmCall)
   .addNode("synthesizer", synthesizer)
   .addEdge("__start__", "orchestrator")
-  .addConditionalEdges(
-    "orchestrator",
-    assignWorkers,
-    ["llmCall"]
-  )
+  .addConditionalEdges("orchestrator", assignWorkers, ["llmCall"])
   .addEdge("llmCall", "synthesizer")
   .addEdge("synthesizer", "__end__")
   .compile();
 
 // 调用
 const state = await orchestratorWorker.invoke({
-  topic: "创建一份关于 LLM 扩展定律的报告"
+  topic: "创建一份关于 LLM 扩展定律的报告",
 });
 console.log(state.finalReport);
 ```
 
 ## 评估器-优化器
 
-在评估器-优化器工作流中，一次 LLM 调用创建响应，另一次调用评估该响应。如果评估器或[人在回路中](/oss/javascript/langgraph/interrupts)确定响应需要改进，则会提供反馈并重新创建响应。此循环持续进行，直到生成可接受的响应。
+在评估器-优化器工作流中，一次 LLM 调用创建响应，另一次调用评估该响应。如果评估器或[Human in the Loop](/oss/javascript/langgraph/interrupts)确定响应需要改进，则会提供反馈并重新创建响应。此循环持续进行，直到生成可接受的响应。
 
 评估器-优化器工作流通常在任务有特定成功标准但需要迭代才能满足该标准时使用。例如，在两种语言之间翻译文本时，通常无法完美匹配。可能需要几次迭代才能生成在两种语言中具有相同含义的翻译。
 
@@ -803,20 +811,20 @@ import * as z from "zod";
 
 // 图状态
 const State = new StateSchema({
-  joke: z.string(),
-  topic: z.string(),
-  feedback: z.string(),
-  funnyOrNot: z.string(),
+joke: z.string(),
+topic: z.string(),
+feedback: z.string(),
+funnyOrNot: z.string(),
 });
 
 // 用于评估的结构化输出模式
 const feedbackSchema = z.object({
-  grade: z.enum(["funny", "not funny"]).describe(
-    "判断笑话是否有趣。"
-  ),
-  feedback: z.string().describe(
-    "如果笑话不有趣，请提供如何改进的反馈。"
-  ),
+grade: z.enum(["funny", "not funny"]).describe(
+"判断笑话是否有趣。"
+),
+feedback: z.string().describe(
+"如果笑话不有趣，请提供如何改进的反馈。"
+),
 });
 
 // 使用结构化输出模式增强 LLM
@@ -824,55 +832,56 @@ const evaluator = llm.withStructuredOutput(feedbackSchema);
 
 // 节点
 const llmCallGenerator: GraphNode<typeof State> = async (state) => {
-  // LLM 生成一个笑话
-  let msg;
-  if (state.feedback) {
-    msg = await llm.invoke(
-      `写一个关于 ${state.topic} 的笑话，但要考虑反馈：${state.feedback}`
-    );
-  } else {
-    msg = await llm.invoke(`写一个关于 ${state.topic} 的笑话`);
-  }
-  return { joke: msg.content };
+// LLM 生成一个笑话
+let msg;
+if (state.feedback) {
+msg = await llm.invoke(
+`写一个关于 ${state.topic} 的笑话，但要考虑反馈：${state.feedback}`
+);
+} else {
+msg = await llm.invoke(`写一个关于 ${state.topic} 的笑话`);
+}
+return { joke: msg.content };
 };
 
 const llmCallEvaluator: GraphNode<typeof State> = async (state) => {
-  // LLM 评估笑话
-  const grade = await evaluator.invoke(`评估这个笑话 ${state.joke}`);
-  return { funnyOrNot: grade.grade, feedback: grade.feedback };
+// LLM 评估笑话
+const grade = await evaluator.invoke(`评估这个笑话 ${state.joke}`);
+return { funnyOrNot: grade.grade, feedback: grade.feedback };
 };
 
 // 条件边函数，根据评估器的反馈路由回笑话生成器或结束
 const routeJoke: ConditionalEdgeRouter<typeof State, "llmCallGenerator"> = (state) => {
-  // 根据评估器的反馈路由回笑话生成器或结束
-  if (state.funnyOrNot === "funny") {
-    return "Accepted";
-  } else {
-    return "Rejected + Feedback";
-  }
+// 根据评估器的反馈路由回笑话生成器或结束
+if (state.funnyOrNot === "funny") {
+return "Accepted";
+} else {
+return "Rejected + Feedback";
+}
 };
 
 // 构建工作流
 const optimizerWorkflow = new StateGraph(State)
-  .addNode("llmCallGenerator", llmCallGenerator)
-  .addNode("llmCallEvaluator", llmCallEvaluator)
-  .addEdge("__start__", "llmCallGenerator")
-  .addEdge("llmCallGenerator", "llmCallEvaluator")
-  .addConditionalEdges(
-    "llmCallEvaluator",
-    routeJoke,
-    {
-      // routeJoke 返回的名称 : 下一个要访问的节点名称
-      "Accepted": "__end__",
-      "Rejected + Feedback": "llmCallGenerator",
-    }
-  )
-  .compile();
+.addNode("llmCallGenerator", llmCallGenerator)
+.addNode("llmCallEvaluator", llmCallEvaluator)
+.addEdge("**start**", "llmCallGenerator")
+.addEdge("llmCallGenerator", "llmCallEvaluator")
+.addConditionalEdges(
+"llmCallEvaluator",
+routeJoke,
+{
+// routeJoke 返回的名称 : 下一个要访问的节点名称
+"Accepted": "**end**",
+"Rejected + Feedback": "llmCallGenerator",
+}
+)
+.compile();
 
 // 调用
 const state = await optimizerWorkflow.invoke({ topic: "猫" });
 console.log(state.joke);
-```
+
+````
 ```typescript Functional API
 import * as z from "zod";
 import { task, entrypoint } from "@langchain/langgraph";
@@ -938,7 +947,8 @@ for await (const step of stream) {
   console.log(step);
   console.log("\n");
 }
-```
+````
+
 </CodeGroup>
 
 ## 代理
@@ -948,7 +958,8 @@ for await (const step of stream) {
 ![agent.png](/oss/images/agent.png)
 
 <Note>
-要开始使用代理，请参阅[快速入门](/oss/javascript/langchain/quickstart)或阅读更多关于它们在 LangChain 中[如何工作](/oss/javascript/langchain/agents)的信息。
+  要开始使用代理，请参阅[快速入门](/oss/javascript/langchain/quickstart)或阅读更多关于它们在
+  LangChain 中[如何工作](/oss/javascript/langchain/agents)的信息。
 </Note>
 
 ```typescript 使用工具
@@ -967,7 +978,7 @@ const multiply = tool(
       a: z.number().describe("第一个数字"),
       b: z.number().describe("第二个数字"),
     }),
-  }
+  },
 );
 
 const add = tool(
@@ -981,7 +992,7 @@ const add = tool(
       a: z.number().describe("第一个数字"),
       b: z.number().describe("第二个数字"),
     }),
-  }
+  },
 );
 
 const divide = tool(
@@ -995,7 +1006,7 @@ const divide = tool(
       a: z.number().describe("第一个数字"),
       b: z.number().describe("第二个数字"),
     }),
-  }
+  },
 );
 
 // 使用工具增强 LLM
@@ -1015,62 +1026,63 @@ import {
 
 // 图状态
 const State = new StateSchema({
-  messages: MessagesValue,
+messages: MessagesValue,
 });
 
 // 节点
 const llmCall: GraphNode<typeof State> = async (state) => {
-  // LLM 决定是否调用工具
-  const result = await llmWithTools.invoke([
-    {
-      role: "system",
-      content: "你是一个有用的助手，负责对一组输入执行算术运算。"
-    },
-    ...state.messages
-  ]);
+// LLM 决定是否调用工具
+const result = await llmWithTools.invoke([
+{
+role: "system",
+content: "你是一个有用的助手，负责对一组输入执行算术运算。"
+},
+...state.messages
+]);
 
-  return {
-    messages: [result]
-  };
+return {
+messages: [result]
+};
 };
 
 const toolNode = new ToolNode(tools);
 
 // 条件边函数，路由到工具节点或结束
 const shouldContinue: ConditionalEdgeRouter<typeof State, "toolNode"> = (state) => {
-  const messages = state.messages;
-  const lastMessage = messages.at(-1);
+const messages = state.messages;
+const lastMessage = messages.at(-1);
 
-  // 如果 LLM 进行了工具调用，则执行操作
-  if (lastMessage?.tool_calls?.length) {
-    return "toolNode";
-  }
-  // 否则，我们停止（回复用户）
-  return "__end__";
+// 如果 LLM 进行了工具调用，则执行操作
+if (lastMessage?.tool_calls?.length) {
+return "toolNode";
+}
+// 否则，我们停止（回复用户）
+return "**end**";
 };
 
 // 构建工作流
 const agentBuilder = new StateGraph(State)
-  .addNode("llmCall", llmCall)
-  .addNode("toolNode", toolNode)
-  // 添加边以连接节点
-  .addEdge("__start__", "llmCall")
-  .addConditionalEdges(
-    "llmCall",
-    shouldContinue,
-    ["toolNode", "__end__"]
-  )
-  .addEdge("toolNode", "llmCall")
-  .compile();
+.addNode("llmCall", llmCall)
+.addNode("toolNode", toolNode)
+// 添加边以连接节点
+.addEdge("**start**", "llmCall")
+.addConditionalEdges(
+"llmCall",
+shouldContinue,
+["toolNode", "__end__"]
+)
+.addEdge("toolNode", "llmCall")
+.compile();
 
 // 调用
 const messages = [{
-  role: "user",
-  content: "将 3 和 4 相加。"
+role: "user",
+content: "将 3 和 4 相加。"
 }];
 const result = await agentBuilder.invoke({ messages });
 console.log(result.messages);
-```
+
+````
 ```typescript Functional API
 import { task, entrypoint, addMessages } from "@langchain/langgraph";
 import { BaseMessageLike, ToolCall } from "@langchain/core/messages";
@@ -1129,16 +1141,20 @@ const stream = await agent.stream([messages], {
 for await (const step of stream) {
   console.log(step);
 }
-```
+````
+
 </CodeGroup>
 
 ---
 
 <div className="source-links">
-<Callout icon="terminal-2">
-    [通过 MCP 将这些文档](/use-these-docs)连接到 Claude、VSCode 等，以获取实时答案。
-</Callout>
-<Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/workflows-agents.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
-</Callout>
+  <Callout icon="terminal-2">
+    [通过 MCP 将这些文档](/use-these-docs)连接到 Claude、VSCode
+    等，以获取实时答案。
+  </Callout>
+  <Callout icon="edit">
+    [在 GitHub
+    上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/workflows-agents.mdx)
+    或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
+  </Callout>
 </div>

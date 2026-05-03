@@ -3,9 +3,7 @@ title: 使用图 API
 sidebarTitle: 使用图 API
 ---
 
-
-
-import ChatModelTabs from '/snippets/chat-model-tabs.mdx';
+import ChatModelTabs from "/snippets/chat-model-tabs.mdx";
 
 本指南演示了 LangGraph 图 API 的基础知识。它将引导你了解[状态](#定义和更新状态)，以及如何组合常见的图结构，如[序列](#创建步骤序列)、[分支](#创建分支)和[循环](#创建和控制循环)。它还涵盖了 LangGraph 的控制功能，包括用于 Map-Reduce 工作流的 [Send API](#map-reduce 和 send api) 以及用于将状态更新与节点间“跳转”相结合的 [Command API](#使用 command 结合控制流和状态更新)。
 
@@ -21,15 +19,14 @@ pip install -U langgraph
 ```bash uv
 uv add langgraph
 ```
+
 </CodeGroup>
-
-
-
 
 <Tip>
 **设置 LangSmith 以获得更好的调试体验**
 
 注册 [LangSmith](https://smith.langchain.com) 以快速发现问题并提升你的 LangGraph 项目的性能。LangSmith 允许你使用跟踪数据来调试、测试和监控使用 LangGraph 构建的 LLM 应用——在[文档](/langsmith/observability)中了解更多入门信息。
+
 </Tip>
 
 ## 定义和更新状态
@@ -43,14 +40,9 @@ uv add langgraph
 
 LangGraph 中的[状态](/oss/python/langgraph/graph-api#state)可以是 `TypedDict`、`Pydantic` 模型或数据类。下面我们将使用 `TypedDict`。有关使用 Pydantic 的详细信息，请参阅[使用 Pydantic 模型作为图状态](#使用 pydantic 模型作为图状态)。
 
-
-
-
 默认情况下，图将具有相同的输入和输出模式，状态决定了该模式。有关如何定义不同的输入和输出模式，请参阅[定义输入和输出模式](#定义输入和输出模式)。
 
 让我们考虑一个使用[消息](/oss/python/langgraph/graph-api#messagesstate)的简单示例。这代表了用于许多 LLM 应用程序的一种通用状态表述。更多详情请参阅我们的[概念页面](/oss/python/langgraph/graph-api#working-with-messages-in-graph-state)。
-
-
 
 ```python
 from langchain.messages import AnyMessage
@@ -62,9 +54,6 @@ class State(TypedDict):
 ```
 
 此状态跟踪一个[消息](https://python.langchain.com/docs/concepts/messages/)对象列表，以及一个额外的整数字段。
-
-
-
 
 ### 更新状态
 
@@ -81,12 +70,7 @@ def node(state: State):
 
 此节点只是向我们的消息列表追加一条消息，并填充一个额外的字段。
 
-
-
-
-<Warning>
-节点应直接返回对状态的更新，而不是修改状态。
-</Warning>
+<Warning>节点应直接返回对状态的更新，而不是修改状态。</Warning>
 
 接下来，让我们定义一个包含此节点的简单图。我们使用 [`StateGraph`](/oss/python/langgraph/graph-api#stategraph) 来定义一个操作此状态的图。然后我们使用 [`add_node`](/oss/python/langgraph/graph-api#nodes) 来填充我们的图。
 
@@ -99,9 +83,6 @@ builder.set_entry_point("node")
 graph = builder.compile()
 ```
 
-
-
-
 LangGraph 提供了内置的可视化工具来查看你的图。让我们检查一下我们的图。有关可视化的详细信息，请参阅[可视化你的图](#可视化你的图)。
 
 ```python
@@ -111,9 +92,6 @@ display(Image(graph.get_graph().draw_mermaid_png()))
 ```
 
 ![具有单个节点的简单图](/oss/images/graph_api_image_1.png)
-
-
-
 
 在这种情况下，我们的图只执行一个节点。让我们进行一个简单的调用：
 
@@ -128,13 +106,10 @@ result
 {'messages': [HumanMessage(content='Hi'), AIMessage(content='Hello!')], 'extra_field': 10}
 ```
 
-
-
-
 请注意：
 
-* 我们通过更新状态的单个键来启动调用。
-* 我们在调用结果中接收到整个状态。
+- 我们通过更新状态的单个键来启动调用。
+- 我们在调用结果中接收到整个状态。
 
 为了方便，我们经常通过漂亮打印来检查[消息对象](https://python.langchain.com/docs/concepts/messages/)的内容：
 
@@ -151,9 +126,6 @@ Hi
 
 Hello!
 ```
-
-
-
 
 ### 使用归约器处理状态更新
 
@@ -183,9 +155,6 @@ def node(state: State):
     return {"messages": [new_message], "extra_field": 10}  # [!code highlight]
 ```
 
-
-
-
 ```python
 from langgraph.graph import START
 
@@ -206,15 +175,12 @@ Hi
 Hello!
 ```
 
-
-
-
 #### MessagesState
 
 实际上，更新消息列表还有额外的考虑因素：
 
-* 我们可能希望更新状态中的现有消息。
-* 我们可能希望接受[消息格式](/oss/python/langgraph/graph-api#using-messages-in-your-graph)的简写，例如 [OpenAI 格式](https://python.langchain.com/docs/concepts/messages/#openai-format)。
+- 我们可能希望更新状态中的现有消息。
+- 我们可能希望接受[消息格式](/oss/python/langgraph/graph-api#using-messages-in-your-graph)的简写，例如 [OpenAI 格式](https://python.langchain.com/docs/concepts/messages/#openai-format)。
 
 LangGraph 包含一个内置的归约器 [`add_messages`](https://reference.langchain.com/python/langgraph/graph/message/add_messages)，它处理这些考虑因素：
 
@@ -258,9 +224,6 @@ from langgraph.graph import MessagesState
 class State(MessagesState):
     extra_field: int
 ```
-
-
-
 
 ### 使用 `Overwrite` 绕过归约器
 
@@ -309,9 +272,10 @@ def replace_messages(state: State):
 ```
 
 <Warning>
-当节点并行执行时，在给定的超级步骤中，只有一个节点可以使用 `Overwrite` 来处理同一个状态键。如果多个节点尝试在同一个超级步骤中覆盖同一个键，将引发 `InvalidUpdateError`。
+  当节点并行执行时，在给定的超级步骤中，只有一个节点可以使用 `Overwrite`
+  来处理同一个状态键。如果多个节点尝试在同一个超级步骤中覆盖同一个键，将引发
+  `InvalidUpdateError`。
 </Warning>
-
 
 ### 定义输入和输出模式
 
@@ -356,9 +320,6 @@ print(graph.invoke({"question": "hi"}))
 ```
 {'answer': 'bye'}
 ```
-
-
-
 
 请注意，调用的输出仅包含输出模式。
 
@@ -433,9 +394,6 @@ Entered node `node_3`:
 Output of graph invocation: {'a': 'set by node_3'}
 ```
 
-
-
-
 ### 使用 pydantic 模型作为图状态
 
 [StateGraph](https://langchain-ai.github.io/langgraph/reference/graphs.md#langgraph.graph.StateGraph) 在初始化时接受一个 [`state_schema`](https://reference.langchain.com/python/langchain/middleware/#langchain.agents.middleware.AgentMiddleware.state_schema) 参数，该参数指定图中节点可以访问和更新的状态的“形状”。
@@ -445,11 +403,10 @@ Output of graph invocation: {'a': 'set by node_3'}
 这里，我们将看到如何使用 [Pydantic BaseModel](https://docs.pydantic.dev/latest/api/base_model/) 作为 [`state_schema`](https://reference.langchain.com/python/langchain/middleware/#langchain.agents.middleware.AgentMiddleware.state_schema) 来添加对**输入**的运行时验证。
 
 <Note>
-**已知限制**
-* 目前，图的输出**不会**是 pydantic 模型的实例。
-* 运行时验证仅发生在图第一个节点的输入上，而不是后续节点或输出上。
-* pydantic 的验证错误跟踪不会显示错误发生在哪个节点。
-* Pydantic 的递归验证可能很慢。对于性能敏感的应用程序，你可能需要考虑改用 `dataclass`。
+  **已知限制** * 目前，图的输出**不会**是 pydantic 模型的实例。 *
+  运行时验证仅发生在图第一个节点的输入上，而不是后续节点或输出上。 * pydantic
+  的验证错误跟踪不会显示错误发生在哪个节点。 * Pydantic
+  的递归验证可能很慢。对于性能敏感的应用程序，你可能需要考虑改用 `dataclass`。
 </Note>
 
 ```python
@@ -498,127 +455,127 @@ a
 <Accordion title="序列化行为">
   当使用 Pydantic 模型作为状态模式时，了解序列化的工作方式非常重要，特别是在以下情况下：
 
-  * 将 Pydantic 对象作为输入传递
-  * 接收图的输出
-  * 处理嵌套的 Pydantic 模型
+- 将 Pydantic 对象作为输入传递
+- 接收图的输出
+- 处理嵌套的 Pydantic 模型
 
-  让我们看看这些行为的实际应用。
+让我们看看这些行为的实际应用。
 
-  ```python
-  from langgraph.graph import StateGraph, START, END
-  from pydantic import BaseModel
+```python
+from langgraph.graph import StateGraph, START, END
+from pydantic import BaseModel
 
-  class NestedModel(BaseModel):
-      value: str
+class NestedModel(BaseModel):
+    value: str
 
-  class ComplexState(BaseModel):
-      text: str
-      count: int
-      nested: NestedModel
+class ComplexState(BaseModel):
+    text: str
+    count: int
+    nested: NestedModel
 
-  def process_node(state: ComplexState):
-      # 节点接收一个经过验证的 Pydantic 对象
-      print(f"Input state type: {type(state)}")
-      print(f"Nested type: {type(state.nested)}")
-      # 返回字典更新
-      return {"text": state.text + " processed", "count": state.count + 1}
+def process_node(state: ComplexState):
+    # 节点接收一个经过验证的 Pydantic 对象
+    print(f"Input state type: {type(state)}")
+    print(f"Nested type: {type(state.nested)}")
+    # 返回字典更新
+    return {"text": state.text + " processed", "count": state.count + 1}
 
-  # 构建图
-  builder = StateGraph(ComplexState)
-  builder.add_node("process", process_node)
-  builder.add_edge(START, "process")
-  builder.add_edge("process", END)
-  graph = builder.compile()
+# 构建图
+builder = StateGraph(ComplexState)
+builder.add_node("process", process_node)
+builder.add_edge(START, "process")
+builder.add_edge("process", END)
+graph = builder.compile()
 
-  # 创建一个 Pydantic 实例作为输入
-  input_state = ComplexState(text="hello", count=0, nested=NestedModel(value="test"))
-  print(f"Input object type: {type(input_state)}")
+# 创建一个 Pydantic 实例作为输入
+input_state = ComplexState(text="hello", count=0, nested=NestedModel(value="test"))
+print(f"Input object type: {type(input_state)}")
 
-  # 使用 Pydantic 实例调用图
-  result = graph.invoke(input_state)
-  print(f"Output type: {type(result)}")
-  print(f"Output content: {result}")
+# 使用 Pydantic 实例调用图
+result = graph.invoke(input_state)
+print(f"Output type: {type(result)}")
+print(f"Output content: {result}")
 
-  # 如果需要，转换回 Pydantic 模型
-  output_model = ComplexState(**result)
-  print(f"Converted back to Pydantic: {type(output_model)}")
-  ```
+# 如果需要，转换回 Pydantic 模型
+output_model = ComplexState(**result)
+print(f"Converted back to Pydantic: {type(output_model)}")
+```
+
 </Accordion>
 
 <Accordion title="运行时类型强制转换">
   Pydantic 对某些数据类型执行运行时类型强制转换。这可能很有帮助，但如果你没有意识到，也可能导致意外行为。
 
-  ```python
-  from langgraph.graph import StateGraph, START, END
-  from pydantic import BaseModel
+```python
+from langgraph.graph import StateGraph, START, END
+from pydantic import BaseModel
 
-  class CoercionExample(BaseModel):
-      # Pydantic 会将字符串数字强制转换为整数
-      number: int
-      # Pydantic 会将字符串布尔值解析为 bool
-      flag: bool
+class CoercionExample(BaseModel):
+    # Pydantic 会将字符串数字强制转换为整数
+    number: int
+    # Pydantic 会将字符串布尔值解析为 bool
+    flag: bool
 
-  def inspect_node(state: CoercionExample):
-      print(f"number: {state.number} (type: {type(state.number)})")
-      print(f"flag: {state.flag} (type: {type(state.flag)})")
-      return {}
+def inspect_node(state: CoercionExample):
+    print(f"number: {state.number} (type: {type(state.number)})")
+    print(f"flag: {state.flag} (type: {type(state.flag)})")
+    return {}
 
-  builder = StateGraph(CoercionExample)
-  builder.add_node("inspect", inspect_node)
-  builder.add_edge(START, "inspect")
-  builder.add_edge("inspect", END)
-  graph = builder.compile()
+builder = StateGraph(CoercionExample)
+builder.add_node("inspect", inspect_node)
+builder.add_edge(START, "inspect")
+builder.add_edge("inspect", END)
+graph = builder.compile()
 
-  # 演示将被转换的字符串输入的强制转换
-  result = graph.invoke({"number": "42", "flag": "true"})
+# 演示将被转换的字符串输入的强制转换
+result = graph.invoke({"number": "42", "flag": "true"})
 
-  # 这将因验证错误而失败
-  try:
-      graph.invoke({"number": "not-a-number", "flag": "true"})
-  except Exception as e:
-      print(f"\nExpected validation error: {e}")
-  ```
+# 这将因验证错误而失败
+try:
+    graph.invoke({"number": "not-a-number", "flag": "true"})
+except Exception as e:
+    print(f"\nExpected validation error: {e}")
+```
+
 </Accordion>
 
 <Accordion title="处理消息模型">
   在状态模式中使用 LangChain 消息类型时，序列化有一些重要的考虑因素。你应该使用 `AnyMessage`（而不是 `BaseMessage`）来正确序列化/反序列化通过网络传输的消息对象。
 
-  ```python
-  from langgraph.graph import StateGraph, START, END
-  from pydantic import BaseModel
-  from langchain.messages import HumanMessage, AIMessage, AnyMessage
-  from typing import List
+```python
+from langgraph.graph import StateGraph, START, END
+from pydantic import BaseModel
+from langchain.messages import HumanMessage, AIMessage, AnyMessage
+from typing import List
 
-  class ChatState(BaseModel):
-      messages: List[AnyMessage]
-      context: str
+class ChatState(BaseModel):
+    messages: List[AnyMessage]
+    context: str
 
-  def add_message(state: ChatState):
-      return {"messages": state.messages + [AIMessage(content="Hello there!")]}
+def add_message(state: ChatState):
+    return {"messages": state.messages + [AIMessage(content="Hello there!")]}
 
-  builder = StateGraph(ChatState)
-  builder.add_node("add_message", add_message)
-  builder.add_edge(START, "add_message")
-  builder.add_edge("add_message", END)
-  graph = builder.compile()
+builder = StateGraph(ChatState)
+builder.add_node("add_message", add_message)
+builder.add_edge(START, "add_message")
+builder.add_edge("add_message", END)
+graph = builder.compile()
 
-  # 创建带有消息的输入
-  initial_state = ChatState(
-      messages=[HumanMessage(content="Hi")], context="Customer support chat"
-  )
+# 创建带有消息的输入
+initial_state = ChatState(
+    messages=[HumanMessage(content="Hi")], context="Customer support chat"
+)
 
-  result = graph.invoke(initial_state)
-  print(f"Output: {result}")
+result = graph.invoke(initial_state)
+print(f"Output: {result}")
 
-  # 转换回 Pydantic 模型以查看消息类型
-  output_model = ChatState(**result)
-  for i, msg in enumerate(output_model.messages):
-      print(f"Message {i}: {type(msg).__name__} - {msg.content}")
-  ```
+# 转换回 Pydantic 模型以查看消息类型
+output_model = ChatState(**result)
+for i, msg in enumerate(output_model.messages):
+    print(f"Message {i}: {type(msg).__name__} - {msg.content}")
+```
+
 </Accordion>
-
-
-
 
 ## 添加运行时配置
 
@@ -670,114 +627,107 @@ print(graph.invoke({}, context={"my_runtime_value": "b"}))  # [!code highlight]
 {'my_state_value': 2}
 ```
 
-
-
-
 <Accordion title="扩展示例：在运行时指定 LLM">
   下面我们演示一个实际示例，我们在运行时配置使用哪个 LLM。我们将同时使用 OpenAI 和 Anthropic 模型。
 
-  ```python
-  from dataclasses import dataclass
+```python
+from dataclasses import dataclass
 
-  from langchain.chat_models import init_chat_model
-  from langgraph.graph import MessagesState, END, StateGraph, START
-  from langgraph.runtime import Runtime
-  from typing_extensions import TypedDict
+from langchain.chat_models import init_chat_model
+from langgraph.graph import MessagesState, END, StateGraph, START
+from langgraph.runtime import Runtime
+from typing_extensions import TypedDict
 
-  @dataclass
-  class ContextSchema:
-      model_provider: str = "anthropic"
+@dataclass
+class ContextSchema:
+    model_provider: str = "anthropic"
 
-  MODELS = {
-      "anthropic": init_chat_model("claude-haiku-4-5-20251001"),
-      "openai": init_chat_model("gpt-5.4-mini"),
-  }
+MODELS = {
+    "anthropic": init_chat_model("claude-haiku-4-5-20251001"),
+    "openai": init_chat_model("gpt-5.4-mini"),
+}
 
-  def call_model(state: MessagesState, runtime: Runtime[ContextSchema]):
-      model = MODELS[runtime.context.model_provider]
-      response = model.invoke(state["messages"])
-      return {"messages": [response]}
+def call_model(state: MessagesState, runtime: Runtime[ContextSchema]):
+    model = MODELS[runtime.context.model_provider]
+    response = model.invoke(state["messages"])
+    return {"messages": [response]}
 
-  builder = StateGraph(MessagesState, context_schema=ContextSchema)
-  builder.add_node("model", call_model)
-  builder.add_edge(START, "model")
-  builder.add_edge("model", END)
+builder = StateGraph(MessagesState, context_schema=ContextSchema)
+builder.add_node("model", call_model)
+builder.add_edge(START, "model")
+builder.add_edge("model", END)
 
-  graph = builder.compile()
+graph = builder.compile()
 
-  # 用法
-  input_message = {"role": "user", "content": "hi"}
-  # 没有配置时，使用默认值（Anthropic）
-  response_1 = graph.invoke({"messages": [input_message]}, context=ContextSchema())["messages"][-1]
-  # 或者，可以设置 OpenAI
-  response_2 = graph.invoke({"messages": [input_message]}, context={"model_provider": "openai"})["messages"][-1]
+# 用法
+input_message = {"role": "user", "content": "hi"}
+# 没有配置时，使用默认值（Anthropic）
+response_1 = graph.invoke({"messages": [input_message]}, context=ContextSchema())["messages"][-1]
+# 或者，可以设置 OpenAI
+response_2 = graph.invoke({"messages": [input_message]}, context={"model_provider": "openai"})["messages"][-1]
 
-  print(response_1.response_metadata["model_name"])
-  print(response_2.response_metadata["model_name"])
-  ```
+print(response_1.response_metadata["model_name"])
+print(response_2.response_metadata["model_name"])
+```
 
-  ```
-  claude-haiku-4-5-20251001
-  gpt-5.4-mini
-  ```
-
-
+```
+claude-haiku-4-5-20251001
+gpt-5.4-mini
+```
 
 </Accordion>
 
 <Accordion title="扩展示例：在运行时指定模型和系统消息">
   下面我们演示一个实际示例，我们在运行时配置两个参数：LLM 和要使用的系统消息。
 
-  ```python
-  from dataclasses import dataclass
-  from langchain.chat_models import init_chat_model
-  from langchain.messages import SystemMessage
-  from langgraph.graph import END, MessagesState, StateGraph, START
-  from langgraph.runtime import Runtime
-  from typing_extensions import TypedDict
+```python
+from dataclasses import dataclass
+from langchain.chat_models import init_chat_model
+from langchain.messages import SystemMessage
+from langgraph.graph import END, MessagesState, StateGraph, START
+from langgraph.runtime import Runtime
+from typing_extensions import TypedDict
 
-  @dataclass
-  class ContextSchema:
-      model_provider: str = "anthropic"
-      system_message: str | None = None
+@dataclass
+class ContextSchema:
+    model_provider: str = "anthropic"
+    system_message: str | None = None
 
-  MODELS = {
-      "anthropic": init_chat_model("claude-haiku-4-5-20251001"),
-      "openai": init_chat_model("gpt-5.4-mini"),
-  }
+MODELS = {
+    "anthropic": init_chat_model("claude-haiku-4-5-20251001"),
+    "openai": init_chat_model("gpt-5.4-mini"),
+}
 
-  def call_model(state: MessagesState, runtime: Runtime[ContextSchema]):
-      model = MODELS[runtime.context.model_provider]
-      messages = state["messages"]
-      if (system_message := runtime.context.system_message):
-          messages = [SystemMessage(system_message)] + messages
-      response = model.invoke(messages)
-      return {"messages": [response]}
+def call_model(state: MessagesState, runtime: Runtime[ContextSchema]):
+    model = MODELS[runtime.context.model_provider]
+    messages = state["messages"]
+    if (system_message := runtime.context.system_message):
+        messages = [SystemMessage(system_message)] + messages
+    response = model.invoke(messages)
+    return {"messages": [response]}
 
-  builder = StateGraph(MessagesState, context_schema=ContextSchema)
-  builder.add_node("model", call_model)
-  builder.add_edge(START, "model")
-  builder.add_edge("model", END)
+builder = StateGraph(MessagesState, context_schema=ContextSchema)
+builder.add_node("model", call_model)
+builder.add_edge(START, "model")
+builder.add_edge("model", END)
 
-  graph = builder.compile()
+graph = builder.compile()
 
-  # 用法
-  input_message = {"role": "user", "content": "hi"}
-  response = graph.invoke({"messages": [input_message]}, context={"model_provider": "openai", "system_message": "Respond in Italian."})
-  for message in response["messages"]:
-      message.pretty_print()
-  ```
+# 用法
+input_message = {"role": "user", "content": "hi"}
+response = graph.invoke({"messages": [input_message]}, context={"model_provider": "openai", "system_message": "Respond in Italian."})
+for message in response["messages"]:
+    message.pretty_print()
+```
 
-  ```
-  ================================ Human Message ================================
+```
+================================ Human Message ================================
 
-  hi
-  ================================== Ai Message ==================================
+hi
+================================== Ai Message ==================================
 
-  Ciao! Come posso aiutarti oggi?
-  ```
-
-
+Ciao! Come posso aiutarti oggi?
+```
 
 </Accordion>
 
@@ -799,62 +749,57 @@ builder.add_node(
 
 默认情况下，`retry_on` 参数使用 `default_retry_on` 函数，它会重试除以下异常之外的任何异常：
 
-* `ValueError`
-* `TypeError`
-* `ArithmeticError`
-* `ImportError`
-* `LookupError`
-* `NameError`
-* `SyntaxError`
-* `RuntimeError`
-* `ReferenceError`
-* `StopIteration`
-* `StopAsyncIteration`
-* `OSError`
+- `ValueError`
+- `TypeError`
+- `ArithmeticError`
+- `ImportError`
+- `LookupError`
+- `NameError`
+- `SyntaxError`
+- `RuntimeError`
+- `ReferenceError`
+- `StopIteration`
+- `StopAsyncIteration`
+- `OSError`
 
 此外，对于来自流行 HTTP 请求库（如 `requests` 和 `httpx`）的异常，它仅在 5xx 状态码时重试。
-
-
-
 
 <Accordion title="扩展示例：自定义重试策略">
   考虑一个我们从 SQL 数据库读取的示例。下面我们向节点传递两个不同的重试策略：
 
-  ```python
-  import sqlite3
-  from typing_extensions import TypedDict
-  from langchain.chat_models import init_chat_model
-  from langgraph.graph import END, MessagesState, StateGraph, START
-  from langgraph.types import RetryPolicy
-  from langchain_community.utilities import SQLDatabase
-  from langchain.messages import AIMessage
+```python
+import sqlite3
+from typing_extensions import TypedDict
+from langchain.chat_models import init_chat_model
+from langgraph.graph import END, MessagesState, StateGraph, START
+from langgraph.types import RetryPolicy
+from langchain_community.utilities import SQLDatabase
+from langchain.messages import AIMessage
 
-  db = SQLDatabase.from_uri("sqlite:///:memory:")
-  model = init_chat_model("claude-haiku-4-5-20251001")
+db = SQLDatabase.from_uri("sqlite:///:memory:")
+model = init_chat_model("claude-haiku-4-5-20251001")
 
-  def query_database(state: MessagesState):
-      query_result = db.run("SELECT * FROM Artist LIMIT 10;")
-      return {"messages": [AIMessage(content=query_result)]}
+def query_database(state: MessagesState):
+    query_result = db.run("SELECT * FROM Artist LIMIT 10;")
+    return {"messages": [AIMessage(content=query_result)]}
 
-  def call_model(state: MessagesState):
-      response = model.invoke(state["messages"])
-      return {"messages": [response]}
+def call_model(state: MessagesState):
+    response = model.invoke(state["messages"])
+    return {"messages": [response]}
 
-  # 定义一个新图
-  builder = StateGraph(MessagesState)
-  builder.add_node(
-      "query_database",
-      query_database,
-      retry_policy=RetryPolicy(retry_on=sqlite3.OperationalError),
-  )
-  builder.add_node("model", call_model, retry_policy=RetryPolicy(max_attempts=5))
-  builder.add_edge(START, "model")
-  builder.add_edge("model", "query_database")
-  builder.add_edge("query_database", END)
-  graph = builder.compile()
-  ```
-
-
+# 定义一个新图
+builder = StateGraph(MessagesState)
+builder.add_node(
+    "query_database",
+    query_database,
+    retry_policy=RetryPolicy(retry_on=sqlite3.OperationalError),
+)
+builder.add_node("model", call_model, retry_policy=RetryPolicy(max_attempts=5))
+builder.add_edge(START, "model")
+builder.add_edge("model", "query_database")
+builder.add_edge("query_database", END)
+graph = builder.compile()
+```
 
 </Accordion>
 
@@ -906,21 +851,19 @@ builder.add_node(
 
 有关补偿模式和 `Command` 路由，请参阅[容错](/oss/python/langgraph/fault-tolerance#error-handling)。
 
-
-
 ### 在节点内访问执行信息
 
 你可以通过 `runtime.execution_info` 访问执行标识和重试信息。这提供了线程、运行和检查点标识符以及重试状态，而无需直接从 `config` 读取。
 
-| 属性 | 类型 | 描述 |
-| --------- | ---- | ----------- |
-| `thread_id` | `str \| None` | 当前线程的线程 ID。没有检查点器时为 `None`。 |
-| `run_id` | `str \| None` | 当前运行的运行 ID。未在配置中提供时为 `None`。 |
-| `checkpoint_id` | `str` | 当前执行的检查点 ID。 |
-| `checkpoint_ns` | `str` | 当前执行的检查点命名空间。 |
-| `task_id` | `str` | 当前执行的任务 ID。 |
-| `node_attempt` | `int` | 当前执行尝试次数（从 1 开始）。第一次尝试为 `1`，第一次重试为 `2`，依此类推。 |
-| `node_first_attempt_time` | `float \| None` | 第一次尝试开始时的 Unix 时间戳（秒）。在重试期间保持不变。 |
+| 属性                      | 类型            | 描述                                                                          |
+| ------------------------- | --------------- | ----------------------------------------------------------------------------- |
+| `thread_id`               | `str \| None`   | 当前线程的线程 ID。没有检查点器时为 `None`。                                  |
+| `run_id`                  | `str \| None`   | 当前运行的运行 ID。未在配置中提供时为 `None`。                                |
+| `checkpoint_id`           | `str`           | 当前执行的检查点 ID。                                                         |
+| `checkpoint_ns`           | `str`           | 当前执行的检查点命名空间。                                                    |
+| `task_id`                 | `str`           | 当前执行的任务 ID。                                                           |
+| `node_attempt`            | `int`           | 当前执行尝试次数（从 1 开始）。第一次尝试为 `1`，第一次重试为 `2`，依此类推。 |
+| `node_first_attempt_time` | `float \| None` | 第一次尝试开始时的 Unix 时间戳（秒）。在重试期间保持不变。                    |
 
 #### 访问线程和运行 ID
 
@@ -979,11 +922,11 @@ graph = builder.compile()
 
 当你的图在 LangGraph Server 上运行时，你可以通过 `runtime.server_info` 访问服务器特定的元数据。这提供了助手 ID、图 ID 和经过身份验证的用户，而无需直接从配置元数据或可配置键读取。
 
-| 属性 | 类型 | 描述 |
-| --------- | ---- | ----------- |
-| `assistant_id` | `str` | 当前部署的助手 ID。 |
-| `graph_id` | `str` | 当前部署的图 ID。 |
-| `user` | `BaseUser \| None` | 经过身份验证的用户（如果配置了[自定义身份验证](/langsmith/custom-auth)）。 |
+| 属性           | 类型               | 描述                                                                       |
+| -------------- | ------------------ | -------------------------------------------------------------------------- |
+| `assistant_id` | `str`              | 当前部署的助手 ID。                                                        |
+| `graph_id`     | `str`              | 当前部署的图 ID。                                                          |
+| `user`         | `BaseUser \| None` | 经过身份验证的用户（如果配置了[自定义身份验证](/langsmith/custom-auth)）。 |
 
 ```python
 from langgraph.graph import StateGraph, START, END
@@ -1027,18 +970,14 @@ def my_node(state: State, runtime: Runtime) -> State:
     return {"status": do_work()}
 ```
 
-| 属性 | 类型 | 描述 |
-| -------- | ---- | ----------- |
-| `drain_requested` | `bool` | 如果已为此运行调用 `RunControl.request_drain()`，则为 `True`。 |
-| `drain_reason` | `str \| None` | 传递给 `request_drain()` 的原因字符串，如果未请求排空则为 `None`。 |
+| 属性              | 类型          | 描述                                                               |
+| ----------------- | ------------- | ------------------------------------------------------------------ |
+| `drain_requested` | `bool`        | 如果已为此运行调用 `RunControl.request_drain()`，则为 `True`。     |
+| `drain_reason`    | `str \| None` | 传递给 `request_drain()` 的原因字符串，如果未请求排空则为 `None`。 |
 
 <Note>
 需要 `langgraph>=1.2`，目前处于 alpha 阶段。有关完整的 `RunControl` API，请参阅[优雅关闭](/oss/python/langgraph/durable-execution#graceful-shutdown)。
 </Note>
-
-
-
-
 
 ## 添加节点缓存
 
@@ -1064,12 +1003,10 @@ from langgraph.cache.memory import InMemoryCache
 graph = builder.compile(cache=InMemoryCache())
 ```
 
-
 ## 创建步骤序列
 
 <Info>
-**前提条件**
-本指南假设你熟悉上面关于[状态](#定义和更新状态)的部分。
+  **前提条件** 本指南假设你熟悉上面关于[状态](#定义和更新状态)的部分。
 </Info>
 
 这里我们演示如何构建一个简单的步骤序列。我们将展示：
@@ -1102,17 +1039,14 @@ builder = StateGraph(State).add_sequence([step_1, step_2, step_3])
 builder.add_edge(START, "step_1")
 ```
 
-
-
-
 <Accordion title="为什么使用 LangGraph 将应用程序步骤拆分为序列？">
 
 LangGraph 使得为你的应用程序添加底层持久化层变得容易。
 这允许在节点执行之间对状态进行检查点，因此你的 LangGraph 节点控制：
 
-* 状态更新如何被[检查点化](/oss/python/langgraph/persistence)
-* [人在回路中](/oss/python/langgraph/interrupts)工作流中的中断如何恢复
-* 我们如何使用 LangGraph 的[时间旅行](/oss/python/langgraph/use-time-travel)功能“回退”和分支执行
+- 状态更新如何被[检查点化](/oss/python/langgraph/persistence)
+- [Human in the Loop](/oss/python/langgraph/interrupts)工作流中的中断如何恢复
+- 我们如何使用 LangGraph 的[时间旅行](/oss/python/langgraph/use-time-travel)功能“回退”和分支执行
 
 它们还决定了执行步骤如何被[流式传输](/oss/python/langgraph/streaming)，以及你的应用程序如何使用 [Studio](/langsmith/studio) 进行可视化和调试。
 
@@ -1134,9 +1068,6 @@ class State(TypedDict):
     value_2: int
 ```
 
-
-
-
 我们的[节点](/oss/python/langgraph/graph-api#nodes)只是读取图状态并对其进行更新的 Python 函数。此函数的第一个参数始终是状态：
 
 ```python
@@ -1151,13 +1082,11 @@ def step_3(state: State):
     return {"value_2": 10}
 ```
 
-
-
-
 <Note>
 请注意，当向状态发出更新时，每个节点只需指定它希望更新的键的值。
 
 默认情况下，这将**覆盖**相应键的值。你也可以使用[归约器](/oss/python/langgraph/graph-api#reducers)来控制更新的处理方式——例如，你可以将连续的更新追加到一个键中。有关更多详细信息，请参阅[使用归约器处理状态更新](#使用归约器处理状态更新)。
+
 </Note>
 
 最后，我们定义图。我们使用 [StateGraph](/oss/python/langgraph/graph-api#stategraph) 来定义一个操作此状态的图。
@@ -1180,9 +1109,6 @@ builder.add_edge("step_1", "step_2")
 builder.add_edge("step_2", "step_3")
 ```
 
-
-
-
 <Tip>
 **指定自定义名称**
 你可以使用 [`add_node`](https://reference.langchain.com/python/langgraph/graph/state/StateGraph/add_node) 为节点指定自定义名称：
@@ -1190,25 +1116,20 @@ builder.add_edge("step_2", "step_3")
 ```python
 builder.add_node("my_node", step_1)
 ```
+
 </Tip>
-
-
-
 
 请注意：
 
-* [`add_edge`](https://reference.langchain.com/python/langgraph/pregel/_draw/add_edge) 接受节点的名称，对于函数，默认为 `node.__name__`。
-* 我们必须指定图的入口点。为此，我们添加一条带有 [START 节点](/oss/python/langgraph/graph-api#start-node)的边。
-* 当没有更多节点可执行时，图停止。
+- [`add_edge`](https://reference.langchain.com/python/langgraph/pregel/_draw/add_edge) 接受节点的名称，对于函数，默认为 `node.__name__`。
+- 我们必须指定图的入口点。为此，我们添加一条带有 [START 节点](/oss/python/langgraph/graph-api#start-node)的边。
+- 当没有更多节点可执行时，图停止。
 
 接下来我们[编译](/oss/python/langgraph/graph-api#compiling-your-graph)我们的图。这会对图的结构进行一些基本检查（例如，识别孤立节点）。如果我们通过[检查点器](/oss/python/langgraph/persistence)为应用程序添加持久化，它也会在这里传入。
 
 ```python
 graph = builder.compile()
 ```
-
-
-
 
 LangGraph 提供了内置的可视化工具来查看你的图。让我们检查一下我们的序列。有关可视化的详细信息，请参阅[可视化你的图](#可视化你的图)。
 
@@ -1220,9 +1141,6 @@ display(Image(graph.get_graph().draw_mermaid_png()))
 
 ![步骤序列图](/oss/images/graph_api_image_2.png)
 
-
-
-
 让我们进行一个简单的调用：
 
 ```python
@@ -1233,15 +1151,12 @@ graph.invoke({"value_1": "c"})
 {'value_1': 'a b', 'value_2': 10}
 ```
 
-
-
-
 请注意：
 
-* 我们通过为单个状态键提供值来启动调用。我们必须始终至少为一个键提供值。
-* 我们传入的值被第一个节点覆盖。
-* 第二个节点更新了该值。
-* 第三个节点填充了一个不同的值。
+- 我们通过为单个状态键提供值来启动调用。我们必须始终至少为一个键提供值。
+- 我们传入的值被第一个节点覆盖。
+- 第二个节点更新了该值。
+- 第三个节点填充了一个不同的值。
 
 <Tip>
 **内置简写**
@@ -1255,8 +1170,8 @@ graph = builder.compile()
 
 graph.invoke({"value_1": "c"})
 ```
-</Tip>
 
+</Tip>
 
 </Accordion>
 
@@ -1308,9 +1223,6 @@ builder.add_edge("d", END)
 graph = builder.compile()
 ```
 
-
-
-
 ```python
 from IPython.display import Image, display
 
@@ -1318,9 +1230,6 @@ display(Image(graph.get_graph().draw_mermaid_png()))
 ```
 
 ![并行执行图](/oss/images/graph_api_image_3.png)
-
-
-
 
 使用归约器，你可以看到在每个节点中添加的值被累积了。
 
@@ -1335,26 +1244,25 @@ Adding "C" to ['A']
 Adding "D" to ['A', 'B', 'C']
 ```
 
-
-
-
 <Note>
 在上面的示例中，节点 `"b"` 和 `"c"` 在同一个[超级步骤](/oss/python/langgraph/graph-api#graphs)中并发执行。因为它们在同一个步骤中，所以节点 `"d"` 在 `"b"` 和 `"c"` 都完成后执行。
 
 重要的是，并行超级步骤的更新可能不会按一致的顺序排列。如果你需要并行超级步骤的更新具有一致的、预定的顺序，你应该将输出与用于排序的值一起写入状态中的单独字段。
+
 </Note>
 
 <Accordion title="异常处理？">
   LangGraph 在[超级步骤](/oss/python/langgraph/graph-api#graphs)内执行节点，这意味着虽然并行分支是并行执行的，但整个超级步骤是**事务性的**。如果这些分支中的任何一个引发异常，则**不会**有任何更新应用到状态（整个超级步骤出错）。
 
-  重要的是，当使用[检查点器](/oss/python/langgraph/persistence)时，超级步骤内成功节点的结果会被保存，并且在恢复时不会重复。
+重要的是，当使用[检查点器](/oss/python/langgraph/persistence)时，超级步骤内成功节点的结果会被保存，并且在恢复时不会重复。
 
-  如果你有容易出错的（可能想处理不稳定的 API 调用），LangGraph 提供了两种解决方法：
+如果你有容易出错的（可能想处理不稳定的 API 调用），LangGraph 提供了两种解决方法：
 
-  1. 你可以在节点内编写常规的 Python 代码来捕获和处理异常。
-  2. 你可以设置一个 **[retry_policy](https://langchain-ai.github.io/langgraph/reference/types/#langgraph.types.RetryPolicy)** 来指示图重试引发某些类型异常的节点。只有失败的分支会被重试，因此你不必担心执行冗余工作。
+1. 你可以在节点内编写常规的 Python 代码来捕获和处理异常。
+2. 你可以设置一个 **[retry_policy](https://langchain-ai.github.io/langgraph/reference/types/#langgraph.types.RetryPolicy)** 来指示图重试引发某些类型异常的节点。只有失败的分支会被重试，因此你不必担心执行冗余工作。
 
-  这些结合在一起，让你可以执行并行执行并完全控制异常处理。
+这些结合在一起，让你可以执行并行执行并完全控制异常处理。
+
 </Accordion>
 
 <Tip>
@@ -1364,10 +1272,8 @@ Adding "D" to ['A', 'B', 'C']
 ```python
 graph.invoke({"value_1": "c"}, {"configurable": {"max_concurrency": 10}})
 ```
+
 </Tip>
-
-
-
 
 ### 延迟节点执行
 
@@ -1443,7 +1349,6 @@ Adding "D" to ['A', 'B', 'C', 'B_2']
 
 在上面的示例中，节点 `"b"` 和 `"c"` 在同一个超级步骤中并发执行。我们在节点 `d` 上设置了 `defer=True`，因此它将不会执行，直到所有待处理任务完成。在这种情况下，这意味着 `"d"` 等待执行，直到整个 `"b"` 分支完成。
 
-
 ### 条件分支
 
 如果你的扇出应该在运行时根据状态变化，你可以使用 [`add_conditional_edges`](https://reference.langchain.com/python/langgraph/graph/state/StateGraph/add_conditional_edges) 来使用图状态选择一个或多个路径。请参见下面的示例，其中节点 `a` 生成一个状态更新，该更新决定下一个节点。
@@ -1509,9 +1414,6 @@ Adding "C" to ['A']
 {'aggregate': ['A', 'C'], 'which': 'c'}
 ```
 
-
-
-
 <Tip>
 你的条件边可以路由到多个目标节点。例如：
 
@@ -1521,8 +1423,6 @@ def route_bc_or_cd(state: State) -> Sequence[str]:
         return ["c", "d"]
     return ["b", "c"]
 ```
-
-
 
 </Tip>
 
@@ -1592,9 +1492,6 @@ for step in graph.stream({"topic": "animals"}):
 {'best_joke': {'best_selected_joke': 'penguins'}}
 ```
 
-
-
-
 ## 创建和控制循环
 
 在创建带有循环的图时，我们需要一种终止执行的机制。最常见的是通过添加一个[条件边](/oss/python/langgraph/graph-api#conditional-edges)来实现，该边在达到某个终止条件时路由到 [END](/oss/python/langgraph/graph-api#end-node) 节点。
@@ -1604,7 +1501,7 @@ for step in graph.stream({"topic": "animals"}):
 让我们考虑一个带有循环的简单图，以更好地理解这些机制的工作原理。
 
 <Tip>
-要返回状态的最后一个值而不是收到递归限制错误，请参阅[下一节](#施加递归限制)。
+  要返回状态的最后一个值而不是收到递归限制错误，请参阅[下一节](#施加递归限制)。
 </Tip>
 
 创建循环时，你可以包含一个指定终止条件的条件边：
@@ -1626,10 +1523,8 @@ builder.add_edge("b", "a")
 graph = builder.compile()
 ```
 
-
-
-
 要控制递归限制，请在配置中指定 `"recursion_limit"`。这将引发一个 `GraphRecursionError`，你可以捕获并处理它：
+
 ```python
 from langgraph.errors import GraphRecursionError
 
@@ -1638,9 +1533,6 @@ try:
 except GraphRecursionError:
     print("Recursion Error")
 ```
-
-
-
 
 让我们定义一个带有简单循环的图。请注意，我们使用条件边来实现终止条件。
 
@@ -1688,9 +1580,6 @@ display(Image(graph.get_graph().draw_mermaid_png()))
 
 ![简单循环图](/oss/images/graph_api_image_7.png)
 
-
-
-
 这种架构类似于 [ReAct 代理](/oss/python/langgraph/workflows-agents)，其中节点 `"a"` 是一个工具调用模型，节点 `"b"` 代表工具。
 
 在我们的 `route` 条件边中，我们指定当状态中的 `"aggregate"` 列表超过阈值长度后应结束。
@@ -1710,9 +1599,6 @@ Node A sees ['A', 'B', 'A', 'B']
 Node B sees ['A', 'B', 'A', 'B', 'A']
 Node A sees ['A', 'B', 'A', 'B', 'A', 'B']
 ```
-
-
-
 
 ### 施加递归限制
 
@@ -1736,171 +1622,168 @@ Node A sees ['A', 'B', 'C', 'D']
 Recursion Error
 ```
 
-
-
-
 <Accordion title="扩展示例：达到递归限制时返回状态">
   与其引发 `GraphRecursionError`，我们可以向状态添加一个新键来跟踪达到递归限制之前剩余的步骤数。然后我们可以使用此键来确定是否应结束运行。
 
-  LangGraph 实现了一个特殊的 `RemainingSteps` 注解。在底层，它创建了一个 `ManagedValue` 通道——一个在图运行期间存在而之后不再存在的状态通道。
+LangGraph 实现了一个特殊的 `RemainingSteps` 注解。在底层，它创建了一个 `ManagedValue` 通道——一个在图运行期间存在而之后不再存在的状态通道。
 
-  ```python
-  import operator
-  from typing import Annotated, Literal
-  from typing_extensions import TypedDict
-  from langgraph.graph import StateGraph, START, END
-  from langgraph.managed.is_last_step import RemainingSteps
+```python
+import operator
+from typing import Annotated, Literal
+from typing_extensions import TypedDict
+from langgraph.graph import StateGraph, START, END
+from langgraph.managed.is_last_step import RemainingSteps
 
-  class State(TypedDict):
-      aggregate: Annotated[list, operator.add]
-      remaining_steps: RemainingSteps
+class State(TypedDict):
+    aggregate: Annotated[list, operator.add]
+    remaining_steps: RemainingSteps
 
-  def a(state: State):
-      print(f'Node A sees {state["aggregate"]}')
-      return {"aggregate": ["A"]}
+def a(state: State):
+    print(f'Node A sees {state["aggregate"]}')
+    return {"aggregate": ["A"]}
 
-  def b(state: State):
-      print(f'Node B sees {state["aggregate"]}')
-      return {"aggregate": ["B"]}
+def b(state: State):
+    print(f'Node B sees {state["aggregate"]}')
+    return {"aggregate": ["B"]}
 
-  # 定义节点
-  builder = StateGraph(State)
-  builder.add_node(a)
-  builder.add_node(b)
+# 定义节点
+builder = StateGraph(State)
+builder.add_node(a)
+builder.add_node(b)
 
-  # 定义边
-  def route(state: State) -> Literal["b", END]:
-      if state["remaining_steps"] <= 2:
-          return END
-      else:
-          return "b"
+# 定义边
+def route(state: State) -> Literal["b", END]:
+    if state["remaining_steps"] <= 2:
+        return END
+    else:
+        return "b"
 
-  builder.add_edge(START, "a")
-  builder.add_conditional_edges("a", route)
-  builder.add_edge("b", "a")
-  graph = builder.compile()
+builder.add_edge(START, "a")
+builder.add_conditional_edges("a", route)
+builder.add_edge("b", "a")
+graph = builder.compile()
 
-  # 测试一下
-  result = graph.invoke({"aggregate": []}, {"recursion_limit": 4})
-  print(result)
-  ```
+# 测试一下
+result = graph.invoke({"aggregate": []}, {"recursion_limit": 4})
+print(result)
+```
 
-  ```
-  Node A sees []
-  Node B sees ['A']
-  Node A sees ['A', 'B']
-  {'aggregate': ['A', 'B', 'A']}
-  ```
+```
+Node A sees []
+Node B sees ['A']
+Node A sees ['A', 'B']
+{'aggregate': ['A', 'B', 'A']}
+```
+
 </Accordion>
-
 
 <Accordion title="扩展示例：带有分支的循环">
   为了更好地理解递归限制的工作原理，让我们考虑一个更复杂的例子。下面我们实现一个循环，但其中一个步骤扇出到两个节点：
 
-  ```python
-  import operator
-  from typing import Annotated, Literal
-  from typing_extensions import TypedDict
-  from langgraph.graph import StateGraph, START, END
+```python
+import operator
+from typing import Annotated, Literal
+from typing_extensions import TypedDict
+from langgraph.graph import StateGraph, START, END
 
-  class State(TypedDict):
-      aggregate: Annotated[list, operator.add]
+class State(TypedDict):
+    aggregate: Annotated[list, operator.add]
 
-  def a(state: State):
-      print(f'Node A sees {state["aggregate"]}')
-      return {"aggregate": ["A"]}
+def a(state: State):
+    print(f'Node A sees {state["aggregate"]}')
+    return {"aggregate": ["A"]}
 
-  def b(state: State):
-      print(f'Node B sees {state["aggregate"]}')
-      return {"aggregate": ["B"]}
+def b(state: State):
+    print(f'Node B sees {state["aggregate"]}')
+    return {"aggregate": ["B"]}
 
-  def c(state: State):
-      print(f'Node C sees {state["aggregate"]}')
-      return {"aggregate": ["C"]}
+def c(state: State):
+    print(f'Node C sees {state["aggregate"]}')
+    return {"aggregate": ["C"]}
 
-  def d(state: State):
-      print(f'Node D sees {state["aggregate"]}')
-      return {"aggregate": ["D"]}
+def d(state: State):
+    print(f'Node D sees {state["aggregate"]}')
+    return {"aggregate": ["D"]}
 
-  # 定义节点
-  builder = StateGraph(State)
-  builder.add_node(a)
-  builder.add_node(b)
-  builder.add_node(c)
-  builder.add_node(d)
+# 定义节点
+builder = StateGraph(State)
+builder.add_node(a)
+builder.add_node(b)
+builder.add_node(c)
+builder.add_node(d)
 
-  # 定义边
-  def route(state: State) -> Literal["b", END]:
-      if len(state["aggregate"]) < 7:
-          return "b"
-      else:
-          return END
+# 定义边
+def route(state: State) -> Literal["b", END]:
+    if len(state["aggregate"]) < 7:
+        return "b"
+    else:
+        return END
 
-  builder.add_edge(START, "a")
-  builder.add_conditional_edges("a", route)
-  builder.add_edge("b", "c")
-  builder.add_edge("b", "d")
-  builder.add_edge(["c", "d"], "a")
-  graph = builder.compile()
-  ```
+builder.add_edge(START, "a")
+builder.add_conditional_edges("a", route)
+builder.add_edge("b", "c")
+builder.add_edge("b", "d")
+builder.add_edge(["c", "d"], "a")
+graph = builder.compile()
+```
 
-  ```python
-  from IPython.display import Image, display
+```python
+from IPython.display import Image, display
 
-  display(Image(graph.get_graph().draw_mermaid_png()))
-  ```
+display(Image(graph.get_graph().draw_mermaid_png()))
+```
 
-  ![带有分支的复杂循环图](/oss/images/graph_api_image_8.png)
+![带有分支的复杂循环图](/oss/images/graph_api_image_8.png)
 
-  这个图看起来很复杂，但可以概念化为[超级步骤](/oss/python/langgraph/graph-api#graphs)的循环：
+这个图看起来很复杂，但可以概念化为[超级步骤](/oss/python/langgraph/graph-api#graphs)的循环：
 
-  1. 节点 A
-  2. 节点 B
-  3. 节点 C 和 D
-  4. 节点 A
-  5. ...
+1. 节点 A
+2. 节点 B
+3. 节点 C 和 D
+4. 节点 A
+5. ...
 
-  我们有一个四个超级步骤的循环，其中节点 C 和 D 并发执行。
+我们有一个四个超级步骤的循环，其中节点 C 和 D 并发执行。
 
-  像以前一样调用图，我们看到在达到终止条件之前，我们完成了两个完整的“圈”：
+像以前一样调用图，我们看到在达到终止条件之前，我们完成了两个完整的“圈”：
 
-  ```python
-  result = graph.invoke({"aggregate": []})
-  ```
+```python
+result = graph.invoke({"aggregate": []})
+```
 
-  ```
-  Node A sees []
-  Node B sees ['A']
-  Node D sees ['A', 'B']
-  Node C sees ['A', 'B']
-  Node A sees ['A', 'B', 'C', 'D']
-  Node B sees ['A', 'B', 'C', 'D', 'A']
-  Node D sees ['A', 'B', 'C', 'D', 'A', 'B']
-  Node C sees ['A', 'B', 'C', 'D', 'A', 'B']
-  Node A sees ['A', 'B', 'C', 'D', 'A', 'B', 'C', 'D']
-  ```
+```
+Node A sees []
+Node B sees ['A']
+Node D sees ['A', 'B']
+Node C sees ['A', 'B']
+Node A sees ['A', 'B', 'C', 'D']
+Node B sees ['A', 'B', 'C', 'D', 'A']
+Node D sees ['A', 'B', 'C', 'D', 'A', 'B']
+Node C sees ['A', 'B', 'C', 'D', 'A', 'B']
+Node A sees ['A', 'B', 'C', 'D', 'A', 'B', 'C', 'D']
+```
 
-  然而，如果我们设置递归限制为四，我们只完成一圈，因为每圈是四个超级步骤：
+然而，如果我们设置递归限制为四，我们只完成一圈，因为每圈是四个超级步骤：
 
-  ```python
-  from langgraph.errors import GraphRecursionError
+```python
+from langgraph.errors import GraphRecursionError
 
-  try:
-      result = graph.invoke({"aggregate": []}, {"recursion_limit": 4})
-  except GraphRecursionError:
-      print("Recursion Error")
-  ```
+try:
+    result = graph.invoke({"aggregate": []}, {"recursion_limit": 4})
+except GraphRecursionError:
+    print("Recursion Error")
+```
 
-  ```
-  Node A sees []
-  Node B sees ['A']
-  Node C sees ['A', 'B']
-  Node D sees ['A', 'B']
-  Node A sees ['A', 'B', 'C', 'D']
-  Recursion Error
-  ```
+```
+Node A sees []
+Node B sees ['A']
+Node C sees ['A', 'B']
+Node D sees ['A', 'B']
+Node A sees ['A', 'B', 'C', 'D']
+Recursion Error
+```
+
 </Accordion>
-
 
 ## 异步
 
@@ -1934,10 +1817,9 @@ result = await graph.ainvoke({"messages": [input_message]})  # [!code highlight]
 ```
 
 <Tip>
-**异步流式传输**
-有关异步流式传输的示例，请参阅[流式传输指南](/oss/python/langgraph/streaming)。
+  **异步流式传输**
+  有关异步流式传输的示例，请参阅[流式传输指南](/oss/python/langgraph/streaming)。
 </Tip>
-
 
 ## 使用 `Command` 结合控制流和状态更新
 
@@ -1952,9 +1834,6 @@ def my_node(state: State) -> Command[Literal["my_other_node"]]:
         goto="my_other_node"
     )
 ```
-
-
-
 
 我们在下面展示一个端到端的示例。让我们创建一个包含 3 个节点的简单图：A、B 和 C。我们将首先执行节点 A，然后根据节点 A 的输出决定接下来是转到节点 B 还是节点 C。
 
@@ -2010,7 +1889,11 @@ graph = builder.compile()
 ```
 
 <Warning>
-你可能已经注意到我们使用 [`Command`](https://reference.langchain.com/python/langgraph/types/Command) 作为返回类型注解，例如 `Command[Literal["node_b", "node_c"]]`。这对于图渲染是必要的，并告诉 LangGraph `node_a` 可以导航到 `node_b` 和 `node_c`。
+  你可能已经注意到我们使用
+  [`Command`](https://reference.langchain.com/python/langgraph/types/Command)
+  作为返回类型注解，例如 `Command[Literal["node_b",
+  "node_c"]]`。这对于图渲染是必要的，并告诉 LangGraph `node_a` 可以导航到
+  `node_b` 和 `node_c`。
 </Warning>
 
 ```python
@@ -2032,9 +1915,6 @@ Called A
 Called C
 ```
 
-
-
-
 ### 导航到父图中的节点
 
 如果你正在使用[子图](/oss/python/langgraph/use-subgraphs)，你可能希望从子图中的节点导航到不同的子图（即父图中的不同节点）。为此，你可以在 `Command` 中指定 `graph=Command.PARENT`：
@@ -2048,14 +1928,11 @@ def my_node(state: State) -> Command[Literal["my_other_node"]]:
     )
 ```
 
-
-
-
 让我们使用上面的示例来演示这一点。我们将通过将上面示例中的 `nodeA` 更改为一个单节点图来实现，该图将作为子图添加到我们的父图中。
 
 <Warning>
-**使用 `Command.PARENT` 进行状态更新**
-当你从子图节点向父图节点发送更新时，对于父图和子图[状态模式](/oss/python/langgraph/graph-api#schema)共享的键，你**必须**在父图状态中为要更新的键定义一个[归约器](/oss/python/langgraph/graph-api#reducers)。请参见下面的示例。
+  **使用 `Command.PARENT` 进行状态更新**
+  当你从子图节点向父图节点发送更新时，对于父图和子图[状态模式](/oss/python/langgraph/graph-api#schema)共享的键，你**必须**在父图状态中为要更新的键定义一个[归约器](/oss/python/langgraph/graph-api#reducers)。请参见下面的示例。
 </Warning>
 
 ```python
@@ -2115,9 +1992,6 @@ Called A
 Called C
 ```
 
-
-
-
 ### 在工具内使用
 
 一个常见的用例是从工具内部更新图状态。例如，在客户支持应用程序中，你可能希望在对话开始时根据客户的帐户号或 ID 查找客户信息。要从工具更新图状态，你可以从工具返回 `Command(update={"my_custom_key": "foo", "messages": [...]})`：
@@ -2139,11 +2013,14 @@ def lookup_user_info(runtime: ToolRuntime):
     )
 ```
 
-
-
-
 <Warning>
-当你从工具返回 [`Command`](https://reference.langchain.com/python/langgraph/types/Command) 时，你**必须**在 `Command.update` 中包含 `messages`（或用于消息历史的任何状态键），并且 `messages` 中的消息列表**必须**包含一个 `ToolMessage`。这对于生成的消息历史有效是必要的（LLM 提供者要求带有工具调用的 AI 消息后面必须跟有工具结果消息）。
+  当你从工具返回
+  [`Command`](https://reference.langchain.com/python/langgraph/types/Command)
+  时，你**必须**在 `Command.update` 中包含
+  `messages`（或用于消息历史的任何状态键），并且 `messages`
+  中的消息列表**必须**包含一个
+  `ToolMessage`。这对于生成的消息历史有效是必要的（LLM 提供者要求带有工具调用的
+  AI 消息后面必须跟有工具结果消息）。
 </Warning>
 
 如果你正在使用通过 [`Command`](https://reference.langchain.com/python/langgraph/types/Command) 更新状态的工具，我们建议使用预构建的 [`ToolNode`](https://reference.langchain.com/python/langgraph/agents/#langgraph.prebuilt.tool_node.ToolNode)，它自动处理返回 [`Command`](https://reference.langchain.com/python/langgraph/types/Command) 对象的工具并将其传播到图状态。如果你正在编写一个调用工具的自定义节点，你需要手动将工具返回的 [`Command`](https://reference.langchain.com/python/langgraph/types/Command) 对象作为节点的更新进行传播。
@@ -2210,9 +2087,6 @@ def build_fractal_graph(max_level: int):
 app = build_fractal_graph(3)
 ```
 
-
-
-
 ### Mermaid
 
 我们也可以将图类转换为 Mermaid 语法。
@@ -2252,16 +2126,13 @@ graph TD;
     ssDef last fill:#bfb6fc
 ```
 
-
-
-
 ### PNG
 
 如果需要，我们可以将图渲染为 `.png`。这里我们可以使用三个选项：
 
-* 使用 Mermaid.ink API（不需要额外的包）
-* 使用 Mermaid + Pyppeteer（需要 `pip install pyppeteer`）
-* 使用 graphviz（需要 `pip install graphviz`）
+- 使用 Mermaid.ink API（不需要额外的包）
+- 使用 Mermaid + Pyppeteer（需要 `pip install pyppeteer`）
+- 使用 graphviz（需要 `pip install graphviz`）
 
 **使用 Mermaid.Ink**
 
@@ -2312,10 +2183,12 @@ except ImportError:
 ---
 
 <div className="source-links">
-<Callout icon="terminal-2">
-    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP 获得实时答案。
-</Callout>
-<Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/use-graph-api.mdx)或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
-</Callout>
+  <Callout icon="terminal-2">
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP
+    获得实时答案。
+  </Callout>
+  <Callout icon="edit">
+    [在 GitHub
+    上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/use-graph-api.mdx)或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
+  </Callout>
 </div>

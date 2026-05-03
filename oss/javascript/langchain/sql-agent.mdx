@@ -3,8 +3,8 @@ title: 构建 SQL 代理
 sidebarTitle: SQL 代理
 ---
 
-import ChatModelTabsPy from '/snippets/chat-model-tabs.mdx';
-import ChatModelTabsJS from '/snippets/chat-model-tabs-js.mdx';
+import ChatModelTabsPy from "/snippets/chat-model-tabs.mdx";
+import ChatModelTabsJS from "/snippets/chat-model-tabs-js.mdx";
 
 ## 概述
 
@@ -13,18 +13,19 @@ import ChatModelTabsJS from '/snippets/chat-model-tabs-js.mdx';
 从高层次来看，该代理将：
 
 <Steps>
-<Step title="从数据库中获取可用的表和模式" />
-<Step title="决定哪些表与问题相关" />
-<Step title="获取相关表的模式" />
-<Step title="根据问题和模式信息生成查询" />
-<Step title="使用大语言模型检查查询中的常见错误" />
-<Step title="执行查询并返回结果" />
-<Step title="纠正数据库引擎发现的错误，直到查询成功" />
-<Step title="根据结果制定响应" />
+  <Step title="从数据库中获取可用的表和模式" />
+  <Step title="决定哪些表与问题相关" />
+  <Step title="获取相关表的模式" />
+  <Step title="根据问题和模式信息生成查询" />
+  <Step title="使用大语言模型检查查询中的常见错误" />
+  <Step title="执行查询并返回结果" />
+  <Step title="纠正数据库引擎发现的错误，直到查询成功" />
+  <Step title="根据结果制定响应" />
 </Steps>
 
 <Warning>
-构建 SQL 数据库的问答系统需要执行模型生成的 SQL 查询。这样做存在固有风险。请确保你的数据库连接权限始终尽可能严格地限定在代理所需范围内。这将减轻（但不能消除）构建模型驱动系统的风险。
+  构建 SQL 数据库的问答系统需要执行模型生成的 SQL
+  查询。这样做存在固有风险。请确保你的数据库连接权限始终尽可能严格地限定在代理所需范围内。这将减轻（但不能消除）构建模型驱动系统的风险。
 </Warning>
 
 ### 概念
@@ -33,13 +34,11 @@ import ChatModelTabsJS from '/snippets/chat-model-tabs-js.mdx';
 
 - 用于从 SQL 数据库读取的 [工具](/oss/javascript/langchain/tools)
 - LangChain [代理](/oss/javascript/langchain/agents)
-- [人在回路中](/oss/javascript/langchain/human-in-the-loop) 流程
-
+- [Human in the Loop](/oss/javascript/langchain/human-in-the-loop) 流程
 
 ## 设置
 
 ### 安装
-
 
     <CodeGroup>
     ```bash npm
@@ -53,7 +52,6 @@ import ChatModelTabsJS from '/snippets/chat-model-tabs-js.mdx';
     ```
     </CodeGroup>
 
-
 ### LangSmith
 
 设置 [LangSmith](https://smith.langchain.com) 以检查你的链或代理内部发生的情况。然后设置以下环境变量：
@@ -65,10 +63,9 @@ import ChatModelTabsJS from '/snippets/chat-model-tabs-js.mdx';
 
 ## 1. 选择大语言模型
 
-
 选择一个支持 [工具调用](/oss/javascript/integrations/providers/overview) 的模型：
-<ChatModelTabsJS />
 
+<ChatModelTabsJS />
 
 下面示例中显示的输出使用了 OpenAI。
 
@@ -78,12 +75,12 @@ import ChatModelTabsJS from '/snippets/chat-model-tabs-js.mdx';
 
 为方便起见，我们将数据库 (`Chinook.db`) 托管在一个公共的 GCS 存储桶中。
 
-
 ```typescript
 import fs from "node:fs/promises";
 import path from "node:path";
 
-const url = "https://storage.googleapis.com/benchmarks-artifacts/chinook/Chinook.db";
+const url =
+  "https://storage.googleapis.com/benchmarks-artifacts/chinook/Chinook.db";
 const localPath = path.resolve("Chinook.db");
 
 async function resolveDbPath() {
@@ -91,18 +88,18 @@ async function resolveDbPath() {
     return localPath;
   }
   const resp = await fetch(url);
-  if (!resp.ok) throw new Error(`Failed to download DB. Status code: ${resp.status}`);
+  if (!resp.ok)
+    throw new Error(`Failed to download DB. Status code: ${resp.status}`);
   const buf = Buffer.from(await resp.arrayBuffer());
   await fs.writeFile(localPath, buf);
   return localPath;
 }
 ```
 
-
-
 ## 3. 添加用于数据库交互的工具
 
 使用 `langchain/sql_db` 中提供的 `SqlDatabase` 包装器与数据库交互。该包装器提供了一个简单的接口来执行 SQL 查询和获取结果：
+
 ```typescript
 import { SqlDatabase } from "@langchain/classic/sql_db";
 import { DataSource } from "typeorm";
@@ -123,18 +120,13 @@ async function getSchema() {
 }
 ```
 
-
-
-
-
-
 ## 4. 执行 SQL 查询
 
 在运行命令之前，先在 `_safe_sql` 中检查大语言模型生成的命令：
 
 ```typescript
-
-const DENY_RE = /\b(INSERT|UPDATE|DELETE|ALTER|DROP|CREATE|REPLACE|TRUNCATE)\b/i;
+const DENY_RE =
+  /\b(INSERT|UPDATE|DELETE|ALTER|DROP|CREATE|REPLACE|TRUNCATE)\b/i;
 const HAS_LIMIT_TAIL_RE = /\blimit\b\s+\d+(\s*,\s*\d+)?\s*;?\s*$/i;
 
 function sanitizeSqlQuery(q) {
@@ -143,16 +135,16 @@ function sanitizeSqlQuery(q) {
   // 阻止多条语句（允许一个可选的尾部分号）
   const semis = [...query].filter((c) => c === ";").length;
   if (semis > 1 || (query.endsWith(";") && query.slice(0, -1).includes(";"))) {
-    throw new Error("multiple statements are not allowed.")
+    throw new Error("multiple statements are not allowed.");
   }
   query = query.replace(/;+\s*$/g, "").trim();
 
   // 只读检查
   if (!query.toLowerCase().startsWith("select")) {
-    throw new Error("Only SELECT statements are allowed")
+    throw new Error("Only SELECT statements are allowed");
   }
   if (DENY_RE.test(query)) {
-    throw new Error("DML/DDL detected. Only read-only queries are permitted.")
+    throw new Error("DML/DDL detected. Only read-only queries are permitted.");
   }
 
   // 仅在未存在 LIMIT 时追加
@@ -161,13 +153,12 @@ function sanitizeSqlQuery(q) {
   }
   return query;
 }
-
 ```
 
 然后，使用 `SQLDatabase` 的 `run` 方法通过 `execute_sql` 工具执行命令：
 
 ```typescript
-import { tool } from "langchain"
+import { tool } from "langchain";
 import * as z from "zod";
 
 const executeSql = tool(
@@ -175,9 +166,11 @@ const executeSql = tool(
     const q = sanitizeSqlQuery(query);
     try {
       const result = await db.run(q);
-      return typeof result === "string" ? result : JSON.stringify(result, null, 2);
+      return typeof result === "string"
+        ? result
+        : JSON.stringify(result, null, 2);
     } catch (e) {
-      throw new Error(e?.message ?? String(e))
+      throw new Error(e?.message ?? String(e));
     }
   },
   {
@@ -186,9 +179,8 @@ const executeSql = tool(
     schema: z.object({
       query: z.string().describe("SQLite SELECT query to execute (read-only)."),
     }),
-  }
+  },
 );
-
 ```
 
 ## 5. 使用 `createAgent`
@@ -200,7 +192,8 @@ const executeSql = tool(
 ```typescript
 import { SystemMessage } from "langchain";
 
-const getSystemPrompt = async () => new SystemMessage(`You are a careful SQLite analyst.
+const getSystemPrompt = async () =>
+  new SystemMessage(`You are a careful SQLite analyst.
 
 Authoritative schema (do not invent columns/tables):
 ${await getSchema()}
@@ -227,7 +220,6 @@ const agent = createAgent({
   tools: [executeSql],
   systemPrompt: getSystemPrompt,
 });
-
 ```
 
 ## 6. 运行代理
@@ -238,7 +230,7 @@ const agent = createAgent({
 const question = "Which genre, on average, has the longest tracks?";
 const stream = await agent.stream(
   { messages: [{ role: "user", content: question }] },
-  { streamMode: "values" }
+  { streamMode: "values" },
 );
 for await (const step of stream) {
   const message = step.messages.at(-1);
@@ -256,12 +248,15 @@ ai: Sci Fi & Fantasy — average track length ≈ 48.5 minutes (about 2,911,783 
 代理正确编写了查询，检查了查询，并运行了它以提供最终响应。
 
 <Note>
-    你可以在 [LangSmith 跟踪](https://smith.langchain.com/public/653d218b-af67-4854-95ca-6abecb9b2520/r) 中检查上述运行的所有方面，包括采取的步骤、调用的工具、大语言模型看到的提示等。
+  你可以在 [LangSmith
+  跟踪](https://smith.langchain.com/public/653d218b-af67-4854-95ca-6abecb9b2520/r)
+  中检查上述运行的所有方面，包括采取的步骤、调用的工具、大语言模型看到的提示等。
 </Note>
 
 #### （可选）使用 Studio
 
 [Studio](/langsmith/studio) 提供了一个“客户端”循环以及内存，因此你可以将其作为聊天界面运行并查询数据库。你可以提出诸如“告诉我数据库的模式”或“显示前5名客户的发票”之类的问题。你将看到生成的 SQL 命令和结果输出。有关如何启动的详细信息如下。
+
 <Accordion title="在 Studio 中运行你的代理">
 
 除了前面提到的包之外，你还需要：
@@ -276,8 +271,8 @@ npm i -g @langchain/langgraph-cli@latest
 {
   "dependencies": ["."],
   "graphs": {
-      "agent": "./sqlAgent.ts:agent",
-      "graph": "./sqlAgentLanggraph.ts:graph"
+    "agent": "./sqlAgent.ts:agent",
+    "graph": "./sqlAgentLanggraph.ts:graph"
   },
   "env": ".env"
 }
@@ -288,10 +283,11 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { SqlDatabase } from "@langchain/classic/sql_db";
 import { DataSource } from "typeorm";
-import { SystemMessage, createAgent, tool } from "langchain"
+import { SystemMessage, createAgent, tool } from "langchain";
 import * as z from "zod";
 
-const url = "https://storage.googleapis.com/benchmarks-artifacts/chinook/Chinook.db";
+const url =
+  "https://storage.googleapis.com/benchmarks-artifacts/chinook/Chinook.db";
 const localPath = path.resolve("Chinook.db");
 
 async function resolveDbPath() {
@@ -299,7 +295,8 @@ async function resolveDbPath() {
     return localPath;
   }
   const resp = await fetch(url);
-  if (!resp.ok) throw new Error(`Failed to download DB. Status code: ${resp.status}`);
+  if (!resp.ok)
+    throw new Error(`Failed to download DB. Status code: ${resp.status}`);
   const buf = Buffer.from(await resp.arrayBuffer());
   await fs.writeFile(localPath, buf);
   return localPath;
@@ -320,7 +317,8 @@ async function getSchema() {
   return await db.getTableInfo();
 }
 
-const DENY_RE = /\b(INSERT|UPDATE|DELETE|ALTER|DROP|CREATE|REPLACE|TRUNCATE)\b/i;
+const DENY_RE =
+  /\b(INSERT|UPDATE|DELETE|ALTER|DROP|CREATE|REPLACE|TRUNCATE)\b/i;
 const HAS_LIMIT_TAIL_RE = /\blimit\b\s+\d+(\s*,\s*\d+)?\s*;?\s*$/i;
 
 function sanitizeSqlQuery(q) {
@@ -329,16 +327,16 @@ function sanitizeSqlQuery(q) {
   // 阻止多条语句（允许一个可选的尾部分号）
   const semis = [...query].filter((c) => c === ";").length;
   if (semis > 1 || (query.endsWith(";") && query.slice(0, -1).includes(";"))) {
-    throw new Error("multiple statements are not allowed.")
+    throw new Error("multiple statements are not allowed.");
   }
   query = query.replace(/;+\s*$/g, "").trim();
 
   // 只读检查
   if (!query.toLowerCase().startsWith("select")) {
-    throw new Error("Only SELECT statements are allowed")
+    throw new Error("Only SELECT statements are allowed");
   }
   if (DENY_RE.test(query)) {
-    throw new Error("DML/DDL detected. Only read-only queries are permitted.")
+    throw new Error("DML/DDL detected. Only read-only queries are permitted.");
   }
 
   // 仅在未存在 LIMIT 时追加
@@ -353,9 +351,11 @@ const executeSql = tool(
     const q = sanitizeSqlQuery(query);
     try {
       const result = await db.run(q);
-      return typeof result === "string" ? result : JSON.stringify(result, null, 2);
+      return typeof result === "string"
+        ? result
+        : JSON.stringify(result, null, 2);
     } catch (e) {
-      throw new Error(e?.message ?? String(e))
+      throw new Error(e?.message ?? String(e));
     }
   },
   {
@@ -364,10 +364,11 @@ const executeSql = tool(
     schema: z.object({
       query: z.string().describe("SQLite SELECT query to execute (read-only)."),
     }),
-  }
+  },
 );
 
-const getSystemPrompt = async () => new SystemMessage(`You are a careful SQLite analyst.
+const getSystemPrompt = async () =>
+  new SystemMessage(`You are a careful SQLite analyst.
 
 Authoritative schema (do not invent columns/tables):
 ${await getSchema()}
@@ -389,8 +390,8 @@ export const agent = createAgent({
   systemPrompt: getSystemPrompt,
 });
 ```
-</Accordion>
 
+</Accordion>
 
 ## 后续步骤
 
@@ -399,10 +400,13 @@ export const agent = createAgent({
 ---
 
 <div className="source-links">
-<Callout icon="terminal-2">
-    [将这些文档连接](/use-these-docs) 到 Claude、VSCode 等，通过 MCP 获取实时答案。
-</Callout>
-<Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/sql-agent.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
-</Callout>
+  <Callout icon="terminal-2">
+    [将这些文档连接](/use-these-docs) 到 Claude、VSCode 等，通过 MCP
+    获取实时答案。
+  </Callout>
+  <Callout icon="edit">
+    [在 GitHub
+    上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/sql-agent.mdx)
+    或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
+  </Callout>
 </div>

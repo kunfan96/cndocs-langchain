@@ -72,7 +72,7 @@ flowchart TD
 - `发送回复`：发送邮件回复
 
 <Tip>
-注意，一些节点决定下一步去哪里（`分类意图`、`起草回复`、`人工审核`），而其他节点总是进行到相同的下一步（`读取邮件`总是到`分类意图`，`文档搜索`总是到`起草回复`）。
+  注意，一些节点决定下一步去哪里（`分类意图`、`起草回复`、`人工审核`），而其他节点总是进行到相同的下一步（`读取邮件`总是到`分类意图`，`文档搜索`总是到`起草回复`）。
 </Tip>
 
 ## 步骤2：识别每个步骤需要做什么
@@ -80,18 +80,18 @@ flowchart TD
 对于图中的每个节点，确定它代表什么类型的操作以及它需要什么上下文才能正常工作。
 
 <CardGroup cols={2}>
-    <Card title="LLM步骤" icon="brain" href="#llm-steps">
-        当你需要理解、分析、生成文本或进行推理决策时使用
-    </Card>
-    <Card title="数据步骤" icon="database" href="#data-steps">
-        当你需要从外部源检索信息时使用
-    </Card>
-    <Card title="操作步骤" icon="bolt" href="#action-steps">
-        当你需要执行外部操作时使用
-    </Card>
-    <Card title="用户输入步骤" icon="user" href="#user-input-steps">
-        当你需要人工干预时使用
-    </Card>
+  <Card title="LLM步骤" icon="brain" href="#llm-steps">
+    当你需要理解、分析、生成文本或进行推理决策时使用
+  </Card>
+  <Card title="数据步骤" icon="database" href="#data-steps">
+    当你需要从外部源检索信息时使用
+  </Card>
+  <Card title="操作步骤" icon="bolt" href="#action-steps">
+    当你需要执行外部操作时使用
+  </Card>
+  <Card title="用户输入步骤" icon="user" href="#user-input-steps">
+    当你需要人工干预时使用
+  </Card>
 </CardGroup>
 
 ### LLM步骤
@@ -110,6 +110,7 @@ flowchart TD
         - 动态上下文（来自状态）：分类结果、搜索结果、客户历史
         - 期望结果：可供审核的专业邮件回复
     </Accordion>
+
 </AccordionGroup>
 
 ### 数据步骤
@@ -128,6 +129,7 @@ flowchart TD
         - 重试策略：是，但如果不可用则回退到基本信息
         - 缓存：是，使用生存时间来平衡新鲜度和性能
     </Accordion>
+
 </AccordionGroup>
 
 ### 操作步骤
@@ -146,6 +148,7 @@ flowchart TD
         - 重试策略：是，关键在于不丢失错误报告
         - 返回：要包含在回复中的工单ID
     </Accordion>
+
 </AccordionGroup>
 
 ### 用户输入步骤
@@ -153,11 +156,11 @@ flowchart TD
 当一个步骤需要人工干预时：
 
 <AccordionGroup>
-    <Accordion title="人工审核节点">
-        - 决策上下文：原始邮件、草稿回复、紧急程度、分类
-        - 期望输入格式：批准布尔值加上可选的编辑后回复
-        - 何时触发：高紧急程度、复杂问题或质量问题
-    </Accordion>
+  <Accordion title="人工审核节点">
+    - 决策上下文：原始邮件、草稿回复、紧急程度、分类 -
+    期望输入格式：批准布尔值加上可选的编辑后回复 -
+    何时触发：高紧急程度、复杂问题或质量问题
+  </Accordion>
 </AccordionGroup>
 
 ## 步骤3：设计你的状态
@@ -176,6 +179,7 @@ flowchart TD
     <Card title="不要存储" icon="code">
         你能从其他数据推导出它吗？如果是，就在需要时计算它，而不是存储在状态中。
     </Card>
+
 </CardGroup>
 
 对于我们的邮件智能体，我们需要跟踪：
@@ -189,7 +193,7 @@ flowchart TD
 ### 保持状态原始，按需格式化提示
 
 <Tip>
-    一个关键原则：你的状态应该存储原始数据，而不是格式化的文本。在需要时在节点内格式化提示。
+  一个关键原则：你的状态应该存储原始数据，而不是格式化的文本。在需要时在节点内格式化提示。
 </Tip>
 
 这种分离意味着：
@@ -229,11 +233,6 @@ class EmailAgentState(TypedDict):
     messages: list[str] | None
 ```
 
-
-
-
-
-
 注意状态只包含原始数据——没有提示模板、没有格式化字符串、没有指令。分类输出作为单个字典存储，直接来自LLM。
 
 ## 步骤4：构建你的节点
@@ -244,13 +243,13 @@ class EmailAgentState(TypedDict):
 
 不同的错误需要不同的处理策略：
 
-| 错误类型 | 谁修复它 | 策略 | 何时使用 |
-|------------|--------------|----------|-------------|
-| 瞬时错误（网络问题、速率限制） | 系统（自动） | 重试策略 | 通常重试后会解决的临时故障 |
-| LLM可恢复错误（工具故障、解析问题） | LLM | 将错误存储在状态中并循环回去 | LLM可以看到错误并调整其方法 |
-| 用户可修复错误（信息缺失、指令不清） | 人工 | 使用`interrupt()`暂停 | 需要用户输入才能继续 |
-| 重试后可恢复的故障 | 开发者（声明式） | `error_handler` | 在重试耗尽后运行补偿/恢复分支 |
-| 意外错误 | 开发者 | 让它们冒泡上去 | 需要调试的未知问题 |
+| 错误类型                             | 谁修复它         | 策略                         | 何时使用                      |
+| ------------------------------------ | ---------------- | ---------------------------- | ----------------------------- |
+| 瞬时错误（网络问题、速率限制）       | 系统（自动）     | 重试策略                     | 通常重试后会解决的临时故障    |
+| LLM可恢复错误（工具故障、解析问题）  | LLM              | 将错误存储在状态中并循环回去 | LLM可以看到错误并调整其方法   |
+| 用户可修复错误（信息缺失、指令不清） | 人工             | 使用`interrupt()`暂停        | 需要用户输入才能继续          |
+| 重试后可恢复的故障                   | 开发者（声明式） | `error_handler`              | 在重试耗尽后运行补偿/恢复分支 |
+| 意外错误                             | 开发者           | 让它们冒泡上去               | 需要调试的未知问题            |
 
 <Tabs>
     <Tab title="瞬时错误" icon="rotate">
@@ -374,8 +373,8 @@ class EmailAgentState(TypedDict):
 
 
     </Tab>
-</Tabs>
 
+</Tabs>
 
 ### 实现我们的邮件智能体节点
 
@@ -578,13 +577,14 @@ class EmailAgentState(TypedDict):
 
 
     </Accordion>
+
 </AccordionGroup>
 
 ## 步骤5：将它们连接在一起
 
 现在我们将节点连接成一个工作图。由于我们的节点处理自己的路由决策，我们只需要几个基本边。
 
-要启用使用`interrupt()`的[人在回路中](/oss/python/langgraph/interrupts)，我们需要使用[检查点](/oss/python/langgraph/persistence)编译以在运行之间保存状态：
+要启用使用`interrupt()`的[Human in the Loop](/oss/python/langgraph/interrupts)，我们需要使用[检查点](/oss/python/langgraph/persistence)编译以在运行之间保存状态：
 
 <Accordion title="图编译代码" icon="sitemap" defaultOpen={true}>
 
@@ -619,10 +619,6 @@ workflow.add_edge("send_reply", END)
 memory = MemorySaver()
 app = workflow.compile(checkpointer=memory)
 ```
-
-
-
-
 
 </Accordion>
 
@@ -664,10 +660,6 @@ final_result = app.invoke(human_response, config)
 print(f"邮件发送成功！")
 ```
 
-
-
-
-
 </Accordion>
 
 图在遇到`interrupt()`时暂停，将所有内容保存到检查点，并等待。它可以在几天后恢复，从停止的地方继续。`thread_id`确保此对话的所有状态都一起保存。
@@ -702,6 +694,7 @@ print(f"邮件发送成功！")
     <Card title="图结构自然涌现" icon="sitemap" href="#step-5-wire-it-together">
         你定义基本连接，你的节点处理自己的路由逻辑。这使控制流明确且可追溯——你总是可以通过查看当前节点来理解你的智能体下一步将做什么。
     </Card>
+
 </CardGroup>
 
 ### 高级考虑
@@ -734,6 +727,7 @@ print(f"邮件发送成功！")
 应用程序级别的考虑：步骤2中的缓存讨论（是否缓存搜索结果）是应用程序级别的决策，而不是LangGraph框架功能。你在节点函数内根据特定需求实现缓存——LangGraph不规定这一点。
 
 性能考虑：更多的节点并不意味着更慢的执行。LangGraph默认在后台写入检查点（[异步持久性模式](/oss/python/langgraph/durable-execution#durability-modes)），因此你的图继续运行而无需等待检查点完成。这意味着你以最小的性能影响获得频繁的检查点。如果需要，你可以调整此行为——使用`"exit"`模式仅在完成时检查点，或使用`"sync"`模式在写入每个检查点之前阻止执行。
+
 </Accordion>
 
 ### 从这里去哪里
@@ -741,7 +735,7 @@ print(f"邮件发送成功！")
 这是关于用LangGraph思考构建智能体的介绍。你可以用以下内容扩展这个基础：
 
 <CardGroup cols={2}>
-    <Card title="人在回路中模式" icon="user-check" href="/oss/python/langgraph/interrupts">
+    <Card title="Human in the Loop模式" icon="user-check" href="/oss/python/langgraph/interrupts">
         学习如何在执行前添加工具批准、批量批准和其他模式
     </Card>
 
@@ -764,15 +758,16 @@ print(f"邮件发送成功！")
     <Card title="重试逻辑" icon="rotate" href="/oss/python/langgraph/use-graph-api#add-retry-policies">
         为失败操作实现带有指数退避的重试逻辑
     </Card>
+
 </CardGroup>
 
 ---
 
 <div className="source-links">
-<Callout icon="terminal-2">
+  <Callout icon="terminal-2">
     [将这些文档](/use-these-docs)通过MCP连接到Claude、VSCode等，以获得实时答案。
-</Callout>
-<Callout icon="edit">
+  </Callout>
+  <Callout icon="edit">
     [在GitHub上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/thinking-in-langgraph.mdx)或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
-</Callout>
+  </Callout>
 </div>

@@ -1,8 +1,8 @@
 ---
-title: 人在回路中
+title: Human in the Loop
 ---
 
-人在回路中（HITL）[中间件](/oss/python/langchain/middleware/built-in#human-in-the-loop)允许你为智能体的工具调用添加人工监督。
+Human in the Loop（HITL）[中间件](/oss/python/langchain/middleware/built-in#human-in-the-loop)允许你为智能体的工具调用添加人工监督。
 当模型提议一个可能需要审查的操作时——例如写入文件或执行SQL——该中间件可以暂停执行并等待决策。
 
 它通过根据可配置的策略检查每个工具调用来实现这一点。如果需要干预，中间件会发出一个[中断](https://reference.langchain.com/python/langgraph/types/interrupt)，暂停执行。图状态使用LangGraph的[持久化层](/oss/python/langgraph/persistence)保存，因此执行可以安全地暂停并在稍后恢复。
@@ -13,21 +13,20 @@ title: 人在回路中
 
 [中间件](/oss/python/langchain/middleware/built-in#human-in-the-loop)定义了四种内置的人工响应中断的方式：
 
-| 决策类型 | 描述                                                                       | 示例用例                                            |
-|----------|---------------------------------------------------------------------------|-----------------------------------------------------|
-| ✅ `approve`   | 操作按原样批准并执行，不做更改。                                            | 按原样发送电子邮件草稿                                |
-| ✏️ `edit`     | 工具调用在修改后执行。                                                     | 在发送电子邮件前更改收件人                            |
-| ❌ `reject`    | 工具调用被拒绝，并在对话中添加解释。                                         | 拒绝电子邮件草稿并解释如何重写它                      |
-| 💬 `respond`  | 跳过工具执行；人工的消息成为工具结果。                                       | 直接回复“ask_user”提示                               |
+| 决策类型     | 描述                                   | 示例用例                         |
+| ------------ | -------------------------------------- | -------------------------------- |
+| ✅ `approve` | 操作按原样批准并执行，不做更改。       | 按原样发送电子邮件草稿           |
+| ✏️ `edit`    | 工具调用在修改后执行。                 | 在发送电子邮件前更改收件人       |
+| ❌ `reject`  | 工具调用被拒绝，并在对话中添加解释。   | 拒绝电子邮件草稿并解释如何重写它 |
+| 💬 `respond` | 跳过工具执行；人工的消息成为工具结果。 | 直接回复“ask_user”提示           |
 
 每个工具可用的决策类型取决于你在 `interrupt_on` 中配置的策略。
 当多个工具调用同时暂停时，每个操作都需要一个单独的决策。
 决策必须按照操作在中断请求中出现的顺序提供。
 
 <Tip>
-**编辑**工具参数时，请谨慎进行更改。对原始参数的重大修改可能导致模型重新评估其方法，并可能多次执行工具或采取意外操作。
+  **编辑**工具参数时，请谨慎进行更改。对原始参数的重大修改可能导致模型重新评估其方法，并可能多次执行工具或采取意外操作。
 </Tip>
-
 
 ## 配置中断
 
@@ -57,15 +56,11 @@ agent = create_agent(
             description_prefix="Tool execution pending approval",
         ),
     ],
-    # 人在回路中需要检查点来处理中断。
+    # Human in the Loop需要检查点来处理中断。
     # 在生产环境中，使用持久化检查点，如 AsyncPostgresSaver。
     checkpointer=InMemorySaver(),  # [!code highlight]
 )
 ```
-
-
-
-
 
 <Info>
     你必须配置一个检查点以在中断期间持久化图状态。
@@ -73,30 +68,34 @@ agent = create_agent(
 
     调用智能体时，传递一个包含 **thread ID** 的 `config`，以将执行与对话线程关联。
     详情请参阅 [LangGraph 中断文档](/oss/python/langgraph/interrupts)。
+
 </Info>
 
 <Accordion title="配置选项">
 
 <ParamField body="interrupt_on" type="dict" required>
-    工具名称到批准配置的映射。值可以是 `True`（使用默认配置中断）、`False`（自动批准）或一个 `InterruptOnConfig` 对象。
+  工具名称到批准配置的映射。值可以是
+  `True`（使用默认配置中断）、`False`（自动批准）或一个 `InterruptOnConfig`
+  对象。
 </ParamField>
 
-<ParamField body="description_prefix" type="string" default="Tool execution requires approval">
-    操作请求描述的前缀
+<ParamField
+  body="description_prefix"
+  type="string"
+  default="Tool execution requires approval"
+>
+  操作请求描述的前缀
 </ParamField>
 
 **`InterruptOnConfig` 选项：**
 
 <ParamField body="allowed_decisions" type="list[string]">
-    允许的决策列表：`'approve'`、`'edit'`、`'reject'` 或 `'respond'`
+  允许的决策列表：`'approve'`、`'edit'`、`'reject'` 或 `'respond'`
 </ParamField>
 
 <ParamField body="description" type="string | callable">
-    用于自定义描述的静态字符串或可调用函数
+  用于自定义描述的静态字符串或可调用函数
 </ParamField>
-
-
-
 
 </Accordion>
 
@@ -104,11 +103,10 @@ agent = create_agent(
 
 当你调用智能体时，它会运行直到完成或触发中断。当中间件匹配到你在 `interrupt_on` 中配置的策略时，会触发中断。使用 `version="v2"` 时，结果是一个带有 `interrupts` 属性的 `GraphOutput`，其中包含需要审查的操作。然后你可以将这些操作呈现给审查者，并在提供决策后恢复执行。
 
-
 ```python
 from langgraph.types import Command
 
-# 人在回路中利用了LangGraph的持久化层。
+# Human in the Loop利用了LangGraph的持久化层。
 # 你必须提供一个线程ID，将执行与对话线程关联，
 # 这样对话就可以暂停和恢复（正如人工审查所需）。
 config = {"configurable": {"thread_id": "some_id"}} # [!code highlight]
@@ -159,9 +157,6 @@ agent.invoke(
 )
 ```
 
-
-
-
 ### 决策类型
 
 <Tabs>
@@ -185,8 +180,6 @@ agent.invoke(
     version="v2",
 )
 ```
-
-
 
 </Tab>
 <Tab title="✏️ edit">
@@ -251,9 +244,6 @@ agent.invoke(
     )
     ```
 
-
-
-
 `message` 作为反馈添加到对话中，以帮助智能体理解操作被拒绝的原因以及它应该做什么。
 
 ---
@@ -281,9 +271,6 @@ agent.invoke(
 }
 ```
 
-
-
-
 </Tab>
 
 <Tab title="💬 respond">
@@ -309,15 +296,12 @@ agent.invoke(
     )
     ```
 
-
-
-
 `message` 作为成功的 `ToolMessage` 返回给智能体。当工具有意作为人工输入的占位符时——例如，一个提示澄清的 `ask_user` 工具——使用 `respond`。
 
 </Tab>
 </Tabs>
 
-## 使用人在回路中进行流式传输
+## 使用Human in the Loop进行流式传输
 
 你可以使用 `stream()` 代替 `invoke()`，在智能体运行和处理中断时获取实时更新。使用 `stream_mode=['updates', 'messages']` 和 `version="v2"` 以统一的v2格式流式传输智能体进度和LLM令牌。
 
@@ -356,9 +340,6 @@ for chunk in agent.stream(
             print(token.content, end="", flush=True)
 ```
 
-
-
-
 有关流模式的更多详情，请参阅[流式传输](/oss/python/langchain/streaming)指南。
 
 ## 执行生命周期
@@ -371,8 +352,6 @@ for chunk in agent.stream(
 4. 智能体等待人工决策。
 5. 基于 `HITLResponse` 决策，中间件执行批准或编辑的调用，为拒绝的调用合成 [ToolMessage](https://reference.langchain.com/python/langchain-core/messages/tool/ToolMessage)，对于 `respond` 决策直接将人工回复作为 [ToolMessage](https://reference.langchain.com/python/langchain-core/messages/tool/ToolMessage) 返回，并恢复执行。
 
-
-
 ## 自定义HITL逻辑
 
 对于更专业的工作流，你可以直接使用 [interrupt](https://reference.langchain.com/python/langgraph/types/interrupt) 原语和 [middleware](/oss/python/langchain/middleware) 抽象来构建自定义的HITL逻辑。
@@ -382,10 +361,10 @@ for chunk in agent.stream(
 ---
 
 <div className="source-links">
-<Callout icon="terminal-2">
+  <Callout icon="terminal-2">
     [将这些文档连接](/use-these-docs)到Claude、VSCode等，通过MCP获取实时答案。
-</Callout>
-<Callout icon="edit">
+  </Callout>
+  <Callout icon="edit">
     [在GitHub上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/human-in-the-loop.mdx)或[提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
-</Callout>
+  </Callout>
 </div>

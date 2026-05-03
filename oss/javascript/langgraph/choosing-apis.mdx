@@ -10,6 +10,7 @@ LangGraph 提供两种不同的 API 来构建智能体工作流：**Graph API** 
 ## 快速决策指南
 
 当您需要以下功能时，请使用 **Graph API**：
+
 - **复杂工作流可视化**，用于调试和文档编写
 - **显式状态管理**，在多个节点间共享数据
 - **条件分支**，具有多个决策点
@@ -17,6 +18,7 @@ LangGraph 提供两种不同的 API 来构建智能体工作流：**Graph API** 
 - **团队协作**，可视化表示有助于理解
 
 当您希望实现以下目标时，请使用 **Functional API**：
+
 - **对现有过程式代码的最小改动**
 - **标准控制流**（if/else、循环、函数调用）
 - **函数作用域状态**，无需显式状态管理
@@ -145,30 +147,24 @@ workflow
 import { task, entrypoint } from "@langchain/langgraph";
 
 // Functional API：对现有代码的最小改动
-const processUserInput = task(
-  "processUserInput",
-  async (userInput: string) => {
-    // 进行最小改动的现有函数
-    return { processed: userInput.toLowerCase().trim() };
+const processUserInput = task("processUserInput", async (userInput: string) => {
+  // 进行最小改动的现有函数
+  return { processed: userInput.toLowerCase().trim() };
+});
+
+const workflow = entrypoint({ checkpointer }, async (userInput: string) => {
+  // 标准控制流
+  const processed = await processUserInput(userInput);
+
+  let response: string;
+  if (processed.processed.includes("urgent")) {
+    response = await handleUrgentRequest(processed);
+  } else {
+    response = await handleNormalRequest(processed);
   }
-);
 
-const workflow = entrypoint(
-  { checkpointer },
-  async (userInput: string) => {
-    // 标准控制流
-    const processed = await processUserInput(userInput);
-
-    let response: string;
-    if (processed.processed.includes("urgent")) {
-      response = await handleUrgentRequest(processed);
-    } else {
-      response = await handleNormalRequest(processed);
-    }
-
-    return response;
-  }
-);
+  return response;
+});
 ```
 
 **2. 具有简单逻辑的线性工作流**
@@ -178,31 +174,28 @@ const workflow = entrypoint(
 ```typescript
 import { entrypoint, interrupt } from "@langchain/langgraph";
 
-const essayWorkflow = entrypoint(
-  { checkpointer },
-  async (topic: string) => {
-    // 具有简单分支的线性流程
-    let outline = await createOutline(topic);
+const essayWorkflow = entrypoint({ checkpointer }, async (topic: string) => {
+  // 具有简单分支的线性流程
+  let outline = await createOutline(topic);
 
-    if (outline.points.length < 3) {
-      outline = await expandOutline(outline);
-    }
-
-    const draft = await writeDraft(outline);
-
-    // 人工审核检查点
-    const feedback = interrupt({ draft, action: "Please review" });
-
-    let finalEssay: string;
-    if (feedback === "approve") {
-      finalEssay = draft;
-    } else {
-      finalEssay = await reviseEssay(draft, feedback);
-    }
-
-    return { essay: finalEssay };
+  if (outline.points.length < 3) {
+    outline = await expandOutline(outline);
   }
-);
+
+  const draft = await writeDraft(outline);
+
+  // 人工审核检查点
+  const feedback = interrupt({ draft, action: "Please review" });
+
+  let finalEssay: string;
+  if (feedback === "approve") {
+    finalEssay = draft;
+  } else {
+    finalEssay = await reviseEssay(draft, feedback);
+  }
+
+  return { essay: finalEssay };
+});
 ```
 
 **3. 快速原型开发**
@@ -220,7 +213,7 @@ const quickPrototype = entrypoint(
     const step2Result = await processStep2(step1Result);
 
     return { finalResult: step2Result };
-  }
+  },
 );
 ```
 
@@ -250,7 +243,7 @@ const documentProcessor = entrypoint(
     const analysis = await analyzeDocument(document);
     // 根据需要在函数间传递状态
     return await generateReport(analysis);
-  }
+  },
 );
 ```
 
@@ -274,11 +267,14 @@ const CoordinationState = new StateSchema({
 });
 
 // 使用 Functional API 进行简单的数据处理
-const dataProcessor = entrypoint({}, async (rawData: Record<string, unknown>) => {
-  const cleaned = await cleanData(rawData);
-  const transformed = await transformData(cleaned);
-  return transformed;
-});
+const dataProcessor = entrypoint(
+  {},
+  async (rawData: Record<string, unknown>) => {
+    const cleaned = await cleanData(rawData);
+    const transformed = await transformData(cleaned);
+    return transformed;
+  },
+);
 
 // 在图中使用 Functional API 的结果
 const orchestratorNode: GraphNode<typeof CoordinationState> = async (state) => {
@@ -322,7 +318,7 @@ const complexWorkflow = entrypoint(
     }
 
     return result;
-  }
+  },
 );
 
 // 之后：Graph API
@@ -344,7 +340,9 @@ const shouldAnalyze: ConditionalEdgeRouter<typeof WorkflowState> = (state) => {
   return state.step1Result?.needsAnalysis ? "analyze" : "simplePath";
 };
 
-const confidenceCheck: ConditionalEdgeRouter<typeof WorkflowState> = (state) => {
+const confidenceCheck: ConditionalEdgeRouter<typeof WorkflowState> = (
+  state,
+) => {
   return (state.analysis?.confidence as number) > 0.8
     ? "highConfidence"
     : "lowConfidence";
@@ -381,7 +379,7 @@ const simpleWorkflow = entrypoint(
     const step1 = await processStep1(inputData);
     const step2 = await processStep2(step1);
     return await finalizeResult(step2);
-  }
+  },
 );
 ```
 
@@ -391,15 +389,18 @@ const simpleWorkflow = entrypoint(
 
 当您希望以最小的改动将 LangGraph 功能添加到现有代码、拥有简单的线性工作流或需要快速原型开发能力时，请选择 **Functional API**。
 
-两种 API 都提供相同的核心 LangGraph 功能（持久化、流式处理、人在回路中、记忆），但将它们封装在不同的范式中，以适应不同的开发风格和用例。
+两种 API 都提供相同的核心 LangGraph 功能（持久化、流式处理、Human in the Loop、记忆），但将它们封装在不同的范式中，以适应不同的开发风格和用例。
 
 ---
 
 <div className="source-links">
-<Callout icon="terminal-2">
-    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP 获取实时答案。
-</Callout>
-<Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/choosing-apis.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
-</Callout>
+  <Callout icon="terminal-2">
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP
+    获取实时答案。
+  </Callout>
+  <Callout icon="edit">
+    [在 GitHub
+    上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/choosing-apis.mdx)
+    或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
+  </Callout>
 </div>

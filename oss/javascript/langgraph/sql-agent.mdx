@@ -3,16 +3,16 @@ title: 构建自定义 SQL 代理
 sidebarTitle: 自定义 SQL 代理
 ---
 
-import ChatModelTabsPy from '/snippets/chat-model-tabs.mdx';
-import ChatModelTabsJS from '/snippets/chat-model-tabs-js.mdx';
-
+import ChatModelTabsPy from "/snippets/chat-model-tabs.mdx";
+import ChatModelTabsJS from "/snippets/chat-model-tabs-js.mdx";
 
 在本教程中，我们将构建一个自定义代理，该代理可以使用 LangGraph 回答关于 SQL 数据库的问题。
 
 LangChain 提供了内置的[代理](/oss/javascript/langchain/agents)实现，这些实现使用 [LangGraph](/oss/javascript/langgraph/overview) 原语构建。如果需要更深层次的定制，可以直接在 LangGraph 中实现代理。本指南演示了一个 SQL 代理的示例实现。有关实践入门，请参阅[使用更高级的 LangChain 抽象构建 SQL 代理](/oss/javascript/langchain/sql-agent)。
 
 <Warning>
-构建 SQL 数据库的问答系统需要执行模型生成的 SQL 查询。这样做存在固有风险。请确保您的数据库连接权限始终尽可能严格地限定在代理所需范围内。这将减轻（但不能消除）构建模型驱动系统的风险。
+  构建 SQL 数据库的问答系统需要执行模型生成的 SQL
+  查询。这样做存在固有风险。请确保您的数据库连接权限始终尽可能严格地限定在代理所需范围内。这将减轻（但不能消除）构建模型驱动系统的风险。
 </Warning>
 
 [预构建代理](/oss/javascript/langchain/sql-agent)让我们可以快速上手，但我们依赖系统提示来约束其行为——例如，我们指示代理始终从“列出表”工具开始，并在执行查询之前始终运行查询检查器工具。
@@ -25,12 +25,11 @@ LangChain 提供了内置的[代理](/oss/javascript/langchain/agents)实现，�
 
 - 用于从 SQL 数据库读取的[工具](/oss/javascript/langchain/tools)
 - LangGraph [图 API](/oss/javascript/langgraph/graph-api)，包括状态、节点、边和条件边。
-- [人在回路中](/oss/javascript/langgraph/interrupts)流程
+- [Human in the Loop](/oss/javascript/langgraph/interrupts)流程
 
 ## 设置
 
 ### 安装
-
 
     <CodeGroup>
     ```bash npm
@@ -44,8 +43,8 @@ LangChain 提供了内置的[代理](/oss/javascript/langchain/agents)实现，�
     ```
     </CodeGroup>
 
-
 ### LangSmith
+
 设置 [LangSmith](https://smith.langchain.com) 以检查链或代理内部发生的情况。然后设置以下环境变量：
 
     ```shell
@@ -57,9 +56,7 @@ LangChain 提供了内置的[代理](/oss/javascript/langchain/agents)实现，�
 
 选择一个支持[工具调用](/oss/javascript/integrations/providers/overview)的模型：
 
-
 <ChatModelTabsJS />
-
 
 下面示例中显示的输出使用了 OpenAI。
 
@@ -69,22 +66,26 @@ LangChain 提供了内置的[代理](/oss/javascript/langchain/agents)实现，�
 
 为方便起见，我们将数据库（`Chinook.db`）托管在一个公共的 GCS 存储桶中。
 
-
 ```typescript
 import fs from "node:fs/promises";
 import path from "node:path";
 
-const url = "https://storage.googleapis.com/benchmarks-artifacts/chinook/Chinook.db";
+const url =
+  "https://storage.googleapis.com/benchmarks-artifacts/chinook/Chinook.db";
 const localPath = path.resolve("Chinook.db");
 
 async function resolveDbPath() {
-  const exists = await fs.access(localPath).then(() => true).catch(() => false);
+  const exists = await fs
+    .access(localPath)
+    .then(() => true)
+    .catch(() => false);
   if (exists) {
     console.log(`${localPath} already exists, skipping download.`);
     return localPath;
   }
   const resp = await fetch(url);
-  if (!resp.ok) throw new Error(`Failed to download DB. Status code: ${resp.status}`);
+  if (!resp.ok)
+    throw new Error(`Failed to download DB. Status code: ${resp.status}`);
   const buf = Buffer.from(await resp.arrayBuffer());
   await fs.writeFile(localPath, buf);
   console.log(`File downloaded and saved as ${localPath}`);
@@ -100,24 +101,25 @@ import { DataSource } from "typeorm";
 
 const dbPath = await resolveDbPath();
 const datasource = new DataSource({ type: "sqlite", database: dbPath });
-const db = await SqlDatabase.fromDataSourceParams({ appDataSource: datasource });
+const db = await SqlDatabase.fromDataSourceParams({
+  appDataSource: datasource,
+});
 const dialect = db.appDataSourceOptions.type;
 
 console.log(`Dialect: ${dialect}`);
-const tableNames = db.allTables.map(t => t.tableName);
+const tableNames = db.allTables.map((t) => t.tableName);
 console.log(`Available tables: ${tableNames.join(", ")}`);
 const sampleResults = await db.run("SELECT * FROM Artist LIMIT 5;");
 console.log(`Sample output: ${sampleResults}`);
 ```
+
 ```
 Dialect: sqlite
 Available tables: Album, Artist, Customer, Employee, Genre, Invoice, InvoiceLine, MediaType, Playlist, PlaylistTrack, Track
 Sample output: [{"ArtistId":1,"Name":"AC/DC"},{"ArtistId":2,"Name":"Accept"},{"ArtistId":3,"Name":"Aerosmith"},{"ArtistId":4,"Name":"Alanis Morissette"},{"ArtistId":5,"Name":"Alice In Chains"}]
 ```
 
-
 ## 3. 添加用于数据库交互的工具
-
 
 我们将创建自定义工具来与数据库交互：
 
@@ -128,29 +130,30 @@ import * as z from "zod";
 // 列出所有表的工具
 const listTablesTool = tool(
   async () => {
-    const tableNames = db.allTables.map(t => t.tableName);
+    const tableNames = db.allTables.map((t) => t.tableName);
     return tableNames.join(", ");
   },
   {
     name: "sql_db_list_tables",
     description: "输入是一个空字符串，输出是数据库中以逗号分隔的表列表。",
     schema: z.object({}),
-  }
+  },
 );
 
 // 获取特定表结构的工具
 const getSchemaTool = tool(
   async ({ table_names }) => {
-    const tables = table_names.split(",").map(t => t.trim());
+    const tables = table_names.split(",").map((t) => t.trim());
     return await db.getTableInfo(tables);
   },
   {
     name: "sql_db_schema",
-    description: "此工具的输入是以逗号分隔的表列表，输出是这些表的结构和示例行。请务必先调用 sql_db_list_tables 以确保表确实存在！示例输入：table1, table2, table3",
+    description:
+      "此工具的输入是以逗号分隔的表列表，输出是这些表的结构和示例行。请务必先调用 sql_db_list_tables 以确保表确实存在！示例输入：table1, table2, table3",
     schema: z.object({
       table_names: z.string().describe("以逗号分隔的表名列表"),
     }),
-  }
+  },
 );
 
 // 执行 SQL 查询的工具
@@ -165,11 +168,12 @@ const queryTool = tool(
   },
   {
     name: "sql_db_query",
-    description: "此工具的输入是一个详细且正确的 SQL 查询，输出是来自数据库的结果。如果查询不正确，将返回错误消息。如果返回错误，请重写查询，检查查询，然后重试。",
+    description:
+      "此工具的输入是一个详细且正确的 SQL 查询，输出是来自数据库的结果。如果查询不正确，将返回错误消息。如果返回错误，请重写查询，检查查询，然后重试。",
     schema: z.object({
       query: z.string().describe("要执行的 SQL 查询"),
     }),
-  }
+  },
 );
 
 const tools = [listTablesTool, getSchemaTool, queryTool];
@@ -178,6 +182,7 @@ for (const tool of tools) {
   console.log(`${tool.name}: ${tool.description}\n`);
 }
 ```
+
 ```
 sql_db_list_tables: 输入是一个空字符串，输出是数据库中以逗号分隔的表列表。
 
@@ -185,7 +190,6 @@ sql_db_schema: 此工具的输入是以逗号分隔的表列表，输出是这�
 
 sql_db_query: 此工具的输入是一个详细且正确的 SQL 查询，输出是来自数据库的结果。如果查询不正确，将返回错误消息。如果返回错误，请重写查询，检查查询，然后重试。
 ```
-
 
 ## 4. 定义应用步骤
 
@@ -198,11 +202,22 @@ sql_db_query: 此工具的输入是一个详细且正确的 SQL 查询，输出�
 
 将这些步骤放在专用节点中使我们能够 (1) 在需要时强制进行工具调用，以及 (2) 自定义与每个步骤关联的提示。
 
-
 ```typescript
-import { AIMessage, ToolMessage, SystemMessage, HumanMessage } from "@langchain/core/messages";
+import {
+  AIMessage,
+  ToolMessage,
+  SystemMessage,
+  HumanMessage,
+} from "@langchain/core/messages";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
-import { StateSchema, MessagesValue, GraphNode, StateGraph, START, END } from "@langchain/langgraph";
+import {
+  StateSchema,
+  MessagesValue,
+  GraphNode,
+  StateGraph,
+  START,
+  END,
+} from "@langchain/langgraph";
 import { z } from "zod/v4";
 
 // 为结构和查询执行创建工具节点
@@ -230,7 +245,13 @@ const listTables: GraphNode<typeof MessagesState> = async (state) => {
   const toolMessage = await listTablesTool.invoke({});
   const response = new AIMessage(`Available tables: ${toolMessage}`);
 
-  return { messages: [toolCallMessage, new ToolMessage({ content: toolMessage, tool_call_id: "abc123" }), response] };
+  return {
+    messages: [
+      toolCallMessage,
+      new ToolMessage({ content: toolMessage, tool_call_id: "abc123" }),
+      response,
+    ],
+  };
 };
 
 // 示例：强制模型创建一个工具调用
@@ -264,7 +285,10 @@ const generateQuery: GraphNode<typeof MessagesState> = async (state) => {
   // 我们在这里不强制进行工具调用，以允许模型在
   // 获得解决方案时自然地响应。
   const llmWithTools = model.bindTools([queryTool]);
-  const response = await llmWithTools.invoke([systemMessage, ...state.messages]);
+  const response = await llmWithTools.invoke([
+    systemMessage,
+    ...state.messages,
+  ]);
 
   return { messages: [response] };
 };
@@ -308,16 +332,17 @@ const checkQuery: GraphNode<typeof MessagesState> = async (state) => {
 };
 ```
 
-
 ## 5. 实现代理
 
 我们现在可以使用 [图 API](/oss/javascript/langgraph/graph-api) 将这些步骤组装成一个工作流。我们在查询生成步骤定义了一个[条件边](/oss/javascript/langgraph/graph-api#conditional-edges)，如果生成了查询，则路由到查询检查器，或者如果没有工具调用存在（即 LLM 已经对查询给出了响应），则结束。
 
-
 ```typescript
 import { StateGraph, ConditionalEdgeRouter } from "@langchain/langgraph";
 
-const shouldContinue: ConditionalEdgeRouter<typeof MessagesState, "check_query"> = (state) => {
+const shouldContinue: ConditionalEdgeRouter<
+  typeof MessagesState,
+  "check_query"
+> = (state) => {
   const messages = state.messages;
   const lastMessage = messages[messages.length - 1];
   if (!lastMessage.tool_calls || lastMessage.tool_calls.length === 0) {
@@ -344,7 +369,9 @@ const builder = new StateGraph(MessagesState)
 
 const agent = builder.compile();
 ```
+
 我们在下方可视化该应用程序：
+
 ```typescript
 import * as fs from "node:fs/promises";
 
@@ -368,7 +395,7 @@ const question = "Which genre on average has the longest tracks?";
 
 const stream = await agent.stream(
   { messages: [{ role: "user", content: question }] },
-  { streamMode: "values" }
+  { streamMode: "values" },
 );
 
 for await (const step of stream) {
@@ -456,18 +483,17 @@ The genre with the longest tracks on average is "Sci Fi & Fantasy," with an aver
 ```
 
 <Tip>
-有关上述运行的详细信息，请参阅 [LangSmith 跟踪](https://smith.langchain.com/public/a6a96896-686a-4040-b9b5-28d701453d6f/r)。
+  有关上述运行的详细信息，请参阅 [LangSmith
+  跟踪](https://smith.langchain.com/public/a6a96896-686a-4040-b9b5-28d701453d6f/r)。
 </Tip>
 
-
-## 6. 实现人在回路中审查
+## 6. 实现Human in the Loop审查
 
 在执行代理的 SQL 查询之前进行检查是谨慎的做法，以避免任何意外操作或低效。
 
-在这里，我们利用 LangGraph 的[人在回路中](/oss/javascript/langgraph/interrupts)功能，在执行 SQL 查询之前暂停运行并等待人工审查。使用 LangGraph 的[持久化层](/oss/javascript/langgraph/persistence)，我们可以无限期地暂停运行（或至少在持久化层存活期间）。
+在这里，我们利用 LangGraph 的[Human in the Loop](/oss/javascript/langgraph/interrupts)功能，在执行 SQL 查询之前暂停运行并等待人工审查。使用 LangGraph 的[持久化层](/oss/javascript/langgraph/persistence)，我们可以无限期地暂停运行（或至少在持久化层存活期间）。
 
 让我们将 `sql_db_query` 工具包装在一个接收人工输入的节点中。我们可以使用 [interrupt](/oss/javascript/langgraph/interrupts) 函数来实现这一点。下面，我们允许输入以批准工具调用、编辑其参数或提供用户反馈。
-
 
 ```typescript
 import { RunnableConfig } from "@langchain/core/runnables";
@@ -506,22 +532,24 @@ const queryToolWithInterrupt = tool(
     name: queryTool.name,
     description: queryTool.description,
     schema: queryTool.schema,
-  }
+  },
 );
 ```
 
-
 <Note>
-上述实现遵循了更广泛的[人在回路中](/oss/javascript/langgraph/interrupts)指南中的[工具中断示例](/oss/javascript/langgraph/interrupts#interrupts-in-tools)。有关详细信息和替代方案，请参阅该指南。
+  上述实现遵循了更广泛的[Human in the
+  Loop](/oss/javascript/langgraph/interrupts)指南中的[工具中断示例](/oss/javascript/langgraph/interrupts#interrupts-in-tools)。有关详细信息和替代方案，请参阅该指南。
 </Note>
 
 现在让我们重新组装我们的图。我们将用人工审查替换程序化检查。请注意，我们现在包含了一个[检查点](/oss/javascript/langgraph/persistence)；这是暂停和恢复运行所必需的。
 
-
 ```typescript
 import { MemorySaver, ConditionalEdgeRouter } from "@langchain/langgraph";
 
-const shouldContinueWithHuman: ConditionalEdgeRouter<typeof MessagesState, "run_query"> = (state) => {
+const shouldContinueWithHuman: ConditionalEdgeRouter<
+  typeof MessagesState,
+  "run_query"
+> = (state) => {
   const messages = state.messages;
   const lastMessage = messages[messages.length - 1];
   if (!lastMessage.tool_calls || lastMessage.tool_calls.length === 0) {
@@ -550,9 +578,7 @@ const checkpointer = new MemorySaver(); // [!code highlight]
 const agentWithHuman = builderWithHuman.compile({ checkpointer }); // [!code highlight]
 ```
 
-
 我们可以像之前一样调用该图。这次，执行被中断了：
-
 
 ```typescript
 const config = { configurable: { thread_id: "1" } };
@@ -561,7 +587,7 @@ const question = "Which genre on average has the longest tracks?";
 
 const stream = await agentWithHuman.stream(
   { messages: [{ role: "user", content: question }] },
-  { ...config, streamMode: "values" }
+  { ...config, streamMode: "values" },
 );
 
 for await (const step of stream) {
@@ -579,7 +605,6 @@ if (state.next.length > 0) {
 }
 ```
 
-
 ```
 ...
 
@@ -592,8 +617,8 @@ INTERRUPTED:
   "description": "Please review the tool call"
 }
 ```
-我们可以使用 [Command](/oss/javascript/langgraph/use-graph-api#combine-control-flow-and-state-updates-with-command) 来接受或编辑工具调用：
 
+我们可以使用 [Command](/oss/javascript/langgraph/use-graph-api#combine-control-flow-and-state-updates-with-command) 来接受或编辑工具调用：
 
 ```typescript
 import { Command } from "@langchain/langgraph";
@@ -601,7 +626,7 @@ import { Command } from "@langchain/langgraph";
 const resumeStream = await agentWithHuman.stream(
   new Command({ resume: { type: "accept" } }),
   // new Command({ resume: { type: "edit", args: { query: "..." } } }),
-  { ...config, streamMode: "values" }
+  { ...config, streamMode: "values" },
 );
 
 for await (const step of resumeStream) {
@@ -611,7 +636,6 @@ for await (const step of resumeStream) {
   }
 }
 ```
-
 
 ```
 ================================== Ai Message ==================================
@@ -629,18 +653,22 @@ Name: sql_db_query
 The genre with the longest average track length is "Sci Fi & Fantasy" with an average length of about 2,911,783 milliseconds. Other genres with long average track lengths include "Science Fiction," "Drama," "TV Shows," and "Comedy."
 ```
 
-有关详细信息，请参阅[人在回路中指南](/oss/javascript/langgraph/interrupts)。
+有关详细信息，请参阅[Human in the Loop指南](/oss/javascript/langgraph/interrupts)。
 
 ## 后续步骤
+
 查看[评估图](/langsmith/evaluate-graph)指南，了解如何使用 LangSmith 评估 LangGraph 应用程序，包括像这样的 SQL 代理。
 
 ---
 
 <div className="source-links">
-<Callout icon="terminal-2">
-    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP 获取实时答案。
-</Callout>
-<Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/sql-agent.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
-</Callout>
+  <Callout icon="terminal-2">
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP
+    获取实时答案。
+  </Callout>
+  <Callout icon="edit">
+    [在 GitHub
+    上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/sql-agent.mdx)
+    或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
+  </Callout>
 </div>

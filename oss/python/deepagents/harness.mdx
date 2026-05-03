@@ -11,18 +11,19 @@ sidebarTitle: 概述
 - [任务委派（子代理）](#任务委派子代理)
 - [上下文与令牌管理](#上下文管理)
 - [代码执行](#代码执行)
-- [人在回路中](#人在回路中)
+- [Human in the Loop](#Human in the Loop)
 - [框架配置文件](#框架配置文件)
 
 除了这些能力，Deep Agents 还使用[技能](#技能)和[记忆](#记忆)来获取额外的上下文和指令。
 
-![Deep Agents 开放框架：规划、虚拟文件系统、权限、子代理、上下文管理、代码执行、人在回路中、技能和记忆](/oss/images/deepagents/production/open-harness.png)
+![Deep Agents 开放框架：规划、虚拟文件系统、权限、子代理、上下文管理、代码执行、Human in the Loop、技能和记忆](/oss/images/deepagents/production/open-harness.png)
 
 ## 规划能力
 
 框架提供了一个 `write_todos` 工具，代理可以使用它来维护结构化的任务列表。
 
 **功能：**
+
 - 跟踪多个任务及其状态（`'pending'`、`'in_progress'`、`'completed'`）
 - 持久化存储在代理状态中
 - 帮助代理组织复杂的多步骤工作
@@ -33,24 +34,24 @@ sidebarTitle: 概述
 框架提供了一个可配置的虚拟文件系统，可以由不同的可插拔后端支持。
 后端支持以下文件系统操作：
 
-| 工具 | 描述 |
-| ---- | ----------- |
-| `ls` | 列出目录中的文件及其元数据（大小、修改时间） |
-| `read_file` | 读取文件内容并显示行号，支持偏移量/限制以处理大文件。还支持为非文本文件（图像、视频、音频和文档）返回多模态内容块。请参阅下方支持的扩展名。 |
-| `write_file` | 创建新文件 |
-| `edit_file` | 在文件中执行精确的字符串替换（支持全局替换模式） |
-| `glob` | 查找匹配模式的文件（例如 `**/*.py`） |
-| `grep` | 搜索文件内容，支持多种输出模式（仅文件、带上下文的内容或计数） |
-| `execute` | 在环境中运行 shell 命令（仅在使用[沙箱后端](/oss/python/deepagents/sandboxes)时可用） |
+| 工具         | 描述                                                                                                                                        |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ls`         | 列出目录中的文件及其元数据（大小、修改时间）                                                                                                |
+| `read_file`  | 读取文件内容并显示行号，支持偏移量/限制以处理大文件。还支持为非文本文件（图像、视频、音频和文档）返回多模态内容块。请参阅下方支持的扩展名。 |
+| `write_file` | 创建新文件                                                                                                                                  |
+| `edit_file`  | 在文件中执行精确的字符串替换（支持全局替换模式）                                                                                            |
+| `glob`       | 查找匹配模式的文件（例如 `**/*.py`）                                                                                                        |
+| `grep`       | 搜索文件内容，支持多种输出模式（仅文件、带上下文的内容或计数）                                                                              |
+| `execute`    | 在环境中运行 shell 命令（仅在使用[沙箱后端](/oss/python/deepagents/sandboxes)时可用）                                                       |
 
 <Accordion title="支持的多模态文件扩展名">
 
-| 类型 | 扩展名 |
-| ---- | ---------- |
-| [图像](/oss/python/langchain/messages#multimodal) | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.heic`, `.heif` |
+| 类型                                              | 扩展名                                                                    |
+| ------------------------------------------------- | ------------------------------------------------------------------------- |
+| [图像](/oss/python/langchain/messages#multimodal) | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.heic`, `.heif`                |
 | [视频](/oss/python/langchain/messages#multimodal) | `.mp4`, `.mpeg`, `.mov`, `.avi`, `.flv`, `.mpg`, `.webm`, `.wmv`, `.3gpp` |
-| [音频](/oss/python/langchain/messages#multimodal) | `.wav`, `.mp3`, `.aiff`, `.aac`, `.ogg`, `.flac` |
-| [文件](/oss/python/langchain/messages#multimodal) | `.pdf`, `.ppt`, `.pptx` |
+| [音频](/oss/python/langchain/messages#multimodal) | `.wav`, `.mp3`, `.aiff`, `.aac`, `.ogg`, `.flac`                          |
+| [文件](/oss/python/langchain/messages#multimodal) | `.pdf`, `.ppt`, `.pptx`                                                   |
 
 </Accordion>
 
@@ -64,11 +65,13 @@ sidebarTitle: 概述
 框架支持声明式权限规则，用于控制代理可以读取或写入哪些文件和目录。权限适用于上述内置文件系统工具，并按声明顺序进行评估，采用首次匹配即生效的语义。
 
 **工作原理：**
+
 - 创建代理时，将规则列表传递给 `permissions=`
 - 每条规则指定 `operations`（`"read"`、`"write"`）、`paths`（glob 模式）和 `mode`（`"allow"` 或 `"deny"`）
 - 第一条匹配的规则生效。如果没有规则匹配，则允许该操作。
 
 **为何有用：**
+
 - 将代理限制在特定目录（例如 `/workspace/`）
 - 保护敏感文件（例如 `.env`、凭证）
 - 给予子代理比父代理更窄的访问权限
@@ -82,12 +85,14 @@ sidebarTitle: 概述
 框架允许主代理创建临时的“子代理”来处理隔离的多步骤任务。
 
 **为何有用：**
+
 - **上下文隔离** - 子代理的工作不会使主代理的上下文变得混乱
 - **并行执行** - 多个子代理可以并发运行
 - **专业化** - 子代理可以拥有不同的工具/配置
 - **令牌效率** - 大型子任务上下文被压缩为单个结果
 
 **工作原理：**
+
 - 主代理有一个 `task` 工具
 - 调用时，它会创建一个具有自己上下文的新代理实例
 - 子代理自主执行直到完成
@@ -95,17 +100,23 @@ sidebarTitle: 概述
 - 子代理是无状态的（无法发回多条消息）
 
 **默认子代理：**
+
 - “通用”子代理自动可用
 - 默认具有文件系统工具
 - 可以通过额外的工具/中间件进行自定义
 
 **自定义子代理：**
+
 - 使用特定工具定义专门的子代理
 - 示例：代码审查员、网络研究员、测试运行器
 - 通过 `subagents` 参数进行配置
 
 <Accordion title="不使用子代理运行（没有 `task` 工具）" icon="ban">
-    要在不使用 `task` 工具的情况下运行代理，请参阅[不使用子代理运行](/oss/python/deepagents/subagents#running-without-subagents)。不要尝试通过 `excluded_middleware` 移除 `SubAgentMiddleware`——这会被有意拒绝。相反，请通过[框架配置文件](#框架配置文件)禁用自动添加的子代理，并且不要通过 `subagents=` 传递同步子代理。异步子代理不受影响。
+  要在不使用 `task`
+  工具的情况下运行代理，请参阅[不使用子代理运行](/oss/python/deepagents/subagents#running-without-subagents)。不要尝试通过
+  `excluded_middleware` 移除
+  `SubAgentMiddleware`——这会被有意拒绝。相反，请通过[框架配置文件](#框架配置文件)禁用自动添加的子代理，并且不要通过
+  `subagents=` 传递同步子代理。异步子代理不受影响。
 </Accordion>
 
 ## 上下文管理
@@ -113,12 +124,14 @@ sidebarTitle: 概述
 框架管理上下文，使 Deep Agents 能够在令牌限制内处理长时间运行的任务，同时保留所需的信息。
 
 **工作原理：**
+
 - **输入上下文** — 系统提示、记忆、技能和工具提示塑造了代理在启动时所知的内容
 - **压缩** — 内置的卸载和摘要功能在任务进行时将上下文保持在窗口限制内
 - **隔离** — 子代理隔离繁重的工作并仅返回结果（参见[任务委派](#任务委派子代理)）
 - **长期记忆** — 通过虚拟文件系统跨线程持久存储
 
 **为何有用：**
+
 - 支持超出单个上下文窗口的多步骤任务
 - 无需手动修剪即可将最相关的信息保留在范围内
 - 通过自动摘要和卸载减少令牌使用量
@@ -130,27 +143,31 @@ sidebarTitle: 概述
 当您使用[沙箱后端](/oss/python/deepagents/sandboxes)时，框架会暴露一个 `execute` 工具，让代理在隔离环境中运行 shell 命令。这使代理能够安装依赖项、运行脚本以及作为其任务的一部分执行代码。
 
 **工作原理：**
+
 - 沙箱后端实现 `SandboxBackendProtocolV2` — 检测到后，框架会将 `execute` 工具添加到代理的可用工具中
 - 没有沙箱后端时，代理只有文件系统工具（`read_file`、`write_file` 等），无法运行命令
 - `execute` 工具返回组合的 stdout/stderr、退出码，并截断大型输出（保存到文件供代理增量读取）
 
 **为何有用：**
+
 - **安全性** — 代码在隔离环境中运行，保护您的主机系统免受代理操作的影响
 - **干净的环境** — 使用特定的依赖项或操作系统配置，无需本地设置
 - **可重现性** — 跨团队的一致执行环境
 
 有关设置、提供者和文件传输 API，请参阅[沙箱](/oss/python/deepagents/sandboxes)。
 
-## 人在回路中
+## Human in the Loop
 
 框架可以在指定的工具调用处暂停代理执行，以允许人工批准或修改。此功能通过 `interrupt_on` 参数选择启用。
 
 **配置：**
+
 - 将 `interrupt_on` 传递给 `create_deep_agent`，其中包含工具名称到中断配置的映射
 - 示例：`interrupt_on={"edit_file": True}` 会在每次编辑前暂停
 - 在提示时，您可以提供批准消息或修改工具输入
 
 **为何有用：**
+
 - 破坏性操作的安全门
 - 在昂贵的 API 调用前进行用户验证
 - 交互式调试和指导
@@ -160,6 +177,7 @@ sidebarTitle: 概述
 框架支持技能，为您的 Deep Agent 提供专门的工作流程和领域知识。
 
 **工作原理：**
+
 - 技能遵循 [Agent Skills 标准](https://agentskills.io/)
 - 每个技能是一个包含 `SKILL.md` 文件的目录，其中包含指令和元数据
 - 技能可以包含额外的脚本、参考文档、模板和其他资源
@@ -167,6 +185,7 @@ sidebarTitle: 概述
 - 代理在启动时读取每个 `SKILL.md` 文件的 frontmatter，然后在需要时查看完整的技能内容
 
 **为何有用：**
+
 - 通过仅在需要时加载相关技能来减少令牌使用量
 - 将功能与额外的上下文捆绑成更大的操作
 - 提供专业知识而不使系统提示变得混乱
@@ -180,6 +199,7 @@ sidebarTitle: 概述
 这些文件通常包含通用的编码风格、偏好、约定和指南，帮助代理了解如何与您的代码库协作并遵循您的偏好。
 
 **工作原理：**
+
 - 使用 [`AGENTS.md` 文件](https://agents.md/)提供持久化上下文
 - 记忆文件始终加载（与使用渐进式披露的技能不同）
 - 创建代理时，将一个或多个文件路径传递给 `memory` 参数
@@ -187,6 +207,7 @@ sidebarTitle: 概述
 - 代理可以根据您的交互、反馈和识别的模式更新记忆
 
 **为何有用：**
+
 - 提供无需在每次对话中重新指定的持久化上下文
 - 适用于存储用户偏好、项目指南或领域知识
 - 始终可供代理使用，确保行为一致
@@ -198,11 +219,13 @@ sidebarTitle: 概述
 当选择给定的提供者或模型时，框架可以应用声明式配置包（`HarnessProfile`）。配置文件在模型构建后调整运行时行为，无需每个代理的设置代码。
 
 **工作原理：**
+
 - 在提供者名称（`"openai"`）或 `provider:model` 键（`"openai:gpt-5.4"`）下注册配置文件
 - `create_deep_agent` 在解析模型时查找并应用配置文件
 - 提供者级别和模型级别的配置文件在解析时合并
 
 **为何有用：**
+
 - 将每个提供者或每个模型的默认值（系统提示调整、工具覆盖、中间件）打包在一个地方
 - 切换模型时保持 `create_deep_agent` 调用点不变
 - 通过入口点将可重用的配置文件作为插件发布
@@ -212,10 +235,13 @@ sidebarTitle: 概述
 ---
 
 <div className="source-links">
-<Callout icon="terminal-2">
-    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP 获取实时答案。
-</Callout>
-<Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/deepagents/harness.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
-</Callout>
+  <Callout icon="terminal-2">
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP
+    获取实时答案。
+  </Callout>
+  <Callout icon="edit">
+    [在 GitHub
+    上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/deepagents/harness.mdx)
+    或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
+  </Callout>
 </div>

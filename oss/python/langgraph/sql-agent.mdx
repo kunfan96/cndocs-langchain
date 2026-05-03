@@ -3,16 +3,16 @@ title: 构建自定义 SQL 代理
 sidebarTitle: 自定义 SQL 代理
 ---
 
-import ChatModelTabsPy from '/snippets/chat-model-tabs.mdx';
-import ChatModelTabsJS from '/snippets/chat-model-tabs-js.mdx';
-
+import ChatModelTabsPy from "/snippets/chat-model-tabs.mdx";
+import ChatModelTabsJS from "/snippets/chat-model-tabs-js.mdx";
 
 在本教程中，我们将构建一个自定义代理，该代理能够使用 LangGraph 回答关于 SQL 数据库的问题。
 
 LangChain 提供了内置的[代理](/oss/python/langchain/agents)实现，这些实现使用 [LangGraph](/oss/python/langgraph/overview) 原语构建。如果需要更深层次的定制，可以直接在 LangGraph 中实现代理。本指南演示了一个 SQL 代理的实现示例。有关实践入门，请参阅[使用更高级的 LangChain 抽象构建 SQL 代理](/oss/python/langchain/sql-agent)。
 
 <Warning>
-构建 SQL 数据库的问答系统需要执行模型生成的 SQL 查询。这样做存在固有风险。请确保您的数据库连接权限始终尽可能严格地限定在代理所需范围内。这将减轻（但不能消除）构建模型驱动系统的风险。
+  构建 SQL 数据库的问答系统需要执行模型生成的 SQL
+  查询。这样做存在固有风险。请确保您的数据库连接权限始终尽可能严格地限定在代理所需范围内。这将减轻（但不能消除）构建模型驱动系统的风险。
 </Warning>
 
 [预构建代理](/oss/python/langchain/sql-agent)让我们可以快速上手，但我们依赖系统提示来约束其行为——例如，我们指示代理始终从“列出表”工具开始，并在执行查询前始终运行查询检查工具。
@@ -25,7 +25,7 @@ LangChain 提供了内置的[代理](/oss/python/langchain/agents)实现，这�
 
 - 用于从 SQL 数据库读取的[工具](/oss/python/langchain/tools)
 - LangGraph [图 API](/oss/python/langgraph/graph-api)，包括状态、节点、边和条件边。
-- [人在回路中](/oss/python/langgraph/interrupts)流程
+- [Human in the Loop](/oss/python/langgraph/interrupts)流程
 
 ## 设置
 
@@ -37,9 +37,8 @@ LangChain 提供了内置的[代理](/oss/python/langchain/agents)实现，这�
     ```
     </CodeGroup>
 
-
-
 ### LangSmith
+
 设置 [LangSmith](https://smith.langchain.com) 以检查链或代理内部发生的情况。然后设置以下环境变量：
 
     ```shell
@@ -52,8 +51,6 @@ LangChain 提供了内置的[代理](/oss/python/langchain/agents)实现，这�
 选择一个支持[工具调用](/oss/python/integrations/providers/overview)的模型：
 
 <ChatModelTabsPy />
-
-
 
 下面示例中显示的输出使用了 OpenAI。
 
@@ -91,13 +88,12 @@ print(f"Dialect: {db.dialect}")
 print(f"Available tables: {db.get_usable_table_names()}")
 print(f'Sample output: {db.run("SELECT * FROM Artist LIMIT 5;")}')
 ```
+
 ```
 Dialect: sqlite
 Available tables: ['Album', 'Artist', 'Customer', 'Employee', 'Genre', 'Invoice', 'InvoiceLine', 'MediaType', 'Playlist', 'PlaylistTrack', 'Track']
 Sample output: [(1, 'AC/DC'), (2, 'Accept'), (3, 'Aerosmith'), (4, 'Alanis Morissette'), (5, 'Alice In Chains')]
 ```
-
-
 
 ## 3. 添加用于数据库交互的工具
 
@@ -113,6 +109,7 @@ tools = toolkit.get_tools()
 for tool in tools:
     print(f"{tool.name}: {tool.description}\n")
 ```
+
 ```
 sql_db_query: Input to this tool is a detailed and correct SQL query, output is a result from the database. If the query is not correct, an error message will be returned. If an error is returned, rewrite the query, check the query, and try again. If you encounter an issue with Unknown column 'xxxx' in 'field list', use sql_db_schema to query the correct table fields.
 
@@ -122,8 +119,6 @@ sql_db_list_tables: Input is an empty string, output is a comma-separated list o
 
 sql_db_query_checker: Use this tool to double check if your query is correct before executing it. Always use this tool before executing a query with sql_db_query!
 ```
-
-
 
 ## 4. 定义应用步骤
 
@@ -244,8 +239,6 @@ def check_query(state: MessagesState):
     return {"messages": [response]}
 ```
 
-
-
 ## 5. 实现代理
 
 我们现在可以使用 [图 API](/oss/python/langgraph/graph-api) 将这些步骤组装成一个工作流。我们在查询生成步骤定义了一个[条件边](/oss/python/langgraph/graph-api#conditional-edges)，如果生成了查询，则路由到查询检查器；如果没有工具调用（即 LLM 已对查询做出响应），则结束。
@@ -281,14 +274,15 @@ builder.add_edge("run_query", "generate_query")
 
 agent = builder.compile()
 ```
+
 我们在下面可视化该应用程序：
+
 ```python
 from IPython.display import Image, display
 from langchain_core.runnables.graph import CurveStyle, MermaidDrawMethod, NodeStyles
 
 display(Image(agent.get_graph().draw_mermaid_png()))
 ```
-
 
 <img
   src="/oss/images/sql-agent-langgraph.png"
@@ -297,6 +291,7 @@ display(Image(agent.get_graph().draw_mermaid_png()))
 />
 
 我们现在可以调用该图：
+
 ```python
 question = "Which genre on average has the longest tracks?"
 
@@ -306,7 +301,6 @@ for step in agent.stream(
 ):
     step["messages"][-1].pretty_print()
 ```
-
 
 ```
 ================================ Human Message =================================
@@ -383,17 +377,17 @@ Name: sql_db_query
 
 The genre with the longest tracks on average is "Sci Fi & Fantasy," with an average track length of approximately 2,911,783 milliseconds. Other genres with relatively long tracks include "Science Fiction," "Drama," "TV Shows," and "Comedy."
 ```
+
 <Tip>
-有关上述运行，请参阅 [LangSmith 跟踪](https://smith.langchain.com/public/94b8c9ac-12f7-4692-8706-836a1f30f1ea/r)。
+  有关上述运行，请参阅 [LangSmith
+  跟踪](https://smith.langchain.com/public/94b8c9ac-12f7-4692-8706-836a1f30f1ea/r)。
 </Tip>
 
-
-
-## 6. 实现人在回路中审查
+## 6. 实现Human in the Loop审查
 
 在执行代理的 SQL 查询之前进行检查是谨慎的做法，以避免任何意外操作或低效。
 
-这里我们利用 LangGraph 的[人在回路中](/oss/python/langgraph/interrupts)功能，在执行 SQL 查询前暂停运行并等待人工审查。使用 LangGraph 的[持久化层](/oss/python/langgraph/persistence)，我们可以无限期地暂停运行（或至少在持久化层存活期间）。
+这里我们利用 LangGraph 的[Human in the Loop](/oss/python/langgraph/interrupts)功能，在执行 SQL 查询前暂停运行并等待人工审查。使用 LangGraph 的[持久化层](/oss/python/langgraph/persistence)，我们可以无限期地暂停运行（或至少在持久化层存活期间）。
 
 让我们将 `sql_db_query` 工具包装在一个接收人工输入的节点中。我们可以使用 [interrupt](/oss/python/langgraph/interrupts) 函数来实现这一点。下面，我们允许输入以批准工具调用、编辑其参数或提供用户反馈。
 
@@ -434,10 +428,9 @@ def run_query_tool_with_interrupt(config: RunnableConfig, **tool_input):
 run_query_node = ToolNode([run_query_tool_with_interrupt], name="run_query") # [!code highlight]
 ```
 
-
-
 <Note>
-上述实现遵循了更广泛的[人在回路中](/oss/python/langgraph/interrupts)指南中的[工具中断示例](/oss/python/langgraph/interrupts#interrupts-in-tools)。有关详细信息和替代方案，请参阅该指南。
+  上述实现遵循了更广泛的[Human in the
+  Loop](/oss/python/langgraph/interrupts)指南中的[工具中断示例](/oss/python/langgraph/interrupts#interrupts-in-tools)。有关详细信息和替代方案，请参阅该指南。
 </Note>
 
 现在让我们重新组装我们的图。我们将用人工审查替换程序化检查。请注意，我们现在包含了一个[检查点](/oss/python/langgraph/persistence)；这是暂停和恢复运行所必需的。
@@ -474,8 +467,6 @@ checkpointer = InMemorySaver() # [!code highlight]
 agent = builder.compile(checkpointer=checkpointer) # [!code highlight]
 ```
 
-
-
 我们可以像以前一样调用该图。这次，执行被中断了：
 
 ```python
@@ -501,8 +492,6 @@ for step in agent.stream(
         pass
 ```
 
-
-
 ```
 ...
 
@@ -515,6 +504,7 @@ INTERRUPTED:
   "description": "Please review the tool call"
 }
 ```
+
 我们可以使用 [Command](/oss/python/langgraph/use-graph-api#combine-control-flow-and-state-updates-with-command) 来接受或编辑工具调用：
 
 ```python
@@ -538,8 +528,6 @@ for step in agent.stream(
         pass
 ```
 
-
-
 ```
 ================================== Ai Message ==================================
 Tool Calls:
@@ -556,18 +544,22 @@ Name: sql_db_query
 The genre with the longest average track length is "Sci Fi & Fantasy" with an average length of about 2,911,783 milliseconds. Other genres with long average track lengths include "Science Fiction," "Drama," "TV Shows," and "Comedy."
 ```
 
-有关详细信息，请参阅[人在回路中指南](/oss/python/langgraph/interrupts)。
+有关详细信息，请参阅[Human in the Loop指南](/oss/python/langgraph/interrupts)。
 
 ## 后续步骤
+
 查看[评估图](/langsmith/evaluate-graph)指南，了解如何使用 LangSmith 评估 LangGraph 应用程序，包括像这样的 SQL 代理。
 
 ---
 
 <div className="source-links">
-<Callout icon="terminal-2">
-    [将这些文档](/use-these-docs)通过 MCP 连接到 Claude、VSCode 等，以获取实时答案。
-</Callout>
-<Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/sql-agent.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
-</Callout>
+  <Callout icon="terminal-2">
+    [将这些文档](/use-these-docs)通过 MCP 连接到 Claude、VSCode
+    等，以获取实时答案。
+  </Callout>
+  <Callout icon="edit">
+    [在 GitHub
+    上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/sql-agent.mdx)
+    或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
+  </Callout>
 </div>
