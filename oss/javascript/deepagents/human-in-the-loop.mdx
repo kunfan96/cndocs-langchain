@@ -1,12 +1,12 @@
 ---
-title: 人在回路
+title: Human in the Loop
 description: 了解如何为敏感工具操作配置人工审批
 ---
 
-import HitlBasicConfigPy from '/snippets/hitl-basic-config-py.mdx';
-import HitlBasicConfigJs from '/snippets/hitl-basic-config-js.mdx';
+import HitlBasicConfigPy from "/snippets/hitl-basic-config-py.mdx";
+import HitlBasicConfigJs from "/snippets/hitl-basic-config-js.mdx";
 
-某些工具操作可能很敏感，需要在执行前获得人工批准。Deep Agents 通过 LangGraph 的中断功能支持人在回路工作流。你可以使用 `interrupt_on` 参数配置哪些工具需要审批。
+某些工具操作可能很敏感，需要在执行前获得人工批准。Deep Agents 通过 LangGraph 的中断功能支持Human in the Loop工作流。你可以使用 `interrupt_on` 参数配置哪些工具需要审批。
 
 ```mermaid
 graph LR
@@ -41,10 +41,7 @@ graph LR
 - **`False`**：禁用此工具的中断
 - **`{"allowed_decisions": [...]}`**：自定义配置，指定允许的决策
 
-
-
 <HitlBasicConfigJs />
-
 
 ## 决策类型
 
@@ -56,8 +53,6 @@ graph LR
 - **`"respond"`**：将人工的消息直接作为工具结果返回，跳过执行——适用于“询问用户”风格的工具
 
 你可以自定义每个工具可用的决策：
-
-
 
 ```typescript
 const interruptOn = {
@@ -72,12 +67,9 @@ const interruptOn = {
 };
 ```
 
-
 ## 处理中断
 
 当中断被触发时，代理会暂停执行并返回控制权。检查结果中的中断并相应处理。
-
-
 
 ```typescript
 import { v7 as uuid7 } from "uuid";
@@ -87,9 +79,12 @@ import { Command } from "@langchain/langgraph";
 const config = { configurable: { thread_id: uuid7() } };
 
 // 调用代理
-let result = await agent.invoke({
-  messages: [{ role: "user", content: "删除文件 temp.txt" }],
-}, config);
+let result = await agent.invoke(
+  {
+    messages: [{ role: "user", content: "删除文件 temp.txt" }],
+  },
+  config,
+);
 
 // 检查执行是否被中断
 if (result.__interrupt__) {
@@ -100,7 +95,7 @@ if (result.__interrupt__) {
 
   // 创建从工具名称到审查配置的查找映射
   const configMap = Object.fromEntries(
-    reviewConfigs.map((cfg) => [cfg.actionName, cfg])
+    reviewConfigs.map((cfg) => [cfg.actionName, cfg]),
   );
 
   // 向用户显示待处理的操作
@@ -113,13 +108,13 @@ if (result.__interrupt__) {
 
   // 获取用户决策（每个 actionRequest 一个，按顺序）
   const decisions = [
-    { type: "approve" }  // 用户批准了删除
+    { type: "approve" }, // 用户批准了删除
   ];
 
   // 使用决策恢复执行
   result = await agent.invoke(
     new Command({ resume: { decisions } }),
-    config  // 必须使用相同的配置！
+    config, // 必须使用相同的配置！
   );
 }
 
@@ -127,22 +122,24 @@ if (result.__interrupt__) {
 console.log(result.messages[result.messages.length - 1].content);
 ```
 
-
 ## 多个工具调用
 
 当代理调用多个需要审批的工具时，所有中断会批量包含在单个中断中。你必须按顺序为每个中断提供决策。
 
-
-
 ```typescript
 const config = { configurable: { thread_id: uuid7() } };
 
-let result = await agent.invoke({
-  messages: [{
-    role: "user",
-    content: "删除 temp.txt 并向 admin@example.com 发送电子邮件"
-  }]
-}, config);
+let result = await agent.invoke(
+  {
+    messages: [
+      {
+        role: "user",
+        content: "删除 temp.txt 并向 admin@example.com 发送电子邮件",
+      },
+    ],
+  },
+  config,
+);
 
 if (result.__interrupt__) {
   const interrupts = result.__interrupt__[0].value;
@@ -153,23 +150,17 @@ if (result.__interrupt__) {
 
   // 按与 actionRequests 相同的顺序提供决策
   const decisions = [
-    { type: "approve" },  // 第一个工具：delete_file
-    { type: "reject" }    // 第二个工具：send_email
+    { type: "approve" }, // 第一个工具：delete_file
+    { type: "reject" }, // 第二个工具：send_email
   ];
 
-  result = await agent.invoke(
-    new Command({ resume: { decisions } }),
-    config
-  );
+  result = await agent.invoke(new Command({ resume: { decisions } }), config);
 }
 ```
-
 
 ## 编辑工具参数
 
 当 `"edit"` 在允许的决策中时，你可以在执行前修改工具参数：
-
-
 
 ```typescript
 if (result.__interrupt__) {
@@ -177,24 +168,22 @@ if (result.__interrupt__) {
   const actionRequest = interrupts.actionRequests[0];
 
   // 来自代理的原始参数
-  console.log(actionRequest.args);  // { to: "everyone@company.com", ... }
+  console.log(actionRequest.args); // { to: "everyone@company.com", ... }
 
   // 用户决定编辑收件人
-  const decisions = [{
-    type: "edit",
-    editedAction: {
-      name: actionRequest.name,  // 必须包含工具名称
-      args: { to: "team@company.com", subject: "...", body: "..." }
-    }
-  }];
+  const decisions = [
+    {
+      type: "edit",
+      editedAction: {
+        name: actionRequest.name, // 必须包含工具名称
+        args: { to: "team@company.com", subject: "...", body: "..." },
+      },
+    },
+  ];
 
-  result = await agent.invoke(
-    new Command({ resume: { decisions } }),
-    config
-  );
+  result = await agent.invoke(new Command({ resume: { decisions } }), config);
 }
 ```
-
 
 ## 子代理中断
 
@@ -204,8 +193,6 @@ if (result.__interrupt__) {
 
 每个子代理可以有自己的 `interrupt_on` 配置，覆盖主代理的设置：
 
-
-
 ```typescript
 const agent = createDeepAgent({
   tools: [deleteFile, readFile],
@@ -213,29 +200,28 @@ const agent = createDeepAgent({
     delete_file: true,
     read_file: false,
   },
-  subagents: [{
-    name: "file-manager",
-    description: "管理文件操作",
-    systemPrompt: "你是一个文件管理助手。",
-    tools: [deleteFile, readFile],
-    interruptOn: {
-      // 覆盖：在此子代理中要求读取操作需要审批
-      delete_file: true,
-      read_file: true,  // 与主代理不同！
-    }
-  }],
-  checkpointer
+  subagents: [
+    {
+      name: "file-manager",
+      description: "管理文件操作",
+      systemPrompt: "你是一个文件管理助手。",
+      tools: [deleteFile, readFile],
+      interruptOn: {
+        // 覆盖：在此子代理中要求读取操作需要审批
+        delete_file: true,
+        read_file: true, // 与主代理不同！
+      },
+    },
+  ],
+  checkpointer,
 });
 ```
-
 
 当子代理触发中断时，处理方式相同——检查结果中的 `interrupts` 并使用 `Command` 恢复。
 
 ### 工具调用内的中断
 
 子代理工具可以直接调用 `interrupt()` 来暂停执行并等待审批：
-
-
 
 ```typescript
 import { createAgent, tool } from "langchain";
@@ -265,11 +251,9 @@ const requestApproval = tool(
     name: "request_approval",
     description: "在继续操作前请求人工批准。",
     schema: z.object({
-      actionDescription: z
-        .string()
-        .describe("需要批准的操作"),
+      actionDescription: z.string().describe("需要批准的操作"),
     }),
-  }
+  },
 );
 
 async function main() {
@@ -311,7 +295,7 @@ async function main() {
         }),
       ],
     },
-    config
+    config,
   );
 
   if (result.__interrupt__) {
@@ -328,7 +312,7 @@ async function main() {
     console.log("\n使用 Command(resume={'approved': true}) 恢复...");
     const result2 = await parentAgent.invoke(
       new Command({ resume: { approved: true } }),
-      config
+      config,
     );
 
     if (!result2.__interrupt__) {
@@ -343,15 +327,12 @@ async function main() {
       console.log("\n发生了另一个中断");
     }
   } else {
-    console.log(
-      "\n  没有中断 - 模型可能没有调用 request_approval"
-    );
+    console.log("\n  没有中断 - 模型可能没有调用 request_approval");
   }
 }
 
 main().catch(console.error);
 ```
-
 
 运行时，这会产生以下输出：
 
@@ -369,27 +350,19 @@ main().catch(console.error);
   工具结果: "部署到生产环境"的批准已授予。您可以继续进行部署。
 ```
 
-
-
 ## 最佳实践
 
 ### 始终使用检查点
 
-人在回路需要检查点来在中断和恢复之间持久化代理状态：
-
-
+Human in the Loop需要检查点来在中断和恢复之间持久化代理状态：
 
 ### 使用相同的线程 ID
 
 恢复时，你必须使用具有相同 `thread_id` 的相同配置：
 
-
-
 ### 匹配决策顺序与操作
 
 决策列表必须与 `action_requests` 的顺序匹配：
-
-
 
 ### 根据风险定制配置
 
@@ -398,10 +371,13 @@ main().catch(console.error);
 ---
 
 <div className="source-links">
-<Callout icon="terminal-2">
-    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP 获取实时答案。
-</Callout>
-<Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/deepagents/human-in-the-loop.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
-</Callout>
+  <Callout icon="terminal-2">
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP
+    获取实时答案。
+  </Callout>
+  <Callout icon="edit">
+    [在 GitHub
+    上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/deepagents/human-in-the-loop.mdx)
+    或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
+  </Callout>
 </div>

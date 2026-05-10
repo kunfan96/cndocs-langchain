@@ -2,24 +2,24 @@
 title: 持久化
 ---
 
-LangGraph 内置了一个持久化层，它将图状态保存为检查点。当您使用检查点保存器编译图时，执行过程中的每一步都会保存图状态的快照，并组织成线程。这支持了人在回路工作流、对话记忆、时间旅行调试和容错执行。
+LangGraph 内置了一个持久化层，它将图状态保存为检查点。当您使用检查点保存器编译图时，执行过程中的每一步都会保存图状态的快照，并组织成线程。这支持了Human in the Loop工作流、对话记忆、时间旅行调试和容错执行。
 
 ![检查点](/oss/images/checkpoints.jpg)
 
 <Info>
-**代理服务器自动处理检查点保存**
-使用 [代理服务器](/langsmith/agent-server) 时，您无需手动实现或配置检查点保存器。服务器会在后台为您处理所有持久化基础设施。
+  **代理服务器自动处理检查点保存** 使用 [代理服务器](/langsmith/agent-server)
+  时，您无需手动实现或配置检查点保存器。服务器会在后台为您处理所有持久化基础设施。
 </Info>
 
 ## 为什么使用持久化
 
 以下功能需要持久化：
 
-- **人在回路**：检查点保存器通过允许人类检查、中断和批准图步骤来促进 [人在回路工作流](/oss/javascript/langgraph/interrupts)。这些工作流需要检查点保存器，因为人员必须能够在任何时间点查看图的状态，并且图必须能够在人员对状态进行任何更新后恢复执行。有关示例，请参阅 [中断](/oss/javascript/langgraph/interrupts)。
+- **Human in the Loop**：检查点保存器通过允许人类检查、中断和批准图步骤来促进 [Human in the Loop工作流](/oss/javascript/langgraph/interrupts)。这些工作流需要检查点保存器，因为人员必须能够在任何时间点查看图的状态，并且图必须能够在人员对状态进行任何更新后恢复执行。有关示例，请参阅 [中断](/oss/javascript/langgraph/interrupts)。
 - **记忆**：检查点保存器允许在交互之间存在 ["记忆"](/oss/javascript/concepts/memory)。在重复的人类交互（如对话）的情况下，任何后续消息都可以发送到该线程，该线程将保留其对先前交互的记忆。有关如何使用检查点保存器添加和管理对话记忆的信息，请参阅 [添加记忆](/oss/javascript/langgraph/add-memory)。
 - **时间旅行**：检查点保存器允许 ["时间旅行"](/oss/javascript/langgraph/use-time-travel)，允许用户重放先前的图执行以审查和/或调试特定的图步骤。此外，检查点保存器使得可以在任意检查点处分叉图状态，以探索替代轨迹。
 - **容错性**：检查点保存提供了容错性和错误恢复：如果一个或多个节点在给定的超级步骤中失败，您可以从最后一个成功的步骤重新启动图。
-<a id="pending-writes"></a>
+  <a id="pending-writes"></a>
 - **待处理写入**：当图节点在给定的 [超级步骤](#super-steps) 中执行失败时，LangGraph 会存储在该超级步骤中成功完成的任何其他节点的待处理检查点写入。当您从该超级步骤恢复图执行时，您不会重新运行成功的节点。
 
 ## 核心概念
@@ -55,7 +55,14 @@ LangGraph 在每个 **超级步骤** 边界创建一个检查点。超级步骤�
 让我们看看当按如下方式调用简单图时保存了哪些检查点：
 
 ```typescript
-import { StateGraph, StateSchema, ReducedValue, START, END, MemorySaver } from "@langchain/langgraph";
+import {
+  StateGraph,
+  StateSchema,
+  ReducedValue,
+  START,
+  END,
+  MemorySaver,
+} from "@langchain/langgraph";
 import { z } from "zod/v4";
 
 const State = new StateSchema({
@@ -65,7 +72,7 @@ const State = new StateSchema({
     {
       inputSchema: z.array(z.string()),
       reducer: (x, y) => x.concat(y),
-    }
+    },
   ),
 });
 
@@ -89,10 +96,10 @@ await graph.invoke({ foo: "", bar: [] }, config);
 
 运行图后，我们期望看到正好 4 个检查点：
 
-* 空检查点，下一个要执行的节点是 [`START`](https://reference.langchain.com/javascript/langchain-langgraph/index/START)
-* 包含用户输入 `{'foo': '', 'bar': []}` 的检查点，下一个要执行的节点是 `nodeA`
-* 包含 `nodeA` 输出 `{'foo': 'a', 'bar': ['a']}` 的检查点，下一个要执行的节点是 `nodeB`
-* 包含 `nodeB` 输出 `{'foo': 'b', 'bar': ['a', 'b']}` 的检查点，没有下一个要执行的节点
+- 空检查点，下一个要执行的节点是 [`START`](https://reference.langchain.com/javascript/langchain-langgraph/index/START)
+- 包含用户输入 `{'foo': '', 'bar': []}` 的检查点，下一个要执行的节点是 `nodeA`
+- 包含 `nodeA` 输出 `{'foo': 'a', 'bar': ['a']}` 的检查点，下一个要执行的节点是 `nodeB`
+- 包含 `nodeB` 输出 `{'foo': 'b', 'bar': ['a', 'b']}` 的检查点，没有下一个要执行的节点
 
 请注意，`bar` 通道值包含来自两个节点的输出，因为我们为 `bar` 通道设置了一个归约器。
 
@@ -120,7 +127,7 @@ function myNode(state: typeof State.Type, config: RunnableConfig) {
 
 ### 获取状态
 
-与保存的图状态交互时，您**必须**指定 [线程标识符](#threads)。您可以通过调用 `graph.getState(config)` 来查看图的_最新_状态。这将返回一个 `StateSnapshot` 对象，该对象对应于与配置中提供的线程 ID 关联的最新检查点，或者如果提供了检查点 ID，则对应于与该检查点 ID 关联的检查点。
+与保存的图状态交互时，您**必须**指定 [线程标识符](#threads)。您可以通过调用 `graph.getState(config)` 来查看图的*最新*状态。这将返回一个 `StateSnapshot` 对象，该对象对应于与配置中提供的线程 ID 关联的最新检查点，或者如果提供了检查点 ID，则对应于与该检查点 ID 关联的检查点。
 
 ```typescript
 // 获取最新状态快照
@@ -169,15 +176,15 @@ StateSnapshot {
 
 #### StateSnapshot 字段
 
-| 字段 | 类型 | 描述 |
-|-------|------|-------------|
-| `values` | `object` | 此检查点处的状态通道值。 |
-| `next` | `string[]` | 下一个要执行的节点名称。空 `[]` 表示图已完成。 |
-| `config` | `object` | 包含 `thread_id`、`checkpoint_ns` 和 `checkpoint_id`。 |
-| `metadata` | `object` | 执行元数据。包含 `source`（`"input"`、`"loop"` 或 `"update"`）、`writes`（节点输出）和 `step`（超级步骤计数器）。 |
-| `createdAt` | `string` | 此检查点创建时的 ISO 8601 时间戳。 |
-| `parentConfig` | `object \| null` | 上一个检查点的配置。第一个检查点为 `null`。 |
-| `tasks` | `PregelTask[]` | 此步骤要执行的任务。每个任务都有 `id`、`name`、`error`、`interrupts`，以及可选的 `state`（子图快照，当使用 `subgraphs: true` 时）。 |
+| 字段           | 类型             | 描述                                                                                                                                |
+| -------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `values`       | `object`         | 此检查点处的状态通道值。                                                                                                            |
+| `next`         | `string[]`       | 下一个要执行的节点名称。空 `[]` 表示图已完成。                                                                                      |
+| `config`       | `object`         | 包含 `thread_id`、`checkpoint_ns` 和 `checkpoint_id`。                                                                              |
+| `metadata`     | `object`         | 执行元数据。包含 `source`（`"input"`、`"loop"` 或 `"update"`）、`writes`（节点输出）和 `step`（超级步骤计数器）。                   |
+| `createdAt`    | `string`         | 此检查点创建时的 ISO 8601 时间戳。                                                                                                  |
+| `parentConfig` | `object \| null` | 上一个检查点的配置。第一个检查点为 `null`。                                                                                         |
+| `tasks`        | `PregelTask[]`   | 此步骤要执行的任务。每个任务都有 `id`、`name`、`error`、`interrupts`，以及可选的 `state`（子图快照，当使用 `subgraphs: true` 时）。 |
 
 ### 获取状态历史记录
 
@@ -335,7 +342,7 @@ const forks = history.filter((s) => s.metadata.source === "update");
 
 // 查找发生中断的检查点
 const interrupted = history.find(
-  (s) => s.tasks.length > 0 && s.tasks.some((t) => t.interrupts.length > 0)
+  (s) => s.tasks.length > 0 && s.tasks.some((t) => t.interrupts.length > 0),
 );
 ```
 
@@ -349,7 +356,7 @@ const interrupted = history.find(
 
 ### 更新状态
 
-您可以使用 `graph.updateState()` 编辑图状态。这会创建一个具有更新值的新检查点——它不会修改原始检查点。更新的处理方式与节点更新相同：当定义了 [归约器](/oss/javascript/langgraph/graph-api#reducers) 函数时，值会通过这些函数传递，因此带有归约器的通道会_累积_值而不是覆盖它们。
+您可以使用 `graph.updateState()` 编辑图状态。这会创建一个具有更新值的新检查点——它不会修改原始检查点。更新的处理方式与节点更新相同：当定义了 [归约器](/oss/javascript/langgraph/graph-api#reducers) 函数时，值会通过这些函数传递，因此带有归约器的通道会*累积*值而不是覆盖它们。
 
 您可以选择指定 `asNode` 来控制更新被视为来自哪个节点，这会影响接下来执行哪个节点。有关详细信息，请参阅 [时间旅行：`asNode`](/oss/javascript/langgraph/use-time-travel#from-a-specific-node)。
 
@@ -361,17 +368,20 @@ const interrupted = history.find(
 
 [状态模式](/oss/javascript/langgraph/graph-api#schema) 指定了一组在图执行时填充的键。如上所述，状态可以由检查点保存器在每个图步骤写入线程，从而实现状态持久化。
 
-如果我们想_跨线程_保留一些信息呢？考虑一个聊天机器人的场景，我们希望在与该用户的所有聊天对话（即线程）中保留关于该用户的特定信息！
+如果我们想*跨线程*保留一些信息呢？考虑一个聊天机器人的场景，我们希望在与该用户的所有聊天对话（即线程）中保留关于该用户的特定信息！
 
 仅使用检查点保存器，我们无法跨线程共享信息。这就需要 [`Store`](https://reference.langchain.com/python/langgraph/store/) 接口。作为说明，我们可以定义一个 `InMemoryStore` 来跨线程存储用户信息。我们只需像以前一样使用检查点保存器编译图，并传递存储。
 
 <Info>
-**LangGraph API 自动处理存储**
-使用 LangGraph API 时，您无需手动实现或配置存储。API 会在后台为您处理所有存储基础设施。
+  **LangGraph API 自动处理存储** 使用 LangGraph API
+  时，您无需手动实现或配置存储。API 会在后台为您处理所有存储基础设施。
 </Info>
 
 <Note>
-[InMemoryStore](https://reference.langchain.com/javascript/langchain-core/stores/InMemoryStore) 适用于开发和测试。对于生产环境，请使用持久化存储，如 `PostgresStore`、`MongoDBStore` 或 `RedisStore`。所有实现都扩展了 [BaseStore](https://reference.langchain.com/javascript/langchain-core/stores/BaseStore)，这是在节点函数签名中使用的类型注解。
+  [InMemoryStore](https://reference.langchain.com/javascript/langchain-core/stores/InMemoryStore)
+  适用于开发和测试。对于生产环境，请使用持久化存储，如
+  `PostgresStore`、`MongoDBStore` 或 `RedisStore`。所有实现都扩展了
+  [BaseStore](https://reference.langchain.com/javascript/langchain-core/stores/BaseStore)，这是在节点函数签名中使用的类型注解。
 </Note>
 
 ### 基本用法
@@ -418,16 +428,17 @@ memories[memories.length - 1];
 
 它具有的属性是：
 
-* `value`：此记忆的值
-* `key`：此记忆在此命名空间中的唯一键
-* `namespace`：字符串元组，此记忆类型的命名空间
+- `value`：此记忆的值
+- `key`：此记忆在此命名空间中的唯一键
+- `namespace`：字符串元组，此记忆类型的命名空间
 
-    <Note>
-    虽然类型是 `tuple`，但在转换为 JSON 时可能会序列化为列表（例如 `['1', 'memories']`）。
-    </Note>
+  <Note>
+    虽然类型是 `tuple`，但在转换为 JSON 时可能会序列化为列表（例如 `['1',
+    'memories']`）。
+  </Note>
 
-* `createdAt`：此记忆创建时的时间戳
-* `updatedAt`：此记忆更新时的时间戳
+- `createdAt`：此记忆创建时的时间戳
+- `updatedAt`：此记忆更新时的时间戳
 
 ### 语义搜索
 
@@ -467,7 +478,7 @@ await store.put(
     food_preference: "I love Italian cuisine",
     context: "Discussing dinner plans",
   },
-  { index: ["food_preference"] } // 仅嵌入 "food_preferences" 字段
+  { index: ["food_preference"] }, // 仅嵌入 "food_preferences" 字段
 );
 
 // 存储时不嵌入（仍可检索，但不可搜索）
@@ -475,13 +486,13 @@ await store.put(
   namespaceForMemory,
   uuidv4(),
   { system_info: "Last updated: 2024-01-01" },
-  { index: false }
+  { index: false },
 );
 ```
 
 ### 在 LangGraph 中使用
 
-有了这一切，我们在 LangGraph 中使用 `memoryStore`。`memoryStore` 与检查点保存器协同工作：检查点保存器将状态保存到线程中，如上所述，而 `memoryStore` 允许我们存储任意信息以供_跨_线程访问。我们如下编译图，同时使用检查点保存器和 `memoryStore`。
+有了这一切，我们在 LangGraph 中使用 `memoryStore`。`memoryStore` 与检查点保存器协同工作：检查点保存器将状态保存到线程中，如上所述，而 `memoryStore` 允许我们存储任意信息以供*跨*线程访问。我们如下编译图，同时使用检查点保存器和 `memoryStore`。
 
 ```typescript
 import { MemorySaver } from "@langchain/langgraph";
@@ -505,13 +516,13 @@ const config = { configurable: { thread_id: "1" }, context: { userId } };
 // 首先，让我们只是向 AI 打个招呼
 for await (const update of await graph.stream(
   { messages: [{ role: "user", content: "hi" }] },
-  { ...config, streamMode: "updates" }
+  { ...config, streamMode: "updates" },
 )) {
   console.log(update);
 }
 ```
 
-您可以通过 `runtime` 参数在_任何节点_中访问存储和 `userId`。以下是如何使用它来保存记忆的示例：
+您可以通过 `runtime` 参数在*任何节点*中访问存储和 `userId`。以下是如何使用它来保存记忆的示例：
 
 ```typescript
 import { StateSchema, MessagesValue, Runtime } from "@langchain/langgraph";
@@ -521,7 +532,10 @@ const MessagesState = new StateSchema({
   messages: MessagesValue,
 });
 
-const updateMemory: GraphNode<typeof MessagesState> = async (state, runtime) => {
+const updateMemory: GraphNode<typeof MessagesState> = async (
+  state,
+  runtime,
+) => {
   // 从配置中获取用户 ID
   const userId = runtime.context?.user_id;
   if (!userId) throw new Error("User ID is required");
@@ -583,7 +597,7 @@ const config = { configurable: { thread_id: "2" }, context: { userId: "1" } };
 // 让我们再次打个招呼
 for await (const update of await graph.stream(
   { messages: [{ role: "user", content: "hi, tell me about my memories" }] },
-  { ...config, streamMode: "updates" }
+  { ...config, streamMode: "updates" },
 )) {
   console.log(update);
 }
@@ -612,28 +626,31 @@ for await (const update of await graph.stream(
 
 在底层，检查点保存由符合 [`BaseCheckpointSaver`](https://reference.langchain.com/javascript/langchain-langgraph/index/BaseCheckpointSaver) 接口的检查点保存器对象提供支持。LangGraph 提供了多种检查点保存器实现，所有实现都通过独立的、可安装的库实现。
 
-* `@langchain/langgraph-checkpoint`：检查点保存器保存器的基础接口（[`BaseCheckpointSaver`](https://reference.langchain.com/javascript/langchain-langgraph/index/BaseCheckpointSaver)）和序列化/反序列化接口（[`SerializerProtocol`](https://reference.langchain.com/javascript/langchain-langgraph-checkpoint/SerializerProtocol)）。包括用于实验的内存检查点保存器实现（[`MemorySaver`](https://reference.langchain.com/javascript/langchain-langgraph/index/MemorySaver)）。LangGraph 自带 `@langchain/langgraph-checkpoint`。
-* `@langchain/langgraph-checkpoint-sqlite`：使用 SQLite 数据库的 LangGraph 检查点保存器实现（[`SqliteSaver`](https://reference.langchain.com/javascript/langchain-langgraph-checkpoint-sqlite/SqliteSaver)）。适用于实验和本地工作流。需要单独安装。
-* `@langchain/langgraph-checkpoint-postgres`：使用 Postgres 数据库的高级检查点保存器（[`PostgresSaver`](https://reference.langchain.com/javascript/langchain-langgraph-checkpoint-postgres/index/PostgresSaver)），在 LangSmith 中使用。适用于生产环境。需要单独安装。
-* `@langchain/langgraph-checkpoint-mongodb`：由 MongoDB 支持的高级检查点保存器（`MongoDBSaver`）和长期记忆存储（`MongoDBStore`）。存储支持跨线程持久化，并可选集成向量搜索。适用于生产环境。需要单独安装。
-* `@langchain/langgraph-checkpoint-redis`：使用 Redis 数据库的高级检查点保存器（`RedisSaver`）。适用于生产环境。需要单独安装。
+- `@langchain/langgraph-checkpoint`：检查点保存器保存器的基础接口（[`BaseCheckpointSaver`](https://reference.langchain.com/javascript/langchain-langgraph/index/BaseCheckpointSaver)）和序列化/反序列化接口（[`SerializerProtocol`](https://reference.langchain.com/javascript/langchain-langgraph-checkpoint/SerializerProtocol)）。包括用于实验的内存检查点保存器实现（[`MemorySaver`](https://reference.langchain.com/javascript/langchain-langgraph/index/MemorySaver)）。LangGraph 自带 `@langchain/langgraph-checkpoint`。
+- `@langchain/langgraph-checkpoint-sqlite`：使用 SQLite 数据库的 LangGraph 检查点保存器实现（[`SqliteSaver`](https://reference.langchain.com/javascript/langchain-langgraph-checkpoint-sqlite/SqliteSaver)）。适用于实验和本地工作流。需要单独安装。
+- `@langchain/langgraph-checkpoint-postgres`：使用 Postgres 数据库的高级检查点保存器（[`PostgresSaver`](https://reference.langchain.com/javascript/langchain-langgraph-checkpoint-postgres/index/PostgresSaver)），在 LangSmith 中使用。适用于生产环境。需要单独安装。
+- `@langchain/langgraph-checkpoint-mongodb`：由 MongoDB 支持的高级检查点保存器（`MongoDBSaver`）和长期记忆存储（`MongoDBStore`）。存储支持跨线程持久化，并可选集成向量搜索。适用于生产环境。需要单独安装。
+- `@langchain/langgraph-checkpoint-redis`：使用 Redis 数据库的高级检查点保存器（`RedisSaver`）。适用于生产环境。需要单独安装。
 
 ### 检查点保存器接口
 
 每个检查点保存器都符合 [`BaseCheckpointSaver`](https://reference.langchain.com/javascript/langchain-langgraph/index/BaseCheckpointSaver) 接口并实现以下方法：
 
-* `.put` - 存储检查点及其配置和元数据。
-* `.putWrites` - 存储与检查点关联的中间写入（即 [待处理写入](#pending-writes)）。
-* `.getTuple` - 使用给定配置（`thread_id` 和 `checkpoint_id`）获取检查点元组。这用于填充 `graph.getState()` 中的 `StateSnapshot`。
-* `.list` - 列出与给定配置和过滤条件匹配的检查点。这用于填充 `graph.getStateHistory()` 中的状态历史记录。
+- `.put` - 存储检查点及其配置和元数据。
+- `.putWrites` - 存储与检查点关联的中间写入（即 [待处理写入](#pending-writes)）。
+- `.getTuple` - 使用给定配置（`thread_id` 和 `checkpoint_id`）获取检查点元组。这用于填充 `graph.getState()` 中的 `StateSnapshot`。
+- `.list` - 列出与给定配置和过滤条件匹配的检查点。这用于填充 `graph.getStateHistory()` 中的状态历史记录。
 
 ---
 
 <div className="source-links">
-<Callout icon="terminal-2">
-    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP 获取实时答案。
-</Callout>
-<Callout icon="edit">
-    [在 GitHub 上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/persistence.mdx) 或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
-</Callout>
+  <Callout icon="terminal-2">
+    [将这些文档连接](/use-these-docs)到 Claude、VSCode 等，通过 MCP
+    获取实时答案。
+  </Callout>
+  <Callout icon="edit">
+    [在 GitHub
+    上编辑此页面](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/persistence.mdx)
+    或 [提交问题](https://github.com/langchain-ai/docs/issues/new/choose)。
+  </Callout>
 </div>
